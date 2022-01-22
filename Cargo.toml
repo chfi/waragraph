@@ -1,0 +1,23 @@
+[package]
+name = "waragraph"
+version = "0.0.1"
+edition = "2021"
+description = "Sparse matrix variation graphs"
+license = "MIT"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+nalgebra = "0.30"
+nalgebra-sparse = "0.6"
+
+thunderdome = "0.5"
+rustc-hash = "1.1"
+
+internment = "0.5"
+
+# sprs =
+
+bstr = "0.2"
+
+log = "0.4"
