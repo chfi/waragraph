@@ -1,3 +1,6 @@
+pub mod graph;
+pub mod paths;
+
 #[cfg(test)]
 mod tests {
     #[test]
