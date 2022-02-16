@@ -1,0 +1,21 @@
+#version 450
+
+layout (rgba8, set = 0, binding = 0) writeonly uniform image2D image;
+
+layout (push_constant) uniform Inputs {
+  vec4 color;
+  int img_width;
+  int img_height;
+} inputs;
+
+layout(local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
+
+void main() {
+  ivec2 xy = ivec2(gl_GlobalInvocationID.xy);
+
+  if (xy.x >= inputs.img_width || xy.y >= inputs.img_height) {
+    return;
+  }
+
+  imageStore(image, xy, inputs.color);
+}

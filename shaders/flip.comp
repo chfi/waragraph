@@ -1,0 +1,27 @@
+#version 450
+
+layout (rgba8, set = 0, binding = 0) readonly uniform image2D image_in;
+layout (rgba8, set = 0, binding = 1) writeonly uniform image2D image_out;
+
+layout (push_constant) uniform Inputs {
+  int img_width;
+  int img_height;
+} inputs;
+
+layout(local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
+
+void main() {
+  ivec2 xy = ivec2(gl_GlobalInvocationID.xy);
+
+  if (xy.x >= inputs.img_width || xy.y >= inputs.img_height) {
+    return;
+  }
+
+  if (xy.y < inputs.img_height / 2) {
+    vec4 color = imageLoad(image_in, xy);
+    imageStore(image_out, xy, color.brga);
+  } else {
+    vec4 color = imageLoad(image_in, xy);
+    imageStore(image_out, xy, color);
+  }
+}

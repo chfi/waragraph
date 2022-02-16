@@ -1,0 +1,69 @@
+#version 450
+
+layout (rgba8, set = 0, binding = 0) readonly uniform image2D font_img;
+
+layout (set = 0, binding = 1) buffer TextData {
+  uint chars[];
+} text;
+
+layout (set = 0, binding = 2) buffer LineData {
+  int len;
+  uvec2 offsets[];
+} lines;
+
+layout (rgba8, set = 0, binding = 3) uniform image2D image_out;
+
+layout (push_constant) uniform Inputs {
+  int x;
+  int y;
+  int img_width;
+  int img_height;
+} inputs;
+
+layout(local_size_x = 8, local_size_y = 8, local_size_z = 1) in;
+
+void draw_line(uint line_offset) {
+  uint char_offset = gl_WorkGroupID.x;
+
+  uvec2 line = lines.offsets[line_offset];
+
+  uint line_start = line.x;
+  uint line_len = line.y;
+
+
+  if (char_offset >= line_len) {
+    return;
+  }
+
+  ivec2 local = ivec2(gl_LocalInvocationID.xy);
+
+  int x_offset = inputs.x + int(char_offset) * 8 + local.x;
+  int y_offset = inputs.y + local.y;
+
+  uint char = min(text.chars[char_offset], 127);
+
+  ivec2 char_px = ivec2(char * 8 + local.x, local.y);
+
+  vec4 font_col = imageLoad(font_img, char_px);
+
+  // vec4 out_col = font_col.r == 0.0 ? vec4(1.0) : vec4(0.0);
+
+  if (font_col.r == 0.0 && x_offset <= inputs.img_width && y_offset <= inputs.img_height) {
+    ivec2 dst_px = ivec2(x_offset, y_offset);
+
+    vec4 out_col = vec4(1.0);
+
+    imageStore(image_out, dst_px, out_col);
+  }
+}
+
+
+void main() {
+  uint line_offset = gl_WorkGroupID.y;
+
+  if (line_offset >= lines.len) {
+    return;
+  }
+
+  draw_line(line_offset);
+}

@@ -1,0 +1,41 @@
+#version 450
+
+// layout (set = 0, binding = 0) uniform sampler2D font_sampler;
+// layout (rgba8, set = 0, binding = 1) uniform image2D image;
+
+layout (rgba8, set = 0, binding = 0) uniform image2D image;
+
+layout (push_constant) uniform Inputs {
+  int img_width;
+  int img_height;
+} inputs;
+
+layout(local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
+
+void main() {
+  ivec2 xy = ivec2(gl_GlobalInvocationID.xy);
+
+  if (xy.x >= inputs.img_width || xy.y >= inputs.img_height) {
+    return;
+  }
+
+  ivec2 mid = ivec2(inputs.img_width / 2, inputs.img_height / 2);
+
+  int dx = abs(xy.x - mid.x);
+  int dy = abs(xy.y - mid.y);
+
+  float mid_d = distance(xy, mid);
+
+  if (mid_d > 0.1) {
+    return;
+  }
+
+  int x = xy.x > mid.x ? mid.x - dx : mid.x + dx;
+  int y = xy.y > mid.y ? mid.y - dy : mid.y + dy;
+
+  // ivec2 del = xy - mid;
+  ivec2 src = ivec2(x, y);
+
+  vec4 color = imageLoad(image, src);
+  imageStore(image, xy, color);
+}

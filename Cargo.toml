@@ -8,16 +8,39 @@ license = "MIT"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+engine = { path = "../vkengine" }
+
 nalgebra = "0.30"
-nalgebra-sparse = "0.6"
+sprs = "0.11"
+
+rayon = "1.5"
+ndarray = { version = "0.15", features = ["rayon"] }
 
 thunderdome = "0.5"
 rustc-hash = "1.1"
 
 internment = "0.5"
 
-# sprs =
-
 bstr = "0.2"
 
 log = "0.4"
+
+anyhow = "1.0"
+
+crossbeam = "0.8"
+parking_lot = "0.11.1"
+# poll-promise = "0.1"
+
+rhai = { version = "1.4", features = ["sync", "f32_float"] }
+
+# temporary deps while i'm working on this as both the library & viewer
+
+futures = { version = "0.3", features = ["thread-pool"] }
+futures-timer = { version = "3.0.2" }
+
+winit = "0.25"
+
+ash = { version = "0.35", features = ["linked"] }
+ash-window = "0.9"
+
+flexi_logger = { version = "0.18", features = ["async"] }
