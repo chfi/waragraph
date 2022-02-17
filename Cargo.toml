@@ -32,6 +32,7 @@ parking_lot = "0.11.1"
 # poll-promise = "0.1"
 
 rhai = { version = "1.4", features = ["sync", "f32_float"] }
+bytemuck = { version = "1.7", features = ["derive"] }
 
 # temporary deps while i'm working on this as both the library & viewer
 
@@ -41,6 +42,7 @@ futures-timer = { version = "3.0.2" }
 winit = "0.25"
 
 ash = { version = "0.35", features = ["linked"] }
+gpu-allocator = { version = "0.15", features = ["vulkan"] }
 ash-window = "0.9"
 
 flexi_logger = { version = "0.18", features = ["async"] }
