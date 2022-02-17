@@ -1,3 +1,4 @@
+use crossbeam::atomic::AtomicCell;
 use engine::script::console::frame::FrameBuilder;
 use engine::script::console::BatchBuilder;
 use engine::vk::context::VkContext;
@@ -156,6 +157,10 @@ fn main() -> Result<()> {
         let path_data = graph_data.path_loops[1].clone();
         println!("uploading path_data: {:#?}", path_data);
 
+        let staging_buf = Arc::new(AtomicCell::new(None));
+
+        let inner = staging_buf.clone();
+
         let fill_buf_batch =
             move |ctx: &VkContext,
                   res: &mut GpuResources,
@@ -163,12 +168,14 @@ fn main() -> Result<()> {
                   cmd: vk::CommandBuffer| {
                 let buf = &mut res[path_buf];
 
-                buf.upload_to_self_bytes(
+                let staging = buf.upload_to_self_bytes(
                     ctx,
                     alloc,
                     bytemuck::cast_slice(&path_data),
                     cmd,
                 )?;
+
+                inner.store(Some(staging));
 
                 Ok(())
             };
@@ -178,6 +185,10 @@ fn main() -> Result<()> {
         let fence = engine.submit_batches_fence(batches.as_slice())?;
 
         engine.block_on_fence(fence)?;
+
+        staging_buf.take().and_then(|buf| {
+            buf.cleanup(&engine.context, &mut engine.allocator).ok()
+        });
     }
 
     let mut builder = FrameBuilder::from_script("paths.rhai")?;
