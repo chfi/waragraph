@@ -7,6 +7,7 @@ use engine::vk::util::*;
 use ash::{vk, Device};
 
 use flexi_logger::{Duplicate, FileSpec, Logger};
+use rustc_hash::FxHashSet;
 use winit::event::{Event, WindowEvent};
 use winit::{event_loop::EventLoop, window::WindowBuilder};
 
@@ -24,7 +25,9 @@ struct GraphData {
     node_lengths: Vec<usize>,
 
     path_names: Vec<String>,
-    paths: Vec<Vec<u32>>,
+    path_steps: Vec<Vec<u32>>,
+
+    path_loops: Vec<Vec<u32>>,
 }
 
 fn main() -> Result<()> {
@@ -44,8 +47,8 @@ fn main() -> Result<()> {
     let reader = BufReader::new(gfa_file);
 
     let mut segments = Vec::new();
-    let mut paths = Vec::new();
     let mut path_names = Vec::new();
+    let mut path_steps = Vec::new();
 
     for line in reader.lines() {
         let line = line?;
@@ -76,16 +79,31 @@ fn main() -> Result<()> {
                 .collect::<Vec<_>>();
 
             path_names.push(name.to_string());
-            paths.push(steps);
+            path_steps.push(steps);
         }
     }
+
+    let node_count = segments.len();
+
+    let path_loops = path_steps
+        .iter()
+        .map(|steps| {
+            let mut nodes = vec![0; node_count];
+            for &step in steps {
+                let ix = step as usize;
+                nodes[ix] += 1;
+            }
+            nodes
+        })
+        .collect::<Vec<_>>();
 
     let graph_data = GraphData {
         node_count: segments.len(),
         node_lengths: segments,
 
         path_names,
-        paths,
+        path_steps,
+        path_loops,
     };
 
     /*

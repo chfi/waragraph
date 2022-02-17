@@ -1,0 +1,65 @@
+#version 450
+
+layout (set = 0, binding = 0) readonly buffer PathData {
+  uint counts[];
+} path;
+
+
+layout (set = 0, binding = 1) readonly buffer ClipRects {
+  vec4 rect;
+} clip_rects;
+
+// layout (set = 0, binding = 1) uniform ClipRect {
+//   float x;
+//   float y;
+//   float w;
+//   float h;
+// } clip;
+
+layout (rgba8, set = 0, binding = 2) writeonly uniform image2D image_out;
+
+layout (push_constant) uniform Inputs {
+  uint node_count;
+  int img_width;
+  int img_height;
+} inputs;
+
+layout(local_size_x = 8, local_size_y = 8, local_size_z = 1) in;
+
+
+vec4 color_for_count(uint count) {
+  vec4 a = vec4(0.8, 0.2, 0.1, 1.0);
+  vec4 b = vec4(0.6, 0.6, 0.1, 1.0);
+  vec4 c = vec4(0.5, 0.5, 0.4, 1.0);
+
+  if (count < 3) {
+    float t = clamp(float(count) / 3, 0.0, 1.0);
+    return mix(a, b, t);
+  } else if (count < 6) {
+    float t = clamp(float(count - 3) / 3, 0.0, 1.0);
+    return mix(b, c, t);
+  } else {
+    return c;
+  }
+}
+
+void main() {
+
+  uint path_len = 10000;
+  uint clip_ix = 0;
+
+  vec4 rect = clip_rects[clip_ix];
+
+  vec2 p = rect.xy;
+
+  float w = rect.z;
+  float h = rect.w;
+
+  uvec2 rel_dst = gl_GlobalInvocationID.xy;
+  uvec2 rel_dst_local = gl_LocalInvocationID.xy;
+
+  uvec2 src_ix = rel_dst / path_len;
+
+  uvec2 screen_dst = rel_dst + uvec2(p);
+
+}
