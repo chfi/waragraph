@@ -29,22 +29,17 @@ export let clip_rects_buffer =
                   | vk::BufferUsageFlags::STORAGE_BUFFER);
 
 
-let path_binds = [vk::binding::storage_buffer(0),
-                  vk::binding::storage_buffer(1),
-                  vk::binding::storage_image(2)];
+export let path_shader = load_shader("shaders/path.comp.spv",
+                                     vk::ShaderStageFlags::COMPUTE);
 
-let path_set_infos = read_shader_descriptors("shaders/path.comp.spv");
+export let path_pipeline = create_compute_pipeline(path_shader);
 
 export let path_desc_set_0 =
-  create_desc_set(vk::ShaderStageFlags::COMPUTE,
-                  path_set_infos,
+  create_desc_set(path_shader,
                   0,
                   [#{ binding: 0, buffer: path_buffer_0 },
                    #{ binding: 1, buffer: clip_rects_buffer },
                    #{ binding: 2, image_view: out_image_view }]);
-
-export let path_pipeline =
-  load_compute_shader("shaders/path.comp.spv", path_binds, 12);
 
 
 fn init() {

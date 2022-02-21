@@ -204,6 +204,9 @@ fn main() -> Result<()> {
     })?;
     log::warn!("is resolved: {}", builder.is_resolved());
 
+    builder.module.set_var("desc_set_alt", path_buf);
+    // builder.module.set_var("path_buffer_alt", path_buf);
+
     let arc_module = Arc::new(builder.module.clone());
 
     let mut rhai_engine = engine::script::console::create_batch_engine();
