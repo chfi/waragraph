@@ -79,9 +79,9 @@ fn init() {
 // }
 
 
-fn foreground(w, h, node_count) {
-  let batch = batch_builder();
-
+// fn foreground(w, h, node_count) {
+// fn foreground(desc_set, w, h, node_count) {
+fn foreground(batch, desc_sets, w, h, node_count) {
 
   let img = self::out_image.get();
   batch.transition_image(img,
@@ -93,10 +93,6 @@ fn foreground(w, h, node_count) {
                          vk::ImageLayout::UNDEFINED,
                          vk::ImageLayout::GENERAL);
 
-  let pc = blob();
-  pc.append_int(w);
-  pc.append_int(h);
-  pc.append_int(node_count);
 
   let x_size = 8;
   let y_size = 8;
@@ -105,13 +101,23 @@ fn foreground(w, h, node_count) {
   let y_groups = (h / y_size) + h % y_size;
   let z_groups = 1;
 
+  for ix in 0..desc_sets.len() {
 
-  batch.dispatch_compute(self::path_pipeline.get(),
-                         self::path_desc_set_0.get(),
-                         pc,
-                         x_groups,
-                         y_groups,
-                         z_groups);
+    let desc_set = desc_sets[ix];
+
+    let pc = blob();
+    pc.append_int(w);
+    pc.append_int(h);
+    pc.append_int(node_count);
+    pc.append_int(ix);
+
+    batch.dispatch_compute(self::path_pipeline.get(),
+                           desc_set,
+                           pc,
+                           x_groups,
+                           y_groups,
+                           z_groups);
+  }
 
   batch.transition_image(img,
                          vk::AccessFlags::SHADER_WRITE,

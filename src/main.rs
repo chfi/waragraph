@@ -1,8 +1,10 @@
 use crossbeam::atomic::AtomicCell;
-use engine::script::console::frame::FrameBuilder;
+use engine::script::console::frame::{FrameBuilder, Resolvable};
 use engine::script::console::BatchBuilder;
 use engine::vk::context::VkContext;
-use engine::vk::{BatchInput, FrameResources, GpuResources, VkEngine};
+use engine::vk::{
+    BatchInput, BufferIx, FrameResources, GpuResources, ShaderIx, VkEngine,
+};
 
 use engine::vk::util::*;
 
@@ -10,6 +12,7 @@ use ash::{vk, Device};
 
 use flexi_logger::{Duplicate, FileSpec, Logger};
 use gpu_allocator::vulkan::Allocator;
+use parking_lot::Mutex;
 use rustc_hash::FxHashSet;
 use winit::event::{Event, WindowEvent};
 use winit::{event_loop::EventLoop, window::WindowBuilder};
@@ -121,7 +124,7 @@ fn main() -> Result<()> {
 
     let mut engine = VkEngine::new(&window)?;
 
-    let (out_image, out_view, path_buf) =
+    let (out_image, out_view, path_bufs) =
         engine.with_allocators(|ctx, res, alloc| {
             let out_image = res.allocate_image(
                 ctx,
@@ -137,58 +140,69 @@ fn main() -> Result<()> {
             let out_view = res.create_image_view_for_image(ctx, out_image)?;
 
             let loc = gpu_allocator::MemoryLocation::GpuOnly;
-            let path_buf = res.allocate_buffer(
-                ctx,
-                alloc,
-                loc,
-                4,
-                node_count,
-                vk::BufferUsageFlags::STORAGE_BUFFER
-                    | vk::BufferUsageFlags::TRANSFER_DST,
-                Some("path_buffer"),
-            )?;
 
-            Ok((out_image, out_view, path_buf))
+            let path_bufs = (0..graph_data.path_loops.len())
+                .map(|ix| {
+                    let name =
+                        format!("path_buffer_{}", graph_data.path_names[ix]);
+
+                    let path_buf = res
+                        .allocate_buffer(
+                            ctx,
+                            alloc,
+                            loc,
+                            4,
+                            node_count,
+                            vk::BufferUsageFlags::STORAGE_BUFFER
+                                | vk::BufferUsageFlags::TRANSFER_DST,
+                            Some(&name),
+                        )
+                        .unwrap();
+
+                    path_buf
+                })
+                .collect::<Vec<_>>();
+
+            Ok((out_image, out_view, path_bufs))
         })?;
 
-    // let path_buffer =
-
     {
-        let path_data = graph_data.path_loops[1].clone();
-        println!("uploading path_data: {:#?}", path_data);
-
-        let staging_buf = Arc::new(AtomicCell::new(None));
-
-        let inner = staging_buf.clone();
+        let staging_bufs = Mutex::new(Vec::new());
 
         let fill_buf_batch =
-            move |ctx: &VkContext,
-                  res: &mut GpuResources,
-                  alloc: &mut Allocator,
-                  cmd: vk::CommandBuffer| {
-                let buf = &mut res[path_buf];
+            |ctx: &VkContext,
+             res: &mut GpuResources,
+             alloc: &mut Allocator,
+             cmd: vk::CommandBuffer| {
+                let mut bufs = staging_bufs.lock();
 
-                let staging = buf.upload_to_self_bytes(
-                    ctx,
-                    alloc,
-                    bytemuck::cast_slice(&path_data),
-                    cmd,
-                )?;
+                for (ix, &path_buf) in path_bufs.iter().enumerate() {
+                    let buf = &mut res[path_buf];
 
-                inner.store(Some(staging));
+                    let path_data = graph_data.path_loops[ix].as_slice();
+
+                    let staging = buf.upload_to_self_bytes(
+                        ctx,
+                        alloc,
+                        bytemuck::cast_slice(&path_data),
+                        cmd,
+                    )?;
+
+                    bufs.push(staging);
+                }
 
                 Ok(())
             };
 
-        let batches = vec![Arc::new(fill_buf_batch) as Arc<_>];
+        let batches = vec![&fill_buf_batch as &_];
 
-        let fence = engine.submit_batches_fence(batches.as_slice())?;
+        let fence = engine.submit_batches_fence_alt(batches.as_slice())?;
 
         engine.block_on_fence(fence)?;
 
-        staging_buf.take().and_then(|buf| {
-            buf.cleanup(&engine.context, &mut engine.allocator).ok()
-        });
+        for buf in staging_bufs.into_inner() {
+            buf.cleanup(&engine.context, &mut engine.allocator).ok();
+        }
     }
 
     let mut builder = FrameBuilder::from_script("paths.rhai")?;
@@ -196,7 +210,7 @@ fn main() -> Result<()> {
     builder.bind_var("out_image", out_image)?;
     builder.bind_var("out_image_view", out_view)?;
 
-    builder.bind_var("path_0", path_buf)?;
+    builder.bind_var("path_0", path_bufs[0])?;
 
     engine.with_allocators(|ctx, res, alloc| {
         builder.resolve(ctx, res, alloc)?;
@@ -204,20 +218,81 @@ fn main() -> Result<()> {
     })?;
     log::warn!("is resolved: {}", builder.is_resolved());
 
-    builder.module.set_var("desc_set_alt", path_buf);
-    // builder.module.set_var("path_buffer_alt", path_buf);
+    let clip_rects_buffer = builder
+        .module
+        .get_var_value::<Resolvable<BufferIx>>("clip_rects_buffer")
+        .unwrap()
+        .get_unwrap();
+
+    let shader_ix = builder
+        .module
+        .get_var_value::<Resolvable<ShaderIx>>("path_shader")
+        .unwrap();
+
+    let shader_ix = shader_ix.get_unwrap();
+
+    let desc_sets = engine.with_allocators(|ctx, res, alloc| {
+        let mut desc_sets = Vec::new();
+
+        for &path_buf in path_bufs.iter() {
+            let set = res.allocate_desc_set(shader_ix, 0, |res, builder| {
+                {
+                    let buffer = &res[path_buf];
+                    let buf_info = ash::vk::DescriptorBufferInfo::builder()
+                        .buffer(buffer.buffer)
+                        .offset(0)
+                        .range(ash::vk::WHOLE_SIZE)
+                        .build();
+                    let buffer_info = [buf_info];
+                    builder.bind_buffer(0, &buffer_info);
+                }
+
+                {
+                    let buffer = &res[clip_rects_buffer];
+                    let buf_info = ash::vk::DescriptorBufferInfo::builder()
+                        .buffer(buffer.buffer)
+                        .offset(0)
+                        .range(ash::vk::WHOLE_SIZE)
+                        .build();
+                    let buffer_info = [buf_info];
+                    builder.bind_buffer(1, &buffer_info);
+                }
+
+                {
+                    let layout = ash::vk::ImageLayout::GENERAL;
+
+                    let (view, _) = res[out_view];
+
+                    let info = ash::vk::DescriptorImageInfo::builder()
+                        .image_layout(layout)
+                        .image_view(view)
+                        .build();
+
+                    builder.bind_image(2, &[info]);
+                }
+
+                Ok(())
+            })?;
+
+            desc_sets.push(rhai::Dynamic::from(set));
+        }
+
+        Ok(desc_sets)
+    })?;
 
     let arc_module = Arc::new(builder.module.clone());
 
     let mut rhai_engine = engine::script::console::create_batch_engine();
     rhai_engine.register_static_module("self", arc_module.clone());
 
-    let draw_foreground =
-        rhai::Func::<(i64, i64, i64), BatchBuilder>::create_from_ast(
-            rhai_engine,
-            builder.ast.clone_functions_only(),
-            "foreground",
-        );
+    let draw_foreground = rhai::Func::<
+        (BatchBuilder, rhai::Array, i64, i64, i64),
+        BatchBuilder,
+    >::create_from_ast(
+        rhai_engine,
+        builder.ast.clone_functions_only(),
+        "foreground",
+    );
 
     {
         let mut rhai_engine = engine::script::console::create_batch_engine();
@@ -295,9 +370,16 @@ fn main() -> Result<()> {
                 // let bg_batch_fn = bg_batch.build();
                 // let bg_rhai_batch = bg_batch_fn.clone();
 
-                let fg_batch =
-                    draw_foreground(800, 600, graph_data.node_count as i64)
-                        .unwrap();
+                let batch_builder = BatchBuilder::default();
+
+                let fg_batch = draw_foreground(
+                    batch_builder,
+                    desc_sets.clone(),
+                    800,
+                    600,
+                    graph_data.node_count as i64,
+                )
+                .unwrap();
                 let fg_batch_fn = fg_batch.build();
                 let fg_rhai_batch = fg_batch_fn.clone();
 

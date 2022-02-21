@@ -22,6 +22,7 @@ layout (push_constant) uniform Inputs {
   uint node_count;
   int img_width;
   int img_height;
+  uint clip_ix;
 } inputs;
 
 layout(local_size_x = 8, local_size_y = 8, local_size_z = 1) in;
@@ -61,7 +62,7 @@ vec4 color_for_count(uint count) {
 }
 
 void main() {
-  uint clip_ix = 0;
+  uint clip_ix = inputs.clip_ix % 5;
 
   vec4 rect = clip_rects.rect[clip_ix];
 
