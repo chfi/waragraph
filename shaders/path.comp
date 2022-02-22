@@ -96,6 +96,6 @@ void main() {
     return;
   }
 
-  imageStore(image_out, pixel, color);
+  imageStore(image_out, pixel, color.bgra);
 
 }

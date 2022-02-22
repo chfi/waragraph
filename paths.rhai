@@ -1,7 +1,6 @@
 export let out_image = image_var("out_image");
 export let out_image_view = image_view_var("out_image_view");
 
-
 export let font_image = allocate_image("font_image",
                                        1024,
                                        8,
@@ -13,12 +12,6 @@ export let font_image = allocate_image("font_image",
 
 export let font_image_view = image_view_for(font_image);
 
-
-export let path_buffer_0 = buffer_var("path_0");
-// export let path_buffer_1 = buffer_var("path_1");
-// export let path_buffer_2 = buffer_var("path_2");
-// export let path_buffer_3 = buffer_var("path_3");
-// export let path_buffer_4 = buffer_var("path_4");
 
 export let clip_rects_buffer =
   allocate_buffer("rect_buffer",
@@ -34,13 +27,14 @@ export let path_shader = load_shader("shaders/path.comp.spv",
 
 export let path_pipeline = create_compute_pipeline(path_shader);
 
-export let path_desc_set_0 =
-  create_desc_set(path_shader,
-                  0,
-                  [#{ binding: 0, buffer: path_buffer_0 },
-                   #{ binding: 1, buffer: clip_rects_buffer },
-                   #{ binding: 2, image_view: out_image_view }]);
-
+fn rect_blob(rect) {
+  let data = blob();
+  data.append_float(rect.x);
+  data.append_float(rect.y);
+  data.append_float(rect.w);
+  data.append_float(rect.h);
+  data
+}
 
 fn init() {
   let init_batch = batch_builder();
@@ -50,37 +44,20 @@ fn init() {
                                   vk::ImageLayout::GENERAL);
 
   let clip_buf = self::clip_rects_buffer.get();
-  let clip_data = blob();
+  let clip_rects = [];
 
   for i in 0..5 {
-    let fi = i.to_float();
-
-    let x = 20.0;
-    let y = 20.0 + 56.0 * fi;
-
-    let w = 760.0;
-    let h = 50.0;
-
-    clip_data.append_float(x);
-    clip_data.append_float(y);
-    clip_data.append_float(w);
-    clip_data.append_float(h);
-
+    clip_rects.push(#{ x: 20.0,  y: 20.0 + 56.0 * i,
+                       w: 760.0, h: 50.0 });
   }
 
-  init_batch.initialize_buffer_with(clip_buf, clip_data);
-  // init_batch.initialize_buffer_with(Fn("rect_blob"), rect_buf, rects);
+  init_batch.initialize_buffer_with(Fn("rect_blob"),
+                                    self::clip_rects_buffer.get(),
+                                    clip_rects);
 
   init_batch
 }
 
-// fn create_path_buffer(path_name, node_count) {
-
-// }
-
-
-// fn foreground(w, h, node_count) {
-// fn foreground(desc_set, w, h, node_count) {
 fn foreground(batch, desc_sets, w, h, node_count) {
 
   let img = self::out_image.get();
@@ -89,7 +66,6 @@ fn foreground(batch, desc_sets, w, h, node_count) {
                          vk::PipelineStageFlags::COMPUTE_SHADER,
                          vk::AccessFlags::SHADER_WRITE,
                          vk::PipelineStageFlags::COMPUTE_SHADER,
-                         // vk::ImageLayout::TRANSFER_SRC_OPTIMAL,
                          vk::ImageLayout::UNDEFINED,
                          vk::ImageLayout::GENERAL);
 
@@ -97,9 +73,9 @@ fn foreground(batch, desc_sets, w, h, node_count) {
   let x_size = 8;
   let y_size = 8;
 
-  let x_groups = (w / x_size) + w % x_size;
-  let y_groups = (h / y_size) + h % y_size;
-  let z_groups = 1;
+  let workgroups = #{ x_groups: (w / x_size) + w % x_size,
+                      y_groups: (h / y_size) + h % y_size,
+                      z_groups: 1 };
 
   for ix in 0..desc_sets.len() {
 
@@ -114,9 +90,7 @@ fn foreground(batch, desc_sets, w, h, node_count) {
     batch.dispatch_compute(self::path_pipeline.get(),
                            desc_set,
                            pc,
-                           x_groups,
-                           y_groups,
-                           z_groups);
+                           workgroups);
   }
 
   batch.transition_image(img,

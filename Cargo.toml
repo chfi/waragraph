@@ -42,7 +42,7 @@ futures-timer = { version = "3.0.2" }
 winit = "0.25"
 
 ash = { version = "0.35", features = ["linked"] }
-gpu-allocator = { version = "0.15", features = ["vulkan"] }
-ash-window = "0.9"
+gpu-allocator = { version = "0.16", features = ["vulkan"] }
+ash-window = "0.9.1"
 
 flexi_logger = { version = "0.18", features = ["async"] }

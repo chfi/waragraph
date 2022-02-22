@@ -210,7 +210,7 @@ fn main() -> Result<()> {
     builder.bind_var("out_image", out_image)?;
     builder.bind_var("out_image_view", out_view)?;
 
-    builder.bind_var("path_0", path_bufs[0])?;
+    // builder.bind_var("path_0", path_bufs[0])?;
 
     engine.with_allocators(|ctx, res, alloc| {
         builder.resolve(ctx, res, alloc)?;
@@ -375,8 +375,8 @@ fn main() -> Result<()> {
                 let fg_batch = draw_foreground(
                     batch_builder,
                     desc_sets.clone(),
-                    800,
-                    600,
+                    width as i64,
+                    height as i64,
                     graph_data.node_count as i64,
                 )
                 .unwrap();
