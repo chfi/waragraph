@@ -2,8 +2,10 @@ use crossbeam::atomic::AtomicCell;
 use raving::script::console::frame::{FrameBuilder, Resolvable};
 use raving::script::console::BatchBuilder;
 use raving::vk::context::VkContext;
+use raving::vk::descriptor::DescriptorLayoutInfo;
 use raving::vk::{
     BatchInput, BufferIx, FrameResources, GpuResources, ShaderIx, VkEngine,
+    WinSizeIndices, WinSizeResourcesBuilder,
 };
 
 use raving::vk::util::*;
@@ -13,6 +15,7 @@ use ash::{vk, Device};
 use flexi_logger::{Duplicate, FileSpec, Logger};
 use gpu_allocator::vulkan::Allocator;
 use parking_lot::Mutex;
+use rspirv_reflect::DescriptorInfo;
 use rustc_hash::FxHashSet;
 use winit::event::{Event, WindowEvent};
 use winit::{event_loop::EventLoop, window::WindowBuilder};
@@ -20,7 +23,7 @@ use winit::{event_loop::EventLoop, window::WindowBuilder};
 // #[cfg(target_os = "linux")]
 // use winit::platform::unix::*;
 
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::io::{prelude::*, BufReader};
 use std::sync::Arc;
 
@@ -112,10 +115,25 @@ fn main() -> Result<()> {
         path_loops,
     };
 
-    let event_loop = EventLoop::new();
+    let event_loop: EventLoop<()>;
 
-    let width = 800;
-    let height = 600;
+    #[cfg(target_os = "linux")]
+    {
+        use winit::platform::unix::EventLoopExtUnix;
+        log::debug!("Using X11 event loop");
+        event_loop = EventLoop::new_x11()?;
+    }
+
+    #[cfg(not(target_os = "linux"))]
+    {
+        log::debug!("Using default event loop");
+        event_loop = EventLoop::new();
+    }
+
+    // let event_loop = EventLoop::new();
+
+    let width = 800u32;
+    let height = 600u32;
 
     let window = WindowBuilder::new()
         .with_title("Waragraph Viewer")
@@ -124,47 +142,123 @@ fn main() -> Result<()> {
 
     let mut engine = VkEngine::new(&window)?;
 
-    let (out_image, out_view, path_bufs) =
+    let window_storage_set_info = {
+        let info = DescriptorInfo {
+            ty: rspirv_reflect::DescriptorType::STORAGE_IMAGE,
+            binding_count: rspirv_reflect::BindingCount::One,
+            name: "out_image".to_string(),
+        };
+
+        Some((0u32, info)).into_iter().collect::<BTreeMap<_, _>>()
+    };
+
+    let window_storage_image_layout = {
+        let mut info = DescriptorLayoutInfo::default();
+
+        let binding = vk::DescriptorSetLayoutBinding::builder()
+            .binding(0)
+            .descriptor_count(1)
+            .descriptor_type(vk::DescriptorType::STORAGE_IMAGE)
+            .stage_flags(vk::ShaderStageFlags::COMPUTE) // TODO should also be graphics
+            .build();
+
+        info.bindings.push(binding);
+        info
+    };
+
+    let mut win_size_resource_index = WinSizeIndices::default();
+
+    let win_size_res_builder = move |engine: &mut VkEngine,
+                                     width: u32,
+                                     height: u32|
+          -> Result<WinSizeResourcesBuilder> {
+        let mut builder = WinSizeResourcesBuilder::default();
+
+        let (img, view, desc_set) =
+            engine.with_allocators(|ctx, res, alloc| {
+                dbg!();
+                let out_image = res.allocate_image(
+                    ctx,
+                    alloc,
+                    width,
+                    height,
+                    vk::Format::R8G8B8A8_UNORM,
+                    vk::ImageUsageFlags::STORAGE
+                        | vk::ImageUsageFlags::TRANSFER_SRC,
+                    Some("out_image"),
+                )?;
+
+                dbg!();
+                let out_view = res.new_image_view(ctx, &out_image)?;
+
+                dbg!();
+                let out_desc_set = res.allocate_desc_set_raw(
+                    &window_storage_image_layout,
+                    &window_storage_set_info,
+                    |res, builder| {
+                        let info = ash::vk::DescriptorImageInfo::builder()
+                            .image_layout(vk::ImageLayout::GENERAL)
+                            .image_view(out_view)
+                            .build();
+
+                        builder.bind_image(0, &[info]);
+
+                        Ok(())
+                    },
+                )?;
+                dbg!();
+
+                Ok((out_image, out_view, out_desc_set))
+            })?;
+
+        builder.images.insert("out_image".to_string(), img);
+        builder
+            .image_views
+            .insert("out_image_view".to_string(), view);
+        builder
+            .desc_sets
+            .insert("out_desc_set".to_string(), desc_set);
+
+        //
+        Ok(builder)
+    };
+
+    {
+        let size = window.inner_size();
+        let builder =
+            win_size_res_builder(&mut engine, size.width, size.height)?;
         engine.with_allocators(|ctx, res, alloc| {
-            let out_image = res.allocate_image(
-                ctx,
-                alloc,
-                width,
-                height,
-                vk::Format::R8G8B8A8_UNORM,
-                vk::ImageUsageFlags::STORAGE
-                    | vk::ImageUsageFlags::TRANSFER_SRC,
-                Some("out_image"),
-            )?;
-
-            let out_view = res.create_image_view_for_image(ctx, out_image)?;
-
-            let loc = gpu_allocator::MemoryLocation::GpuOnly;
-
-            let path_bufs = (0..graph_data.path_loops.len())
-                .map(|ix| {
-                    let name =
-                        format!("path_buffer_{}", graph_data.path_names[ix]);
-
-                    let path_buf = res
-                        .allocate_buffer(
-                            ctx,
-                            alloc,
-                            loc,
-                            4,
-                            node_count,
-                            vk::BufferUsageFlags::STORAGE_BUFFER
-                                | vk::BufferUsageFlags::TRANSFER_DST,
-                            Some(&name),
-                        )
-                        .unwrap();
-
-                    path_buf
-                })
-                .collect::<Vec<_>>();
-
-            Ok((out_image, out_view, path_bufs))
+            builder.insert(&mut win_size_resource_index, ctx, res, alloc)?;
+            Ok(())
         })?;
+    }
+
+    let path_bufs = engine.with_allocators(|ctx, res, alloc| {
+        let loc = gpu_allocator::MemoryLocation::GpuOnly;
+
+        let path_bufs = (0..graph_data.path_loops.len())
+            .map(|ix| {
+                let name = format!("path_buffer_{}", graph_data.path_names[ix]);
+
+                let path_buf = res
+                    .allocate_buffer(
+                        ctx,
+                        alloc,
+                        loc,
+                        4,
+                        node_count,
+                        vk::BufferUsageFlags::STORAGE_BUFFER
+                            | vk::BufferUsageFlags::TRANSFER_DST,
+                        Some(&name),
+                    )
+                    .unwrap();
+
+                res.insert_buffer(path_buf)
+            })
+            .collect::<Vec<_>>();
+
+        Ok(path_bufs)
+    })?;
 
     {
         let staging_bufs = Mutex::new(Vec::new());
@@ -205,12 +299,21 @@ fn main() -> Result<()> {
         }
     }
 
+    let out_image = *win_size_resource_index.images.get("out_image").unwrap();
+    let out_view = *win_size_resource_index
+        .image_views
+        .get("out_image_view")
+        .unwrap();
+    let out_desc_set = *win_size_resource_index
+        .desc_sets
+        .get("out_desc_set")
+        .unwrap();
+
     let mut builder = FrameBuilder::from_script("paths.rhai")?;
 
     builder.bind_var("out_image", out_image)?;
     builder.bind_var("out_image_view", out_view)?;
-
-    // builder.bind_var("path_0", path_bufs[0])?;
+    builder.bind_var("out_desc_set", out_desc_set)?;
 
     engine.with_allocators(|ctx, res, alloc| {
         builder.resolve(ctx, res, alloc)?;
@@ -261,7 +364,7 @@ fn main() -> Result<()> {
                 {
                     let layout = ash::vk::ImageLayout::GENERAL;
 
-                    let (view, _) = res[out_view];
+                    let view = res[out_view];
 
                     let info = ash::vk::DescriptorImageInfo::builder()
                         .image_layout(layout)
@@ -274,7 +377,9 @@ fn main() -> Result<()> {
                 Ok(())
             })?;
 
-            desc_sets.push(rhai::Dynamic::from(set));
+            let set_ix = res.insert_desc_set(set);
+
+            desc_sets.push(rhai::Dynamic::from(set_ix));
         }
 
         Ok(desc_sets)
@@ -285,7 +390,7 @@ fn main() -> Result<()> {
     let mut rhai_engine = raving::script::console::create_batch_engine();
     rhai_engine.register_static_module("self", arc_module.clone());
 
-    let draw_foreground = rhai::Func::<
+    let mut draw_foreground = rhai::Func::<
         (BatchBuilder, rhai::Array, i64, i64, i64),
         BatchBuilder,
     >::create_from_ast(
@@ -317,6 +422,21 @@ fn main() -> Result<()> {
             engine.block_on_fence(fence)?;
         }
     }
+
+    let update_clip_rects = {
+        let mut rhai_engine = raving::script::console::create_batch_engine();
+
+        let arc_module = Arc::new(builder.module.clone());
+
+        rhai_engine.register_static_module("self", arc_module.clone());
+
+        let resize = rhai::Func::<(i64, i64), BatchBuilder>::create_from_ast(
+            rhai_engine,
+            builder.ast.clone_functions_only(),
+            "resize",
+        );
+        resize
+    };
 
     let mut frames = {
         let queue_ix = engine.queues.thread.queue_family_index;
@@ -352,10 +472,10 @@ fn main() -> Result<()> {
 
     let start = std::time::Instant::now();
 
+    let mut recreate_swapchain = false;
+
     event_loop.run(move |event, _, control_flow| {
         *control_flow = winit::event_loop::ControlFlow::Poll;
-
-        let mut _dirty_swapchain = false;
 
         match event {
             Event::MainEventsCleared => {
@@ -372,11 +492,13 @@ fn main() -> Result<()> {
 
                 let batch_builder = BatchBuilder::default();
 
+                let size = window.inner_size();
+
                 let fg_batch = draw_foreground(
                     batch_builder,
                     desc_sets.clone(),
-                    width as i64,
-                    height as i64,
+                    size.width as i64,
+                    size.height as i64,
                     graph_data.node_count as i64,
                 )
                 .unwrap();
@@ -410,20 +532,86 @@ fn main() -> Result<()> {
                     // Some(vec![(1, vk::PipelineStageFlags::COMPUTE_SHADER)]),
                 ];
 
-                // dbg!();
                 let render_success = engine
                     .draw_from_batches(frame, &batches, deps.as_slice(), 1)
                     .unwrap();
 
-                // dbg!();
-
                 if !render_success {
-                    dbg!();
-                    _dirty_swapchain = true;
+                    recreate_swapchain = true;
                 }
             }
             Event::RedrawEventsCleared => {
-                //
+                if recreate_swapchain {
+                    recreate_swapchain = false;
+
+                    let size = window.inner_size();
+
+                    if size.width > 0 && size.height > 0 {
+                        log::debug!(
+                            "Recreating swapchain with window size {:?}",
+                            size
+                        );
+
+                        engine
+                            .recreate_swapchain(Some([size.width, size.height]))
+                            .unwrap();
+
+                        {
+                            let res_builder = win_size_res_builder(
+                                &mut engine,
+                                size.width,
+                                size.height,
+                            )
+                            .unwrap();
+                            engine
+                                .with_allocators(|ctx, res, alloc| {
+                                    res_builder.insert(
+                                        &mut win_size_resource_index,
+                                        ctx,
+                                        res,
+                                        alloc,
+                                    )?;
+                                    Ok(())
+                                })
+                                .unwrap();
+
+                            {
+                                let init_builder = update_clip_rects(
+                                    size.width as i64,
+                                    size.height as i64,
+                                )
+                                .unwrap();
+
+                                if !init_builder.init_fn.is_empty() {
+                                    log::warn!("submitting update batches");
+                                    let fence = engine
+                                        .submit_batches_fence(
+                                            init_builder.init_fn.as_slice(),
+                                        )
+                                        .unwrap();
+
+                                    engine.block_on_fence(fence).unwrap();
+                                }
+                            }
+
+                            let mut rhai_engine =
+                                raving::script::console::create_batch_engine();
+                            rhai_engine.register_static_module(
+                                "self",
+                                arc_module.clone(),
+                            );
+
+                            draw_foreground = rhai::Func::<
+                                (BatchBuilder, rhai::Array, i64, i64, i64),
+                                BatchBuilder,
+                            >::create_from_ast(
+                                rhai_engine,
+                                builder.ast.clone_functions_only(),
+                                "foreground",
+                            );
+                        }
+                    }
+                }
             }
             Event::WindowEvent { event, .. } => match event {
                 WindowEvent::CloseRequested => {
@@ -431,7 +619,7 @@ fn main() -> Result<()> {
                     *control_flow = winit::event_loop::ControlFlow::Exit;
                 }
                 WindowEvent::Resized { .. } => {
-                    _dirty_swapchain = true;
+                    recreate_swapchain = true;
                 }
                 _ => (),
             },
