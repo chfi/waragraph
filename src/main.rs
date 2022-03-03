@@ -1,4 +1,5 @@
 use crossbeam::atomic::AtomicCell;
+use gfa::gfa::GFA;
 use raving::script::console::frame::{FrameBuilder, Resolvable};
 use raving::script::console::BatchBuilder;
 use raving::vk::context::VkContext;
@@ -45,6 +46,12 @@ fn main() -> Result<()> {
     let _ = args.next().unwrap();
 
     let gfa_path = args.next().ok_or(anyhow!("Provide a GFA path"))?;
+
+    let gfa = {
+        let parser = gfa::parser::GFAParser::default();
+        let gfa: GFA<usize, ()> = parser.parse_file(gfa_path)?;
+        gfa
+    };
 
     let spec = "debug";
     let _logger = Logger::try_with_env_or_str(spec)?

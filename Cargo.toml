@@ -8,6 +8,8 @@ license = "MIT"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+gfa = { version = "0.10" }
+
 raving = { path = "../vkengine" }
 
 nalgebra = "0.30"
