@@ -18,7 +18,7 @@ use gpu_allocator::vulkan::Allocator;
 use parking_lot::Mutex;
 use rspirv_reflect::DescriptorInfo;
 use rustc_hash::FxHashSet;
-use waragraph::graph::Waragraph;
+use waragraph::graph::{Node, Waragraph};
 use winit::event::{Event, WindowEvent};
 use winit::{event_loop::EventLoop, window::WindowBuilder};
 
@@ -27,6 +27,7 @@ use winit::{event_loop::EventLoop, window::WindowBuilder};
 
 use std::collections::{BTreeMap, HashMap};
 use std::io::{prelude::*, BufReader};
+use std::num::NonZeroU32;
 use std::sync::Arc;
 
 use anyhow::{anyhow, bail, Result};
@@ -50,9 +51,11 @@ fn main() -> Result<()> {
 
     let gfa = {
         let parser = gfa::parser::GFAParser::default();
-        let gfa: GFA<usize, ()> = parser.parse_file(gfa_path)?;
+        let gfa: GFA<usize, ()> = parser.parse_file(&gfa_path)?;
         gfa
     };
+
+    let waragraph = Waragraph::from_gfa(&gfa)?;
 
     let spec = "debug";
     let _logger = Logger::try_with_env_or_str(spec)?
@@ -477,6 +480,26 @@ fn main() -> Result<()> {
             copy_batch(out_image, input.swapchain_image.unwrap(), dev, res, cmd)
         },
     ) as Box<_>;
+
+    ///////
+
+    let segments = [1, 2, 3, 4, 5, 6, 7, 8]
+        .into_iter()
+        .filter_map(NonZeroU32::new)
+        .collect::<Vec<_>>();
+
+    for seg in segments {
+        let node = Node::from(seg);
+        let neighbors = waragraph.neighbors_fwd(node);
+
+        println!("segment `{}` neighbors", node);
+        // println!("
+        for n in neighbors.into_iter().flatten() {
+            println!(" - {}", n);
+        }
+    }
+
+    ///////
 
     let start = std::time::Instant::now();
 

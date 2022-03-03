@@ -12,6 +12,7 @@ gfa = { version = "0.10" }
 
 raving = { path = "../vkengine" }
 
+smallvec = "1.8.0"
 nalgebra = "0.30"
 sprs = "0.11"
 

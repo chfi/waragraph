@@ -1,3 +1,5 @@
+use std::num::NonZeroU32;
+
 use gfa::gfa::GFA;
 use thunderdome::{Arena, Index};
 
@@ -10,6 +12,35 @@ use anyhow::{anyhow, bail, Result};
 #[repr(transparent)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Node(u32);
+
+impl From<NonZeroU32> for Node {
+    fn from(u: NonZeroU32) -> Node {
+        let v = u.get();
+        Node(v - 1)
+    }
+}
+
+impl From<u32> for Node {
+    fn from(u: u32) -> Node {
+        Node(u)
+    }
+}
+
+impl Into<NonZeroU32> for Node {
+    fn into(self) -> NonZeroU32 {
+        if let Some(u) = NonZeroU32::new(self.0 + 1) {
+            u
+        } else {
+            unreachable!();
+        }
+    }
+}
+
+impl Into<u32> for Node {
+    fn into(self) -> u32 {
+        self.0
+    }
+}
 
 impl std::fmt::Display for Node {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
@@ -50,10 +81,10 @@ impl Waragraph {
         let mut tris: TriMatI<u8, u32> = TriMatI::new((node_count, node_count));
 
         for edge in gfa.links.iter() {
-            let from = edge.from_segment;
-            let to = edge.to_segment;
+            let from = edge.from_segment - 1;
+            let to = edge.to_segment - 1;
 
-            tris.add_triplet(from, to, 1);
+            tris.add_triplet(to, from, 1);
         }
 
         let adj_n_n = tris.to_csc();
