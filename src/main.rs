@@ -18,6 +18,7 @@ use gpu_allocator::vulkan::Allocator;
 use parking_lot::Mutex;
 use rspirv_reflect::DescriptorInfo;
 use rustc_hash::FxHashSet;
+use waragraph::graph::Waragraph;
 use winit::event::{Event, WindowEvent};
 use winit::{event_loop::EventLoop, window::WindowBuilder};
 
