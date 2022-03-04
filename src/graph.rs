@@ -77,6 +77,8 @@ impl std::fmt::Display for Strand {
 pub struct Waragraph {
     node_count: usize,
 
+    node_lens: Vec<u32>,
+
     // adj: CsMatI<u8, Strand>,
     // adj: CsMatI<u8, Node>,
     pub adj_n_n: CsMatI<u8, u32>,
@@ -87,6 +89,16 @@ impl Waragraph {
         let node_count = gfa.segments.len();
 
         let nodes = node_count as u32;
+
+        let node_lens = gfa
+            .segments
+            .iter()
+            .map(|seg| {
+                let len = seg.sequence.len();
+                len as u32
+            })
+            .collect::<Vec<u32>>();
+
         let mut tris: TriMatI<u8, u32> = TriMatI::new((node_count, node_count));
 
         for edge in gfa.links.iter() {
@@ -100,6 +112,7 @@ impl Waragraph {
 
         Ok(Self {
             node_count,
+            node_lens,
             adj_n_n,
         })
     }
