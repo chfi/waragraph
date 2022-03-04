@@ -109,7 +109,7 @@ pub struct Waragraph {
     pub d0: CsMatI<i8, u32>,
 
     // pub paths: Vec<CsVecI<Strand, u32>>,
-    pub paths: Vec<CsVecI<i8, u32>>,
+    pub paths: Vec<CsVecI<u32, u32>>,
     pub path_indices: HashMap<Vec<u8>, usize>,
 }
 
@@ -177,16 +177,19 @@ impl Waragraph {
                 let name = path.path_name.as_bstr();
                 path_indices.insert(name.to_vec(), ix);
 
-                let mut ids = Vec::new();
+                let mut loop_count = FxHashMap::default();
+
                 for (seg, orient) in path.iter() {
                     // let node = Node::from((seg - 1) as u32);
                     // let strand = Strand::new(node, orient.is_reverse());
 
                     let i = (seg - 1) as u32;
-                    let v = if orient.is_reverse() { -1 } else { 1 };
+                    // let v = if orient.is_reverse() { -1 } else { 1 };
 
-                    ids.push((i, v));
+                    *loop_count.entry(i).or_default() += 1u32;
                 }
+
+                let mut ids: Vec<(u32, u32)> = loop_count.into_iter().collect();
 
                 ids.sort_by_key(|(i, _)| *i);
                 ids.dedup_by_key(|(i, _)| *i);
