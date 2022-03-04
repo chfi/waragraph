@@ -98,7 +98,10 @@ impl std::fmt::Display for Strand {
 pub struct Waragraph {
     node_count: usize,
 
+    node_sum_lens: Vec<usize>,
     node_lens: Vec<u32>,
+
+    edges: FxHashMap<(Node, Node), u32>,
 
     // adj: CsMatI<u8, Strand>,
     // adj: CsMatI<u8, Node>,
@@ -115,14 +118,25 @@ impl Waragraph {
         let node_count = gfa.segments.len();
         let edge_count = gfa.links.len();
 
-        let node_lens = gfa
-            .segments
-            .iter()
-            .map(|seg| {
-                let len = seg.sequence.len();
-                len as u32
-            })
-            .collect::<Vec<u32>>();
+        let mut node_sum_lens = Vec::with_capacity(node_count);
+        let mut node_lens = Vec::with_capacity(node_count);
+        let mut sum = 0;
+
+        for seg in gfa.segments.iter() {
+            let len = seg.sequence.len();
+            node_sum_lens.push(sum);
+            node_lens.push(len as u32);
+            sum += len;
+        }
+
+        // let node_lens = gfa
+        //     .segments
+        //     .iter()
+        //     .map(|seg| {
+        //         let len = seg.sequence.len();
+        //         len as u32
+        //     })
+        //     .collect::<Vec<u32>>();
 
         let mut adj_tris: TriMatI<u8, u32> =
             TriMatI::new((node_count, node_count));
@@ -185,7 +199,10 @@ impl Waragraph {
 
         Ok(Self {
             node_count,
+            node_sum_lens,
             node_lens,
+
+            edges,
 
             adj_n_n,
             d0,
@@ -218,6 +235,53 @@ impl Waragraph {
             slice
         };
         Some(slice)
+    }
+
+    pub fn sample_node_lengths(
+        &self,
+        nsamples: usize,
+        pos_offset: usize,
+        len: usize,
+        out: &mut Vec<(Node, usize)>,
+    ) {
+        out.clear();
+
+        let pos_end = pos_offset + len;
+
+        let first_inner =
+            self.node_sum_lens.partition_point(|&l| l > pos_offset);
+        let pre = first_inner.checked_sub(1).unwrap_or_default();
+
+        let post = self.node_sum_lens.partition_point(|&l| l <= pos_end);
+        // let last_inner = post.checked_sub(1).unwrap_or_default();
+
+        let slice = &self.node_sum_lens[pre..post];
+
+        let sample_width = nsamples / len;
+
+        let sample_point = |p| match slice.binary_search(&p) {
+            Ok(i) => i,
+            Err(i) => {
+                if i == 0 {
+                    i
+                } else {
+                    i - 1
+                }
+            }
+        };
+
+        let p0 = pos_offset + sample_width / 2;
+
+        for i in 0..nsamples {
+            let p = p0 + i * sample_width;
+            let ix = sample_point(p);
+            let offset = self.node_sum_lens[ix];
+
+            let node = Node(ix as u32);
+            let rem = p - offset;
+
+            out.push((node, rem));
+        }
     }
 
     pub fn alloc_node_length_buf(
