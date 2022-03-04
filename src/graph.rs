@@ -88,8 +88,6 @@ impl Waragraph {
     pub fn from_gfa(gfa: &GFA<usize, ()>) -> Result<Self> {
         let node_count = gfa.segments.len();
 
-        let nodes = node_count as u32;
-
         let node_lens = gfa
             .segments
             .iter()
@@ -140,6 +138,26 @@ impl Waragraph {
             slice
         };
         Some(slice)
+    }
+
+    pub fn alloc_node_length_buf(
+        &self,
+        engine: &mut VkEngine,
+        name: Option<&str>,
+        usage: vk::BufferUsageFlags,
+    ) -> Result<BufferIx> {
+        let mut sum = 0;
+        self.alloc_with_nodes(engine, name, usage, |node| {
+            let len = self.node_lens[node.0 as usize];
+
+            let lb = (len as u32).to_ne_bytes();
+            let is = (sum as u32).to_ne_bytes();
+
+            sum += len;
+
+            // TODO use bytemuck
+            [is[0], is[1], is[2], is[3], lb[0], lb[1], lb[2], lb[3]]
+        })
     }
 
     pub fn alloc_with_nodes<F, const N: usize>(
