@@ -1,6 +1,7 @@
-use std::num::NonZeroU32;
+use std::{collections::HashMap, num::NonZeroU32};
 
 use ash::vk;
+use bstr::ByteSlice;
 use gfa::gfa::GFA;
 use gpu_allocator::vulkan::Allocator;
 use raving::vk::{
@@ -9,7 +10,7 @@ use raving::vk::{
 use rustc_hash::FxHashMap;
 use thunderdome::{Arena, Index};
 
-use sprs::{CsMat, CsMatI, CsVec, CsVecView, TriMat, TriMatI};
+use sprs::{CsMat, CsMatI, CsVec, CsVecI, CsVecView, TriMat, TriMatI};
 
 use std::sync::Arc;
 
@@ -62,6 +63,25 @@ impl std::fmt::Display for Node {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Strand(u32);
 
+impl Strand {
+    pub fn new(node: Node, rev: bool) -> Self {
+        let i = node.0 << 1;
+        if rev {
+            Strand(i & 1)
+        } else {
+            Strand(i)
+        }
+    }
+
+    pub const fn node(&self) -> Node {
+        Node(self.0 >> 1)
+    }
+
+    pub const fn is_reverse(&self) -> bool {
+        (self.0 & 1) == 1
+    }
+}
+
 impl std::fmt::Display for Strand {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         let i = self.0 >> 1;
@@ -84,6 +104,10 @@ pub struct Waragraph {
     // adj: CsMatI<u8, Node>,
     pub adj_n_n: CsMatI<u8, u32>,
     pub d0: CsMatI<i8, u32>,
+
+    // pub paths: Vec<CsVecI<Strand, u32>>,
+    pub paths: Vec<CsVecI<i8, u32>>,
+    pub path_indices: HashMap<Vec<u8>, usize>,
 }
 
 impl Waragraph {
@@ -127,11 +151,47 @@ impl Waragraph {
         let adj_n_n = adj_tris.to_csc();
         let d0 = d0_tris.to_csc();
 
+        let mut path_indices = HashMap::default();
+
+        dbg!();
+        let paths = gfa
+            .paths
+            .iter()
+            .enumerate()
+            .map(|(ix, path)| {
+                dbg!(ix);
+                let name = path.path_name.as_bstr();
+                path_indices.insert(name.to_vec(), ix);
+
+                let mut ids = Vec::new();
+                for (seg, orient) in path.iter() {
+                    // let node = Node::from((seg - 1) as u32);
+                    // let strand = Strand::new(node, orient.is_reverse());
+
+                    let i = (seg - 1) as u32;
+                    let v = if orient.is_reverse() { -1 } else { 1 };
+
+                    ids.push((i, v));
+                }
+
+                ids.sort_by_key(|(i, _)| *i);
+                ids.dedup_by_key(|(i, _)| *i);
+
+                let (indices, data) = ids.into_iter().unzip();
+
+                CsVecI::new(node_count, indices, data)
+            })
+            .collect::<Vec<_>>();
+
         Ok(Self {
             node_count,
             node_lens,
+
             adj_n_n,
             d0,
+
+            paths,
+            path_indices,
         })
     }
 
