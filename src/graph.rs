@@ -6,6 +6,7 @@ use gpu_allocator::vulkan::Allocator;
 use raving::vk::{
     context::VkContext, BufferIx, BufferRes, GpuResources, VkEngine,
 };
+use rustc_hash::FxHashMap;
 use thunderdome::{Arena, Index};
 
 use sprs::{CsMat, CsMatI, CsVec, CsVecView, TriMat, TriMatI};
@@ -19,7 +20,7 @@ use ndarray::prelude::*;
 use anyhow::{anyhow, bail, Result};
 
 #[repr(transparent)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Node(u32);
 
 impl From<NonZeroU32> for Node {
@@ -58,7 +59,7 @@ impl std::fmt::Display for Node {
 }
 
 #[repr(transparent)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Strand(u32);
 
 impl std::fmt::Display for Strand {
@@ -82,11 +83,13 @@ pub struct Waragraph {
     // adj: CsMatI<u8, Strand>,
     // adj: CsMatI<u8, Node>,
     pub adj_n_n: CsMatI<u8, u32>,
+    pub d0: CsMatI<i8, u32>,
 }
 
 impl Waragraph {
     pub fn from_gfa(gfa: &GFA<usize, ()>) -> Result<Self> {
         let node_count = gfa.segments.len();
+        let edge_count = gfa.links.len();
 
         let node_lens = gfa
             .segments
@@ -97,21 +100,38 @@ impl Waragraph {
             })
             .collect::<Vec<u32>>();
 
-        let mut tris: TriMatI<u8, u32> = TriMatI::new((node_count, node_count));
+        let mut adj_tris: TriMatI<u8, u32> =
+            TriMatI::new((node_count, node_count));
+        let mut d0_tris: TriMatI<i8, u32> =
+            TriMatI::new((edge_count, node_count));
+
+        let mut edges: FxHashMap<(Node, Node), u32> = FxHashMap::default();
 
         for edge in gfa.links.iter() {
+            let ei = edges.len();
+
             let from = edge.from_segment - 1;
             let to = edge.to_segment - 1;
 
-            tris.add_triplet(to, from, 1);
+            adj_tris.add_triplet(to, from, 1);
+
+            d0_tris.add_triplet(ei, from, -1);
+            d0_tris.add_triplet(ei, to, 1);
+
+            let n_f = Node::from(from as u32);
+            let n_t = Node::from(to as u32);
+
+            edges.insert((n_f, n_t), ei as u32);
         }
 
-        let adj_n_n = tris.to_csc();
+        let adj_n_n = adj_tris.to_csc();
+        let d0 = d0_tris.to_csc();
 
         Ok(Self {
             node_count,
             node_lens,
             adj_n_n,
+            d0,
         })
     }
 
