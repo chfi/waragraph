@@ -327,30 +327,36 @@ fn main() -> Result<()> {
     builder.bind_var("out_image_view", out_view)?;
     builder.bind_var("out_desc_set", out_desc_set)?;
 
+    #[rustfmt::skip]
     let color_buffer = {
         let usage = vk::BufferUsageFlags::TRANSFER_DST
             | vk::BufferUsageFlags::STORAGE_BUFFER;
 
         let gradient = colorous::RAINBOW;
 
+        let l = 4;
+
         waragraph::util::alloc_buffer_with(
             &mut engine,
             Some("color_buffer"),
             usage,
             true,
-            0..16,
+            0..l,
             |ix| {
-                let color = gradient.eval_rational(ix, 16);
+                let color = gradient.eval_rational(ix, l);
 
                 let to_bytes = |c| ((c as f32) / 255.0).to_ne_bytes();
 
                 let r = to_bytes(color.r);
                 let g = to_bytes(color.g);
                 let b = to_bytes(color.b);
+                let a = 1.0f32.to_ne_bytes();
 
                 [
-                    r[0], r[1], r[2], r[3], g[0], g[1], g[2], g[3], b[0], b[1],
-                    b[2], b[3],
+                    r[0], r[1], r[2], r[3],
+                    g[0], g[1], g[2], g[3],
+                    b[0], b[1], b[2], b[3],
+                    a[0], a[1], a[2], a[3],
                 ]
             },
         )?

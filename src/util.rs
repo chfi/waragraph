@@ -25,13 +25,14 @@ where
 
     if prefix_len {
         // TODO this isn't quite correct, it assumes 4 byte vals
-        len += 1;
+        len += 2;
     }
 
     let mut data = Vec::with_capacity(N * len);
 
     if prefix_len {
-        data.extend(len.to_ne_bytes().into_iter())
+        data.extend(len.to_ne_bytes().into_iter());
+        data.extend(len.to_ne_bytes().into_iter());
     }
 
     data.extend(indices.map(f).flatten());

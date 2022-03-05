@@ -9,6 +9,11 @@ layout (set = 0, binding = 1) readonly buffer ClipRects {
   vec4 rect[];
 } clip_rects;
 
+layout (set = 1, binding = 0) readonly buffer Colors {
+  uint len;
+  vec4 colors[];
+} colors;
+
 // layout (set = 0, binding = 1) uniform ClipRect {
 //   float x;
 //   float y;
@@ -16,7 +21,7 @@ layout (set = 0, binding = 1) readonly buffer ClipRects {
 //   float h;
 // } clip;
 
-layout (rgba8, set = 1, binding = 0) writeonly uniform image2D image_out;
+layout (rgba8, set = 2, binding = 0) writeonly uniform image2D image_out;
 
 layout (push_constant) uniform Inputs {
   uint node_count;
@@ -85,7 +90,9 @@ void main() {
 
   uvec2 screen_dst = rel_dst + uvec2(p);
 
-  vec4 color = color_for_count(src);
+  // vec4 color = color_for_count(src);
+
+  vec4 color = colors.colors[src % colors.len];
 
   ivec2 pixel = ivec2(screen_dst);
 
@@ -97,5 +104,6 @@ void main() {
   }
 
   imageStore(image_out, pixel, color.bgra);
+  // imageStore(image_out, pixel, color.rgba);
 
 }
