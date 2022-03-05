@@ -8,18 +8,33 @@ use crossbeam::atomic::AtomicCell;
 
 use anyhow::{anyhow, bail, Result};
 
+// pub fn alloc_gradient_buffer
+
 pub fn alloc_buffer_with<F, const N: usize>(
     engine: &mut VkEngine,
     name: Option<&str>,
     usage: vk::BufferUsageFlags,
-    f: F,
+    prefix_len: bool,
     indices: std::ops::Range<usize>,
+    f: F,
 ) -> Result<BufferIx>
 where
     F: FnMut(usize) -> [u8; N],
 {
-    let len = indices.len();
-    let data = indices.map(f).flatten().collect::<Vec<u8>>();
+    let mut len = indices.len();
+
+    if prefix_len {
+        // TODO this isn't quite correct, it assumes 4 byte vals
+        len += 1;
+    }
+
+    let mut data = Vec::with_capacity(N * len);
+
+    if prefix_len {
+        data.extend(len.to_ne_bytes().into_iter())
+    }
+
+    data.extend(indices.map(f).flatten());
 
     let buf_ix = engine.with_allocators(|ctx, res, alloc| {
         let buf = res.allocate_buffer(

@@ -320,11 +320,43 @@ fn main() -> Result<()> {
         .get("out_desc_set")
         .unwrap();
 
-    let mut builder = FrameBuilder::from_script("paths.rhai")?;
+    // let mut builder = FrameBuilder::from_script("paths.rhai")?;
+    let mut builder = FrameBuilder::from_script("paths2.rhai")?;
 
     builder.bind_var("out_image", out_image)?;
     builder.bind_var("out_image_view", out_view)?;
     builder.bind_var("out_desc_set", out_desc_set)?;
+
+    let color_buffer = {
+        let usage = vk::BufferUsageFlags::TRANSFER_DST
+            | vk::BufferUsageFlags::STORAGE_BUFFER;
+
+        let gradient = colorous::RAINBOW;
+
+        waragraph::util::alloc_buffer_with(
+            &mut engine,
+            Some("color_buffer"),
+            usage,
+            true,
+            0..16,
+            |ix| {
+                let color = gradient.eval_rational(ix, 16);
+
+                let to_bytes = |c| ((c as f32) / 255.0).to_ne_bytes();
+
+                let r = to_bytes(color.r);
+                let g = to_bytes(color.g);
+                let b = to_bytes(color.b);
+
+                [
+                    r[0], r[1], r[2], r[3], g[0], g[1], g[2], g[3], b[0], b[1],
+                    b[2], b[3],
+                ]
+            },
+        )?
+    };
+
+    builder.bind_var("color_buffer", color_buffer)?;
 
     engine.with_allocators(|ctx, res, alloc| {
         builder.resolve(ctx, res, alloc)?;
