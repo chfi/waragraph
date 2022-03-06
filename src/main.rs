@@ -254,7 +254,17 @@ fn main() -> Result<()> {
         &mut samples,
     );
 
-    let path_slots = engine.with_allocators(|ctx, res, alloc| {
+    let count = 10;
+    log::warn!("first {} samples:", count);
+    for (i, s) in samples.iter().enumerate().take(count) {
+        log::warn!("{} - ({}, {})", i, s.0, s.1);
+    }
+    log::warn!("last {} samples:", count);
+    for (i, s) in samples.iter().enumerate().rev().take(count) {
+        log::warn!("{} - ({}, {})", i, s.0, s.1);
+    }
+
+    let mut path_slots = engine.with_allocators(|ctx, res, alloc| {
         let slot_count = graph_data.path_loops.len();
         let mut slots = Vec::with_capacity(slot_count);
 
@@ -282,7 +292,7 @@ fn main() -> Result<()> {
         }
 
         Ok(slots)
-    });
+    })?;
 
     let path_bufs = engine.with_allocators(|ctx, res, alloc| {
         let loc = gpu_allocator::MemoryLocation::GpuOnly;
@@ -426,20 +436,9 @@ fn main() -> Result<()> {
     let desc_sets = engine.with_allocators(|ctx, res, alloc| {
         let mut desc_sets = Vec::new();
 
-        for &path_buf in path_bufs.iter() {
-            let set = res.allocate_desc_set(shader_ix, 0, |res, builder| {
-                {
-                    let buffer = &res[path_buf];
-                    let buf_info = ash::vk::DescriptorBufferInfo::builder()
-                        .buffer(buffer.buffer)
-                        .offset(0)
-                        .range(ash::vk::WHOLE_SIZE)
-                        .build();
-                    let buffer_info = [buf_info];
-                    builder.bind_buffer(0, &buffer_info);
-                }
-
-                {
+        for slot in path_slots.iter() {
+            let clip_set =
+                res.allocate_desc_set(shader_ix, 0, |res, builder| {
                     let buffer = &res[clip_rects_buffer];
                     let buf_info = ash::vk::DescriptorBufferInfo::builder()
                         .buffer(buffer.buffer)
@@ -447,28 +446,17 @@ fn main() -> Result<()> {
                         .range(ash::vk::WHOLE_SIZE)
                         .build();
                     let buffer_info = [buf_info];
-                    builder.bind_buffer(1, &buffer_info);
-                }
+                    builder.bind_buffer(0, &buffer_info);
+                    Ok(())
+                })?;
 
-                {
-                    let layout = ash::vk::ImageLayout::GENERAL;
+            let clip_set_ix = res.insert_desc_set(clip_set);
+            let slot_set_ix = slot.desc_set();
 
-                    let view = res[out_view];
-
-                    let info = ash::vk::DescriptorImageInfo::builder()
-                        .image_layout(layout)
-                        .image_view(view)
-                        .build();
-
-                    builder.bind_image(2, &[info]);
-                }
-
-                Ok(())
-            })?;
-
-            let set_ix = res.insert_desc_set(set);
-
-            desc_sets.push(rhai::Dynamic::from(set_ix));
+            let mut map = rhai::Map::default();
+            map.insert("clip".into(), rhai::Dynamic::from(clip_set_ix));
+            map.insert("slot".into(), rhai::Dynamic::from(slot_set_ix));
+            desc_sets.push(rhai::Dynamic::from_map(map));
         }
 
         Ok(desc_sets)
@@ -501,7 +489,7 @@ fn main() -> Result<()> {
             "init",
         );
 
-        let init_builder = init()?;
+        let mut init_builder = init()?;
 
         if !init_builder.init_fn.is_empty() {
             log::warn!("submitting init batches");
@@ -509,6 +497,10 @@ fn main() -> Result<()> {
                 engine.submit_batches_fence(init_builder.init_fn.as_slice())?;
 
             engine.block_on_fence(fence)?;
+
+            engine.with_allocators(|c, r, a| {
+                init_builder.free_staging_buffers(c, r, a)
+            })?;
         }
     }
 
@@ -680,12 +672,23 @@ fn main() -> Result<()> {
                                         res,
                                         alloc,
                                     )?;
+
+                                    for slot in path_slots.iter_mut() {
+                                        slot.resize(
+                                            ctx,
+                                            res,
+                                            alloc,
+                                            size.width as usize,
+                                            0u32,
+                                        )?;
+                                    }
+
                                     Ok(())
                                 })
                                 .unwrap();
 
                             {
-                                let init_builder = update_clip_rects(
+                                let mut init_builder = update_clip_rects(
                                     size.width as i64,
                                     size.height as i64,
                                 )
@@ -700,6 +703,13 @@ fn main() -> Result<()> {
                                         .unwrap();
 
                                     engine.block_on_fence(fence).unwrap();
+
+                                    engine
+                                        .with_allocators(|c, r, a| {
+                                            init_builder
+                                                .free_staging_buffers(c, r, a)
+                                        })
+                                        .unwrap();
                                 }
                             }
 

@@ -79,6 +79,12 @@ impl PathViewSlot {
         new_width: usize,
         fill: u32,
     ) -> Result<()> {
+        log::warn!(
+            "old_width: {}\tcapacity: {}\tnew_width: {}",
+            self.width,
+            self.capacity,
+            new_width
+        );
         if new_width <= self.capacity {
             self.width = new_width;
             return Ok(());
@@ -91,11 +97,12 @@ impl PathViewSlot {
             let slice = res[buffer_ix].mapped_slice_mut().ok_or(anyhow!(
                 "Path slot buffer could not be memory mapped"
             ))?;
-            new_data.clone_from_slice(slice);
+            new_data.extend_from_slice(slice);
             new_data
         };
 
         let fb = fill.to_ne_bytes();
+        log::warn!("diff: {}", new_width - self.width);
         for _ in 0..(new_width - self.width) {
             new_data.extend_from_slice(&fb);
         }
@@ -116,6 +123,7 @@ impl PathViewSlot {
         }
 
         self.width = new_width;
+        self.capacity = new_width;
 
         let desc_set = Self::allocate_desc_set(self.buffer, ctx, res, alloc)?;
         let _ = res.insert_desc_set_at(self.desc_set, desc_set);
@@ -129,6 +137,14 @@ impl PathViewSlot {
 
     pub fn width(&self) -> usize {
         self.width
+    }
+
+    pub fn buffer(&self) -> BufferIx {
+        self.buffer
+    }
+
+    pub fn desc_set(&self) -> DescSetIx {
+        self.desc_set
     }
 
     fn allocate_buffer(
