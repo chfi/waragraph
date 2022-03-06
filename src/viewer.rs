@@ -1,14 +1,12 @@
-use std::{collections::HashMap, num::NonZeroU32};
+use std::collections::{BTreeMap, HashMap};
 
 use ash::vk;
-use bstr::ByteSlice;
-use gfa::gfa::GFA;
 use gpu_allocator::vulkan::Allocator;
 use raving::vk::{
-    context::VkContext, BufferIx, BufferRes, GpuResources, VkEngine,
+    context::VkContext, descriptor::DescriptorLayoutInfo, BufferIx, BufferRes,
+    DescSetIx, GpuResources, VkEngine,
 };
-use rustc_hash::FxHashMap;
-use thunderdome::{Arena, Index};
+use rspirv_reflect::DescriptorInfo;
 
 use sprs::{CsMat, CsMatI, CsVec, CsVecI, CsVecView, TriMat, TriMatI};
 
@@ -26,6 +24,7 @@ pub struct PathViewSlot {
 
     // uniform: BufferIx,
     buffer: BufferIx,
+    desc_set: DescSetIx,
 
     name: Option<String>,
 }
@@ -58,11 +57,16 @@ impl PathViewSlot {
 
         let buffer = res.insert_buffer(buffer);
 
+        let desc_set = Self::allocate_desc_set(buffer, ctx, res, alloc)?;
+        let desc_set = res.insert_desc_set(desc_set);
+
         Ok(Self {
             capacity: width,
             width,
 
             buffer,
+            desc_set,
+
             name,
         })
     }
@@ -113,6 +117,9 @@ impl PathViewSlot {
 
         self.width = new_width;
 
+        let desc_set = Self::allocate_desc_set(self.buffer, ctx, res, alloc)?;
+        let _ = res.insert_desc_set_at(self.desc_set, desc_set);
+
         Ok(())
     }
 
@@ -137,5 +144,51 @@ impl PathViewSlot {
             | vk::BufferUsageFlags::TRANSFER_DST;
 
         res.allocate_buffer(ctx, alloc, mem_loc, 4, width, usage, name)
+    }
+
+    fn allocate_desc_set(
+        // &self,
+        buffer: BufferIx,
+        ctx: &VkContext,
+        res: &mut GpuResources,
+        alloc: &mut Allocator,
+    ) -> Result<vk::DescriptorSet> {
+        // TODO also do uniforms if/when i add them, or keep them in a
+        // separate set
+        let layout_info = {
+            let mut info = DescriptorLayoutInfo::default();
+
+            let binding = vk::DescriptorSetLayoutBinding::builder()
+                .binding(0)
+                .descriptor_count(1)
+                .descriptor_type(vk::DescriptorType::STORAGE_BUFFER)
+                .stage_flags(vk::ShaderStageFlags::COMPUTE) // TODO should also be graphics, probably
+                .build();
+
+            info.bindings.push(binding);
+            info
+        };
+
+        let set_info = {
+            let info = DescriptorInfo {
+                ty: rspirv_reflect::DescriptorType::STORAGE_BUFFER,
+                binding_count: rspirv_reflect::BindingCount::One,
+                name: "samples".to_string(),
+            };
+
+            Some((0u32, info)).into_iter().collect::<BTreeMap<_, _>>()
+        };
+
+        res.allocate_desc_set_raw(&layout_info, &set_info, |res, builder| {
+            let buffer = &res[buffer];
+            let info = ash::vk::DescriptorBufferInfo::builder()
+                .buffer(buffer.buffer)
+                .offset(0)
+                .range(ash::vk::WHOLE_SIZE)
+                .build();
+            let buffer_info = [info];
+            builder.bind_buffer(0, &buffer_info);
+            Ok(())
+        })
     }
 }
