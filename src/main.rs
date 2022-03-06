@@ -147,6 +147,8 @@ fn main() -> Result<()> {
     let width = 800u32;
     let height = 600u32;
 
+    let swapchain_dims = Arc::new(AtomicCell::new([width, height]));
+
     let window = WindowBuilder::new()
         .with_title("Waragraph Viewer")
         .with_inner_size(winit::dpi::PhysicalSize::new(width, height))
@@ -542,12 +544,28 @@ fn main() -> Result<()> {
         [new_frame(), new_frame()]
     };
 
+    let dims = swapchain_dims.clone();
     let copy_batch = Box::new(
         move |dev: &Device,
               res: &GpuResources,
               input: &BatchInput,
               cmd: vk::CommandBuffer| {
-            copy_batch(out_image, input.swapchain_image.unwrap(), dev, res, cmd)
+            let [w, h] = dims.load();
+
+            let extent = vk::Extent3D {
+                width: w,
+                height: h,
+                depth: 1,
+            };
+
+            copy_batch(
+                out_image,
+                input.swapchain_image.unwrap(),
+                extent,
+                dev,
+                res,
+                cmd,
+            )
         },
     ) as Box<_>;
 
@@ -573,7 +591,9 @@ fn main() -> Result<()> {
 
     let start = std::time::Instant::now();
 
+    // let mut dirty_swapchain = false;
     let mut recreate_swapchain = false;
+    let mut recreate_swapchain_timer: Option<std::time::Instant> = None;
 
     event_loop.run(move |event, _, control_flow| {
         *control_flow = winit::event_loop::ControlFlow::Poll;
@@ -642,12 +662,22 @@ fn main() -> Result<()> {
                 }
             }
             Event::RedrawEventsCleared => {
-                if recreate_swapchain {
+                let should_recreate =
+                    if let Some(timer) = recreate_swapchain_timer {
+                        timer.elapsed().as_millis() > 15
+                    } else {
+                        false
+                    };
+
+                if should_recreate || recreate_swapchain {
                     recreate_swapchain = false;
 
                     let size = window.inner_size();
 
-                    if size.width > 0 && size.height > 0 {
+                    if size.width == 0 || size.height == 0 {
+                        recreate_swapchain_timer =
+                            Some(std::time::Instant::now());
+                    } else {
                         log::debug!(
                             "Recreating swapchain with window size {:?}",
                             size
@@ -656,6 +686,8 @@ fn main() -> Result<()> {
                         engine
                             .recreate_swapchain(Some([size.width, size.height]))
                             .unwrap();
+
+                        swapchain_dims.store(engine.swapchain_dimensions());
 
                         {
                             let res_builder = win_size_res_builder(
@@ -729,6 +761,8 @@ fn main() -> Result<()> {
                                 "foreground",
                             );
                         }
+
+                        recreate_swapchain_timer = None;
                     }
                 }
             }
@@ -738,7 +772,7 @@ fn main() -> Result<()> {
                     *control_flow = winit::event_loop::ControlFlow::Exit;
                 }
                 WindowEvent::Resized { .. } => {
-                    recreate_swapchain = true;
+                    recreate_swapchain_timer = Some(std::time::Instant::now());
                 }
                 _ => (),
             },

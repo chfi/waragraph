@@ -116,7 +116,7 @@ impl PathViewSlot {
             .mapped_slice_mut()
             .ok_or(anyhow!("Path slot buffer could not be memory mapped"))?;
 
-        slice.clone_from_slice(&new_data);
+        slice[..new_width].clone_from_slice(&new_data[..new_width]);
 
         if let Some(old_buffer) = res.insert_buffer_at(buffer_ix, new_buffer) {
             res.free_buffer(ctx, alloc, old_buffer)?;
