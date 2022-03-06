@@ -19,6 +19,7 @@ use parking_lot::Mutex;
 use rspirv_reflect::DescriptorInfo;
 use rustc_hash::FxHashSet;
 use waragraph::graph::{Node, Waragraph};
+use waragraph::viewer::PathViewSlot;
 use winit::event::{Event, WindowEvent};
 use winit::{event_loop::EventLoop, window::WindowBuilder};
 
@@ -243,6 +244,45 @@ fn main() -> Result<()> {
             Ok(())
         })?;
     }
+
+    let mut samples = Vec::new();
+
+    waragraph.sample_node_lengths(
+        width as usize,
+        0,
+        waragraph.total_len(),
+        &mut samples,
+    );
+
+    let path_slots = engine.with_allocators(|ctx, res, alloc| {
+        let slot_count = graph_data.path_loops.len();
+        let mut slots = Vec::with_capacity(slot_count);
+
+        for i in 0..slot_count {
+            let path = &waragraph.paths[i];
+
+            let name = format!("path_slot_{}", i);
+            let slot = PathViewSlot::new(
+                ctx,
+                res,
+                alloc,
+                width as usize,
+                Some(&name),
+                |ix| {
+                    let (node, _offset) = samples[ix];
+                    if path.get(node.into()).is_some() {
+                        1
+                    } else {
+                        0
+                    }
+                },
+            )?;
+
+            slots.push(slot);
+        }
+
+        Ok(slots)
+    });
 
     let path_bufs = engine.with_allocators(|ctx, res, alloc| {
         let loc = gpu_allocator::MemoryLocation::GpuOnly;

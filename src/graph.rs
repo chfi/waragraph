@@ -53,6 +53,12 @@ impl Into<u32> for Node {
     }
 }
 
+impl Into<usize> for Node {
+    fn into(self) -> usize {
+        self.0 as usize
+    }
+}
+
 impl std::fmt::Display for Node {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         write!(f, "{}", self.0 + 1)
@@ -97,6 +103,7 @@ impl std::fmt::Display for Strand {
 
 pub struct Waragraph {
     node_count: usize,
+    total_len: usize,
 
     node_sum_lens: Vec<usize>,
     node_lens: Vec<u32>,
@@ -128,6 +135,8 @@ impl Waragraph {
             node_lens.push(len as u32);
             sum += len;
         }
+
+        let total_len = sum;
 
         // let node_lens = gfa
         //     .segments
@@ -202,6 +211,7 @@ impl Waragraph {
 
         Ok(Self {
             node_count,
+            total_len,
             node_sum_lens,
             node_lens,
 
@@ -217,6 +227,10 @@ impl Waragraph {
 
     pub fn node_count(&self) -> usize {
         self.node_count
+    }
+
+    pub fn total_len(&self) -> usize {
+        self.total_len
     }
 
     // pub fn neighbors_fwd(&self, node: Node) -> Option<CsVecView<'_, u8>> {
