@@ -24,7 +24,8 @@ pub struct PathViewSlot {
     capacity: usize,
     width: usize,
 
-    buffer: BufferRes,
+    // uniform: BufferIx,
+    buffer: BufferIx,
 
     name: Option<String>,
 }
@@ -55,6 +56,8 @@ impl PathViewSlot {
 
         let name = name.map(String::from);
 
+        let buffer = res.insert_buffer(buffer);
+
         Ok(Self {
             capacity: width,
             width,
@@ -77,9 +80,11 @@ impl PathViewSlot {
             return Ok(());
         }
 
+        let buffer_ix = self.buffer;
+
         let mut new_data = {
             let mut new_data = Vec::with_capacity(new_width);
-            let slice = self.buffer.mapped_slice_mut().ok_or(anyhow!(
+            let slice = res[buffer_ix].mapped_slice_mut().ok_or(anyhow!(
                 "Path slot buffer could not be memory mapped"
             ))?;
             new_data.clone_from_slice(slice);
@@ -93,19 +98,18 @@ impl PathViewSlot {
 
         let name = self.name.as_deref();
 
-        let mut buffer =
+        let mut new_buffer =
             Self::allocate_buffer(ctx, res, alloc, new_width, name)?;
 
-        std::mem::swap(&mut self.buffer, &mut buffer);
-
-        res.free_buffer(ctx, alloc, buffer)?;
-
-        let slice = self
-            .buffer
+        let slice = new_buffer
             .mapped_slice_mut()
             .ok_or(anyhow!("Path slot buffer could not be memory mapped"))?;
 
         slice.clone_from_slice(&new_data);
+
+        if let Some(old_buffer) = res.insert_buffer_at(buffer_ix, new_buffer) {
+            res.free_buffer(ctx, alloc, old_buffer)?;
+        }
 
         self.width = new_width;
 
@@ -128,7 +132,6 @@ impl PathViewSlot {
         name: Option<&str>,
     ) -> Result<BufferRes> {
         let mem_loc = gpu_allocator::MemoryLocation::CpuToGpu;
-        // let usage = vk::BufferUsageFlags::STORAGE_BUFFER
         let usage = vk::BufferUsageFlags::STORAGE_BUFFER
             | vk::BufferUsageFlags::TRANSFER_SRC
             | vk::BufferUsageFlags::TRANSFER_DST;
