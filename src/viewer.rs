@@ -41,14 +41,7 @@ impl PathViewSlot {
     where
         F: FnMut(usize) -> u32,
     {
-        let mem_loc = gpu_allocator::MemoryLocation::CpuToGpu;
-        // let usage = vk::BufferUsageFlags::STORAGE_BUFFER
-        let usage = vk::BufferUsageFlags::STORAGE_BUFFER
-            | vk::BufferUsageFlags::TRANSFER_SRC
-            | vk::BufferUsageFlags::TRANSFER_DST;
-
-        let mut buffer =
-            res.allocate_buffer(ctx, alloc, mem_loc, 4, width, usage, name)?;
+        let mut buffer = Self::allocate_buffer(ctx, res, alloc, width, name)?;
 
         let slice = buffer
             .mapped_slice_mut()
@@ -70,11 +63,76 @@ impl PathViewSlot {
             name,
         })
     }
+
+    pub fn resize(
+        &mut self,
+        ctx: &VkContext,
+        res: &mut GpuResources,
+        alloc: &mut Allocator,
+        new_width: usize,
+        fill: u32,
+    ) -> Result<()> {
+        if new_width <= self.capacity {
+            self.width = new_width;
+            return Ok(());
+        }
+
+        let mut new_data = {
+            let mut new_data = Vec::with_capacity(new_width);
+            let slice = self.buffer.mapped_slice_mut().ok_or(anyhow!(
+                "Path slot buffer could not be memory mapped"
+            ))?;
+            new_data.clone_from_slice(slice);
+            new_data
+        };
+
+        let fb = fill.to_ne_bytes();
+        for _ in 0..(new_width - self.width) {
+            new_data.extend_from_slice(&fb);
+        }
+
+        let name = self.name.as_deref();
+
+        let mut buffer =
+            Self::allocate_buffer(ctx, res, alloc, new_width, name)?;
+
+        std::mem::swap(&mut self.buffer, &mut buffer);
+
+        res.free_buffer(ctx, alloc, buffer)?;
+
+        let slice = self
+            .buffer
+            .mapped_slice_mut()
+            .ok_or(anyhow!("Path slot buffer could not be memory mapped"))?;
+
+        slice.clone_from_slice(&new_data);
+
+        self.width = new_width;
+
+        Ok(())
+    }
+
     pub fn capacity(&self) -> usize {
         self.capacity
     }
 
     pub fn width(&self) -> usize {
         self.width
+    }
+
+    fn allocate_buffer(
+        ctx: &VkContext,
+        res: &mut GpuResources,
+        alloc: &mut Allocator,
+        width: usize,
+        name: Option<&str>,
+    ) -> Result<BufferRes> {
+        let mem_loc = gpu_allocator::MemoryLocation::CpuToGpu;
+        // let usage = vk::BufferUsageFlags::STORAGE_BUFFER
+        let usage = vk::BufferUsageFlags::STORAGE_BUFFER
+            | vk::BufferUsageFlags::TRANSFER_SRC
+            | vk::BufferUsageFlags::TRANSFER_DST;
+
+        res.allocate_buffer(ctx, alloc, mem_loc, 4, width, usage, name)
     }
 }
