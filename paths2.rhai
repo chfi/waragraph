@@ -35,13 +35,13 @@ export let clip_rects_buffer =
                   | vk::BufferUsageFlags::STORAGE_BUFFER);
 
 
-export let path_shader = load_shader("shaders/path.comp.spv",
+export let path_shader = load_shader("shaders/path_new.comp.spv",
                                      vk::ShaderStageFlags::COMPUTE);
 
 
 export let color_desc_set =
   create_desc_set(path_shader,
-                  1,
+                  2,
                   [ #{ binding: 0, buffer: color_buf } ]);
 
 export let path_pipeline = create_compute_pipeline(path_shader);
@@ -142,7 +142,10 @@ fn foreground(batch, desc_sets, w, h, node_count) {
 
   for ix in 0..desc_sets.len() {
 
-    let desc_set = desc_sets[ix];
+    let desc_sets = desc_sets[ix];
+
+    let slot_set = desc_sets.slot;
+    let clip_set = desc_sets.clip;
 
     let pc = blob();
     pc.append_int(w);
@@ -151,7 +154,8 @@ fn foreground(batch, desc_sets, w, h, node_count) {
     pc.append_int(ix);
 
     batch.dispatch_compute(self::path_pipeline.get(),
-                           [desc_set,
+                           [slot_set,
+                            clip_set,
                             self::color_desc_set.get(),
                             self::out_desc_set.get()],
                            pc,

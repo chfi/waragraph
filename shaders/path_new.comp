@@ -1,0 +1,109 @@
+#version 450
+
+layout (set = 0, binding = 0) readonly buffer PathData {
+  uint counts[];
+} path;
+
+
+layout (set = 1, binding = 0) readonly buffer ClipRects {
+  vec4 rect[];
+} clip_rects;
+
+layout (set = 2, binding = 0) readonly buffer Colors {
+  uint len;
+  vec4 colors[];
+} colors;
+
+// layout (set = 0, binding = 1) uniform ClipRect {
+//   float x;
+//   float y;
+//   float w;
+//   float h;
+// } clip;
+
+layout (rgba8, set = 3, binding = 0) writeonly uniform image2D image_out;
+
+layout (push_constant) uniform Inputs {
+  uint node_count;
+  int img_width;
+  int img_height;
+  uint clip_ix;
+} inputs;
+
+layout(local_size_x = 8, local_size_y = 8, local_size_z = 1) in;
+
+
+vec4 color_for_count(uint count) {
+  vec4 a = vec4(0.6, 0.2, 0.1, 1.0);
+  vec4 c = vec4(0.3, 0.9, 0.4, 1.0);
+  vec4 b = vec4(0.2, 0.5, 0.9, 1.0);
+
+  /*
+  vec4 a = vec4(1.0, 0.0, 0.0, 1.0);
+  vec4 b = vec4(0.0, 1.0, 0.0, 1.0);
+  vec4 c = vec4(0.0, 0.0, 1.0, 1.0);
+
+  if (count == 0) {
+    return a;
+  } else if (count == 1) {
+    return b;
+  } else {
+    return c;
+  }
+  */
+
+
+  if (count == 0) {
+    return vec4(0.2, 0.2, 0.2, 1.0);
+  } else if (count < 3) {
+    float t = clamp(float(count) / 3, 0.0, 1.0);
+    return mix(a, b, t);
+  } else if (count < 6) {
+    float t = clamp(float(count - 3) / 3, 0.0, 1.0);
+    return mix(b, c, t);
+  } else {
+    return c;
+  }
+}
+
+void main() {
+  uint clip_ix = inputs.clip_ix % 5;
+
+  vec4 rect = clip_rects.rect[clip_ix];
+
+  vec2 p = rect.xy;
+
+  float w = rect.z;
+  float h = rect.w;
+
+  uvec2 rel_dst = gl_GlobalInvocationID.xy;
+  uvec2 rel_dst_local = gl_LocalInvocationID.xy;
+
+  float t = float(rel_dst.x) / w;
+
+  uint src_ix = uint(inputs.node_count * t);
+
+  // uint src_ix = rel_dst.x / uint(w);
+  // uint src_ix = rel_dst.x / inputs.node_count;
+  uint src = path.counts[src_ix];
+
+
+  uvec2 screen_dst = rel_dst + uvec2(p);
+
+  // vec4 color = color_for_count(src);
+
+  vec4 color = colors.colors[src % colors.len];
+
+  ivec2 pixel = ivec2(screen_dst);
+
+  if (pixel.x >= p.x + w
+      || pixel.y >= p.y + h
+      || pixel.x < p.x
+      || pixel.y < p.y) {
+    return;
+  }
+
+  imageStore(image_out, pixel, color.bgra);
+  // imageStore(image_out, pixel, color.rgba);
+
+}
