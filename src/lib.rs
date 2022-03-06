@@ -1,6 +1,7 @@
 pub mod graph;
 pub mod paths;
 pub mod util;
+pub mod viewer;
 
 #[cfg(test)]
 mod tests {
