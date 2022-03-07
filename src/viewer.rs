@@ -18,6 +18,37 @@ use ndarray::prelude::*;
 
 use anyhow::{anyhow, bail, Result};
 
+pub struct PathViewer {
+    width: usize,
+    slots: Vec<PathViewSlot>,
+}
+
+impl PathViewer {
+    pub fn new(
+        ctx: &VkContext,
+        res: &mut GpuResources,
+        alloc: &mut Allocator,
+        width: usize,
+        slot_count: usize,
+        fill: u32,
+        name_prefix: &str,
+    ) -> Result<Self> {
+        let mut slots = Vec::with_capacity(slot_count);
+
+        for i in 0..slot_count {
+            let name = format!("{}_slot_{}", name_prefix, i);
+            let slot =
+                PathViewSlot::new(ctx, res, alloc, width, Some(&name), |_| {
+                    fill
+                })?;
+
+            slots.push(slot);
+        }
+
+        Ok(Self { width, slots })
+    }
+}
+
 pub struct PathViewSlot {
     capacity: usize,
     width: usize,
@@ -129,6 +160,20 @@ impl PathViewSlot {
         let _ = res.insert_desc_set_at(self.desc_set, desc_set);
 
         Ok(())
+    }
+
+    pub fn update_from<F>(
+        &mut self,
+        res: &mut GpuResources,
+        mut fill: F,
+        buf: &mut Vec<u8>,
+    ) where
+        F: FnMut(usize) -> u32,
+    {
+        let slice = res[self.buffer].mapped_slice_mut().unwrap();
+        buf.clear();
+        buf.extend((0..self.width).flat_map(|i| fill(i).to_ne_bytes()));
+        slice.clone_from_slice(&buf);
     }
 
     pub fn capacity(&self) -> usize {
