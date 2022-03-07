@@ -4,7 +4,6 @@ layout (set = 0, binding = 0) readonly buffer PathData {
   uint counts[];
 } path;
 
-
 layout (set = 1, binding = 0) readonly buffer ClipRects {
   vec4 rect[];
 } clip_rects;
@@ -14,19 +13,11 @@ layout (set = 2, binding = 0) readonly buffer Colors {
   vec4 colors[];
 } colors;
 
-// layout (set = 0, binding = 1) uniform ClipRect {
-//   float x;
-//   float y;
-//   float w;
-//   float h;
-// } clip;
-
 layout (rgba8, set = 3, binding = 0) writeonly uniform image2D image_out;
 
 layout (push_constant) uniform Inputs {
-  uint node_count;
-  int img_width;
-  int img_height;
+  int slot_width;
+  int slot_height;
   uint clip_ix;
 } inputs;
 
@@ -34,7 +25,7 @@ layout(local_size_x = 8, local_size_y = 8, local_size_z = 1) in;
 
 
 void main() {
-  uint clip_ix = inputs.clip_ix % 5;
+  uint clip_ix = inputs.clip_ix;
 
   vec4 rect = clip_rects.rect[clip_ix];
 
@@ -46,13 +37,15 @@ void main() {
   uvec2 rel_dst = gl_GlobalInvocationID.xy;
   uvec2 rel_dst_local = gl_LocalInvocationID.xy;
 
-  float t = float(rel_dst.x) / w;
+  if (rel_dst.x >= w
+      || rel_dst.y >= h) {
+    return;
+  }
 
-  // uint src_ix = uint(inputs.node_count * t);
-  uint src_ix = rel_dst.x;
+  float t = clamp(0.0, 1.0, float(rel_dst.x) / w);
 
-  // uint src_ix = rel_dst.x / uint(w);
-  // uint src_ix = rel_dst.x / inputs.node_count;
+  uint src_ix = uint(inputs.slot_width * t);
+
   uint src = path.counts[src_ix];
 
   uvec2 screen_dst = rel_dst + uvec2(p);
@@ -61,14 +54,5 @@ void main() {
 
   ivec2 pixel = ivec2(screen_dst);
 
-  if (pixel.x >= p.x + w
-      || pixel.y >= p.y + h
-      || pixel.x < p.x
-      || pixel.y < p.y) {
-    return;
-  }
-
   imageStore(image_out, pixel, color.bgra);
-  // imageStore(image_out, pixel, color.rgba);
-
 }

@@ -6,9 +6,8 @@ use std::sync::Arc;
 
 use crossbeam::atomic::AtomicCell;
 
+#[allow(unused_imports)]
 use anyhow::{anyhow, bail, Result};
-
-// pub fn alloc_gradient_buffer
 
 pub fn alloc_buffer_with<F, const N: usize>(
     engine: &mut VkEngine,

@@ -4,13 +4,12 @@ use ash::vk;
 use bstr::ByteSlice;
 use gfa::gfa::GFA;
 use gpu_allocator::vulkan::Allocator;
-use raving::vk::{
-    context::VkContext, BufferIx, BufferRes, GpuResources, VkEngine,
-};
+use raving::vk::{context::VkContext, BufferIx, GpuResources, VkEngine};
 use rustc_hash::FxHashMap;
+
 use thunderdome::{Arena, Index};
 
-use sprs::{CsMat, CsMatI, CsVec, CsVecI, CsVecView, TriMat, TriMatI};
+use sprs::{CsMatI, CsVecI, TriMatI};
 
 use std::sync::Arc;
 
@@ -138,15 +137,6 @@ impl Waragraph {
 
         let total_len = sum;
 
-        // let node_lens = gfa
-        //     .segments
-        //     .iter()
-        //     .map(|seg| {
-        //         let len = seg.sequence.len();
-        //         len as u32
-        //     })
-        //     .collect::<Vec<u32>>();
-
         let mut adj_tris: TriMatI<u8, u32> =
             TriMatI::new((node_count, node_count));
         let mut d0_tris: TriMatI<i8, u32> =
@@ -263,27 +253,10 @@ impl Waragraph {
     ) {
         out.clear();
 
-        log::warn!("pos_offset: {}", pos_offset);
-        log::warn!("len: {}", len);
-
         let pos_end = pos_offset + len;
-        log::warn!("pos_end: {}", pos_end);
 
-        // let first_inner =
-        //     self.node_sum_lens.partition_point(|&l| l > pos_offset);
-        // let pre = first_inner.checked_sub(1).unwrap_or_default();
-
-        // let post = self.node_sum_lens.partition_point(|&l| l <= pos_end);
-        // let last_inner = post.checked_sub(1).unwrap_or_default();
-
-        // let slice = &self.node_sum_lens[pre..post];
         let slice = &self.node_sum_lens;
-        log::warn!("slice length: {}", slice.len());
-        // log::warn!("pre: {}", pre);
-        // log::warn!("post: {}", post);
-
         let sample_width = len / nsamples;
-        log::warn!("sample_width: {}", sample_width);
 
         let sample_point = |p| match slice.binary_search(&p) {
             Ok(i) => i,
@@ -304,7 +277,6 @@ impl Waragraph {
             let offset = self.node_sum_lens[ix];
 
             let node = Node(ix as u32);
-            // log::debug!("sample {} - p: {} - node: {}", i, p, node);
             let rem = p - offset;
 
             out.push((node, rem));

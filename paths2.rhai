@@ -9,11 +9,6 @@ export let bg_shader = load_shader("shaders/bg_color.comp.spv",
 
 export let bg_pipeline = create_compute_pipeline(bg_shader);
 
-// export let bg_desc_set =
-//   create_desc_set(bg_shader,
-//                   0,
-//                   [ #{ binding: 0, image_view: out_image_view }]);
-
 export let font_image = allocate_image("font_image",
                                        1024,
                                        8,
@@ -30,7 +25,7 @@ export let clip_rects_buffer =
   allocate_buffer("rect_buffer",
                   vk::MemoryLocation::CPU_TO_GPU,
                   1,
-                  4 * 4 * 8, // vec4 * 8
+                  4 * 4 * 32, // vec4 * 8
                   vk::BufferUsageFlags::TRANSFER_DST
                   | vk::BufferUsageFlags::STORAGE_BUFFER);
 
@@ -64,8 +59,12 @@ fn resize(width, height) {
   let w = width.to_float() - 40.0;
   let h = 50.0;
 
-  for i in 0..5 {
-    clip_rects.push(#{ x: 20.0,  y: 20.0 + 56.0 * i,
+  // let yd = 120.0;
+  let yd = 56.0;
+
+  // for i in 0..5 {
+  for i in 0..16 {
+    clip_rects.push(#{ x: 20.0,  y: 20.0 + yd * i,
                        w: w, h: h });
   }
 
@@ -86,7 +85,7 @@ fn init() {
   let clip_buf = self::clip_rects_buffer.get();
   let clip_rects = [];
 
-  for i in 0..5 {
+  for i in 0..16 {
     clip_rects.push(#{ x: 20.0,  y: 20.0 + 56.0 * i,
                        w: 760.0, h: 50.0 });
   }
@@ -98,7 +97,7 @@ fn init() {
   init_batch
 }
 
-fn foreground(batch, desc_sets, w, h, node_count) {
+fn foreground(batch, desc_sets, slot_w, w, h, node_count) {
 
   let img = self::out_image.get();
   batch.transition_image(img,
@@ -136,21 +135,21 @@ fn foreground(batch, desc_sets, w, h, node_count) {
   let x_size = 8;
   let y_size = 8;
 
-  let workgroups = #{ x_groups: (w / x_size) + w % x_size,
-                      y_groups: (h / y_size) + h % y_size,
+  let slot_h = 50;
+
+  let workgroups = #{ x_groups: (slot_w / x_size) + slot_w % x_size,
+                      y_groups: (slot_h / y_size) + slot_h % y_size,
                       z_groups: 1 };
 
   for ix in 0..desc_sets.len() {
-
     let desc_sets = desc_sets[ix];
 
     let slot_set = desc_sets.slot;
     let clip_set = desc_sets.clip;
 
     let pc = blob();
-    pc.append_int(w);
-    pc.append_int(h);
-    pc.append_int(node_count);
+    pc.append_int(slot_w);
+    pc.append_int(slot_h);
     pc.append_int(ix);
 
     batch.dispatch_compute(self::path_pipeline.get(),

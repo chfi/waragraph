@@ -17,18 +17,15 @@ use flexi_logger::{Duplicate, FileSpec, Logger};
 use gpu_allocator::vulkan::Allocator;
 use parking_lot::Mutex;
 use rspirv_reflect::DescriptorInfo;
-use rustc_hash::FxHashSet;
+
 use waragraph::graph::{Node, Waragraph};
 use waragraph::viewer::PathViewSlot;
 use winit::event::{Event, WindowEvent};
 use winit::{event_loop::EventLoop, window::WindowBuilder};
 
-// #[cfg(target_os = "linux")]
-// use winit::platform::unix::*;
-
 use std::collections::{BTreeMap, HashMap};
 use std::io::{prelude::*, BufReader};
-use std::num::NonZeroU32;
+
 use std::sync::Arc;
 
 use anyhow::{anyhow, bail, Result};
@@ -233,7 +230,6 @@ fn main() -> Result<()> {
             .desc_sets
             .insert("out_desc_set".to_string(), desc_set);
 
-        //
         Ok(builder)
     };
 
@@ -255,16 +251,6 @@ fn main() -> Result<()> {
         waragraph.total_len(),
         &mut samples,
     );
-
-    let count = 10;
-    log::warn!("first {} samples:", count);
-    for (i, s) in samples.iter().enumerate().take(count) {
-        log::warn!("{} - ({}, {})", i, s.0, s.1);
-    }
-    log::warn!("last {} samples:", count);
-    for (i, s) in samples.iter().enumerate().rev().take(count) {
-        log::warn!("{} - ({}, {})", i, s.0, s.1);
-    }
 
     let mut path_slots = engine.with_allocators(|ctx, res, alloc| {
         let slot_count = graph_data.path_loops.len();
@@ -470,7 +456,7 @@ fn main() -> Result<()> {
     rhai_engine.register_static_module("self", arc_module.clone());
 
     let mut draw_foreground = rhai::Func::<
-        (BatchBuilder, rhai::Array, i64, i64, i64),
+        (BatchBuilder, rhai::Array, i64, i64, i64, i64),
         BatchBuilder,
     >::create_from_ast(
         rhai_engine,
@@ -571,27 +557,8 @@ fn main() -> Result<()> {
 
     ///////
 
-    let segments = [1, 2, 3, 4, 5, 6, 7, 8]
-        .into_iter()
-        .filter_map(NonZeroU32::new)
-        .collect::<Vec<_>>();
-
-    for seg in segments {
-        let node = Node::from(seg);
-        let neighbors = waragraph.neighbors_fwd(node);
-
-        println!("segment `{}` neighbors", node);
-        // println!("
-        for n in neighbors.into_iter().flatten() {
-            println!(" - {}", n);
-        }
-    }
-
-    ///////
-
     let start = std::time::Instant::now();
 
-    // let mut dirty_swapchain = false;
     let mut recreate_swapchain = false;
     let mut recreate_swapchain_timer: Option<std::time::Instant> = None;
 
@@ -603,21 +570,19 @@ fn main() -> Result<()> {
                 let t = start.elapsed().as_secs_f32();
 
                 let f_ix = engine.current_frame_number();
-                // dbg!(t);
-                // dbg!(f_ix);
-                let frame = &mut frames[f_ix % raving::vk::FRAME_OVERLAP];
 
-                // let bg_batch = draw_background(800, 600, t).unwrap();
-                // let bg_batch_fn = bg_batch.build();
-                // let bg_rhai_batch = bg_batch_fn.clone();
+                let frame = &mut frames[f_ix % raving::vk::FRAME_OVERLAP];
 
                 let batch_builder = BatchBuilder::default();
 
                 let size = window.inner_size();
 
+                let slot_width = path_slots[0].width();
+
                 let fg_batch = draw_foreground(
                     batch_builder,
                     desc_sets.clone(),
+                    slot_width as i64,
                     size.width as i64,
                     size.height as i64,
                     graph_data.node_count as i64,
@@ -625,15 +590,6 @@ fn main() -> Result<()> {
                 .unwrap();
                 let fg_batch_fn = fg_batch.build();
                 let fg_rhai_batch = fg_batch_fn.clone();
-
-                // let bg_batch = Box::new(
-                //     move |dev: &Device,
-                //           res: &GpuResources,
-                //           _input: &BatchInput,
-                //           cmd: vk::CommandBuffer| {
-                //         bg_rhai_batch(dev, res, cmd);
-                //     },
-                // ) as Box<_>;
 
                 let fg_batch = Box::new(
                     move |dev: &Device,
@@ -733,7 +689,6 @@ fn main() -> Result<()> {
                                 let mut buf =
                                     Vec::with_capacity(slot_width * 4);
 
-                                // engine.with_allocators(|ctx, res, alloc|)
                                 for (ix, slot) in
                                     path_slots.iter_mut().enumerate()
                                 {
@@ -752,6 +707,11 @@ fn main() -> Result<()> {
                                         },
                                     );
                                 }
+
+                                log::warn!(
+                                    "updated {} path slots",
+                                    path_slots.len()
+                                );
                             }
 
                             {
@@ -788,7 +748,7 @@ fn main() -> Result<()> {
                             );
 
                             draw_foreground = rhai::Func::<
-                                (BatchBuilder, rhai::Array, i64, i64, i64),
+                                (BatchBuilder, rhai::Array, i64, i64, i64, i64),
                                 BatchBuilder,
                             >::create_from_ast(
                                 rhai_engine,

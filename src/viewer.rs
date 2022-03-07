@@ -70,6 +70,11 @@ impl PathViewSlot {
             .mapped_slice_mut()
             .ok_or(anyhow!("Path slot buffer could not be memory mapped"))?;
 
+        // for (i, win) in slice.chunks_exact_mut(4).enumerate() {
+        //     let bytes = fill(i).to_ne_bytes();
+        //     bytes.into_iter().zip(win).for_each(|(b, w)| *w = b);
+        // }
+
         let data = (0..width)
             .flat_map(|i| fill(i).to_ne_bytes())
             .collect::<Vec<u8>>();
@@ -80,7 +85,7 @@ impl PathViewSlot {
 
         let buffer = res.insert_buffer(buffer);
 
-        let desc_set = Self::allocate_desc_set(buffer, ctx, res, alloc)?;
+        let desc_set = Self::allocate_desc_set(buffer, res)?;
         let desc_set = res.insert_desc_set(desc_set);
 
         Ok(Self {
@@ -147,7 +152,7 @@ impl PathViewSlot {
         self.width = new_width;
         self.capacity = new_width;
 
-        let desc_set = Self::allocate_desc_set(self.buffer, ctx, res, alloc)?;
+        let desc_set = Self::allocate_desc_set(self.buffer, res)?;
         let _ = res.insert_desc_set_at(self.desc_set, desc_set);
 
         Ok(())
@@ -166,6 +171,20 @@ impl PathViewSlot {
         buf.clear();
         buf.extend((0..self.width).flat_map(|i| fill(i).to_ne_bytes()));
         slice[..buf.len()].clone_from_slice(&buf);
+
+        /*
+        if slice.len() % 4 != 0 {
+            log::error!("buffer chunks shouldn't have any remainder");
+        }
+
+        let chunks = slice.chunks_exact_mut(4);
+
+        for (i, win) in slice.chunks_exact_mut(4).enumerate() {
+            let bytes = fill(i).to_ne_bytes();
+            bytes.into_iter().zip(win).for_each(|(b, w)| *w = b);
+        }
+        */
+
         Some(())
     }
 
@@ -201,11 +220,8 @@ impl PathViewSlot {
     }
 
     fn allocate_desc_set(
-        // &self,
         buffer: BufferIx,
-        ctx: &VkContext,
         res: &mut GpuResources,
-        alloc: &mut Allocator,
     ) -> Result<vk::DescriptorSet> {
         // TODO also do uniforms if/when i add them, or keep them in a
         // separate set
