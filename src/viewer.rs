@@ -39,6 +39,52 @@ impl ViewDiscrete1D {
         self.offset = 0;
         self.len = self.max;
     }
+
+    pub fn range(&self) -> std::ops::Range<usize> {
+        self.offset..(self.offset + self.len)
+    }
+
+    pub fn translate(&mut self, delta: isize) {
+        let d = delta.abs() as usize;
+
+        if delta.is_negative() {
+            if d > self.offset {
+                self.offset = 0;
+            } else {
+                self.offset -= d;
+            }
+        } else if delta.is_positive() {
+            if self.offset + d + self.len > self.max {
+                self.offset = self.max - self.len;
+            } else {
+                self.offset += d;
+            }
+        }
+    }
+
+    pub fn resize(&mut self, new_len: usize) {
+        let mid = self.offset + (self.len / 2);
+
+        let new_hl = new_len / 2;
+
+        self.len = new_len;
+        if new_hl > mid {
+            self.offset = 0;
+        } else if mid + new_hl > self.max {
+            self.offset = self.max - new_len;
+        } else {
+            self.offset = mid - new_hl;
+        }
+    }
+
+    /*
+    pub fn resize_around(&mut self, origin: usize, delta: isize) {
+        // make sure the origin is actually within the current view? how?
+
+        let range = self.range();
+        let origin = origin.clamp(range.start, range.end - 1);
+    }
+    */
 }
 
 pub struct PathViewer {
