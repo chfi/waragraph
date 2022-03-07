@@ -10,7 +10,7 @@ use rspirv_reflect::DescriptorInfo;
 
 use anyhow::{anyhow, Result};
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub struct ViewDiscrete1D {
     max: usize,
     offset: usize,
@@ -31,6 +31,10 @@ impl ViewDiscrete1D {
         self.len
     }
 
+    pub fn max(&self) -> usize {
+        self.max
+    }
+
     pub fn is_valid(&self) -> bool {
         self.len > 0 && (self.offset + self.len <= self.max)
     }
@@ -40,12 +44,23 @@ impl ViewDiscrete1D {
         self.len = self.max;
     }
 
+    pub fn set(&mut self, offset: usize, len: usize) {
+        assert!(len > 0);
+        assert!(offset + len <= self.max);
+        self.offset = offset;
+        self.len = len;
+    }
+
     pub fn range(&self) -> std::ops::Range<usize> {
         self.offset..(self.offset + self.len)
     }
 
     pub fn translate(&mut self, delta: isize) {
         let d = delta.abs() as usize;
+
+        // let offset = (self.offset as isize) + delta;
+        // let offset = offset.clamp(0, (self.max - self.len) as isize);
+        // self.offset = offset as usize;
 
         if delta.is_negative() {
             if d > self.offset {
@@ -54,15 +69,16 @@ impl ViewDiscrete1D {
                 self.offset -= d;
             }
         } else if delta.is_positive() {
-            if self.offset + d + self.len > self.max {
+            self.offset += d;
+            if self.offset + self.len >= self.max {
                 self.offset = self.max - self.len;
-            } else {
-                self.offset += d;
             }
         }
     }
 
-    pub fn resize(&mut self, new_len: usize) {
+    pub fn resize(&mut self, mut new_len: usize) {
+        new_len = new_len.clamp(1, self.max);
+
         let mid = self.offset + (self.len / 2);
 
         let new_hl = new_len / 2;

@@ -20,7 +20,7 @@ use rspirv_reflect::DescriptorInfo;
 
 use waragraph::graph::{Node, Waragraph};
 use waragraph::viewer::{PathViewSlot, ViewDiscrete1D};
-use winit::event::{Event, WindowEvent};
+use winit::event::{Event, VirtualKeyCode, WindowEvent};
 use winit::{event_loop::EventLoop, window::WindowBuilder};
 
 use std::collections::{BTreeMap, HashMap};
@@ -244,6 +244,9 @@ fn main() -> Result<()> {
     }
 
     let mut view = ViewDiscrete1D::new(waragraph.total_len());
+    view.resize(view.max() / 2);
+    // view.set(0, view.max() / 2);
+    let mut prev_view = view;
 
     let mut samples = Vec::new();
 
@@ -564,6 +567,38 @@ fn main() -> Result<()> {
 
         match event {
             Event::MainEventsCleared => {
+                if view != prev_view {
+                    prev_view = view;
+
+                    let slot_width = path_slots[0].width();
+                    samples.clear();
+                    log::warn!("resampling paths");
+                    waragraph.sample_node_lengths(
+                        slot_width,
+                        &view,
+                        &mut samples,
+                    );
+
+                    let mut buf = Vec::with_capacity(slot_width * 4);
+
+                    for (ix, slot) in path_slots.iter_mut().enumerate() {
+                        let path = &waragraph.paths[ix];
+
+                        slot.update_from(
+                            &mut engine.resources,
+                            &mut buf,
+                            |ix| {
+                                let (node, _offset) = samples[ix];
+                                if path.get(node.into()).is_some() {
+                                    1
+                                } else {
+                                    0
+                                }
+                            },
+                        );
+                    }
+                }
+
                 let t = start.elapsed().as_secs_f32();
 
                 let f_ix = engine.current_frame_number();
@@ -758,6 +793,24 @@ fn main() -> Result<()> {
                 }
             }
             Event::WindowEvent { event, .. } => match event {
+                WindowEvent::KeyboardInput { input, .. } => {
+                    if let Some(kc) = input.virtual_keycode {
+                        use VirtualKeyCode as VK;
+
+                        let len = view.len() as isize;
+
+                        if matches!(kc, VK::Left) {
+                            view.translate(-len / 10);
+                        } else if matches!(kc, VK::Right) {
+                            view.translate(len / 10);
+                        } else if matches!(kc, VK::Up) {
+                            view.resize((len + len / 10) as usize);
+                        } else if matches!(kc, VK::Down) {
+                            view.resize((len - len / 9) as usize);
+                        }
+                    }
+                    //
+                }
                 WindowEvent::CloseRequested => {
                     log::debug!("WindowEvent::CloseRequested");
                     *control_flow = winit::event_loop::ControlFlow::Exit;
