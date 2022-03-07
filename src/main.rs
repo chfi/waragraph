@@ -720,6 +720,41 @@ fn main() -> Result<()> {
                                 .unwrap();
 
                             {
+                                let slot_width = path_slots[0].width();
+                                samples.clear();
+                                log::warn!("resampling paths");
+                                waragraph.sample_node_lengths(
+                                    slot_width,
+                                    0,
+                                    waragraph.total_len(),
+                                    &mut samples,
+                                );
+
+                                let mut buf =
+                                    Vec::with_capacity(slot_width * 4);
+
+                                // engine.with_allocators(|ctx, res, alloc|)
+                                for (ix, slot) in
+                                    path_slots.iter_mut().enumerate()
+                                {
+                                    let path = &waragraph.paths[ix];
+
+                                    slot.update_from(
+                                        &mut engine.resources,
+                                        &mut buf,
+                                        |ix| {
+                                            let (node, _offset) = samples[ix];
+                                            if path.get(node.into()).is_some() {
+                                                1
+                                            } else {
+                                                0
+                                            }
+                                        },
+                                    );
+                                }
+                            }
+
+                            {
                                 let mut init_builder = update_clip_rects(
                                     size.width as i64,
                                     size.height as i64,

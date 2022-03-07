@@ -33,39 +33,6 @@ layout (push_constant) uniform Inputs {
 layout(local_size_x = 8, local_size_y = 8, local_size_z = 1) in;
 
 
-vec4 color_for_count(uint count) {
-  vec4 a = vec4(0.6, 0.2, 0.1, 1.0);
-  vec4 c = vec4(0.3, 0.9, 0.4, 1.0);
-  vec4 b = vec4(0.2, 0.5, 0.9, 1.0);
-
-  /*
-  vec4 a = vec4(1.0, 0.0, 0.0, 1.0);
-  vec4 b = vec4(0.0, 1.0, 0.0, 1.0);
-  vec4 c = vec4(0.0, 0.0, 1.0, 1.0);
-
-  if (count == 0) {
-    return a;
-  } else if (count == 1) {
-    return b;
-  } else {
-    return c;
-  }
-  */
-
-
-  if (count == 0) {
-    return vec4(0.2, 0.2, 0.2, 1.0);
-  } else if (count < 3) {
-    float t = clamp(float(count) / 3, 0.0, 1.0);
-    return mix(a, b, t);
-  } else if (count < 6) {
-    float t = clamp(float(count - 3) / 3, 0.0, 1.0);
-    return mix(b, c, t);
-  } else {
-    return c;
-  }
-}
-
 void main() {
   uint clip_ix = inputs.clip_ix % 5;
 
@@ -81,16 +48,14 @@ void main() {
 
   float t = float(rel_dst.x) / w;
 
-  uint src_ix = uint(inputs.node_count * t);
+  // uint src_ix = uint(inputs.node_count * t);
+  uint src_ix = rel_dst.x;
 
   // uint src_ix = rel_dst.x / uint(w);
   // uint src_ix = rel_dst.x / inputs.node_count;
   uint src = path.counts[src_ix];
 
-
   uvec2 screen_dst = rel_dst + uvec2(p);
-
-  // vec4 color = color_for_count(src);
 
   vec4 color = colors.colors[src % colors.len];
 

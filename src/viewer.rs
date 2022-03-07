@@ -1,22 +1,14 @@
-use std::collections::{BTreeMap, HashMap};
+use std::collections::BTreeMap;
 
 use ash::vk;
 use gpu_allocator::vulkan::Allocator;
 use raving::vk::{
     context::VkContext, descriptor::DescriptorLayoutInfo, BufferIx, BufferRes,
-    DescSetIx, GpuResources, VkEngine,
+    DescSetIx, GpuResources,
 };
 use rspirv_reflect::DescriptorInfo;
 
-use sprs::{CsMat, CsMatI, CsVec, CsVecI, CsVecView, TriMat, TriMatI};
-
-use std::sync::Arc;
-
-use crossbeam::atomic::AtomicCell;
-
-use ndarray::prelude::*;
-
-use anyhow::{anyhow, bail, Result};
+use anyhow::{anyhow, Result};
 
 pub struct PathViewer {
     width: usize,
@@ -110,12 +102,12 @@ impl PathViewSlot {
         new_width: usize,
         fill: u32,
     ) -> Result<()> {
-        log::warn!(
-            "old_width: {}\tcapacity: {}\tnew_width: {}",
-            self.width,
-            self.capacity,
-            new_width
-        );
+        // log::warn!(
+        //     "old_width: {}\tcapacity: {}\tnew_width: {}",
+        //     self.width,
+        //     self.capacity,
+        //     new_width
+        // );
         if new_width <= self.capacity {
             self.width = new_width;
             return Ok(());
@@ -133,7 +125,6 @@ impl PathViewSlot {
         };
 
         let fb = fill.to_ne_bytes();
-        log::warn!("diff: {}", new_width - self.width);
         for _ in 0..(new_width - self.width) {
             new_data.extend_from_slice(&fb);
         }
@@ -147,7 +138,7 @@ impl PathViewSlot {
             .mapped_slice_mut()
             .ok_or(anyhow!("Path slot buffer could not be memory mapped"))?;
 
-        slice[..new_width].clone_from_slice(&new_data[..new_width]);
+        slice.clone_from_slice(&new_data[..slice.len()]);
 
         if let Some(old_buffer) = res.insert_buffer_at(buffer_ix, new_buffer) {
             res.free_buffer(ctx, alloc, old_buffer)?;
@@ -165,15 +156,17 @@ impl PathViewSlot {
     pub fn update_from<F>(
         &mut self,
         res: &mut GpuResources,
-        mut fill: F,
         buf: &mut Vec<u8>,
-    ) where
+        mut fill: F,
+    ) -> Option<()>
+    where
         F: FnMut(usize) -> u32,
     {
-        let slice = res[self.buffer].mapped_slice_mut().unwrap();
+        let slice = res[self.buffer].mapped_slice_mut()?;
         buf.clear();
         buf.extend((0..self.width).flat_map(|i| fill(i).to_ne_bytes()));
-        slice.clone_from_slice(&buf);
+        slice[..buf.len()].clone_from_slice(&buf);
+        Some(())
     }
 
     pub fn capacity(&self) -> usize {

@@ -304,7 +304,7 @@ impl Waragraph {
             let offset = self.node_sum_lens[ix];
 
             let node = Node(ix as u32);
-            log::debug!("sample {} - p: {} - node: {}", i, p, node);
+            // log::debug!("sample {} - p: {} - node: {}", i, p, node);
             let rem = p - offset;
 
             out.push((node, rem));
