@@ -19,6 +19,8 @@ use ndarray::prelude::*;
 
 use anyhow::{anyhow, bail, Result};
 
+use crate::viewer::ViewDiscrete1D;
+
 #[repr(transparent)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Node(u32);
@@ -247,11 +249,16 @@ impl Waragraph {
     pub fn sample_node_lengths(
         &self,
         nsamples: usize,
-        pos_offset: usize,
-        len: usize,
+        // pos_offset: usize,
+        // len: usize,
+        view: &ViewDiscrete1D,
         out: &mut Vec<(Node, usize)>,
     ) {
         out.clear();
+
+        let range = view.range();
+        let pos_offset = range.start;
+        let len = range.end;
 
         let pos_end = pos_offset + len;
 

@@ -19,7 +19,7 @@ use parking_lot::Mutex;
 use rspirv_reflect::DescriptorInfo;
 
 use waragraph::graph::{Node, Waragraph};
-use waragraph::viewer::PathViewSlot;
+use waragraph::viewer::{PathViewSlot, ViewDiscrete1D};
 use winit::event::{Event, WindowEvent};
 use winit::{event_loop::EventLoop, window::WindowBuilder};
 
@@ -243,14 +243,11 @@ fn main() -> Result<()> {
         })?;
     }
 
+    let mut view = ViewDiscrete1D::new(waragraph.total_len());
+
     let mut samples = Vec::new();
 
-    waragraph.sample_node_lengths(
-        width as usize,
-        0,
-        waragraph.total_len(),
-        &mut samples,
-    );
+    waragraph.sample_node_lengths(width as usize, &view, &mut samples);
 
     let mut path_slots = engine.with_allocators(|ctx, res, alloc| {
         let slot_count = graph_data.path_loops.len();
@@ -681,8 +678,7 @@ fn main() -> Result<()> {
                                 log::warn!("resampling paths");
                                 waragraph.sample_node_lengths(
                                     slot_width,
-                                    0,
-                                    waragraph.total_len(),
+                                    &view,
                                     &mut samples,
                                 );
 
