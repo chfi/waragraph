@@ -41,6 +41,12 @@ struct GraphData {
 }
 
 fn main() -> Result<()> {
+    let spec = "debug";
+    let _logger = Logger::try_with_env_or_str(spec)?
+        .log_to_file(FileSpec::default())
+        .duplicate_to_stderr(Duplicate::Debug)
+        .start()?;
+
     let mut args = std::env::args();
 
     let _ = args.next().unwrap();
@@ -54,12 +60,6 @@ fn main() -> Result<()> {
     };
 
     let waragraph = Waragraph::from_gfa(&gfa)?;
-
-    let spec = "debug";
-    let _logger = Logger::try_with_env_or_str(spec)?
-        .log_to_file(FileSpec::default())
-        .duplicate_to_stderr(Duplicate::Debug)
-        .start()?;
 
     let gfa_file = std::fs::File::open(gfa_path)?;
     let reader = BufReader::new(gfa_file);

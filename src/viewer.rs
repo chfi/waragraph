@@ -10,6 +10,37 @@ use rspirv_reflect::DescriptorInfo;
 
 use anyhow::{anyhow, Result};
 
+#[derive(Clone, Copy)]
+pub struct ViewDiscrete1D {
+    max: usize,
+    offset: usize,
+    len: usize,
+}
+
+impl ViewDiscrete1D {
+    pub fn new(max: usize) -> Self {
+        Self {
+            max,
+
+            offset: 0,
+            len: max,
+        }
+    }
+
+    pub fn len(&self) -> usize {
+        self.len
+    }
+
+    pub fn is_valid(&self) -> bool {
+        self.len > 0 && (self.offset + self.len <= self.max)
+    }
+
+    pub fn reset(&mut self) {
+        self.offset = 0;
+        self.len = self.max;
+    }
+}
+
 pub struct PathViewer {
     width: usize,
     slots: Vec<PathViewSlot>,
