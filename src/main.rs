@@ -157,11 +157,17 @@ fn main() -> Result<()> {
     let mut text_storage = LabelBuffers::default();
 
     text_storage.new_buffer(&mut engine, "view:start")?;
+    text_storage.new_buffer(&mut engine, "view:len")?;
     text_storage.new_buffer(&mut engine, "view:end")?;
 
     text_storage.write_buffer(
         &mut engine.resources,
         "view:start",
+        b"hello world",
+    );
+    text_storage.write_buffer(
+        &mut engine.resources,
+        "view:len",
         b"hello world",
     );
     text_storage.write_buffer(&mut engine.resources, "view:end", b"bye world");
@@ -588,11 +594,18 @@ fn main() -> Result<()> {
                         let range = view.range();
                         let start = range.start.to_string();
                         let end = range.end.to_string();
+                        let len = view.len().to_string();
 
                         text_storage.write_buffer(
                             &mut engine.resources,
                             "view:start",
                             start.as_bytes(),
+                        );
+
+                        text_storage.write_buffer(
+                            &mut engine.resources,
+                            "view:len",
+                            len.as_bytes(),
                         );
 
                         text_storage.write_buffer(
@@ -658,11 +671,17 @@ fn main() -> Result<()> {
 
                     let start_set =
                         text_storage.get_desc_set("view:start").unwrap();
+
+                    let len_set =
+                        text_storage.get_desc_set("view:len").unwrap();
+
                     let end_set =
                         text_storage.get_desc_set("view:end").unwrap();
                     let start = add(20, 16, start_set);
 
                     let end_x = (slot_width as i64) - (end_len * 8) - 40;
+
+                    let len = add(end_x / 2, 16, len_set);
 
                     let end = add(end_x, 16, end_set);
 
@@ -672,7 +691,7 @@ fn main() -> Result<()> {
                     // data.insert("desc_set".into(), Dyn::from(set));
                     // vec![Dyn::from_map(data)]
 
-                    vec![start, end]
+                    vec![start, len, end]
                 };
 
                 let fg_batch = draw_foreground(
@@ -873,18 +892,20 @@ fn main() -> Result<()> {
                         let pre_len = view.len();
                         let len = view.len() as isize;
 
-                        if matches!(kc, VK::Left) {
-                            view.translate(-len / 10);
-                            assert_eq!(pre_len, view.len());
-                        } else if matches!(kc, VK::Right) {
-                            view.translate(len / 10);
-                            assert_eq!(pre_len, view.len());
-                        } else if matches!(kc, VK::Up) {
-                            view.resize((len + len / 10) as usize);
-                        } else if matches!(kc, VK::Down) {
-                            view.resize((len - len / 9) as usize);
-                        } else if matches!(kc, VK::Space) {
-                            view.reset();
+                        if input.state == winit::event::ElementState::Pressed {
+                            if matches!(kc, VK::Left) {
+                                view.translate(-len / 10);
+                                assert_eq!(pre_len, view.len());
+                            } else if matches!(kc, VK::Right) {
+                                view.translate(len / 10);
+                                assert_eq!(pre_len, view.len());
+                            } else if matches!(kc, VK::Up) {
+                                view.resize((len - len / 9) as usize);
+                            } else if matches!(kc, VK::Down) {
+                                view.resize((len + len / 10) as usize);
+                            } else if matches!(kc, VK::Space) {
+                                view.reset();
+                            }
                         }
                     }
                     //

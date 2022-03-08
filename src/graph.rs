@@ -258,7 +258,7 @@ impl Waragraph {
 
         let range = view.range();
         let pos_offset = range.start;
-        let len = range.end;
+        let len = range.end - range.start;
 
         let pos_end = pos_offset + len;
 
