@@ -30,7 +30,7 @@ void main() {
   int x_offset = inputs.x + int(char_offset) * 8 + local.x;
   int y_offset = inputs.y + local.y;
 
-  uint char = min(text.chars[char_offset], 127);
+  uint char = text.chars[char_offset] & 127;
 
   ivec2 char_px = ivec2(char * 8 + local.x, local.y);
 
@@ -43,7 +43,7 @@ void main() {
       y_offset <= inputs.img_height) {
     ivec2 dst_px = ivec2(x_offset, y_offset);
 
-    vec4 out_col = vec4(1.0);
+    vec4 out_col = vec4(0.0);
 
     imageStore(image_out, dst_px, out_col);
   }

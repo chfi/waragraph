@@ -9,6 +9,12 @@ export let bg_shader = load_shader("shaders/bg_color.comp.spv",
 
 export let bg_pipeline = create_compute_pipeline(bg_shader);
 
+export let text_shader = load_shader("shaders/text.comp.spv",
+                                   vk::ShaderStageFlags::COMPUTE);
+
+
+export let text_pipeline = create_compute_pipeline(text_shader);
+
 export let font_image = allocate_image("font_image",
                                        1024,
                                        8,
@@ -19,6 +25,12 @@ export let font_image = allocate_image("font_image",
                                        | vk::ImageUsageFlags::TRANSFER_DST);
 
 export let font_image_view = image_view_for(font_image);
+
+
+export let font_desc_set =
+  create_desc_set(text_shader,
+                  0,
+                  [ #{ binding: 0, image_view: font_image_view } ]);
 
 
 export let clip_rects_buffer =
@@ -64,7 +76,7 @@ fn resize(width, height) {
 
   // for i in 0..5 {
   for i in 0..16 {
-    clip_rects.push(#{ x: 20.0,  y: 20.0 + yd * i,
+    clip_rects.push(#{ x: 20.0,  y: 40.0 + yd * i,
                        w: w, h: h });
   }
 
@@ -86,7 +98,7 @@ fn init() {
   let clip_rects = [];
 
   for i in 0..16 {
-    clip_rects.push(#{ x: 20.0,  y: 20.0 + 56.0 * i,
+    clip_rects.push(#{ x: 20.0,  y: 40.0 + 56.0 * i,
                        w: 760.0, h: 50.0 });
   }
 
@@ -97,7 +109,7 @@ fn init() {
   init_batch
 }
 
-fn foreground(batch, desc_sets, slot_w, w, h, node_count) {
+fn foreground(batch, labels, desc_sets, slot_w, w, h, node_count) {
 
   let img = self::out_image.get();
   batch.transition_image(img,
@@ -130,6 +142,7 @@ fn foreground(batch, desc_sets, slot_w, w, h, node_count) {
                          pc, x_groups, y_groups, 1);
 
 
+
   // draw paths
 
   let x_size = 8;
@@ -160,6 +173,40 @@ fn foreground(batch, desc_sets, slot_w, w, h, node_count) {
                            pc,
                            workgroups);
   }
+
+  // draw labels
+
+
+  let x_size = 16;
+  let y_size = 16;
+
+  let x_groups = (w / x_size) + w % x_size;
+  let y_groups = (h / y_size) + h % y_size;
+  let workgroups = #{ x_groups: x_groups,
+                      y_groups: y_groups,
+                      z_groups: 1 };
+
+  for label in labels {
+    // let desc_set = info.desc_set;
+
+    let pc = blob();
+    pc.append_int(label.x);
+    pc.append_int(label.y);
+    pc.append_int(w);
+    pc.append_int(h);
+
+    batch.dispatch_compute(self::text_pipeline.get(),
+                           [self::font_desc_set.get(),
+                            label.desc_set,
+                            self::out_desc_set.get()],
+                           pc,
+                           workgroups);
+
+
+  }
+
+
+  // complete
 
   batch.transition_image(img,
                          vk::AccessFlags::SHADER_WRITE,

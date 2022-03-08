@@ -19,6 +19,7 @@ use parking_lot::Mutex;
 use rspirv_reflect::DescriptorInfo;
 
 use waragraph::graph::{Node, Waragraph};
+use waragraph::util::LabelBuffers;
 use waragraph::viewer::{PathViewSlot, ViewDiscrete1D};
 use winit::event::{Event, VirtualKeyCode, WindowEvent};
 use winit::{event_loop::EventLoop, window::WindowBuilder};
@@ -152,6 +153,18 @@ fn main() -> Result<()> {
         .build(&event_loop)?;
 
     let mut engine = VkEngine::new(&window)?;
+
+    let mut text_storage = LabelBuffers::default();
+
+    text_storage.new_buffer(&mut engine, "view:start")?;
+    text_storage.new_buffer(&mut engine, "view:end")?;
+
+    text_storage.write_buffer(
+        &mut engine.resources,
+        "view:start",
+        b"hello world",
+    );
+    // text_storage.write_buffer(&mut engine.resources, "view:start", b"hello world");
 
     let window_storage_set_info = {
         let info = DescriptorInfo {
@@ -456,7 +469,7 @@ fn main() -> Result<()> {
     rhai_engine.register_static_module("self", arc_module.clone());
 
     let mut draw_foreground = rhai::Func::<
-        (BatchBuilder, rhai::Array, i64, i64, i64, i64),
+        (BatchBuilder, rhai::Array, rhai::Array, i64, i64, i64, i64),
         BatchBuilder,
     >::create_from_ast(
         rhai_engine,
@@ -611,8 +624,19 @@ fn main() -> Result<()> {
 
                 let slot_width = path_slots[0].width();
 
+                let label_sets = {
+                    use rhai::Dynamic as Dyn;
+                    let mut data = rhai::Map::default();
+                    data.insert("x".into(), Dyn::from_int(10));
+                    data.insert("y".into(), Dyn::from_int(10));
+                    let set = text_storage.get_desc_set("view:start").unwrap();
+                    data.insert("desc_set".into(), Dyn::from(set));
+                    vec![Dyn::from_map(data)]
+                };
+
                 let fg_batch = draw_foreground(
                     batch_builder,
+                    label_sets,
                     desc_sets.clone(),
                     slot_width as i64,
                     size.width as i64,
@@ -779,7 +803,15 @@ fn main() -> Result<()> {
                             );
 
                             draw_foreground = rhai::Func::<
-                                (BatchBuilder, rhai::Array, i64, i64, i64, i64),
+                                (
+                                    BatchBuilder,
+                                    rhai::Array,
+                                    rhai::Array,
+                                    i64,
+                                    i64,
+                                    i64,
+                                    i64,
+                                ),
                                 BatchBuilder,
                             >::create_from_ast(
                                 rhai_engine,
@@ -797,16 +829,21 @@ fn main() -> Result<()> {
                     if let Some(kc) = input.virtual_keycode {
                         use VirtualKeyCode as VK;
 
+                        let pre_len = view.len();
                         let len = view.len() as isize;
 
                         if matches!(kc, VK::Left) {
                             view.translate(-len / 10);
+                            assert_eq!(pre_len, view.len());
                         } else if matches!(kc, VK::Right) {
                             view.translate(len / 10);
+                            assert_eq!(pre_len, view.len());
                         } else if matches!(kc, VK::Up) {
                             view.resize((len + len / 10) as usize);
                         } else if matches!(kc, VK::Down) {
                             view.resize((len - len / 9) as usize);
+                        } else if matches!(kc, VK::Space) {
+                            view.reset();
                         }
                     }
                     //

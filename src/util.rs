@@ -27,6 +27,11 @@ pub struct LabelBuffers {
 impl LabelBuffers {
     pub const BUFFER_LEN: usize = 255;
 
+    pub fn get_desc_set(&self, name: &str) -> Option<DescSetIx> {
+        let ix = *self.names.get(name)?;
+        self.desc_sets.get(ix).copied()
+    }
+
     // pub fn new_buffer(&mut self, engine: &mut VkEngine, name: &str) -> Result<Option<BufferRes>> {
     pub fn new_buffer(
         &mut self,
@@ -66,6 +71,34 @@ impl LabelBuffers {
         self.desc_sets.push(set_ix);
 
         Ok(())
+    }
+
+    // pub fn write_buffer(&mut self, res: &mut GpuResources, name: &str, contents: &[u8]) -> Option<()> {
+    pub fn write_buffer(
+        &self,
+        res: &mut GpuResources,
+        name: &str,
+        contents: &[u8],
+    ) -> Option<()> {
+        let ix = *self.names.get(name)?;
+        let buf_ix = self.buffers[ix];
+
+        let buffer = &mut res[buf_ix];
+        let slice = buffer.mapped_slice_mut()?;
+
+        // TODO make sure the contents are not too big
+        let len = contents.len();
+
+        slice[0..4].clone_from_slice(&(len as u32).to_ne_bytes());
+
+        for (chk, &b) in slice[4..].chunks_mut(4).zip(contents) {
+            chk[0] = b;
+            chk[1] = b;
+            chk[2] = b;
+            chk[3] = b;
+        }
+
+        Some(())
     }
 
     fn allocate_desc_set(
