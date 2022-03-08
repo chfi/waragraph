@@ -572,7 +572,7 @@ fn main() -> Result<()> {
 
                     let slot_width = path_slots[0].width();
                     samples.clear();
-                    log::warn!("resampling paths");
+                    // log::warn!("resampling paths");
                     waragraph.sample_node_lengths(
                         slot_width,
                         &view,
@@ -710,7 +710,7 @@ fn main() -> Result<()> {
                             {
                                 let slot_width = path_slots[0].width();
                                 samples.clear();
-                                log::warn!("resampling paths");
+                                // log::warn!("resampling paths");
                                 waragraph.sample_node_lengths(
                                     slot_width,
                                     &view,

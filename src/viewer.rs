@@ -159,6 +159,8 @@ impl PathViewSlot {
     {
         let mut buffer = Self::allocate_buffer(ctx, res, alloc, width, name)?;
 
+        let buf_size = buffer.alloc.size() as usize;
+
         let slice = buffer
             .mapped_slice_mut()
             .ok_or(anyhow!("Path slot buffer could not be memory mapped"))?;
@@ -172,7 +174,7 @@ impl PathViewSlot {
             .flat_map(|i| fill(i).to_ne_bytes())
             .collect::<Vec<u8>>();
 
-        slice.clone_from_slice(&data);
+        slice[..buf_size].clone_from_slice(&data[..buf_size]);
 
         let name = name.map(String::from);
 
@@ -232,11 +234,13 @@ impl PathViewSlot {
         let mut new_buffer =
             Self::allocate_buffer(ctx, res, alloc, new_width, name)?;
 
+        let size = new_buffer.alloc.size().min(new_data.len() as u64) as usize;
+
         let slice = new_buffer
             .mapped_slice_mut()
             .ok_or(anyhow!("Path slot buffer could not be memory mapped"))?;
 
-        slice.clone_from_slice(&new_data[..slice.len()]);
+        slice[..size].clone_from_slice(&new_data[..size]);
 
         if let Some(old_buffer) = res.insert_buffer_at(buffer_ix, new_buffer) {
             res.free_buffer(ctx, alloc, old_buffer)?;
