@@ -164,6 +164,7 @@ fn main() -> Result<()> {
         "view:start",
         b"hello world",
     );
+    text_storage.write_buffer(&mut engine.resources, "view:end", b"bye world");
     // text_storage.write_buffer(&mut engine.resources, "view:start", b"hello world");
 
     let window_storage_set_info = {
@@ -583,6 +584,24 @@ fn main() -> Result<()> {
                 if view != prev_view {
                     prev_view = view;
 
+                    {
+                        let range = view.range();
+                        let start = range.start.to_string();
+                        let end = range.end.to_string();
+
+                        text_storage.write_buffer(
+                            &mut engine.resources,
+                            "view:start",
+                            start.as_bytes(),
+                        );
+
+                        text_storage.write_buffer(
+                            &mut engine.resources,
+                            "view:end",
+                            end.as_bytes(),
+                        );
+                    }
+
                     let slot_width = path_slots[0].width();
                     samples.clear();
                     // log::warn!("resampling paths");
@@ -625,13 +644,35 @@ fn main() -> Result<()> {
                 let slot_width = path_slots[0].width();
 
                 let label_sets = {
-                    use rhai::Dynamic as Dyn;
-                    let mut data = rhai::Map::default();
-                    data.insert("x".into(), Dyn::from_int(10));
-                    data.insert("y".into(), Dyn::from_int(10));
-                    let set = text_storage.get_desc_set("view:start").unwrap();
-                    data.insert("desc_set".into(), Dyn::from(set));
-                    vec![Dyn::from_map(data)]
+                    let add = |x, y, set| {
+                        use rhai::Dynamic as Dyn;
+                        let mut data = rhai::Map::default();
+                        data.insert("x".into(), Dyn::from_int(x));
+                        data.insert("y".into(), Dyn::from_int(y));
+                        data.insert("desc_set".into(), Dyn::from(set));
+                        Dyn::from_map(data)
+                    };
+
+                    let end_len =
+                        text_storage.get_len("view:start").unwrap() as i64;
+
+                    let start_set =
+                        text_storage.get_desc_set("view:start").unwrap();
+                    let end_set =
+                        text_storage.get_desc_set("view:end").unwrap();
+                    let start = add(20, 16, start_set);
+
+                    let end_x = (slot_width as i64) - (end_len * 8) - 40;
+
+                    let end = add(end_x, 16, end_set);
+
+                    // let mut data = rhai::Map::default();
+                    // data.insert("x".into(), Dyn::from_int(10));
+                    // data.insert("y".into(), Dyn::from_int(10));
+                    // data.insert("desc_set".into(), Dyn::from(set));
+                    // vec![Dyn::from_map(data)]
+
+                    vec![start, end]
                 };
 
                 let fg_batch = draw_foreground(

@@ -20,6 +20,7 @@ use anyhow::{anyhow, bail, Result};
 pub struct LabelBuffers {
     names: HashMap<String, usize>,
 
+    label_len: Vec<usize>,
     buffers: Vec<BufferIx>,
     desc_sets: Vec<DescSetIx>,
 }
@@ -30,6 +31,11 @@ impl LabelBuffers {
     pub fn get_desc_set(&self, name: &str) -> Option<DescSetIx> {
         let ix = *self.names.get(name)?;
         self.desc_sets.get(ix).copied()
+    }
+
+    pub fn get_len(&self, name: &str) -> Option<usize> {
+        let ix = *self.names.get(name)?;
+        self.label_len.get(ix).copied()
     }
 
     // pub fn new_buffer(&mut self, engine: &mut VkEngine, name: &str) -> Result<Option<BufferRes>> {
@@ -67,6 +73,7 @@ impl LabelBuffers {
 
         self.names.insert(name.to_string(), ix);
 
+        self.label_len.push(0);
         self.buffers.push(buf_ix);
         self.desc_sets.push(set_ix);
 
@@ -75,7 +82,7 @@ impl LabelBuffers {
 
     // pub fn write_buffer(&mut self, res: &mut GpuResources, name: &str, contents: &[u8]) -> Option<()> {
     pub fn write_buffer(
-        &self,
+        &mut self,
         res: &mut GpuResources,
         name: &str,
         contents: &[u8],
@@ -88,6 +95,8 @@ impl LabelBuffers {
 
         // TODO make sure the contents are not too big
         let len = contents.len();
+
+        self.label_len[ix] = len;
 
         slice[0..4].clone_from_slice(&(len as u32).to_ne_bytes());
 
