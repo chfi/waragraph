@@ -11,6 +11,7 @@ use std::{
     collections::{BTreeMap, HashMap},
     sync::Arc,
 };
+use thunderdome::Index;
 
 use crossbeam::atomic::AtomicCell;
 
@@ -32,6 +33,9 @@ impl LabelStorage {
     const POS_MASK: [u8; 10] = *b"p:01234567";
     const TEXT_MASK: [u8; 10] = *b"t:01234567";
 
+    const BUF_MASK: [u8; 12] = *b"buf:01234567";
+    const SET_MASK: [u8; 12] = *b"set:01234567";
+
     const TEXT_BUF_LEN: usize = 256;
 
     pub fn new() -> Result<Self> {
@@ -47,6 +51,58 @@ impl LabelStorage {
             buffers,
             desc_sets,
         })
+    }
+
+    pub fn buffer_for(&self, name: &str) -> Result<Option<BufferIx>> {
+        use zerocopy::FromBytes;
+
+        let key = self
+            .buf_key_for(name)
+            .ok_or(anyhow!("Buffer not found for label '{}'", name))?;
+
+        // let bytes = self.db.get(key)?.unwrap();
+        let bytes = self.db.get(key)?;
+
+        let result = bytes.and_then(|b| {
+            let raw: u64 = u64::read_from(b.as_ref())?;
+            let index = Index::from_bits(raw)?;
+            Some(BufferIx(index))
+        });
+
+        Ok(result)
+    }
+
+    pub fn desc_set_for(&self, name: &str) -> Result<Option<DescSetIx>> {
+        use zerocopy::FromBytes;
+
+        let key = self
+            .set_key_for(name)
+            .ok_or(anyhow!("Descriptor set not found for label '{}'", name))?;
+
+        // let bytes = self.db.get(key)?.unwrap();
+        let bytes = self.db.get(key)?;
+
+        let result = bytes.and_then(|b| {
+            let raw: u64 = u64::read_from(b.as_ref())?;
+            let index = Index::from_bits(raw)?;
+            Some(DescSetIx(index))
+        });
+
+        Ok(result)
+    }
+
+    fn buf_key_for(&self, name: &str) -> Option<[u8; 12]> {
+        let id = self.label_names.get(name.as_bytes())?;
+        let mut res = Self::BUF_MASK;
+        res[4..].clone_from_slice(&id.to_le_bytes());
+        Some(res)
+    }
+
+    fn set_key_for(&self, name: &str) -> Option<[u8; 12]> {
+        let id = self.label_names.get(name.as_bytes())?;
+        let mut res = Self::SET_MASK;
+        res[4..].clone_from_slice(&id.to_le_bytes());
+        Some(res)
     }
 
     fn pos_key_for(&self, name: &str) -> Option<[u8; 10]> {
@@ -118,11 +174,18 @@ impl LabelStorage {
 
         self.label_names.insert(name.as_bytes().to_vec(), id);
 
-        // self.buffers
+        let buf_u64 = buf.0.to_bits();
+        let set_u64 = set.0.to_bits();
 
         let tx_result: TxResult<()> = self.db.transaction(|db| {
             let pk = self.pos_key_for(name).unwrap();
             let tk = self.text_key_for(name).unwrap();
+
+            let buf_key = self.buf_key_for(name).unwrap();
+            let set_key = self.buf_key_for(name).unwrap();
+
+            db.insert(&buf_key, &buf_u64.to_le_bytes())?;
+            db.insert(&set_key, &set_u64.to_le_bytes())?;
 
             db.insert(&pk, &[0u8; 8])?;
             // TODO remove test placeholder

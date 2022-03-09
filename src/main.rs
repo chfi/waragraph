@@ -154,6 +154,10 @@ fn main() -> Result<()> {
 
     let mut engine = VkEngine::new(&window)?;
 
+    let mut txt = LabelStorage::new()?;
+
+    txt.allocate_label(&mut engine, "view:start")?;
+
     let mut text_storage = LabelBuffers::default();
 
     text_storage.new_buffer(&mut engine, "view:start")?;
