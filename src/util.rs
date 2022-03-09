@@ -32,6 +32,8 @@ impl LabelStorage {
     const POS_MASK: [u8; 10] = *b"p:01234567";
     const TEXT_MASK: [u8; 10] = *b"t:01234567";
 
+    const TEXT_BUF_LEN: usize = 256;
+
     pub fn new() -> Result<Self> {
         let db = sled::open("waragraph_labels")?;
 
@@ -46,8 +48,6 @@ impl LabelStorage {
             desc_sets,
         })
     }
-
-    // pub fn set_label_pos(&mut self, x: u32, y: u32) -> Option<()> {}
 
     fn pos_key_for(&self, name: &str) -> Option<[u8; 10]> {
         let id = self.label_names.get(name.as_bytes())?;
@@ -91,7 +91,34 @@ impl LabelStorage {
     ) -> Result<()> {
         let id = self.db.generate_id()?;
 
+        let (buf, set) = engine.with_allocators(|ctx, res, alloc| {
+            let mem_loc = gpu_allocator::MemoryLocation::CpuToGpu;
+            let usage = vk::BufferUsageFlags::STORAGE_BUFFER
+                | vk::BufferUsageFlags::TRANSFER_SRC
+                | vk::BufferUsageFlags::TRANSFER_DST;
+
+            let buffer = res.allocate_buffer(
+                ctx,
+                alloc,
+                mem_loc,
+                4,
+                Self::TEXT_BUF_LEN,
+                usage,
+                Some(name),
+            )?;
+
+            let buf_ix = res.insert_buffer(buffer);
+
+            let desc_set = allocate_buffer_desc_set(buf_ix, res)?;
+
+            let set_ix = res.insert_desc_set(desc_set);
+
+            Ok((buf_ix, set_ix))
+        })?;
+
         self.label_names.insert(name.as_bytes().to_vec(), id);
+
+        // self.buffers
 
         let tx_result: TxResult<()> = self.db.transaction(|db| {
             let pk = self.pos_key_for(name).unwrap();
@@ -341,4 +368,47 @@ where
     }
 
     Ok(buf_ix)
+}
+
+pub fn allocate_buffer_desc_set(
+    buffer: BufferIx,
+    res: &mut GpuResources,
+) -> Result<vk::DescriptorSet> {
+    // TODO also do uniforms if/when i add them, or keep them in a
+    // separate set
+    let layout_info = {
+        let mut info = DescriptorLayoutInfo::default();
+
+        let binding = vk::DescriptorSetLayoutBinding::builder()
+            .binding(0)
+            .descriptor_count(1)
+            .descriptor_type(vk::DescriptorType::STORAGE_BUFFER)
+            .stage_flags(vk::ShaderStageFlags::COMPUTE) // TODO should also be graphics, probably
+            .build();
+
+        info.bindings.push(binding);
+        info
+    };
+
+    let set_info = {
+        let info = DescriptorInfo {
+            ty: rspirv_reflect::DescriptorType::STORAGE_BUFFER,
+            binding_count: rspirv_reflect::BindingCount::One,
+            name: "samples".to_string(),
+        };
+
+        Some((0u32, info)).into_iter().collect::<BTreeMap<_, _>>()
+    };
+
+    res.allocate_desc_set_raw(&layout_info, &set_info, |res, builder| {
+        let buffer = &res[buffer];
+        let info = ash::vk::DescriptorBufferInfo::builder()
+            .buffer(buffer.buffer)
+            .offset(0)
+            .range(ash::vk::WHOLE_SIZE)
+            .build();
+        let buffer_info = [info];
+        builder.bind_buffer(0, &buffer_info);
+        Ok(())
+    })
 }

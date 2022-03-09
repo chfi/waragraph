@@ -180,7 +180,7 @@ impl PathViewSlot {
 
         let buffer = res.insert_buffer(buffer);
 
-        let desc_set = Self::allocate_desc_set(buffer, res)?;
+        let desc_set = crate::util::allocate_buffer_desc_set(buffer, res)?;
         let desc_set = res.insert_desc_set(desc_set);
 
         Ok(Self {
@@ -249,7 +249,7 @@ impl PathViewSlot {
         self.width = new_width;
         self.capacity = new_width;
 
-        let desc_set = Self::allocate_desc_set(self.buffer, res)?;
+        let desc_set = crate::util::allocate_buffer_desc_set(self.buffer, res)?;
         let _ = res.insert_desc_set_at(self.desc_set, desc_set);
 
         Ok(())
@@ -314,48 +314,5 @@ impl PathViewSlot {
             | vk::BufferUsageFlags::TRANSFER_DST;
 
         res.allocate_buffer(ctx, alloc, mem_loc, 4, width, usage, name)
-    }
-
-    fn allocate_desc_set(
-        buffer: BufferIx,
-        res: &mut GpuResources,
-    ) -> Result<vk::DescriptorSet> {
-        // TODO also do uniforms if/when i add them, or keep them in a
-        // separate set
-        let layout_info = {
-            let mut info = DescriptorLayoutInfo::default();
-
-            let binding = vk::DescriptorSetLayoutBinding::builder()
-                .binding(0)
-                .descriptor_count(1)
-                .descriptor_type(vk::DescriptorType::STORAGE_BUFFER)
-                .stage_flags(vk::ShaderStageFlags::COMPUTE) // TODO should also be graphics, probably
-                .build();
-
-            info.bindings.push(binding);
-            info
-        };
-
-        let set_info = {
-            let info = DescriptorInfo {
-                ty: rspirv_reflect::DescriptorType::STORAGE_BUFFER,
-                binding_count: rspirv_reflect::BindingCount::One,
-                name: "samples".to_string(),
-            };
-
-            Some((0u32, info)).into_iter().collect::<BTreeMap<_, _>>()
-        };
-
-        res.allocate_desc_set_raw(&layout_info, &set_info, |res, builder| {
-            let buffer = &res[buffer];
-            let info = ash::vk::DescriptorBufferInfo::builder()
-                .buffer(buffer.buffer)
-                .offset(0)
-                .range(ash::vk::WHOLE_SIZE)
-                .build();
-            let buffer_info = [info];
-            builder.bind_buffer(0, &buffer_info);
-            Ok(())
-        })
     }
 }
