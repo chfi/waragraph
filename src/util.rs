@@ -6,6 +6,7 @@ use raving::vk::{
 };
 use rspirv_reflect::DescriptorInfo;
 
+use sled::transaction::{TransactionError, TransactionResult};
 use std::{
     collections::{BTreeMap, HashMap},
     sync::Arc,
@@ -15,6 +16,117 @@ use crossbeam::atomic::AtomicCell;
 
 #[allow(unused_imports)]
 use anyhow::{anyhow, bail, Result};
+// TransactionResult<_, TransactionError<()>
+pub type TxResult<T> = TransactionResult<T, TransactionError<Vec<u8>>>;
+
+pub struct LabelStorage {
+    db: sled::Db,
+
+    label_names: HashMap<Vec<u8>, u64>,
+
+    buffers: Vec<BufferIx>,
+    desc_sets: Vec<DescSetIx>,
+}
+
+impl LabelStorage {
+    const POS_MASK: [u8; 10] = *b"p:01234567";
+    const TEXT_MASK: [u8; 10] = *b"t:01234567";
+
+    pub fn new() -> Result<Self> {
+        let db = sled::open("waragraph_labels")?;
+
+        let label_names = HashMap::default();
+        let buffers = Vec::new();
+        let desc_sets = Vec::new();
+
+        Ok(Self {
+            db,
+            label_names,
+            buffers,
+            desc_sets,
+        })
+    }
+
+    // pub fn set_label_pos(&mut self, x: u32, y: u32) -> Option<()> {}
+
+    fn pos_key_for(&self, name: &str) -> Option<[u8; 10]> {
+        let id = self.label_names.get(name.as_bytes())?;
+        let mut res = Self::POS_MASK;
+        res[2..].clone_from_slice(&id.to_le_bytes());
+        Some(res)
+    }
+
+    pub fn set_label_pos(&self, name: &str, x: u32, y: u32) -> Result<()> {
+        let key = self
+            .pos_key_for(name)
+            .ok_or(anyhow!("could not find key for label '{}'", name))?;
+        let mut val = [0u8; 8];
+        val[..4].clone_from_slice(&x.to_le_bytes());
+        val[4..].clone_from_slice(&y.to_le_bytes());
+        self.db.insert(key, &val)?;
+        Ok(())
+    }
+
+    fn text_key_for(&self, name: &str) -> Option<[u8; 10]> {
+        let id = self.label_names.get(name.as_bytes())?;
+        let mut res = Self::TEXT_MASK;
+        res[2..].clone_from_slice(&id.to_le_bytes());
+        Some(res)
+    }
+
+    pub fn set_label_text(&self, name: &str, contents: &str) -> Result<()> {
+        let key = self
+            .text_key_for(name)
+            .ok_or(anyhow!("could not find text key for label '{}'", name))?;
+
+        let max_len = contents.len().min(254);
+        self.db.insert(key, contents[..max_len].as_bytes())?;
+        Ok(())
+    }
+
+    pub fn allocate_label(
+        &mut self,
+        engine: &mut VkEngine,
+        name: &str,
+    ) -> Result<()> {
+        let id = self.db.generate_id()?;
+
+        self.label_names.insert(name.as_bytes().to_vec(), id);
+
+        let tx_result: TxResult<()> = self.db.transaction(|db| {
+            let pk = self.pos_key_for(name).unwrap();
+            let tk = self.text_key_for(name).unwrap();
+
+            db.insert(&pk, &[0u8; 8])?;
+            // TODO remove test placeholder
+            db.insert(&tk, b"hello world")?;
+
+            Ok(())
+        });
+
+        match tx_result {
+            Ok(_) => {
+                // all good
+            }
+            Err(err) => {
+                //
+            }
+        }
+
+        /*
+        let result: TransactionResult<_, TransactionError<()>> =
+            self.db.transaction(|db| {
+                // self.db.transaction(|db| {
+                db.insert(b"k1", b"cats")?;
+                db.insert(b"k2", b"dogs")?;
+                Ok(())
+            });
+        let x = result?;
+        */
+
+        Ok(())
+    }
+}
 
 #[derive(Default)]
 pub struct LabelBuffers {
