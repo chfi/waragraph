@@ -19,7 +19,7 @@ use parking_lot::Mutex;
 use rspirv_reflect::DescriptorInfo;
 
 use waragraph::graph::{Node, Waragraph};
-use waragraph::util::LabelBuffers;
+use waragraph::util::{LabelBuffers, LabelStorage};
 use waragraph::viewer::{PathViewSlot, ViewDiscrete1D};
 use winit::event::{Event, VirtualKeyCode, WindowEvent};
 use winit::{event_loop::EventLoop, window::WindowBuilder};
@@ -28,6 +28,7 @@ use std::collections::{BTreeMap, HashMap};
 use std::io::{prelude::*, BufReader};
 
 use std::sync::Arc;
+use std::time::Duration;
 
 use anyhow::{anyhow, bail, Result};
 
@@ -156,7 +157,15 @@ fn main() -> Result<()> {
 
     let mut txt = LabelStorage::new()?;
 
+    let mut text_sub = txt.db.watch_prefix(b"t:");
+
     txt.allocate_label(&mut engine, "view:start")?;
+    txt.allocate_label(&mut engine, "view:len")?;
+    txt.allocate_label(&mut engine, "view:end")?;
+
+    txt.set_text_for(b"view:start", "view offset")?;
+    txt.set_text_for(b"view:len", "view len")?;
+    txt.set_text_for(b"view:end", "view end")?;
 
     let mut text_storage = LabelBuffers::default();
 
@@ -591,6 +600,38 @@ fn main() -> Result<()> {
 
         match event {
             Event::MainEventsCleared => {
+                while let Ok(ev) = text_sub.next_timeout(Duration::default()) {
+                    match ev {
+                        sled::Event::Insert { key, value } => {
+                            use zerocopy::FromBytes;
+                            let id = u64::read_from(key[2..].as_ref()).unwrap();
+                            let buf_ix =
+                                txt.buffer_for_id(id).unwrap().unwrap();
+                            let buffer = &mut engine.resources[buf_ix];
+
+                            let slice = buffer.mapped_slice_mut().unwrap();
+
+                            let len = value.len();
+
+                            slice[0..4]
+                                .clone_from_slice(&(len as u32).to_ne_bytes());
+
+                            for (chk, &b) in
+                                slice[4..].chunks_mut(4).zip(value.iter())
+                            {
+                                chk[0] = b;
+                                chk[1] = b;
+                                chk[2] = b;
+                                chk[3] = b;
+                            }
+                        }
+                        sled::Event::Remove { key } => {
+                            // do nothing yet
+                        }
+                    }
+                    //
+                }
+
                 if view != prev_view {
                     prev_view = view;
 

@@ -15,13 +15,15 @@ use thunderdome::Index;
 
 use crossbeam::atomic::AtomicCell;
 
+use bstr::ByteSlice;
+
 #[allow(unused_imports)]
 use anyhow::{anyhow, bail, Result};
 // TransactionResult<_, TransactionError<()>
 pub type TxResult<T> = TransactionResult<T, TransactionError<Vec<u8>>>;
 
 pub struct LabelStorage {
-    db: sled::Db,
+    pub db: sled::Db,
 
     label_names: HashMap<Vec<u8>, u64>,
 
@@ -38,6 +40,21 @@ impl LabelStorage {
 
     const TEXT_BUF_LEN: usize = 256;
 
+    pub fn set_text_for(&self, name: &[u8], contents: &str) -> Result<()> {
+        let key = self
+            .text_key_for(name)
+            .ok_or(anyhow!("Could not find label '{}'", name.as_bstr()))?;
+
+        let bytes = contents.as_bytes();
+        let len = bytes.len().min(Self::TEXT_BUF_LEN - 1);
+
+        let value = &contents.as_bytes()[..len];
+
+        self.db.insert(key, value)?;
+
+        Ok(())
+    }
+
     pub fn new() -> Result<Self> {
         let db = sled::open("waragraph_labels")?;
 
@@ -53,12 +70,12 @@ impl LabelStorage {
         })
     }
 
-    pub fn buffer_for(&self, name: &str) -> Result<Option<BufferIx>> {
+    pub fn buffer_for_id(&self, id: u64) -> Result<Option<BufferIx>> {
         use zerocopy::FromBytes;
 
         let key = self
-            .buf_key_for(name)
-            .ok_or(anyhow!("Buffer not found for label '{}'", name))?;
+            .buf_key_for_id(id)
+            .ok_or(anyhow!("Buffer not found for label ID '{}'", id))?;
 
         // let bytes = self.db.get(key)?.unwrap();
         let bytes = self.db.get(key)?;
@@ -72,12 +89,33 @@ impl LabelStorage {
         Ok(result)
     }
 
-    pub fn desc_set_for(&self, name: &str) -> Result<Option<DescSetIx>> {
+    pub fn buffer_for(&self, name: &[u8]) -> Result<Option<BufferIx>> {
         use zerocopy::FromBytes;
 
-        let key = self
-            .set_key_for(name)
-            .ok_or(anyhow!("Descriptor set not found for label '{}'", name))?;
+        let key = self.buf_key_for(name).ok_or(anyhow!(
+            "Buffer not found for label '{}'",
+            name.as_bstr()
+        ))?;
+
+        // let bytes = self.db.get(key)?.unwrap();
+        let bytes = self.db.get(key)?;
+
+        let result = bytes.and_then(|b| {
+            let raw: u64 = u64::read_from(b.as_ref())?;
+            let index = Index::from_bits(raw)?;
+            Some(BufferIx(index))
+        });
+
+        Ok(result)
+    }
+
+    pub fn desc_set_for(&self, name: &[u8]) -> Result<Option<DescSetIx>> {
+        use zerocopy::FromBytes;
+
+        let key = self.set_key_for(name).ok_or(anyhow!(
+            "Descriptor set not found for label '{}'",
+            name.as_bstr()
+        ))?;
 
         // let bytes = self.db.get(key)?.unwrap();
         let bytes = self.db.get(key)?;
@@ -91,31 +129,38 @@ impl LabelStorage {
         Ok(result)
     }
 
-    fn buf_key_for(&self, name: &str) -> Option<[u8; 12]> {
-        let id = self.label_names.get(name.as_bytes())?;
+    fn buf_key_for_id(&self, id: u64) -> Option<[u8; 12]> {
         let mut res = Self::BUF_MASK;
         res[4..].clone_from_slice(&id.to_le_bytes());
         Some(res)
     }
 
-    fn set_key_for(&self, name: &str) -> Option<[u8; 12]> {
-        let id = self.label_names.get(name.as_bytes())?;
+    fn buf_key_for(&self, name: &[u8]) -> Option<[u8; 12]> {
+        let id = self.label_names.get(name)?;
+        let mut res = Self::BUF_MASK;
+        res[4..].clone_from_slice(&id.to_le_bytes());
+        Some(res)
+    }
+
+    fn set_key_for(&self, name: &[u8]) -> Option<[u8; 12]> {
+        let id = self.label_names.get(name)?;
         let mut res = Self::SET_MASK;
         res[4..].clone_from_slice(&id.to_le_bytes());
         Some(res)
     }
 
-    fn pos_key_for(&self, name: &str) -> Option<[u8; 10]> {
-        let id = self.label_names.get(name.as_bytes())?;
+    fn pos_key_for(&self, name: &[u8]) -> Option<[u8; 10]> {
+        let id = self.label_names.get(name)?;
         let mut res = Self::POS_MASK;
         res[2..].clone_from_slice(&id.to_le_bytes());
         Some(res)
     }
 
-    pub fn set_label_pos(&self, name: &str, x: u32, y: u32) -> Result<()> {
-        let key = self
-            .pos_key_for(name)
-            .ok_or(anyhow!("could not find key for label '{}'", name))?;
+    pub fn set_label_pos(&self, name: &[u8], x: u32, y: u32) -> Result<()> {
+        let key = self.pos_key_for(name).ok_or(anyhow!(
+            "could not find key for label '{}'",
+            name.as_bstr()
+        ))?;
         let mut val = [0u8; 8];
         val[..4].clone_from_slice(&x.to_le_bytes());
         val[4..].clone_from_slice(&y.to_le_bytes());
@@ -123,17 +168,18 @@ impl LabelStorage {
         Ok(())
     }
 
-    fn text_key_for(&self, name: &str) -> Option<[u8; 10]> {
-        let id = self.label_names.get(name.as_bytes())?;
+    fn text_key_for(&self, name: &[u8]) -> Option<[u8; 10]> {
+        let id = self.label_names.get(name)?;
         let mut res = Self::TEXT_MASK;
         res[2..].clone_from_slice(&id.to_le_bytes());
         Some(res)
     }
 
-    pub fn set_label_text(&self, name: &str, contents: &str) -> Result<()> {
-        let key = self
-            .text_key_for(name)
-            .ok_or(anyhow!("could not find text key for label '{}'", name))?;
+    pub fn set_label_text(&self, name: &[u8], contents: &str) -> Result<()> {
+        let key = self.text_key_for(name).ok_or(anyhow!(
+            "could not find text key for label '{}'",
+            name.as_bstr()
+        ))?;
 
         let max_len = contents.len().min(254);
         self.db.insert(key, contents[..max_len].as_bytes())?;
@@ -178,11 +224,17 @@ impl LabelStorage {
         let set_u64 = set.0.to_bits();
 
         let tx_result: TxResult<()> = self.db.transaction(|db| {
-            let pk = self.pos_key_for(name).unwrap();
-            let tk = self.text_key_for(name).unwrap();
+            let nb = name.as_bytes();
+            let pk = self.pos_key_for(nb).unwrap();
+            let tk = self.text_key_for(nb).unwrap();
 
-            let buf_key = self.buf_key_for(name).unwrap();
-            let set_key = self.buf_key_for(name).unwrap();
+            let buf_key = self.buf_key_for(nb).unwrap();
+            let set_key = self.set_key_for(nb).unwrap();
+
+            log::warn!("pk: {:?}", pk);
+            log::warn!("tk: {:?}", tk);
+            log::warn!("buf_key: {:?}", buf_key);
+            log::warn!("set_key: {:?}", set_key);
 
             db.insert(&buf_key, &buf_u64.to_le_bytes())?;
             db.insert(&set_key, &set_u64.to_le_bytes())?;
