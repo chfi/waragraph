@@ -25,7 +25,7 @@ pub type TxResult<T> = TransactionResult<T, TransactionError<Vec<u8>>>;
 pub struct LabelStorage {
     pub db: sled::Db,
 
-    label_names: HashMap<Vec<u8>, u64>,
+    pub label_names: HashMap<Vec<u8>, u64>,
 
     buffers: Vec<BufferIx>,
     desc_sets: Vec<DescSetIx>,
@@ -99,6 +99,25 @@ impl LabelStorage {
         Ok(result)
     }
 
+    pub fn desc_set_for_id(&self, id: u64) -> Result<Option<DescSetIx>> {
+        use zerocopy::FromBytes;
+
+        let key = self
+            .set_key_for_id(id)
+            .ok_or(anyhow!("Descriptor set not found for label ID {}", id))?;
+
+        // let bytes = self.db.get(key)?.unwrap();
+        let bytes = self.db.get(key)?;
+
+        let result = bytes.and_then(|b| {
+            let raw: u64 = u64::read_from(b.as_ref())?;
+            let index = Index::from_bits(raw)?;
+            Some(DescSetIx(index))
+        });
+
+        Ok(result)
+    }
+
     pub fn buffer_for(&self, name: &[u8]) -> Result<Option<BufferIx>> {
         use zerocopy::FromBytes;
 
@@ -145,6 +164,18 @@ impl LabelStorage {
         Some(res)
     }
 
+    fn set_key_for_id(&self, id: u64) -> Option<[u8; 12]> {
+        let mut res = Self::SET_MASK;
+        res[4..].clone_from_slice(&id.to_le_bytes());
+        Some(res)
+    }
+
+    fn pos_key_for_id(&self, id: u64) -> Option<[u8; 10]> {
+        let mut res = Self::POS_MASK;
+        res[2..].clone_from_slice(&id.to_le_bytes());
+        Some(res)
+    }
+
     fn buf_key_for(&self, name: &[u8]) -> Option<[u8; 12]> {
         let id = self.label_names.get(name)?;
         let mut res = Self::BUF_MASK;
@@ -176,6 +207,37 @@ impl LabelStorage {
         val[4..].clone_from_slice(&y.to_le_bytes());
         self.db.insert(key, &val)?;
         Ok(())
+    }
+
+    pub fn get_label_pos(&self, name: &[u8]) -> Result<(u32, u32)> {
+        use zerocopy::FromBytes;
+
+        let val = self
+            .pos_key_for(name)
+            .and_then(|k| self.db.get(k).ok().flatten())
+            .ok_or(anyhow!(
+                "could not find key for label '{}'",
+                name.as_bstr()
+            ))?;
+
+        let x = u32::read_from(&val[0..4]).unwrap();
+        let y = u32::read_from(&val[4..8]).unwrap();
+
+        Ok((x, y))
+    }
+
+    pub fn get_label_pos_id(&self, id: u64) -> Result<(u32, u32)> {
+        use zerocopy::FromBytes;
+
+        let val = self
+            .pos_key_for_id(id)
+            .and_then(|k| self.db.get(k).ok().flatten())
+            .ok_or(anyhow!("could not find key for label ID {}", id))?;
+
+        let x = u32::read_from(&val[0..4]).unwrap();
+        let y = u32::read_from(&val[4..8]).unwrap();
+
+        Ok((x, y))
     }
 
     fn text_key_for(&self, name: &[u8]) -> Option<[u8; 10]> {

@@ -163,6 +163,10 @@ fn main() -> Result<()> {
     txt.allocate_label(&mut engine, "view:len")?;
     txt.allocate_label(&mut engine, "view:end")?;
 
+    txt.set_label_pos(b"view:start", 20, 16)?;
+    txt.set_label_pos(b"view:len", 300, 16)?;
+    txt.set_label_pos(b"view:end", 600, 16)?;
+
     txt.set_text_for(b"view:start", "view offset")?;
     txt.set_text_for(b"view:len", "view len")?;
     txt.set_text_for(b"view:end", "view end")?;
@@ -631,15 +635,13 @@ fn main() -> Result<()> {
                 {
                     match ev {
                         sled::Event::Insert { key, value } => {
-                            log::warn!("insert! {:?}, {:?}", key, value);
+                            // log:warn!("insert! {:?}, {:?}", key, value);
                             use zerocopy::FromBytes;
                             let id = u64::read_from(key[2..].as_ref()).unwrap();
                             let buf_ix =
                                 txt.buffer_for_id(id).unwrap().unwrap();
                             let buffer = &mut engine.resources[buf_ix];
-
                             let slice = buffer.mapped_slice_mut().unwrap();
-
                             let len = value.len();
 
                             slice[0..4]
@@ -674,42 +676,36 @@ fn main() -> Result<()> {
                 let slot_width = path_slots[0].width();
 
                 let label_sets = {
-                    let add = |x, y, set| {
-                        use rhai::Dynamic as Dyn;
-                        let mut data = rhai::Map::default();
-                        data.insert("x".into(), Dyn::from_int(x));
-                        data.insert("y".into(), Dyn::from_int(y));
-                        data.insert("desc_set".into(), Dyn::from(set));
-                        Dyn::from_map(data)
-                    };
+                    txt.label_names
+                        .values()
+                        .map(|&id| {
+                            use rhai::Dynamic as Dyn;
+                            let mut data = rhai::Map::default();
+                            let set = txt.desc_set_for_id(id).unwrap().unwrap();
+                            let (x, y) = txt.get_label_pos_id(id).unwrap();
+                            data.insert("x".into(), Dyn::from_int(x as i64));
+                            data.insert("y".into(), Dyn::from_int(y as i64));
+                            data.insert("desc_set".into(), Dyn::from(set));
+                            Dyn::from_map(data)
+                        })
+                        .collect::<Vec<_>>()
 
-                    let end_len = txt.label_len(b"view:end").unwrap() as i64;
+                    // let add = |name| {
+                    //     use rhai::Dynamic as Dyn;
+                    //     let mut data = rhai::Map::default();
+                    //     let set = txt.desc_set_for(name).unwrap().unwrap();
+                    //     let (x, y) = txt.get_label_pos(name).unwrap();
+                    //     data.insert("x".into(), Dyn::from_int(x as i64));
+                    //     data.insert("y".into(), Dyn::from_int(y as i64));
+                    //     data.insert("desc_set".into(), Dyn::from(set));
+                    //     Dyn::from_map(data)
+                    // };
 
-                    let start_set =
-                        txt.desc_set_for(b"view:start").unwrap().unwrap();
-                    // text_storage.get_desc_set("view:start").unwrap();
+                    // let start = add(b"view:start");
+                    // let len = add(b"view:len");
+                    // let end = add(b"view:end");
 
-                    let len_set =
-                        txt.desc_set_for(b"view:len").unwrap().unwrap();
-
-                    let end_set =
-                        txt.desc_set_for(b"view:end").unwrap().unwrap();
-
-                    let start = add(20, 16, start_set);
-
-                    let end_x = (slot_width as i64) - (end_len * 8) - 40;
-
-                    let len = add(end_x / 2, 16, len_set);
-
-                    let end = add(end_x, 16, end_set);
-
-                    // let mut data = rhai::Map::default();
-                    // data.insert("x".into(), Dyn::from_int(10));
-                    // data.insert("y".into(), Dyn::from_int(10));
-                    // data.insert("desc_set".into(), Dyn::from(set));
-                    // vec![Dyn::from_map(data)]
-
-                    vec![start, len, end]
+                    // vec![start, len, end]
                 };
 
                 let fg_batch = draw_foreground(
@@ -811,6 +807,29 @@ fn main() -> Result<()> {
 
                             {
                                 let slot_width = path_slots[0].width();
+
+                                // txt.set_label_pos(b"view:start", 20, 16)?;
+                                let len_len =
+                                    txt.label_len(b"view:len").unwrap();
+                                let end_len =
+                                    txt.label_len(b"view:end").unwrap();
+                                let end_label_x =
+                                    slot_width - (end_len * 8) - 40;
+                                let len_label_x =
+                                    (end_label_x / 2) - len_len / 2;
+                                txt.set_label_pos(
+                                    b"view:len",
+                                    len_label_x as u32,
+                                    16,
+                                )
+                                .unwrap();
+                                txt.set_label_pos(
+                                    b"view:end",
+                                    end_label_x as u32,
+                                    16,
+                                )
+                                .unwrap();
+
                                 samples.clear();
                                 // log::warn!("resampling paths");
                                 waragraph.sample_node_lengths(
