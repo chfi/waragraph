@@ -61,7 +61,11 @@ fn main() -> Result<()> {
         gfa
     };
 
+    let db = sled::open("waragraph_viewer")?;
+
     let waragraph = Waragraph::from_gfa(&gfa)?;
+
+    //// remove
 
     let gfa_file = std::fs::File::open(gfa_path)?;
     let reader = BufReader::new(gfa_file);
@@ -126,6 +130,8 @@ fn main() -> Result<()> {
         path_loops,
     };
 
+    //// until here
+
     let event_loop: EventLoop<()>;
 
     #[cfg(target_os = "linux")]
@@ -155,13 +161,13 @@ fn main() -> Result<()> {
 
     let mut engine = VkEngine::new(&window)?;
 
-    let mut txt = LabelStorage::new()?;
+    let mut txt = LabelStorage::new(&db)?;
 
-    let mut text_sub = txt.db.watch_prefix(b"t:");
+    let mut text_sub = txt.tree.watch_prefix(b"t:");
 
-    txt.allocate_label(&mut engine, "view:start")?;
-    txt.allocate_label(&mut engine, "view:len")?;
-    txt.allocate_label(&mut engine, "view:end")?;
+    txt.allocate_label(&db, &mut engine, "view:start")?;
+    txt.allocate_label(&db, &mut engine, "view:len")?;
+    txt.allocate_label(&db, &mut engine, "view:end")?;
 
     txt.set_label_pos(b"view:start", 20, 16)?;
     txt.set_label_pos(b"view:len", 300, 16)?;

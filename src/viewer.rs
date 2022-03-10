@@ -110,6 +110,7 @@ pub struct PathViewer {
 
 impl PathViewer {
     pub fn new(
+        db: &sled::Db,
         ctx: &VkContext,
         res: &mut GpuResources,
         alloc: &mut Allocator,

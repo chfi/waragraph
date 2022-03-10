@@ -23,7 +23,8 @@ use anyhow::{anyhow, bail, Result};
 pub type TxResult<T> = TransactionResult<T, TransactionError<Vec<u8>>>;
 
 pub struct LabelStorage {
-    pub db: sled::Db,
+    // pub db: sled::Db,
+    pub tree: sled::Tree,
 
     pub label_names: HashMap<Vec<u8>, u64>,
 
@@ -50,7 +51,7 @@ impl LabelStorage {
 
         let value = &contents.as_bytes()[..len];
 
-        self.db.update_and_fetch(key, |_| Some(value))?;
+        self.tree.update_and_fetch(key, |_| Some(value))?;
         // self.db.insert(key, value)?;
 
         Ok(())
@@ -61,19 +62,20 @@ impl LabelStorage {
             .text_key_for(name)
             .ok_or(anyhow!("Could not find label '{}'", name.as_bstr()))?;
 
-        let v = self.db.get(&key)?.unwrap();
+        let v = self.tree.get(&key)?.unwrap();
         Ok(v.len())
     }
 
-    pub fn new() -> Result<Self> {
-        let db = sled::open("waragraph_labels")?;
+    pub fn new(db: &sled::Db) -> Result<Self> {
+        // let db = sled::open("waragraph_labels")?;
+        let tree = db.open_tree("labels")?;
 
         let label_names = HashMap::default();
         let buffers = Vec::new();
         let desc_sets = Vec::new();
 
         Ok(Self {
-            db,
+            tree,
             label_names,
             buffers,
             desc_sets,
@@ -88,7 +90,7 @@ impl LabelStorage {
             .ok_or(anyhow!("Buffer not found for label ID '{}'", id))?;
 
         // let bytes = self.db.get(key)?.unwrap();
-        let bytes = self.db.get(key)?;
+        let bytes = self.tree.get(key)?;
 
         let result = bytes.and_then(|b| {
             let raw: u64 = u64::read_from(b.as_ref())?;
@@ -107,7 +109,7 @@ impl LabelStorage {
             .ok_or(anyhow!("Descriptor set not found for label ID {}", id))?;
 
         // let bytes = self.db.get(key)?.unwrap();
-        let bytes = self.db.get(key)?;
+        let bytes = self.tree.get(key)?;
 
         let result = bytes.and_then(|b| {
             let raw: u64 = u64::read_from(b.as_ref())?;
@@ -127,7 +129,7 @@ impl LabelStorage {
         ))?;
 
         // let bytes = self.db.get(key)?.unwrap();
-        let bytes = self.db.get(key)?;
+        let bytes = self.tree.get(key)?;
 
         let result = bytes.and_then(|b| {
             let raw: u64 = u64::read_from(b.as_ref())?;
@@ -147,7 +149,7 @@ impl LabelStorage {
         ))?;
 
         // let bytes = self.db.get(key)?.unwrap();
-        let bytes = self.db.get(key)?;
+        let bytes = self.tree.get(key)?;
 
         let result = bytes.and_then(|b| {
             let raw: u64 = u64::read_from(b.as_ref())?;
@@ -205,7 +207,7 @@ impl LabelStorage {
         let mut val = [0u8; 8];
         val[..4].clone_from_slice(&x.to_le_bytes());
         val[4..].clone_from_slice(&y.to_le_bytes());
-        self.db.insert(key, &val)?;
+        self.tree.insert(key, &val)?;
         Ok(())
     }
 
@@ -214,7 +216,7 @@ impl LabelStorage {
 
         let val = self
             .pos_key_for(name)
-            .and_then(|k| self.db.get(k).ok().flatten())
+            .and_then(|k| self.tree.get(k).ok().flatten())
             .ok_or(anyhow!(
                 "could not find key for label '{}'",
                 name.as_bstr()
@@ -231,7 +233,7 @@ impl LabelStorage {
 
         let val = self
             .pos_key_for_id(id)
-            .and_then(|k| self.db.get(k).ok().flatten())
+            .and_then(|k| self.tree.get(k).ok().flatten())
             .ok_or(anyhow!("could not find key for label ID {}", id))?;
 
         let x = u32::read_from(&val[0..4]).unwrap();
@@ -255,16 +257,17 @@ impl LabelStorage {
 
         let max_len = contents.len().min(254);
         let value = contents[..max_len].as_bytes();
-        self.db.update_and_fetch(key, |_| Some(value))?;
+        self.tree.update_and_fetch(key, |_| Some(value))?;
         Ok(())
     }
 
     pub fn allocate_label(
         &mut self,
+        db: &sled::Db,
         engine: &mut VkEngine,
         name: &str,
     ) -> Result<()> {
-        let id = self.db.generate_id()?;
+        let id = db.generate_id()?;
 
         let (buf, set) = engine.with_allocators(|ctx, res, alloc| {
             let mem_loc = gpu_allocator::MemoryLocation::CpuToGpu;
@@ -296,7 +299,7 @@ impl LabelStorage {
         let buf_u64 = buf.0.to_bits();
         let set_u64 = set.0.to_bits();
 
-        let tx_result: TxResult<()> = self.db.transaction(|db| {
+        let tx_result: TxResult<()> = self.tree.transaction(|db| {
             let nb = name.as_bytes();
             let pk = self.pos_key_for(nb).unwrap();
             let tk = self.text_key_for(nb).unwrap();
