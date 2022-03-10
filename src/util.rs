@@ -50,9 +50,19 @@ impl LabelStorage {
 
         let value = &contents.as_bytes()[..len];
 
-        self.db.insert(key, value)?;
+        self.db.update_and_fetch(key, |_| Some(value))?;
+        // self.db.insert(key, value)?;
 
         Ok(())
+    }
+
+    pub fn label_len(&self, name: &[u8]) -> Result<usize> {
+        let key = self
+            .text_key_for(name)
+            .ok_or(anyhow!("Could not find label '{}'", name.as_bstr()))?;
+
+        let v = self.db.get(&key)?.unwrap();
+        Ok(v.len())
     }
 
     pub fn new() -> Result<Self> {
@@ -182,7 +192,8 @@ impl LabelStorage {
         ))?;
 
         let max_len = contents.len().min(254);
-        self.db.insert(key, contents[..max_len].as_bytes())?;
+        let value = contents[..max_len].as_bytes();
+        self.db.update_and_fetch(key, |_| Some(value))?;
         Ok(())
     }
 
@@ -267,143 +278,6 @@ impl LabelStorage {
         */
 
         Ok(())
-    }
-}
-
-#[derive(Default)]
-pub struct LabelBuffers {
-    names: HashMap<String, usize>,
-
-    label_len: Vec<usize>,
-    buffers: Vec<BufferIx>,
-    desc_sets: Vec<DescSetIx>,
-}
-
-impl LabelBuffers {
-    pub const BUFFER_LEN: usize = 255;
-
-    pub fn get_desc_set(&self, name: &str) -> Option<DescSetIx> {
-        let ix = *self.names.get(name)?;
-        self.desc_sets.get(ix).copied()
-    }
-
-    pub fn get_len(&self, name: &str) -> Option<usize> {
-        let ix = *self.names.get(name)?;
-        self.label_len.get(ix).copied()
-    }
-
-    // pub fn new_buffer(&mut self, engine: &mut VkEngine, name: &str) -> Result<Option<BufferRes>> {
-    pub fn new_buffer(
-        &mut self,
-        engine: &mut VkEngine,
-        name: &str,
-    ) -> Result<()> {
-        let mem_loc = gpu_allocator::MemoryLocation::CpuToGpu;
-        let usage = vk::BufferUsageFlags::STORAGE_BUFFER
-            | vk::BufferUsageFlags::TRANSFER_SRC
-            | vk::BufferUsageFlags::TRANSFER_DST;
-
-        let (buf_ix, set_ix) = engine.with_allocators(|ctx, res, alloc| {
-            // TODO use 1 byte per char
-            let buf = res.allocate_buffer(
-                ctx,
-                alloc,
-                mem_loc,
-                4,
-                Self::BUFFER_LEN,
-                usage,
-                Some(name),
-            )?;
-
-            let desc_set = Self::allocate_desc_set(res, &buf)?;
-
-            let buf_ix = res.insert_buffer(buf);
-            let set_ix = res.insert_desc_set(desc_set);
-
-            Ok((buf_ix, set_ix))
-        })?;
-
-        let ix = self.buffers.len();
-
-        self.names.insert(name.to_string(), ix);
-
-        self.label_len.push(0);
-        self.buffers.push(buf_ix);
-        self.desc_sets.push(set_ix);
-
-        Ok(())
-    }
-
-    // pub fn write_buffer(&mut self, res: &mut GpuResources, name: &str, contents: &[u8]) -> Option<()> {
-    pub fn write_buffer(
-        &mut self,
-        res: &mut GpuResources,
-        name: &str,
-        contents: &[u8],
-    ) -> Option<()> {
-        let ix = *self.names.get(name)?;
-        let buf_ix = self.buffers[ix];
-
-        let buffer = &mut res[buf_ix];
-        let slice = buffer.mapped_slice_mut()?;
-
-        // TODO make sure the contents are not too big
-        let len = contents.len();
-
-        self.label_len[ix] = len;
-
-        slice[0..4].clone_from_slice(&(len as u32).to_ne_bytes());
-
-        for (chk, &b) in slice[4..].chunks_mut(4).zip(contents) {
-            chk[0] = b;
-            chk[1] = b;
-            chk[2] = b;
-            chk[3] = b;
-        }
-
-        Some(())
-    }
-
-    fn allocate_desc_set(
-        res: &mut GpuResources,
-        buffer: &BufferRes,
-    ) -> Result<vk::DescriptorSet> {
-        // TODO also do uniforms if/when i add them, or keep them in a
-        // separate set
-        let layout_info = {
-            let mut info = DescriptorLayoutInfo::default();
-
-            let binding = vk::DescriptorSetLayoutBinding::builder()
-                .binding(0)
-                .descriptor_count(1)
-                .descriptor_type(vk::DescriptorType::STORAGE_BUFFER)
-                .stage_flags(vk::ShaderStageFlags::COMPUTE) // TODO should also be graphics, probably
-                .build();
-
-            info.bindings.push(binding);
-            info
-        };
-
-        let set_info = {
-            let info = DescriptorInfo {
-                ty: rspirv_reflect::DescriptorType::STORAGE_BUFFER,
-                binding_count: rspirv_reflect::BindingCount::One,
-                name: "text".to_string(),
-            };
-
-            Some((0u32, info)).into_iter().collect::<BTreeMap<_, _>>()
-        };
-
-        res.allocate_desc_set_raw(&layout_info, &set_info, |res, builder| {
-            let info = ash::vk::DescriptorBufferInfo::builder()
-                .buffer(buffer.buffer)
-                .offset(0)
-                .range(ash::vk::WHOLE_SIZE)
-                .build();
-            let buffer_info = [info];
-            builder.bind_buffer(0, &buffer_info);
-            Ok(())
-        })
     }
 }
 

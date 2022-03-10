@@ -19,7 +19,7 @@ use parking_lot::Mutex;
 use rspirv_reflect::DescriptorInfo;
 
 use waragraph::graph::{Node, Waragraph};
-use waragraph::util::{LabelBuffers, LabelStorage};
+use waragraph::util::LabelStorage;
 use waragraph::viewer::{PathViewSlot, ViewDiscrete1D};
 use winit::event::{Event, VirtualKeyCode, WindowEvent};
 use winit::{event_loop::EventLoop, window::WindowBuilder};
@@ -166,25 +166,6 @@ fn main() -> Result<()> {
     txt.set_text_for(b"view:start", "view offset")?;
     txt.set_text_for(b"view:len", "view len")?;
     txt.set_text_for(b"view:end", "view end")?;
-
-    let mut text_storage = LabelBuffers::default();
-
-    text_storage.new_buffer(&mut engine, "view:start")?;
-    text_storage.new_buffer(&mut engine, "view:len")?;
-    text_storage.new_buffer(&mut engine, "view:end")?;
-
-    text_storage.write_buffer(
-        &mut engine.resources,
-        "view:start",
-        b"hello world",
-    );
-    text_storage.write_buffer(
-        &mut engine.resources,
-        "view:len",
-        b"hello world",
-    );
-    text_storage.write_buffer(&mut engine.resources, "view:end", b"bye world");
-    // text_storage.write_buffer(&mut engine.resources, "view:start", b"hello world");
 
     let window_storage_set_info = {
         let info = DescriptorInfo {
@@ -600,37 +581,7 @@ fn main() -> Result<()> {
 
         match event {
             Event::MainEventsCleared => {
-                while let Ok(ev) = text_sub.next_timeout(Duration::default()) {
-                    match ev {
-                        sled::Event::Insert { key, value } => {
-                            use zerocopy::FromBytes;
-                            let id = u64::read_from(key[2..].as_ref()).unwrap();
-                            let buf_ix =
-                                txt.buffer_for_id(id).unwrap().unwrap();
-                            let buffer = &mut engine.resources[buf_ix];
-
-                            let slice = buffer.mapped_slice_mut().unwrap();
-
-                            let len = value.len();
-
-                            slice[0..4]
-                                .clone_from_slice(&(len as u32).to_ne_bytes());
-
-                            for (chk, &b) in
-                                slice[4..].chunks_mut(4).zip(value.iter())
-                            {
-                                chk[0] = b;
-                                chk[1] = b;
-                                chk[2] = b;
-                                chk[3] = b;
-                            }
-                        }
-                        sled::Event::Remove { key } => {
-                            // do nothing yet
-                        }
-                    }
-                    //
-                }
+                // while let Ok(ev) = text_sub.next_timeout(Duration::default()) {
 
                 if view != prev_view {
                     prev_view = view;
@@ -641,23 +592,9 @@ fn main() -> Result<()> {
                         let end = range.end.to_string();
                         let len = view.len().to_string();
 
-                        text_storage.write_buffer(
-                            &mut engine.resources,
-                            "view:start",
-                            start.as_bytes(),
-                        );
-
-                        text_storage.write_buffer(
-                            &mut engine.resources,
-                            "view:len",
-                            len.as_bytes(),
-                        );
-
-                        text_storage.write_buffer(
-                            &mut engine.resources,
-                            "view:end",
-                            end.as_bytes(),
-                        );
+                        txt.set_text_for(b"view:start", &start).unwrap();
+                        txt.set_text_for(b"view:len", &len).unwrap();
+                        txt.set_text_for(b"view:end", &end).unwrap();
                     }
 
                     let slot_width = path_slots[0].width();
@@ -689,6 +626,41 @@ fn main() -> Result<()> {
                     }
                 }
 
+                while let Ok(ev) =
+                    text_sub.next_timeout(Duration::from_millis(5))
+                {
+                    match ev {
+                        sled::Event::Insert { key, value } => {
+                            log::warn!("insert! {:?}, {:?}", key, value);
+                            use zerocopy::FromBytes;
+                            let id = u64::read_from(key[2..].as_ref()).unwrap();
+                            let buf_ix =
+                                txt.buffer_for_id(id).unwrap().unwrap();
+                            let buffer = &mut engine.resources[buf_ix];
+
+                            let slice = buffer.mapped_slice_mut().unwrap();
+
+                            let len = value.len();
+
+                            slice[0..4]
+                                .clone_from_slice(&(len as u32).to_ne_bytes());
+
+                            for (chk, &b) in
+                                slice[4..].chunks_mut(4).zip(value.iter())
+                            {
+                                chk[0] = b;
+                                chk[1] = b;
+                                chk[2] = b;
+                                chk[3] = b;
+                            }
+                        }
+                        sled::Event::Remove { key } => {
+                            // do nothing yet
+                        }
+                    }
+                    //
+                }
+
                 let t = start.elapsed().as_secs_f32();
 
                 let f_ix = engine.current_frame_number();
@@ -711,17 +683,18 @@ fn main() -> Result<()> {
                         Dyn::from_map(data)
                     };
 
-                    let end_len =
-                        text_storage.get_len("view:start").unwrap() as i64;
+                    let end_len = txt.label_len(b"view:end").unwrap() as i64;
 
                     let start_set =
-                        text_storage.get_desc_set("view:start").unwrap();
+                        txt.desc_set_for(b"view:start").unwrap().unwrap();
+                    // text_storage.get_desc_set("view:start").unwrap();
 
                     let len_set =
-                        text_storage.get_desc_set("view:len").unwrap();
+                        txt.desc_set_for(b"view:len").unwrap().unwrap();
 
                     let end_set =
-                        text_storage.get_desc_set("view:end").unwrap();
+                        txt.desc_set_for(b"view:end").unwrap().unwrap();
+
                     let start = add(20, 16, start_set);
 
                     let end_x = (slot_width as i64) - (end_len * 8) - 40;
