@@ -1,0 +1,42 @@
+#version 450
+
+
+layout (push_constant) uniform Inputs {
+  ivec2 dst_offset;
+  int src_width;
+  int src_height;
+  int dst_width;
+  int dst_height;
+} inputs;
+
+// layout (set = 0, binding = 0) uniform sampler u_sampler;
+// layout (set = 0, binding = 1) uniform texture2D u_image_in;
+
+// layout (rgba8, set = 0, binding = 2) writeonly uniform image2D image_out;
+
+layout (set = 0, binding = 0) uniform sampler u_sampler;
+layout (set = 1, binding = 0) uniform texture2D u_image_in;
+
+layout (rgba8, set = 2, binding = 0) writeonly uniform image2D image_out;
+
+layout(local_size_x = 8, local_size_y = 8, local_size_z = 1) in;
+
+void main() {
+
+  ivec2 global = ivec2(gl_GlobalInvocationID.xy);
+
+  if (global.x >= inputs.dst_width
+      || global.y >= inputs.dst_height) {
+    return;
+  }
+
+  ivec2 dst = global + inputs.dst_offset;
+
+  vec2 src = vec2(global.x, global.y) / vec2(inputs.dst_width, inputs.dst_height);
+
+  vec4 color = texture(sampler2D(u_image_in, u_sampler), src);
+
+  if (color.a != 0.0) {
+      imageStore(image_out, dst, color.bgra);
+  }
+}
