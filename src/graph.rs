@@ -10,6 +10,7 @@ use rustc_hash::FxHashMap;
 use thunderdome::{Arena, Index};
 
 use sprs::{CsMatI, CsVecI, TriMatI};
+use zerocopy::AsBytes;
 
 use std::sync::Arc;
 
@@ -22,7 +23,7 @@ use anyhow::{anyhow, bail, Result};
 use crate::viewer::ViewDiscrete1D;
 
 #[repr(transparent)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, AsBytes)]
 pub struct Node(u32);
 
 impl From<NonZeroU32> for Node {
@@ -244,6 +245,52 @@ impl Waragraph {
             slice
         };
         Some(slice)
+    }
+
+    pub fn sample_node_lengths_db(
+        &self,
+        nsamples: usize,
+        // pos_offset: usize,
+        // len: usize,
+        view: &ViewDiscrete1D,
+        // out: &mut Vec<(Node, usize)>,
+        out: &mut Vec<[u32; 2]>,
+        // tree: &sled::Db
+    ) {
+        out.clear();
+
+        let range = view.range();
+        let pos_offset = range.start;
+        let len = range.end - range.start;
+
+        let pos_end = pos_offset + len;
+
+        let slice = &self.node_sum_lens;
+        let sample_width = len / nsamples;
+
+        let sample_point = |p| match slice.binary_search(&p) {
+            Ok(i) => i,
+            Err(i) => {
+                if i == 0 {
+                    i
+                } else {
+                    i - 1
+                }
+            }
+        };
+
+        let p0 = pos_offset + sample_width / 2;
+
+        for i in 0..nsamples {
+            let p = p0 + i * sample_width;
+            let ix = sample_point(p);
+            let offset = self.node_sum_lens[ix];
+
+            let node = Node(ix as u32);
+            let rem = p - offset;
+
+            out.push([node.0, rem as u32]);
+        }
     }
 
     pub fn sample_node_lengths(

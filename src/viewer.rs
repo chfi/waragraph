@@ -104,6 +104,8 @@ impl ViewDiscrete1D {
 }
 
 pub struct PathViewer {
+    pub tree: sled::Tree,
+
     width: usize,
     slots: Vec<PathViewSlot>,
 }
@@ -119,6 +121,8 @@ impl PathViewer {
         fill: u32,
         name_prefix: &str,
     ) -> Result<Self> {
+        let tree = db.open_tree(b"path_slots")?;
+
         let mut slots = Vec::with_capacity(slot_count);
 
         for i in 0..slot_count {
@@ -131,7 +135,7 @@ impl PathViewer {
             slots.push(slot);
         }
 
-        Ok(Self { width, slots })
+        Ok(Self { tree, width, slots })
     }
 }
 
