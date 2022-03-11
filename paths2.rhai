@@ -109,7 +109,6 @@ fn init() {
 }
 
 fn foreground(batch, labels, desc_sets, slot_w, w, h) {
-
   let img = self::out_image.get();
   batch.transition_image(img,
                          vk::AccessFlags::SHADER_WRITE,
@@ -216,4 +215,85 @@ fn foreground(batch, labels, desc_sets, slot_w, w, h) {
                          vk::ImageLayout::TRANSFER_SRC_OPTIMAL);
 
   batch
+}
+
+
+
+let sampler_info =
+#{ mag_filter: vk::Filter::LINEAR,
+   min_filter: vk::Filter::LINEAR,
+   address_mode_u: vk::SamplerAddressMode::REPEAT,
+   address_mode_v: vk::SamplerAddressMode::REPEAT,
+   address_mode_w: vk::SamplerAddressMode::REPEAT,
+   anisotropy_enable: false,
+   unnormalized_coordinates: false,
+   mipmap_mode: vk::SamplerMipmapMode::NEAREST,
+   mip_lod_bias: 0.0,
+   min_lod: 0.0,
+   max_lod: 1.0,
+ };
+
+export let sampler = create_sampler(sampler_info);
+
+export let img_shader = load_shader("shaders/sample_image.comp.spv",
+                                    vk::ShaderStageFlags::COMPUTE);
+
+export let img_pipeline = create_compute_pipeline(img_shader);
+
+export let shader_set =
+  create_desc_set(img_shader,
+                  0,
+                  [ #{ binding: 0, sampler: sampler } ]);
+
+
+// `swapchain` should be #{ img, img_view, storage_set } for the correct swapchain image
+fn copy_to_swapchain(batch, source_set, swapchain, w, h) {
+
+  batch.transition_image(swapchain.img,
+                         vk::AccessFlags::SHADER_WRITE,
+                         vk::PipelineStageFlags::COMPUTE_SHADER,
+                         vk::AccessFlags::SHADER_READ,
+                         vk::PipelineStageFlags::COMPUTE_SHADER,
+                         vk::ImageLayout::UNDEFINED,
+                         vk::ImageLayout::GENERAL);
+
+  // do the copy dispatch
+
+  let pc = blob();
+  // dst_offset
+  pc.append_int(0);
+  pc.append_int(0);
+
+  // src_width/height
+  pc.append_int(w);
+  pc.append_int(h);
+
+  // dst_width/height
+  pc.append_int(w);
+  pc.append_int(h);
+
+  let x_size = 8;
+  let y_size = 8;
+
+  let workgroups = #{ x_groups: (w / x_size) + w % x_size,
+                      y_groups: (h / y_size) + h % y_size,
+                      z_groups: 1 };
+
+  batch.dispatch_compute(self::img_pipeline.get(),
+                         [self::sampler_set.get(),
+                          source_set,
+                          swapchain.storage_set],
+                         pc,
+                         workgroups);
+
+  batch.transition_image(swapchain.img,
+                         vk::AccessFlags::SHADER_WRITE,
+                         vk::PipelineStageFlags::COMPUTE_SHADER,
+                         // vk::AccessFlags::SHADER_READ,
+                         // vk::PipelineStageFlags::COMPUTE_SHADER,
+                         vk::AccessFlags::MEMORY_READ,
+                         vk::PipelineStageFlags::BOTTOM_OF_PIPE,
+                         vk::ImageLayout::GENERAL,
+                         vk::ImageLayout::PRESENT_SRC_KHR);
+
 }
