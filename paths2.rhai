@@ -240,7 +240,7 @@ export let img_shader = load_shader("shaders/sample_image.comp.spv",
 
 export let img_pipeline = create_compute_pipeline(img_shader);
 
-export let shader_set =
+export let sampler_set =
   create_desc_set(img_shader,
                   0,
                   [ #{ binding: 0, sampler: sampler } ]);
@@ -249,6 +249,7 @@ export let shader_set =
 // `swapchain` should be #{ img, img_view, storage_set } for the correct swapchain image
 fn copy_to_swapchain(batch, source_set, swapchain, w, h) {
 
+  print!("copy_to_swapchain - 1");
   batch.transition_image(swapchain.img,
                          vk::AccessFlags::SHADER_WRITE,
                          vk::PipelineStageFlags::COMPUTE_SHADER,
@@ -258,6 +259,7 @@ fn copy_to_swapchain(batch, source_set, swapchain, w, h) {
                          vk::ImageLayout::GENERAL);
 
   // do the copy dispatch
+  print!("copy_to_swapchain - 2");
 
   let pc = blob();
   // dst_offset
@@ -279,6 +281,7 @@ fn copy_to_swapchain(batch, source_set, swapchain, w, h) {
                       y_groups: (h / y_size) + h % y_size,
                       z_groups: 1 };
 
+  print!("copy_to_swapchain - 3");
   batch.dispatch_compute(self::img_pipeline.get(),
                          [self::sampler_set.get(),
                           source_set,
@@ -286,14 +289,16 @@ fn copy_to_swapchain(batch, source_set, swapchain, w, h) {
                          pc,
                          workgroups);
 
+  print!("copy_to_swapchain - 4");
   batch.transition_image(swapchain.img,
                          vk::AccessFlags::SHADER_WRITE,
                          vk::PipelineStageFlags::COMPUTE_SHADER,
-                         // vk::AccessFlags::SHADER_READ,
-                         // vk::PipelineStageFlags::COMPUTE_SHADER,
-                         vk::AccessFlags::MEMORY_READ,
-                         vk::PipelineStageFlags::BOTTOM_OF_PIPE,
+                         vk::AccessFlags::SHADER_READ,
+                         vk::PipelineStageFlags::COMPUTE_SHADER,
+                         // vk::AccessFlags::MEMORY_READ,
+                         // vk::PipelineStageFlags::BOTTOM_OF_PIPE,
                          vk::ImageLayout::GENERAL,
                          vk::ImageLayout::PRESENT_SRC_KHR);
 
+  batch
 }

@@ -148,6 +148,7 @@ fn main() -> Result<()> {
                     height,
                     vk::Format::R8G8B8A8_UNORM,
                     vk::ImageUsageFlags::STORAGE
+                        | vk::ImageUsageFlags::SAMPLED
                         | vk::ImageUsageFlags::TRANSFER_SRC,
                     Some("out_image"),
                 )?;
@@ -344,6 +345,7 @@ fn main() -> Result<()> {
         builder.ast.clone_functions_only(),
         "foreground",
     );
+    /*
 
     let mut rhai_engine = raving::script::console::create_batch_engine();
     rhai_engine.register_static_module("self", arc_module.clone());
@@ -358,6 +360,7 @@ fn main() -> Result<()> {
     );
 
     let copy_to_swapchain = Arc::new(copy_to_swapchain);
+    */
 
     {
         let mut rhai_engine = raving::script::console::create_batch_engine();
@@ -645,6 +648,7 @@ fn main() -> Result<()> {
                 //     batch_builder,
                 //     out_desc_set,
 
+                /*
                 let copy_to_swapchain = copy_to_swapchain.clone();
 
                 let copy_swapchain_batch = Box::new(
@@ -652,31 +656,49 @@ fn main() -> Result<()> {
                           res: &GpuResources,
                           input: &BatchInput,
                           cmd: vk::CommandBuffer| {
+                        dbg!();
                         let mut cp_swapchain = rhai::Map::default();
 
+                        dbg!();
                         cp_swapchain.insert(
                             "storage_set".into(),
                             rhai::Dynamic::from(input.storage_set.unwrap()),
                         );
 
+                        cp_swapchain.insert(
+                            "img".into(),
+                            rhai::Dynamic::from(input.swapchain_image.unwrap()),
+                        );
+
+                        dbg!();
                         let batch_builder = BatchBuilder::default();
 
+                        dbg!();
                         let batch = copy_to_swapchain(
                             batch_builder,
                             out_desc_set,
                             cp_swapchain,
                             size.width as i64,
                             size.height as i64,
-                        )
-                        .unwrap();
+                        );
 
+                        if let Err(e) = &batch {
+                            log::error!("copy_to_swapchain error: {:?}", e);
+                        }
+
+                        let batch = batch.unwrap();
+
+                        dbg!();
                         let batch_fn = batch.build();
+                        dbg!();
                         batch_fn(dev, res, cmd)
                     },
                 ) as Box<_>;
+                */
 
                 // let batches = [&bg_batch, &fg_batch, &copy_batch];
                 let batches = [&fg_batch, &copy_batch];
+                // let batches = [&fg_batch, &copy_swapchain_batch];
 
                 let deps = vec![
                     None,
