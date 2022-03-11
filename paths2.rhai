@@ -212,7 +212,9 @@ fn foreground(batch, labels, desc_sets, slot_w, w, h) {
                          vk::AccessFlags::SHADER_READ,
                          vk::PipelineStageFlags::COMPUTE_SHADER,
                          vk::ImageLayout::GENERAL,
-                         vk::ImageLayout::TRANSFER_SRC_OPTIMAL);
+                         vk::ImageLayout::GENERAL);
+                         // vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL,
+                         // vk::ImageLayout::TRANSFER_SRC_OPTIMAL);
 
   batch
 }
@@ -249,7 +251,6 @@ export let sampler_set =
 // `swapchain` should be #{ img, img_view, storage_set } for the correct swapchain image
 fn copy_to_swapchain(batch, source_set, swapchain, w, h) {
 
-  print!("copy_to_swapchain - 1");
   batch.transition_image(swapchain.img,
                          vk::AccessFlags::SHADER_WRITE,
                          vk::PipelineStageFlags::COMPUTE_SHADER,
@@ -259,8 +260,6 @@ fn copy_to_swapchain(batch, source_set, swapchain, w, h) {
                          vk::ImageLayout::GENERAL);
 
   // do the copy dispatch
-  print!("copy_to_swapchain - 2");
-
   let pc = blob();
   // dst_offset
   pc.append_int(0);
@@ -281,7 +280,6 @@ fn copy_to_swapchain(batch, source_set, swapchain, w, h) {
                       y_groups: (h / y_size) + h % y_size,
                       z_groups: 1 };
 
-  print!("copy_to_swapchain - 3");
   batch.dispatch_compute(self::img_pipeline.get(),
                          [self::sampler_set.get(),
                           source_set,
@@ -289,7 +287,6 @@ fn copy_to_swapchain(batch, source_set, swapchain, w, h) {
                          pc,
                          workgroups);
 
-  print!("copy_to_swapchain - 4");
   batch.transition_image(swapchain.img,
                          vk::AccessFlags::SHADER_WRITE,
                          vk::PipelineStageFlags::COMPUTE_SHADER,

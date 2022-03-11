@@ -130,6 +130,30 @@ fn main() -> Result<()> {
         info
     };
 
+    let window_texture_set_info = {
+        let info = DescriptorInfo {
+            ty: rspirv_reflect::DescriptorType::SAMPLED_IMAGE,
+            binding_count: rspirv_reflect::BindingCount::One,
+            name: "out_image".to_string(),
+        };
+
+        Some((0u32, info)).into_iter().collect::<BTreeMap<_, _>>()
+    };
+
+    let window_texture_layout = {
+        let mut info = DescriptorLayoutInfo::default();
+
+        let binding = vk::DescriptorSetLayoutBinding::builder()
+            .binding(0)
+            .descriptor_count(1)
+            .descriptor_type(vk::DescriptorType::SAMPLED_IMAGE)
+            .stage_flags(vk::ShaderStageFlags::COMPUTE) // TODO should also be graphics
+            .build();
+
+        info.bindings.push(binding);
+        info
+    };
+
     let mut win_size_resource_index = WinSizeIndices::default();
 
     let win_size_res_builder = move |engine: &mut VkEngine,
@@ -138,7 +162,7 @@ fn main() -> Result<()> {
           -> Result<WinSizeResourcesBuilder> {
         let mut builder = WinSizeResourcesBuilder::default();
 
-        let (img, view, desc_set) =
+        let (img, view, sampled_desc_set, desc_set) =
             engine.with_allocators(|ctx, res, alloc| {
                 dbg!();
                 let out_image = res.allocate_image(
@@ -155,6 +179,21 @@ fn main() -> Result<()> {
 
                 dbg!();
                 let out_view = res.new_image_view(ctx, &out_image)?;
+
+                let sampled_desc_set = res.allocate_desc_set_raw(
+                    &window_texture_layout,
+                    &window_texture_set_info,
+                    |res, builder| {
+                        let info = ash::vk::DescriptorImageInfo::builder()
+                            .image_layout(vk::ImageLayout::GENERAL)
+                            .image_view(out_view)
+                            .build();
+
+                        builder.bind_image(0, &[info]);
+
+                        Ok(())
+                    },
+                )?;
 
                 dbg!();
                 let out_desc_set = res.allocate_desc_set_raw(
@@ -173,13 +212,16 @@ fn main() -> Result<()> {
                 )?;
                 dbg!();
 
-                Ok((out_image, out_view, out_desc_set))
+                Ok((out_image, out_view, sampled_desc_set, out_desc_set))
             })?;
 
         builder.images.insert("out_image".to_string(), img);
         builder
             .image_views
             .insert("out_image_view".to_string(), view);
+        builder
+            .desc_sets
+            .insert("sampled_desc_set".to_string(), sampled_desc_set);
         builder
             .desc_sets
             .insert("out_desc_set".to_string(), desc_set);
@@ -238,6 +280,10 @@ fn main() -> Result<()> {
     let out_desc_set = *win_size_resource_index
         .desc_sets
         .get("out_desc_set")
+        .unwrap();
+    let sample_out_desc_set = *win_size_resource_index
+        .desc_sets
+        .get("sampled_desc_set")
         .unwrap();
 
     // let mut builder = FrameBuilder::from_script("paths.rhai")?;
@@ -345,7 +391,6 @@ fn main() -> Result<()> {
         builder.ast.clone_functions_only(),
         "foreground",
     );
-    /*
 
     let mut rhai_engine = raving::script::console::create_batch_engine();
     rhai_engine.register_static_module("self", arc_module.clone());
@@ -360,7 +405,6 @@ fn main() -> Result<()> {
     );
 
     let copy_to_swapchain = Arc::new(copy_to_swapchain);
-    */
 
     {
         let mut rhai_engine = raving::script::console::create_batch_engine();
@@ -427,40 +471,6 @@ fn main() -> Result<()> {
         };
         [new_frame(), new_frame()]
     };
-
-    let dims = swapchain_dims.clone();
-    let copy_batch = Box::new(
-        move |dev: &Device,
-              res: &GpuResources,
-              input: &BatchInput,
-              cmd: vk::CommandBuffer| {
-            let [w, h] = dims.load();
-
-            let extent = vk::Extent3D {
-                width: w,
-                height: h,
-                depth: 1,
-            };
-
-            /*
-                              copy_batch(
-                              builder,
-                              out_desc_set,
-                              input.storage_set.unwrap(),
-                              w,
-                              h)
-            */
-
-            copy_batch(
-                out_image,
-                input.swapchain_image.unwrap(),
-                extent,
-                dev,
-                res,
-                cmd,
-            )
-        },
-    ) as Box<_>;
 
     ///////
 
@@ -644,11 +654,6 @@ fn main() -> Result<()> {
                     },
                 ) as Box<_>;
 
-                // let cp_batch = copy_to_swapchain(
-                //     batch_builder,
-                //     out_desc_set,
-
-                /*
                 let copy_to_swapchain = copy_to_swapchain.clone();
 
                 let copy_swapchain_batch = Box::new(
@@ -656,10 +661,8 @@ fn main() -> Result<()> {
                           res: &GpuResources,
                           input: &BatchInput,
                           cmd: vk::CommandBuffer| {
-                        dbg!();
                         let mut cp_swapchain = rhai::Map::default();
 
-                        dbg!();
                         cp_swapchain.insert(
                             "storage_set".into(),
                             rhai::Dynamic::from(input.storage_set.unwrap()),
@@ -673,10 +676,9 @@ fn main() -> Result<()> {
                         dbg!();
                         let batch_builder = BatchBuilder::default();
 
-                        dbg!();
                         let batch = copy_to_swapchain(
                             batch_builder,
-                            out_desc_set,
+                            sample_out_desc_set,
                             cp_swapchain,
                             size.width as i64,
                             size.height as i64,
@@ -687,18 +689,12 @@ fn main() -> Result<()> {
                         }
 
                         let batch = batch.unwrap();
-
-                        dbg!();
                         let batch_fn = batch.build();
-                        dbg!();
                         batch_fn(dev, res, cmd)
                     },
                 ) as Box<_>;
-                */
 
-                // let batches = [&bg_batch, &fg_batch, &copy_batch];
-                let batches = [&fg_batch, &copy_batch];
-                // let batches = [&fg_batch, &copy_swapchain_batch];
+                let batches = [&fg_batch, &copy_swapchain_batch];
 
                 let deps = vec![
                     None,
