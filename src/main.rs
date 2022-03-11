@@ -34,16 +34,6 @@ use anyhow::{anyhow, bail, Result};
 
 use zerocopy::{AsBytes, FromBytes};
 
-struct GraphData {
-    node_count: usize,
-    node_lengths: Vec<usize>,
-
-    path_names: Vec<String>,
-    path_steps: Vec<Vec<u32>>,
-
-    path_loops: Vec<Vec<u32>>,
-}
-
 fn main() -> Result<()> {
     let spec = "debug";
     let _logger = Logger::try_with_env_or_str(spec)?
@@ -66,73 +56,6 @@ fn main() -> Result<()> {
     let db = sled::open("waragraph_viewer")?;
 
     let waragraph = Waragraph::from_gfa(&gfa)?;
-
-    //// remove
-
-    let gfa_file = std::fs::File::open(gfa_path)?;
-    let reader = BufReader::new(gfa_file);
-
-    let mut segments = Vec::new();
-    let mut path_names = Vec::new();
-    let mut path_steps = Vec::new();
-
-    for line in reader.lines() {
-        let line = line?;
-
-        let mut fields = line.split("\t");
-
-        let ty = fields.next().unwrap();
-
-        if line.starts_with("S") {
-            let id_str = fields.next().unwrap();
-            let id = id_str.parse::<u32>();
-
-            let seq = fields.next().unwrap();
-            segments.push(seq.len());
-            //
-        } else if line.starts_with("P") {
-            let name = fields.next().unwrap();
-
-            let steps = fields.next().unwrap();
-            let steps = steps.split(",");
-
-            let steps = steps
-                .map(|s| {
-                    let id_str = &s[..s.len() - 1];
-                    let id = id_str.parse::<u32>().unwrap();
-                    id
-                })
-                .collect::<Vec<_>>();
-
-            path_names.push(name.to_string());
-            path_steps.push(steps);
-        }
-    }
-
-    let node_count = segments.len();
-
-    let path_loops = path_steps
-        .iter()
-        .map(|steps| {
-            let mut nodes = vec![0; node_count];
-            for &step in steps {
-                let ix = step as usize;
-                nodes[ix - 1] += 1;
-            }
-            nodes
-        })
-        .collect::<Vec<_>>();
-
-    let graph_data = GraphData {
-        node_count: segments.len(),
-        node_lengths: segments,
-
-        path_names,
-        path_steps,
-        path_loops,
-    };
-
-    //// until here
 
     let event_loop: EventLoop<()>;
 
@@ -275,30 +198,16 @@ fn main() -> Result<()> {
     // view.set(0, view.max() / 2);
     let mut prev_view = view;
 
-    // let mut samples = Vec::new();
-
-    // waragraph.sample_node_lengths(width as usize, &view, &mut samples);
-
     let mut samples_db = Vec::new();
     waragraph.sample_node_lengths_db(width as usize, &view, &mut samples_db);
 
     db.insert(b"sample_indices", samples_db.as_bytes())?;
 
     let mut path_slots = engine.with_allocators(|ctx, res, alloc| {
-        let slot_count = graph_data.path_loops.len();
+        let slot_count = waragraph.paths.len();
         let mut slots = Vec::with_capacity(slot_count);
 
-        let samples = unsafe {
-            let value = db.get(b"sample_indices").unwrap().unwrap();
-            let len = value.len() / 8;
-            let ptr = value.as_ptr();
-            let data: *const [u32; 2] = ptr.cast();
-            std::slice::from_raw_parts(data, len)
-        };
-
         for i in 0..slot_count {
-            let path = &waragraph.paths[i];
-
             let name = format!("path_slot_{}", i);
             let slot = PathViewSlot::new(
                 ctx,
@@ -306,88 +215,12 @@ fn main() -> Result<()> {
                 alloc,
                 width as usize,
                 Some(&name),
-                |ix| {
-                    let [node, _offset] = samples[ix];
-                    let node = node as usize;
-                    if path.get(node.into()).is_some() {
-                        1
-                    } else {
-                        0
-                    }
-                },
             )?;
-
             slots.push(slot);
         }
 
         Ok(slots)
     })?;
-
-    let path_bufs = engine.with_allocators(|ctx, res, alloc| {
-        let loc = gpu_allocator::MemoryLocation::GpuOnly;
-
-        let path_bufs = (0..graph_data.path_loops.len())
-            .map(|ix| {
-                let name = format!("path_buffer_{}", graph_data.path_names[ix]);
-
-                let path_buf = res
-                    .allocate_buffer(
-                        ctx,
-                        alloc,
-                        loc,
-                        4,
-                        node_count,
-                        vk::BufferUsageFlags::STORAGE_BUFFER
-                            | vk::BufferUsageFlags::TRANSFER_DST,
-                        Some(&name),
-                    )
-                    .unwrap();
-
-                res.insert_buffer(path_buf)
-            })
-            .collect::<Vec<_>>();
-
-        Ok(path_bufs)
-    })?;
-
-    {
-        let staging_bufs = Mutex::new(Vec::new());
-
-        let fill_buf_batch =
-            |ctx: &VkContext,
-             res: &mut GpuResources,
-             alloc: &mut Allocator,
-             cmd: vk::CommandBuffer| {
-                let mut bufs = staging_bufs.lock();
-
-                for (ix, &path_buf) in path_bufs.iter().enumerate() {
-                    let buf = &mut res[path_buf];
-
-                    let path_data = graph_data.path_loops[ix].as_slice();
-
-                    let staging = buf.upload_to_self_bytes(
-                        ctx,
-                        alloc,
-                        bytemuck::cast_slice(&path_data),
-                        cmd,
-                    )?;
-
-                    bufs.push(staging);
-                }
-
-                Ok(())
-            };
-
-        let batches = vec![&fill_buf_batch as &_];
-
-        let fence = engine.submit_batches_fence_alt(batches.as_slice())?;
-
-        engine.block_on_fence(fence)?;
-
-        for buf in staging_bufs.into_inner() {
-            buf.cleanup(&engine.context, &mut engine.allocator).ok();
-        }
-    }
 
     let out_image = *win_size_resource_index.images.get("out_image").unwrap();
     let out_view = *win_size_resource_index
@@ -608,8 +441,6 @@ fn main() -> Result<()> {
 
         match event {
             Event::MainEventsCleared => {
-                // while let Ok(ev) = text_sub.next_timeout(Duration::default()) {
-
                 if view != prev_view {
                     prev_view = view;
 
@@ -636,35 +467,6 @@ fn main() -> Result<()> {
                         Some(samples_db.as_bytes())
                     })
                     .unwrap();
-
-                    /*
-                    samples.clear();
-                    // log::warn!("resampling paths");
-                    waragraph.sample_node_lengths(
-                        slot_width,
-                        &view,
-                        &mut samples,
-                    );
-
-                    let mut buf = Vec::with_capacity(slot_width * 4);
-
-                    for (ix, slot) in path_slots.iter_mut().enumerate() {
-                        let path = &waragraph.paths[ix];
-
-                        slot.update_from(
-                            &mut engine.resources,
-                            &mut buf,
-                            |ix| {
-                                let (node, _offset) = samples[ix];
-                                if path.get(node.into()).is_some() {
-                                    1
-                                } else {
-                                    0
-                                }
-                            },
-                        );
-                    }
-                    */
                 }
 
                 while let Ok(ev) =
@@ -672,18 +474,12 @@ fn main() -> Result<()> {
                 {
                     match ev {
                         sled::Event::Insert { key, value } => {
-                            //
-
-                            // let raw =
-                            //     FromBytes::read_from(value.as_ref()).unwrap();
                             let samples = unsafe {
                                 let len = value.len() / 8;
                                 let ptr = value.as_ptr();
                                 let data: *const [u32; 2] = ptr.cast();
                                 std::slice::from_raw_parts(data, len)
                             };
-                            // let samples: &[[u32; 2]] = [[u32;2]].read_from(&value);
-
                             let slot_width = path_slots[0].width();
 
                             let mut buf = Vec::with_capacity(slot_width * 4);
@@ -772,23 +568,6 @@ fn main() -> Result<()> {
                             Dyn::from_map(data)
                         })
                         .collect::<Vec<_>>()
-
-                    // let add = |name| {
-                    //     use rhai::Dynamic as Dyn;
-                    //     let mut data = rhai::Map::default();
-                    //     let set = txt.desc_set_for(name).unwrap().unwrap();
-                    //     let (x, y) = txt.get_label_pos(name).unwrap();
-                    //     data.insert("x".into(), Dyn::from_int(x as i64));
-                    //     data.insert("y".into(), Dyn::from_int(y as i64));
-                    //     data.insert("desc_set".into(), Dyn::from(set));
-                    //     Dyn::from_map(data)
-                    // };
-
-                    // let start = add(b"view:start");
-                    // let len = add(b"view:len");
-                    // let end = add(b"view:end");
-
-                    // vec![start, len, end]
                 };
 
                 let fg_batch = draw_foreground(
@@ -798,7 +577,7 @@ fn main() -> Result<()> {
                     slot_width as i64,
                     size.width as i64,
                     size.height as i64,
-                    graph_data.node_count as i64,
+                    waragraph.node_count() as i64,
                 )
                 .unwrap();
                 let fg_batch_fn = fg_batch.build();
@@ -913,16 +692,6 @@ fn main() -> Result<()> {
                                 )
                                 .unwrap();
 
-                                /*
-                                samples.clear();
-                                // log::warn!("resampling paths");
-                                waragraph.sample_node_lengths(
-                                    slot_width,
-                                    &view,
-                                    &mut samples,
-                                );
-                                */
-
                                 waragraph.sample_node_lengths_db(
                                     slot_width,
                                     &view,
@@ -933,35 +702,6 @@ fn main() -> Result<()> {
                                     Some(samples_db.as_bytes())
                                 })
                                 .unwrap();
-
-                                /*
-                                let mut buf =
-                                    Vec::with_capacity(slot_width * 4);
-
-                                for (ix, slot) in
-                                    path_slots.iter_mut().enumerate()
-                                {
-                                    let path = &waragraph.paths[ix];
-
-                                    slot.update_from(
-                                        &mut engine.resources,
-                                        &mut buf,
-                                        |ix| {
-                                            let (node, _offset) = samples[ix];
-                                            if path.get(node.into()).is_some() {
-                                                1
-                                            } else {
-                                                0
-                                            }
-                                        },
-                                    );
-                                }
-
-                                log::warn!(
-                                    "updated {} path slots",
-                                    path_slots.len()
-                                );
-                                */
                             }
 
                             {

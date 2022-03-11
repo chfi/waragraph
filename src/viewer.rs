@@ -118,7 +118,6 @@ impl PathViewer {
         alloc: &mut Allocator,
         width: usize,
         slot_count: usize,
-        fill: u32,
         name_prefix: &str,
     ) -> Result<Self> {
         let tree = db.open_tree(b"path_slots")?;
@@ -127,10 +126,7 @@ impl PathViewer {
 
         for i in 0..slot_count {
             let name = format!("{}_slot_{}", name_prefix, i);
-            let slot =
-                PathViewSlot::new(ctx, res, alloc, width, Some(&name), |_| {
-                    fill
-                })?;
+            let slot = PathViewSlot::new(ctx, res, alloc, width, Some(&name))?;
 
             slots.push(slot);
         }
@@ -151,35 +147,36 @@ pub struct PathViewSlot {
 }
 
 impl PathViewSlot {
-    pub fn new<F>(
+    // pub fn new<F>(
+    pub fn new(
         ctx: &VkContext,
         res: &mut GpuResources,
         alloc: &mut Allocator,
         width: usize,
         name: Option<&str>,
-        mut fill: F,
+        // mut fill: F,
     ) -> Result<Self>
-    where
-        F: FnMut(usize) -> u32,
+// where
+    //     F: FnMut(usize) -> u32,
     {
         let mut buffer = Self::allocate_buffer(ctx, res, alloc, width, name)?;
 
-        let buf_size = buffer.alloc.size() as usize;
+        // let buf_size = buffer.alloc.size() as usize;
 
-        let slice = buffer
-            .mapped_slice_mut()
-            .ok_or(anyhow!("Path slot buffer could not be memory mapped"))?;
+        // let slice = buffer
+        //     .mapped_slice_mut()
+        //     .ok_or(anyhow!("Path slot buffer could not be memory mapped"))?;
 
         // for (i, win) in slice.chunks_exact_mut(4).enumerate() {
         //     let bytes = fill(i).to_ne_bytes();
         //     bytes.into_iter().zip(win).for_each(|(b, w)| *w = b);
         // }
 
-        let data = (0..width)
-            .flat_map(|i| fill(i).to_ne_bytes())
-            .collect::<Vec<u8>>();
+        // let data = (0..width)
+        //     .flat_map(|i| fill(i).to_ne_bytes())
+        //     .collect::<Vec<u8>>();
 
-        slice[..buf_size].clone_from_slice(&data[..buf_size]);
+        // slice[..buf_size].clone_from_slice(&data[..buf_size]);
 
         let name = name.map(String::from);
 
