@@ -5,8 +5,8 @@ use raving::script::console::BatchBuilder;
 use raving::vk::context::VkContext;
 use raving::vk::descriptor::DescriptorLayoutInfo;
 use raving::vk::{
-    BatchInput, BufferIx, FrameResources, GpuResources, ShaderIx, VkEngine,
-    WinSizeIndices, WinSizeResourcesBuilder,
+    BatchInput, BufferIx, DescSetIx, FrameResources, GpuResources, ShaderIx,
+    VkEngine, WinSizeIndices, WinSizeResourcesBuilder,
 };
 
 use raving::vk::util::*;
@@ -345,6 +345,20 @@ fn main() -> Result<()> {
         "foreground",
     );
 
+    let mut rhai_engine = raving::script::console::create_batch_engine();
+    rhai_engine.register_static_module("self", arc_module.clone());
+
+    let copy_to_swapchain = rhai::Func::<
+        (BatchBuilder, DescSetIx, rhai::Map, i64, i64),
+        BatchBuilder,
+    >::create_from_ast(
+        rhai_engine,
+        builder.ast.clone_functions_only(),
+        "copy_to_swapchain",
+    );
+
+    let copy_to_swapchain = Arc::new(copy_to_swapchain);
+
     {
         let mut rhai_engine = raving::script::console::create_batch_engine();
 
@@ -424,6 +438,15 @@ fn main() -> Result<()> {
                 height: h,
                 depth: 1,
             };
+
+            /*
+                              copy_batch(
+                              builder,
+                              out_desc_set,
+                              input.storage_set.unwrap(),
+                              w,
+                              h)
+            */
 
             copy_batch(
                 out_image,
@@ -615,6 +638,40 @@ fn main() -> Result<()> {
                           _input: &BatchInput,
                           cmd: vk::CommandBuffer| {
                         fg_rhai_batch(dev, res, cmd);
+                    },
+                ) as Box<_>;
+
+                // let cp_batch = copy_to_swapchain(
+                //     batch_builder,
+                //     out_desc_set,
+
+                let copy_to_swapchain = copy_to_swapchain.clone();
+
+                let copy_swapchain_batch = Box::new(
+                    move |dev: &Device,
+                          res: &GpuResources,
+                          input: &BatchInput,
+                          cmd: vk::CommandBuffer| {
+                        let mut cp_swapchain = rhai::Map::default();
+
+                        cp_swapchain.insert(
+                            "storage_set".into(),
+                            rhai::Dynamic::from(input.storage_set.unwrap()),
+                        );
+
+                        let batch_builder = BatchBuilder::default();
+
+                        let batch = copy_to_swapchain(
+                            batch_builder,
+                            out_desc_set,
+                            cp_swapchain,
+                            size.width as i64,
+                            size.height as i64,
+                        )
+                        .unwrap();
+
+                        let batch_fn = batch.build();
+                        batch_fn(dev, res, cmd)
                     },
                 ) as Box<_>;
 
