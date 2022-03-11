@@ -32,6 +32,8 @@ use std::time::Duration;
 
 use anyhow::{anyhow, bail, Result};
 
+use zerocopy::{AsBytes, FromBytes};
+
 struct GraphData {
     node_count: usize,
     node_lengths: Vec<usize>,
@@ -163,6 +165,7 @@ fn main() -> Result<()> {
 
     let mut txt = LabelStorage::new(&db)?;
 
+    let mut sample_sub = db.watch_prefix(b"sample_indices");
     let mut text_sub = txt.tree.watch_prefix(b"t:");
 
     txt.allocate_label(&db, &mut engine, "view:start")?;
@@ -272,13 +275,26 @@ fn main() -> Result<()> {
     // view.set(0, view.max() / 2);
     let mut prev_view = view;
 
-    let mut samples = Vec::new();
+    // let mut samples = Vec::new();
 
-    waragraph.sample_node_lengths(width as usize, &view, &mut samples);
+    // waragraph.sample_node_lengths(width as usize, &view, &mut samples);
+
+    let mut samples_db = Vec::new();
+    waragraph.sample_node_lengths_db(width as usize, &view, &mut samples_db);
+
+    db.insert(b"sample_indices", samples_db.as_bytes())?;
 
     let mut path_slots = engine.with_allocators(|ctx, res, alloc| {
         let slot_count = graph_data.path_loops.len();
         let mut slots = Vec::with_capacity(slot_count);
+
+        let samples = unsafe {
+            let value = db.get(b"sample_indices").unwrap().unwrap();
+            let len = value.len() / 8;
+            let ptr = value.as_ptr();
+            let data: *const [u32; 2] = ptr.cast();
+            std::slice::from_raw_parts(data, len)
+        };
 
         for i in 0..slot_count {
             let path = &waragraph.paths[i];
@@ -291,7 +307,8 @@ fn main() -> Result<()> {
                 width as usize,
                 Some(&name),
                 |ix| {
-                    let (node, _offset) = samples[ix];
+                    let [node, _offset] = samples[ix];
+                    let node = node as usize;
                     if path.get(node.into()).is_some() {
                         1
                     } else {
@@ -608,6 +625,19 @@ fn main() -> Result<()> {
                     }
 
                     let slot_width = path_slots[0].width();
+
+                    waragraph.sample_node_lengths_db(
+                        slot_width,
+                        &view,
+                        &mut samples_db,
+                    );
+
+                    db.update_and_fetch("sample_indices", |_| {
+                        Some(samples_db.as_bytes())
+                    })
+                    .unwrap();
+
+                    /*
                     samples.clear();
                     // log::warn!("resampling paths");
                     waragraph.sample_node_lengths(
@@ -633,6 +663,53 @@ fn main() -> Result<()> {
                                 }
                             },
                         );
+                    }
+                    */
+                }
+
+                while let Ok(ev) =
+                    sample_sub.next_timeout(Duration::from_millis(5))
+                {
+                    match ev {
+                        sled::Event::Insert { key, value } => {
+                            //
+
+                            // let raw =
+                            //     FromBytes::read_from(value.as_ref()).unwrap();
+                            let samples = unsafe {
+                                let len = value.len() / 8;
+                                let ptr = value.as_ptr();
+                                let data: *const [u32; 2] = ptr.cast();
+                                std::slice::from_raw_parts(data, len)
+                            };
+                            // let samples: &[[u32; 2]] = [[u32;2]].read_from(&value);
+
+                            let slot_width = path_slots[0].width();
+
+                            let mut buf = Vec::with_capacity(slot_width * 4);
+
+                            for (ix, slot) in path_slots.iter_mut().enumerate()
+                            {
+                                let path = &waragraph.paths[ix];
+
+                                slot.update_from(
+                                    &mut engine.resources,
+                                    &mut buf,
+                                    |ix| {
+                                        let [node, _offset] = samples[ix];
+                                        let node = node as usize;
+                                        if path.get(node.into()).is_some() {
+                                            1
+                                        } else {
+                                            0
+                                        }
+                                    },
+                                );
+                            }
+                        }
+                        sled::Event::Remove { key } => {
+                            // do nothing yet
+                        }
                     }
                 }
 
@@ -836,6 +913,7 @@ fn main() -> Result<()> {
                                 )
                                 .unwrap();
 
+                                /*
                                 samples.clear();
                                 // log::warn!("resampling paths");
                                 waragraph.sample_node_lengths(
@@ -843,7 +921,20 @@ fn main() -> Result<()> {
                                     &view,
                                     &mut samples,
                                 );
+                                */
 
+                                waragraph.sample_node_lengths_db(
+                                    slot_width,
+                                    &view,
+                                    &mut samples_db,
+                                );
+
+                                db.update_and_fetch("sample_indices", |_| {
+                                    Some(samples_db.as_bytes())
+                                })
+                                .unwrap();
+
+                                /*
                                 let mut buf =
                                     Vec::with_capacity(slot_width * 4);
 
@@ -870,6 +961,7 @@ fn main() -> Result<()> {
                                     "updated {} path slots",
                                     path_slots.len()
                                 );
+                                */
                             }
 
                             {
