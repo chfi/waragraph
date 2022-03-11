@@ -7,10 +7,11 @@ use gpu_allocator::vulkan::Allocator;
 use raving::vk::{context::VkContext, BufferIx, GpuResources, VkEngine};
 use rustc_hash::FxHashMap;
 
+use sled::IVec;
 use thunderdome::{Arena, Index};
 
 use sprs::{CsMatI, CsVecI, TriMatI};
-use zerocopy::AsBytes;
+use zerocopy::{AsBytes, FromBytes};
 
 use std::sync::Arc;
 
@@ -20,11 +21,44 @@ use ndarray::prelude::*;
 
 use anyhow::{anyhow, bail, Result};
 
+use bstr::ByteSlice as BstrByteSlice;
+
 use crate::viewer::ViewDiscrete1D;
 
 pub fn create_engine(db: &sled::Db) -> rhai::Engine {
     //
     let mut engine = rhai::Engine::new();
+
+    engine.register_type_with_name::<IVec>("IVec");
+
+    engine.register_result_fn(
+        "subslice",
+        |v: &mut IVec, offset: i64, len: i64| {
+            let o = offset as usize;
+            let l = len as usize;
+
+            if o >= v.len() || o + l > v.len() {
+                return Err("offset out of bounds".into());
+            }
+
+            Ok(v.subslice(o, l))
+        },
+    );
+
+    engine.register_result_fn("as_u64", |v: &mut IVec| {
+        u64::read_from(v.as_ref()).ok_or("bytestring is not u64".into())
+    });
+
+    engine.register_result_fn("as_u32", |v: &mut IVec| {
+        u32::read_from(v.as_ref()).ok_or("bytestring is not u32".into())
+    });
+
+    let db_ = db.clone();
+    engine.register_fn("get", move |k: &str| {
+        let k = k.as_bytes();
+        let v = db_.get(k).unwrap().unwrap();
+        v
+    });
 
     let db_ = db.clone();
     engine.register_fn("view", move || {

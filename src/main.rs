@@ -628,6 +628,21 @@ fn main() -> Result<()> {
                     // Some(vec![(1, vk::PipelineStageFlags::COMPUTE_SHADER)]),
                 ];
 
+                {
+                    // let rhai_offset =
+                    //     waragraph::console::eval::<i64>(&db, "view_offset()")
+                    //         .unwrap();
+                    // log::warn!("rhai_offset: {}", rhai_offset);
+
+                    let rhai_offset =
+                        waragraph::console::eval::<rhai::Dynamic>(
+                            &db,
+                            "get(\"view\").subslice(8, 8).as_u64()",
+                        )
+                        .unwrap();
+                    log::warn!("rhai_offset: {}", rhai_offset);
+                }
+
                 let render_success = engine
                     .draw_from_batches(frame, &batches, deps.as_slice(), 1)
                     .unwrap();
