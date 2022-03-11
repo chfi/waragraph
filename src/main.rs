@@ -91,6 +91,9 @@ fn main() -> Result<()> {
     let mut sample_sub = db.watch_prefix(b"sample_indices");
     let mut text_sub = txt.tree.watch_prefix(b"t:");
 
+    txt.allocate_label(&db, &mut engine, "fps")?;
+    txt.set_label_pos(b"fps", 50, 4)?;
+
     txt.allocate_label(&db, &mut engine, "view:start")?;
     txt.allocate_label(&db, &mut engine, "view:len")?;
     txt.allocate_label(&db, &mut engine, "view:end")?;
@@ -436,11 +439,15 @@ fn main() -> Result<()> {
     let mut recreate_swapchain = false;
     let mut recreate_swapchain_timer: Option<std::time::Instant> = None;
 
+    let mut prev_frame_end = std::time::Instant::now();
+
     event_loop.run(move |event, _, control_flow| {
         *control_flow = winit::event_loop::ControlFlow::Poll;
 
         match event {
             Event::MainEventsCleared => {
+                let frame_start = std::time::Instant::now();
+
                 if view != prev_view {
                     prev_view = view;
 
@@ -609,6 +616,11 @@ fn main() -> Result<()> {
                 if !render_success {
                     recreate_swapchain = true;
                 }
+
+                let ft = prev_frame_end.elapsed().as_secs_f64();
+                let fps = (1.0 / ft) as u32;
+                txt.set_text_for(b"fps", &fps.to_string()).unwrap();
+                prev_frame_end = std::time::Instant::now();
             }
             Event::RedrawEventsCleared => {
                 let should_recreate =
