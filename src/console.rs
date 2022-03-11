@@ -39,6 +39,29 @@ pub fn create_engine(db: &sled::Db) -> rhai::Engine {
         }
     });
 
+    engine.register_fn(
+        "write_u64s",
+        |v: &mut IVec, offset: i64, vs: rhai::Array| {
+            let mut offset = offset as usize;
+            for val in vs {
+                if let Some(i) = val.try_cast::<i64>() {
+                    let i = i as u64;
+                    v[offset..offset + 8].clone_from_slice(&i.to_le_bytes());
+                    offset += 8;
+                }
+            }
+        },
+    );
+
+    engine.register_fn(
+        "write_ascii",
+        |v: &mut IVec, offset: i64, txt: &str| {
+            let offset = offset as usize;
+            let bytes = txt.as_bytes();
+            v[offset..offset + bytes.len()].clone_from_slice(bytes);
+        },
+    );
+
     engine.register_result_fn(
         "subslice",
         |v: &mut IVec, offset: i64, len: i64| {

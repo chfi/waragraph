@@ -79,6 +79,17 @@ fn resize(width, height) {
     clip_rects.push(r);
   }
 
+  let img = self::out_image.get();
+
+  init_batch.transition_image(self::out_image.get(),
+                              vk::AccessFlags::empty(),
+                              vk::PipelineStageFlags::TOP_OF_PIPE,
+                              vk::AccessFlags::SHADER_READ
+                              | vk::AccessFlags::SHADER_WRITE,
+                              vk::PipelineStageFlags::COMPUTE_SHADER,
+                              vk::ImageLayout::UNDEFINED,
+                              vk::ImageLayout::GENERAL);
+
   init_batch.initialize_buffer_with(Fn("rect_blob"),
                                     self::clip_rects_buffer.get(),
                                     clip_rects);
@@ -92,6 +103,17 @@ fn init() {
   init_batch.load_image_from_file("8x8font.png",
                                   self::font_image.get(),
                                   vk::ImageLayout::GENERAL);
+
+  let img = self::out_image.get();
+
+  init_batch.transition_image(self::out_image.get(),
+                              vk::AccessFlags::empty(),
+                              vk::PipelineStageFlags::TOP_OF_PIPE,
+                              vk::AccessFlags::SHADER_READ
+                              | vk::AccessFlags::SHADER_WRITE,
+                              vk::PipelineStageFlags::COMPUTE_SHADER,
+                              vk::ImageLayout::UNDEFINED,
+                              vk::ImageLayout::GENERAL);
 
   let clip_buf = self::clip_rects_buffer.get();
   let clip_rects = [];
@@ -109,7 +131,10 @@ fn init() {
 }
 
 fn foreground(batch, labels, desc_sets, slot_w, w, h) {
+
+
   let img = self::out_image.get();
+
   batch.transition_image(img,
                          vk::AccessFlags::SHADER_WRITE,
                          vk::PipelineStageFlags::COMPUTE_SHADER,

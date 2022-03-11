@@ -12,6 +12,9 @@ use zerocopy::{AsBytes, FromBytes};
 
 use anyhow::{anyhow, Result};
 
+use crossbeam::atomic::AtomicCell;
+use std::sync::Arc;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ViewDiscrete1D {
     pub max: usize,
@@ -136,11 +139,16 @@ impl ViewDiscrete1D {
 pub struct PathViewer {
     pub tree: sled::Tree,
 
+    view_max: usize,
+    view: Arc<AtomicCell<(usize, usize)>>,
+
     width: usize,
     slots: Vec<PathViewSlot>,
 }
 
 impl PathViewer {
+    const SLOT_MASK: [u8; 7] = *b"slot:02";
+
     pub fn new(
         db: &sled::Db,
         ctx: &VkContext,
@@ -149,8 +157,9 @@ impl PathViewer {
         width: usize,
         slot_count: usize,
         name_prefix: &str,
+        path_count: usize,
     ) -> Result<Self> {
-        let tree = db.open_tree(b"path_slots")?;
+        let tree = db.open_tree(b"path_viewer")?;
 
         let mut slots = Vec::with_capacity(slot_count);
 
@@ -161,7 +170,50 @@ impl PathViewer {
             slots.push(slot);
         }
 
-        Ok(Self { tree, width, slots })
+        let view = Arc::new(AtomicCell::new((0, slot_count)));
+        let view_max = path_count;
+
+        Ok(Self {
+            tree,
+            width,
+            slots,
+            view,
+            view_max,
+        })
+    }
+
+    pub fn update_from<F>(
+        &mut self,
+        res: &mut GpuResources,
+        buf: &mut Vec<u8>,
+        mut fill: F,
+    ) -> Option<()>
+    where
+        F: FnMut(usize, usize) -> u32,
+    {
+        todo!();
+    }
+
+    pub fn visible_indices(&self) -> std::ops::Range<usize> {
+        let (offset, len) = self.view.load();
+        offset..offset + len
+    }
+
+    pub fn list_offset(&self) -> Result<usize> {
+        let o_bs = self.tree.get("list_offset")?.unwrap();
+        let offset = usize::read_from(o_bs.as_ref()).unwrap();
+        Ok(offset)
+    }
+
+    pub fn list_view_len(&self) -> Result<usize> {
+        let o_bs = self.tree.get("list_view_len")?.unwrap();
+        let view_len = usize::read_from(o_bs.as_ref()).unwrap();
+        Ok(view_len)
+    }
+    pub fn list_max(&self) -> Result<usize> {
+        let o_bs = self.tree.get("list_max")?.unwrap();
+        let max = usize::read_from(o_bs.as_ref()).unwrap();
+        Ok(max)
     }
 }
 
@@ -174,6 +226,8 @@ pub struct PathViewSlot {
     desc_set: DescSetIx,
 
     name: Option<String>,
+
+    visible: bool,
 }
 
 impl PathViewSlot {
@@ -223,6 +277,8 @@ impl PathViewSlot {
             desc_set,
 
             name,
+
+            visible: true,
         })
     }
 
@@ -290,29 +346,18 @@ impl PathViewSlot {
     pub fn update_from<F>(
         &mut self,
         res: &mut GpuResources,
-        buf: &mut Vec<u8>,
         mut fill: F,
     ) -> Option<()>
     where
         F: FnMut(usize) -> u32,
     {
         let slice = res[self.buffer].mapped_slice_mut()?;
-        buf.clear();
-        buf.extend((0..self.width).flat_map(|i| fill(i).to_ne_bytes()));
-        slice[..buf.len()].clone_from_slice(&buf);
 
-        /*
-        if slice.len() % 4 != 0 {
-            log::error!("buffer chunks shouldn't have any remainder");
-        }
-
-        let chunks = slice.chunks_exact_mut(4);
-
-        for (i, win) in slice.chunks_exact_mut(4).enumerate() {
-            let bytes = fill(i).to_ne_bytes();
-            bytes.into_iter().zip(win).for_each(|(b, w)| *w = b);
-        }
-        */
+        slice
+            .chunks_exact_mut(4)
+            .take(self.width)
+            .enumerate()
+            .for_each(|(i, c)| c.clone_from_slice(&fill(i).to_ne_bytes()));
 
         Some(())
     }

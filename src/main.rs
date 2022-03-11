@@ -542,27 +542,20 @@ fn main() -> Result<()> {
                                 let data: *const [u32; 2] = ptr.cast();
                                 std::slice::from_raw_parts(data, len)
                             };
-                            let slot_width = path_slots[0].width();
-
-                            let mut buf = Vec::with_capacity(slot_width * 4);
 
                             for (ix, slot) in path_slots.iter_mut().enumerate()
                             {
                                 let path = &waragraph.paths[ix];
 
-                                slot.update_from(
-                                    &mut engine.resources,
-                                    &mut buf,
-                                    |ix| {
-                                        let [node, _offset] = samples[ix];
-                                        let node = node as usize;
-                                        if path.get(node.into()).is_some() {
-                                            1
-                                        } else {
-                                            0
-                                        }
-                                    },
-                                );
+                                slot.update_from(&mut engine.resources, |ix| {
+                                    let [node, _offset] = samples[ix];
+                                    let node = node as usize;
+                                    if path.get(node.into()).is_some() {
+                                        1
+                                    } else {
+                                        0
+                                    }
+                                });
                             }
                         }
                         sled::Event::Remove { key } => {
@@ -587,16 +580,9 @@ fn main() -> Result<()> {
                                 .clone_from_slice(&(len as u32).to_ne_bytes());
 
                             slice[4..]
-                                // .chunks_exact_mut(4)
                                 .chunks_mut(4)
                                 .zip(value.iter())
                                 .for_each(|(chk, &b)| chk.fill(b));
-
-                            // for (chk, &b) in
-                            //     slice[4..].chunks_mut(4).zip(value.iter())
-                            // {
-                            //     chk.fill(b);
-                            // }
                         }
                         sled::Event::Remove { key } => {
                             // do nothing yet
@@ -673,7 +659,6 @@ fn main() -> Result<()> {
                             rhai::Dynamic::from(input.swapchain_image.unwrap()),
                         );
 
-                        dbg!();
                         let batch_builder = BatchBuilder::default();
 
                         let batch = copy_to_swapchain(
@@ -708,35 +693,34 @@ fn main() -> Result<()> {
                     //         .unwrap();
                     // log::warn!("rhai_offset: {}", rhai_offset);
 
-                    let rhai_offset =
-                        waragraph::console::eval::<rhai::Dynamic>(
-                            &db,
-                            "get(\"view\").subslice(8, 8).as_u64()",
-                        )
+                    // let rhai_offset =
+                    //     waragraph::console::eval::<rhai::Dynamic>(
+                    //         &db,
+                    //         "get(\"view\").subslice(8, 8).as_u64()",
+                    //     )
+                    //     .unwrap();
+                    // log::warn!("rhai_offset: {}", rhai_offset);
+                }
+
+                if recreate_swapchain_timer.is_none() && !recreate_swapchain {
+                    let render_success = engine
+                        .draw_from_batches(frame, &batches, deps.as_slice(), 1)
                         .unwrap();
-                    log::warn!("rhai_offset: {}", rhai_offset);
+
+                    if !render_success {
+                        recreate_swapchain = true;
+                    }
+
+                    let ft = prev_frame_end.elapsed().as_secs_f64();
+                    let fps = (1.0 / ft) as u32;
+                    txt.set_text_for(b"fps", &fps.to_string()).unwrap();
+                    prev_frame_end = std::time::Instant::now();
                 }
-
-                let render_success = engine
-                    .draw_from_batches(frame, &batches, deps.as_slice(), 1)
-                    .unwrap();
-
-                if !render_success {
-                    recreate_swapchain = true;
-                }
-
-                let ft = prev_frame_end.elapsed().as_secs_f64();
-                let fps = (1.0 / ft) as u32;
-                txt.set_text_for(b"fps", &fps.to_string()).unwrap();
-                prev_frame_end = std::time::Instant::now();
             }
             Event::RedrawEventsCleared => {
-                let should_recreate =
-                    if let Some(timer) = recreate_swapchain_timer {
-                        timer.elapsed().as_millis() > 15
-                    } else {
-                        false
-                    };
+                let should_recreate = recreate_swapchain_timer
+                    .map(|t| t.elapsed().as_millis() > 15)
+                    .unwrap_or_default();
 
                 if should_recreate || recreate_swapchain {
                     recreate_swapchain = false;
