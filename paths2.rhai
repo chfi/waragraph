@@ -53,6 +53,8 @@ export let color_desc_set =
 
 export let path_pipeline = create_compute_pipeline(path_shader);
 
+export let rect = #{ x: 20.0, y: 40.0, w: -40.0, h: 50.0 };
+
 fn rect_blob(rect) {
   let data = blob();
   data.append_float(rect.x);
@@ -68,16 +70,13 @@ fn resize(width, height) {
   let clip_buf = self::clip_rects_buffer.get();
   let clip_rects = [];
 
-  let w = width.to_float() - 40.0;
-  let h = 50.0;
-
-  // let yd = 120.0;
   let yd = 56.0;
 
-  // for i in 0..5 {
   for i in 0..16 {
-    clip_rects.push(#{ x: 20.0,  y: 40.0 + yd * i,
-                       w: w, h: h });
+    let r = self::rect;
+    r.y = r.y + yd * i;
+    r.w = r.w + width.to_float();
+    clip_rects.push(r);
   }
 
   init_batch.initialize_buffer_with(Fn("rect_blob"),
