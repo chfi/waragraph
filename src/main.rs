@@ -514,8 +514,6 @@ fn main() -> Result<()> {
                 {
                     match ev {
                         sled::Event::Insert { key, value } => {
-                            // log:warn!("insert! {:?}, {:?}", key, value);
-                            use zerocopy::FromBytes;
                             let id = u64::read_from(key[2..].as_ref()).unwrap();
                             let buf_ix =
                                 txt.buffer_for_id(id).unwrap().unwrap();
@@ -526,14 +524,17 @@ fn main() -> Result<()> {
                             slice[0..4]
                                 .clone_from_slice(&(len as u32).to_ne_bytes());
 
-                            for (chk, &b) in
-                                slice[4..].chunks_mut(4).zip(value.iter())
-                            {
-                                chk[0] = b;
-                                chk[1] = b;
-                                chk[2] = b;
-                                chk[3] = b;
-                            }
+                            slice[4..]
+                                // .chunks_exact_mut(4)
+                                .chunks_mut(4)
+                                .zip(value.iter())
+                                .for_each(|(chk, &b)| chk.fill(b));
+
+                            // for (chk, &b) in
+                            //     slice[4..].chunks_mut(4).zip(value.iter())
+                            // {
+                            //     chk.fill(b);
+                            // }
                         }
                         sled::Event::Remove { key } => {
                             // do nothing yet
