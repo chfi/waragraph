@@ -452,21 +452,6 @@ fn main() -> Result<()> {
             Event::MainEventsCleared => {
                 let frame_start = std::time::Instant::now();
 
-                while let Ok(ev) =
-                    view_sub.next_timeout(Duration::from_millis(5))
-                {
-                    match ev {
-                        sled::Event::Insert { key, value } => {
-                            if let Some(new_view) =
-                                ViewDiscrete1D::from_bytes(value.as_ref())
-                            {
-                                view = new_view;
-                            }
-                        }
-                        _ => (),
-                    }
-                }
-
                 if view != prev_view {
                     prev_view = view;
 
@@ -493,6 +478,21 @@ fn main() -> Result<()> {
                         Some(samples_db.as_bytes())
                     })
                     .unwrap();
+                }
+
+                while let Ok(ev) =
+                    view_sub.next_timeout(Duration::from_millis(5))
+                {
+                    match ev {
+                        sled::Event::Insert { key, value } => {
+                            if let Some(new_view) =
+                                ViewDiscrete1D::from_bytes(value.as_ref())
+                            {
+                                view = new_view;
+                            }
+                        }
+                        _ => (),
+                    }
                 }
 
                 while let Ok(ev) =
@@ -801,6 +801,8 @@ fn main() -> Result<()> {
                         let pre_len = view.len();
                         let len = view.len() as isize;
 
+                        let mut update = true;
+
                         if input.state == winit::event::ElementState::Pressed {
                             if matches!(kc, VK::Left) {
                                 view.translate(-len / 10);
@@ -814,12 +816,22 @@ fn main() -> Result<()> {
                                 view.resize((len + len / 10) as usize);
                             } else if matches!(kc, VK::Space) {
                                 view.reset();
+                            } else if matches!(kc, VK::PageUp) {
+                                // a temporary lil hack
+                                update = false;
+                                waragraph::console::eval::<()>(
+                                    &db,
+                                    "set_view_offset(0)",
+                                )
+                                .unwrap();
                             }
                         }
 
-                        let view_bytes = view.as_bytes();
-                        db.update_and_fetch(b"view", |_| Some(&view_bytes))
-                            .unwrap();
+                        if update {
+                            let view_bytes = view.as_bytes();
+                            db.update_and_fetch(b"view", |_| Some(&view_bytes))
+                                .unwrap();
+                        }
                     }
                     //
                 }

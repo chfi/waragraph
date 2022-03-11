@@ -12,11 +12,11 @@ use zerocopy::{AsBytes, FromBytes};
 
 use anyhow::{anyhow, Result};
 
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ViewDiscrete1D {
-    max: usize,
-    offset: usize,
-    len: usize,
+    pub max: usize,
+    pub offset: usize,
+    pub len: usize,
 }
 
 impl ViewDiscrete1D {
@@ -51,6 +51,10 @@ impl ViewDiscrete1D {
             offset: 0,
             len: max,
         }
+    }
+
+    pub fn offset(&self) -> usize {
+        self.offset
     }
 
     pub fn len(&self) -> usize {

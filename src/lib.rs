@@ -1,3 +1,4 @@
+pub mod console;
 pub mod graph;
 pub mod paths;
 pub mod util;
