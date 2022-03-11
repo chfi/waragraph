@@ -8,6 +8,8 @@ use raving::vk::{
 };
 use rspirv_reflect::DescriptorInfo;
 
+use zerocopy::{AsBytes, FromBytes};
+
 use anyhow::{anyhow, Result};
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -18,6 +20,30 @@ pub struct ViewDiscrete1D {
 }
 
 impl ViewDiscrete1D {
+    pub fn as_bytes(&self) -> [u8; 24] {
+        let max = self.max.to_le_bytes();
+        let offset = self.offset.to_le_bytes();
+        let len = self.len.to_le_bytes();
+
+        let mut result = [0; 24];
+        result[0..8].clone_from_slice(&max);
+        result[8..16].clone_from_slice(&offset);
+        result[16..24].clone_from_slice(&len);
+        result
+    }
+
+    pub fn from_bytes(bytes: &[u8]) -> Option<Self> {
+        let max = bytes.get(0..8)?;
+        let offset = bytes.get(8..16)?;
+        let len = bytes.get(16..24)?;
+
+        let max = usize::read_from(max)?;
+        let offset = usize::read_from(offset)?;
+        let len = usize::read_from(len)?;
+
+        Some(Self { max, offset, len })
+    }
+
     pub fn new(max: usize) -> Self {
         Self {
             max,

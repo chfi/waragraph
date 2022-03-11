@@ -201,6 +201,10 @@ fn main() -> Result<()> {
     // view.set(0, view.max() / 2);
     let mut prev_view = view;
 
+    db.insert(b"view", &view.as_bytes())?;
+
+    let mut view_sub = db.watch_prefix(b"view");
+
     let mut samples_db = Vec::new();
     waragraph.sample_node_lengths_db(width as usize, &view, &mut samples_db);
 
@@ -447,6 +451,21 @@ fn main() -> Result<()> {
         match event {
             Event::MainEventsCleared => {
                 let frame_start = std::time::Instant::now();
+
+                while let Ok(ev) =
+                    view_sub.next_timeout(Duration::from_millis(5))
+                {
+                    match ev {
+                        sled::Event::Insert { key, value } => {
+                            if let Some(new_view) =
+                                ViewDiscrete1D::from_bytes(value.as_ref())
+                            {
+                                view = new_view;
+                            }
+                        }
+                        _ => (),
+                    }
+                }
 
                 if view != prev_view {
                     prev_view = view;
@@ -777,6 +796,8 @@ fn main() -> Result<()> {
                     if let Some(kc) = input.virtual_keycode {
                         use VirtualKeyCode as VK;
 
+                        let mut view = view;
+
                         let pre_len = view.len();
                         let len = view.len() as isize;
 
@@ -795,6 +816,10 @@ fn main() -> Result<()> {
                                 view.reset();
                             }
                         }
+
+                        let view_bytes = view.as_bytes();
+                        db.update_and_fetch(b"view", |_| Some(&view_bytes))
+                            .unwrap();
                     }
                     //
                 }
