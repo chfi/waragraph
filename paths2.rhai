@@ -108,7 +108,7 @@ fn init() {
   init_batch
 }
 
-fn foreground(batch, labels, desc_sets, slot_w, nw, h) {
+fn foreground(batch, labels, desc_sets, slot_w, w, h) {
 
   let img = self::out_image.get();
   batch.transition_image(img,
