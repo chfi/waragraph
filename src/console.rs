@@ -31,6 +31,14 @@ pub fn create_engine(db: &sled::Db) -> rhai::Engine {
 
     engine.register_type_with_name::<IVec>("IVec");
 
+    engine.register_fn("write_u64", |v: &mut IVec, offset: i64, val: i64| {
+        let val = val as u64;
+        let o = offset as usize;
+        if o + 8 <= v.len() {
+            v[o..o + 8].clone_from_slice(&val.to_le_bytes());
+        }
+    });
+
     engine.register_result_fn(
         "subslice",
         |v: &mut IVec, offset: i64, len: i64| {
@@ -58,6 +66,14 @@ pub fn create_engine(db: &sled::Db) -> rhai::Engine {
         let k = k.as_bytes();
         let v = db_.get(k).unwrap().unwrap();
         v
+    });
+
+    let db_ = db.clone();
+    engine.register_fn("set", move |k: &str, v: IVec| {
+        // let k = k.as_bytes();
+        db_.insert(k, v).unwrap();
+        // let v = db_.get(k).unwrap().unwrap();
+        // v
     });
 
     let db_ = db.clone();

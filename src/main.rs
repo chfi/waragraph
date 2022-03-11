@@ -337,7 +337,7 @@ fn main() -> Result<()> {
     rhai_engine.register_static_module("self", arc_module.clone());
 
     let mut draw_foreground = rhai::Func::<
-        (BatchBuilder, rhai::Array, rhai::Array, i64, i64, i64, i64),
+        (BatchBuilder, rhai::Array, rhai::Array, i64, i64, i64),
         BatchBuilder,
     >::create_from_ast(
         rhai_engine,
@@ -604,7 +604,6 @@ fn main() -> Result<()> {
                     slot_width as i64,
                     size.width as i64,
                     size.height as i64,
-                    waragraph.node_count() as i64,
                 )
                 .unwrap();
                 let fg_batch_fn = fg_batch.build();
@@ -792,7 +791,6 @@ fn main() -> Result<()> {
                                     i64,
                                     i64,
                                     i64,
-                                    i64,
                                 ),
                                 BatchBuilder,
                             >::create_from_ast(
@@ -839,6 +837,9 @@ fn main() -> Result<()> {
                                     "set_view_offset(0)",
                                 )
                                 .unwrap();
+                            } else if matches!(kc, VK::PageDown) {
+                                let offset = view.max() - view.len();
+                                view.set(offset, len as usize);
                             }
                         }
 
