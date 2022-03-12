@@ -126,6 +126,19 @@ pub fn append_to_engine(
     db: &sled::Db,
     mut engine: rhai::Engine,
 ) -> rhai::Engine {
+    // engine.register_static_module(name, module)
+
+    //
+    let ast = engine.compile_file("util.rhai".into()).unwrap();
+
+    let module =
+        rhai::Module::eval_ast_as_new(rhai::Scope::new(), &ast, &engine)
+            .unwrap();
+
+    let module = Arc::new(module);
+
+    engine.register_global_module(module.clone());
+
     engine.register_type_with_name::<IVec>("IVec");
 
     engine.register_fn("print_vec", |v: &mut IVec| {
@@ -194,6 +207,11 @@ pub fn append_to_engine(
     });
 
     let db_ = db.clone();
+    engine.register_fn("exists", move |k: &mut IVec| {
+        db_.get(k).ok().flatten().is_some()
+    });
+
+    let db_ = db.clone();
     engine.register_result_fn("get", move |k: &str| {
         let k = k.as_bytes();
         if let Some(v) = db_.get(k).ok().flatten() {
@@ -204,7 +222,24 @@ pub fn append_to_engine(
     });
 
     let db_ = db.clone();
+    engine.register_result_fn("get", move |k: &mut IVec| {
+        if let Some(v) = db_.get(k).ok().flatten() {
+            Ok(v)
+        } else {
+            Err("key not found".into())
+        }
+    });
+
+    let db_ = db.clone();
     engine.register_fn("set", move |k: &str, v: IVec| {
+        // let k = k.as_bytes();
+        db_.insert(k, v).unwrap();
+        // let v = db_.get(k).unwrap().unwrap();
+        // v
+    });
+
+    let db_ = db.clone();
+    engine.register_fn("set", move |k: &mut IVec, v: IVec| {
         // let k = k.as_bytes();
         db_.insert(k, v).unwrap();
         // let v = db_.get(k).unwrap().unwrap();
