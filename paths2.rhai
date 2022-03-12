@@ -132,6 +132,10 @@ fn init() {
 
 fn foreground(batch, labels, desc_sets, slot_w, w, h) {
 
+  // hacky test
+  if exists("test-key") {
+    print_vec(get("test-key"));
+  }
 
   let img = self::out_image.get();
 

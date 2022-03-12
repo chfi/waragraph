@@ -63,6 +63,8 @@ fn main() -> Result<()> {
 
     let db = db_cfg.open()?;
 
+    db.insert(b"test-key", b"oh no!!!")?;
+
     let waragraph = Waragraph::from_gfa(&gfa)?;
 
     let event_loop: EventLoop<()>;
@@ -435,7 +437,8 @@ fn main() -> Result<()> {
 
     let arc_module = Arc::new(builder.module.clone());
 
-    let mut rhai_engine = raving::script::console::create_batch_engine();
+    // let mut rhai_engine = raving::script::console::create_batch_engine();
+    let mut rhai_engine = waragraph::console::create_engine(&db);
     rhai_engine.register_static_module("self", arc_module.clone());
 
     let mut draw_foreground = rhai::Func::<
@@ -447,7 +450,8 @@ fn main() -> Result<()> {
         "foreground",
     );
 
-    let mut rhai_engine = raving::script::console::create_batch_engine();
+    // let mut rhai_engine = raving::script::console::create_batch_engine();
+    let mut rhai_engine = waragraph::console::create_engine(&db);
     rhai_engine.register_static_module("self", arc_module.clone());
 
     let copy_to_swapchain = rhai::Func::<
@@ -462,7 +466,8 @@ fn main() -> Result<()> {
     let copy_to_swapchain = Arc::new(copy_to_swapchain);
 
     {
-        let mut rhai_engine = raving::script::console::create_batch_engine();
+        // let mut rhai_engine = raving::script::console::create_batch_engine();
+        let mut rhai_engine = waragraph::console::create_engine(&db);
 
         let arc_module = Arc::new(builder.module.clone());
 
@@ -490,7 +495,8 @@ fn main() -> Result<()> {
     }
 
     let update_clip_rects = {
-        let mut rhai_engine = raving::script::console::create_batch_engine();
+        // let mut rhai_engine = raving::script::console::create_batch_engine();
+        let mut rhai_engine = waragraph::console::create_engine(&db);
 
         let arc_module = Arc::new(builder.module.clone());
 
@@ -947,8 +953,10 @@ fn main() -> Result<()> {
                                 }
                             }
 
+                            // let mut rhai_engine =
+                            //     raving::script::console::create_batch_engine();
                             let mut rhai_engine =
-                                raving::script::console::create_batch_engine();
+                                waragraph::console::create_engine(&db);
                             rhai_engine.register_static_module(
                                 "self",
                                 arc_module.clone(),

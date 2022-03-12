@@ -117,10 +117,22 @@ pub enum ConsoleInput {
 }
 
 pub fn create_engine(db: &sled::Db) -> rhai::Engine {
-    //
-    let mut engine = rhai::Engine::new();
+    let mut engine = raving::script::console::create_batch_engine();
+    append_to_engine(db, engine)
+}
 
+// pub fn create_engine(db: &sled::Db) -> rhai::Engine {
+pub fn append_to_engine(
+    db: &sled::Db,
+    mut engine: rhai::Engine,
+) -> rhai::Engine {
     engine.register_type_with_name::<IVec>("IVec");
+
+    engine.register_fn("print_vec", |v: &mut IVec| {
+        if let Ok(string) = v.to_str() {
+            log::error!("print: {}", string);
+        }
+    });
 
     engine.register_fn("write_u64", |v: &mut IVec, offset: i64, val: i64| {
         let val = val as u64;
@@ -176,10 +188,19 @@ pub fn create_engine(db: &sled::Db) -> rhai::Engine {
     });
 
     let db_ = db.clone();
-    engine.register_fn("get", move |k: &str| {
+    engine.register_fn("exists", move |k: &str| {
         let k = k.as_bytes();
-        let v = db_.get(k).unwrap().unwrap();
-        v
+        db_.get(k).ok().flatten().is_some()
+    });
+
+    let db_ = db.clone();
+    engine.register_result_fn("get", move |k: &str| {
+        let k = k.as_bytes();
+        if let Some(v) = db_.get(k).ok().flatten() {
+            Ok(v)
+        } else {
+            Err("key not found".into())
+        }
     });
 
     let db_ = db.clone();
