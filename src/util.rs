@@ -17,6 +17,10 @@ use crossbeam::atomic::AtomicCell;
 
 use bstr::ByteSlice;
 
+use zerocopy::{AsBytes, FromBytes};
+
+use parking_lot::Mutex;
+
 #[allow(unused_imports)]
 use anyhow::{anyhow, bail, Result};
 // TransactionResult<_, TransactionError<()>
@@ -25,15 +29,195 @@ pub type TxResult<T> = TransactionResult<T, TransactionError<Vec<u8>>>;
 pub struct ColorBuffers {
     pub tree: sled::Tree,
 
-    pub buffer_names: HashMap<Vec<u8>, u64>,
-
+    // pub buffer_names: HashMap<Vec<u8>, u64>,
     buffers: Vec<BufferIx>,
     desc_sets: Vec<DescSetIx>,
+    // key_buf: Mutex<Vec<u8>>,
 }
 
-// impl ColorBuffers {
+impl ColorBuffers {
+    // const
 
-// }
+    const ID_MASK: [u8; 10] = *b"i:01234567";
+
+    const BUF_DATA_MASK: [u8; 10] = *b"d:01234567";
+
+    pub fn new(db: &sled::Db) -> Result<Self> {
+        let tree = db.open_tree("color_buffers")?;
+
+        let buffers = Vec::new();
+        let desc_sets = Vec::new();
+
+        Ok(Self {
+            tree,
+            buffers,
+            desc_sets,
+        })
+    }
+
+    fn buffer_name_key(name: &[u8]) -> Vec<u8> {
+        let mut key = Vec::with_capacity(12 + name.len());
+        key.clone_from_slice(b"buffer_name:");
+        key.extend_from_slice(name);
+        key
+    }
+
+    pub fn allocate_color_map(
+        &mut self,
+        db: &sled::Db,
+        engine: &mut VkEngine,
+        name: &str,
+        len: usize,
+    ) -> Result<()> {
+        let key = Self::buffer_name_key(name.as_bytes());
+
+        let id = db.generate_id()?;
+
+        self.tree.insert(key, &id.to_le_bytes())?;
+
+        let (buf, set) = engine.with_allocators(|ctx, res, alloc| {
+            let mem_loc = gpu_allocator::MemoryLocation::CpuToGpu;
+            let usage = vk::BufferUsageFlags::STORAGE_BUFFER
+                | vk::BufferUsageFlags::TRANSFER_SRC
+                | vk::BufferUsageFlags::TRANSFER_DST;
+
+            let buffer = res.allocate_buffer(
+                ctx,
+                alloc,
+                mem_loc,
+                4,
+                len,
+                usage,
+                Some(name),
+            )?;
+
+            let buf_ix = res.insert_buffer(buffer);
+            let desc_set = allocate_buffer_desc_set(buf_ix, res)?;
+            let set_ix = res.insert_desc_set(desc_set);
+            Ok((buf_ix, set_ix))
+        })?;
+
+        let ix = self.buffers.len();
+
+        let mut id_key = Self::ID_MASK;
+        id_key[2..].clone_from_slice(&id.to_le_bytes());
+        self.tree.insert(id_key, &ix.to_le_bytes())?;
+
+        self.buffers.push(buf);
+        self.desc_sets.push(set);
+
+        Ok(())
+    }
+
+    // fn buffer_name_key(name: &[u8]) ->
+    // pub fn na
+
+    pub fn get_id(&self, name: &[u8]) -> Option<u64> {
+        let key = Self::buffer_name_key(name);
+        let v = self.tree.get(&key).ok()??;
+        u64::read_from(v.as_ref())
+    }
+
+    pub fn get_id_index(&self, id: u64) -> Option<usize> {
+        let mut id_key = Self::ID_MASK;
+        id_key[2..].clone_from_slice(&id.to_le_bytes());
+        let ix = self.tree.get(&id_key).ok()??;
+        usize::read_from(ix.as_ref())
+    }
+
+    // src is truncated if dst hasn't been explicitly resized to fit it
+    fn write_buffer(src: &[u8], dst: &mut [u8]) -> Result<()> {
+        // let src_: &[[u8; 3]] = FromBytes::read_from(src).unwrap();
+
+        if src.len() % 3 != 0 {
+            bail!("src.len() % 3 != 0");
+        }
+
+        // this is ridiculously convoluted
+        let dst_cap = (dst.len() - 8) / 16;
+
+        let chnks = src.chunks_exact(3).take(dst_cap);
+
+        // 4 x vec4 per chunk, plus the length at the start, plus 4
+        // bytes padding for alignment
+        let out_len = chnks.len() * 4 * 4 + 8;
+
+        let dst = &mut dst[..out_len];
+        assert!(dst.len() >= out_len);
+
+        let lbs = (out_len as u32).to_le_bytes();
+
+        dst[0..4].clone_from_slice(&lbs);
+        dst[4..8].clone_from_slice(&lbs); // pad for alignment
+
+        dst[8..]
+            .chunks_exact_mut(16)
+            .zip(chnks)
+            .for_each(|(d, src)| {
+                if let Some([r, g, b]) = <[u8; 3]>::read_from(src) {
+                    let to_slice = |v| ((v as f32) / 255.0).to_le_bytes();
+                    d[0..4].clone_from_slice(&to_slice(r));
+                    d[4..8].clone_from_slice(&to_slice(g));
+                    d[8..12].clone_from_slice(&to_slice(b));
+                    d[12..16].clone_from_slice(&to_slice(255));
+                }
+            });
+
+        Ok(())
+    }
+
+    // &self,
+    // res: &mut GpuResources,
+
+    pub fn flush_buffer(
+        &self,
+        res: &mut GpuResources,
+        name: &[u8],
+    ) -> Result<()> {
+        let err_not_found =
+            || anyhow!("Color buffer '{}' not found", name.as_bstr());
+        // const NOT_FOUND =
+        // let err_not_found = anyhow!("Color buffer not found");
+
+        let id = self.get_id(name).ok_or_else(err_not_found)?;
+        let id_ix = self.get_id_index(id).ok_or_else(err_not_found)?;
+
+        let buf_ix = *self.buffers.get(id_ix).ok_or_else(err_not_found)?;
+
+        let mut buf_key = Self::BUF_DATA_MASK;
+        buf_key[2..].clone_from_slice(&id.to_le_bytes());
+
+        if let Some(data) = self.tree.get(&buf_key)? {
+            let buffer = &mut res[buf_ix];
+            let slice = buffer.mapped_slice_mut().unwrap();
+            Self::write_buffer(data.as_ref(), slice)?;
+        }
+
+        Ok(())
+    }
+
+    // pub fn
+
+    /*
+    pub fn get_id(&self, name: &[u8]) -> Option<u64> {
+        let mut key = self.key_buf.lock();
+        if key.len() < 11 {
+            key.clear();
+            key.clone_from_slice(b"buffer_name");
+        }
+        key.resize(11 + name.len(), 0);
+        key[11..11 + name.len()].clone_from_slice(name);
+
+        // if self.key_buf.len() < name.len() + 11 {
+        //     self.key_buf_len.resiz
+        // }
+        // let mut key = Vec::with_capacity(name.len() + 11);
+
+        let v = self.tree.get(&*key).ok()??;
+        u64::read_from(v.as_ref())
+    }
+    */
+}
 
 pub struct LabelStorage {
     // pub db: sled::Db,
