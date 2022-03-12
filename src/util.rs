@@ -22,6 +22,19 @@ use anyhow::{anyhow, bail, Result};
 // TransactionResult<_, TransactionError<()>
 pub type TxResult<T> = TransactionResult<T, TransactionError<Vec<u8>>>;
 
+pub struct ColorBuffers {
+    pub tree: sled::Tree,
+
+    pub buffer_names: HashMap<Vec<u8>, u64>,
+
+    buffers: Vec<BufferIx>,
+    desc_sets: Vec<DescSetIx>,
+}
+
+// impl ColorBuffers {
+
+// }
+
 pub struct LabelStorage {
     // pub db: sled::Db,
     pub tree: sled::Tree,

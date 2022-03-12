@@ -185,13 +185,18 @@ impl PathViewer {
     pub fn update_from<F>(
         &mut self,
         res: &mut GpuResources,
-        buf: &mut Vec<u8>,
         mut fill: F,
     ) -> Option<()>
     where
         F: FnMut(usize, usize) -> u32,
     {
-        todo!();
+        let vis = self.visible_indices();
+
+        for (path, slot) in vis.zip(self.slots.iter_mut()) {
+            slot.update_from(res, |ix| fill(path, ix));
+        }
+
+        Some(())
     }
 
     pub fn visible_indices(&self) -> std::ops::Range<usize> {
@@ -214,6 +219,20 @@ impl PathViewer {
         let o_bs = self.tree.get("list_max")?.unwrap();
         let max = usize::read_from(o_bs.as_ref()).unwrap();
         Ok(max)
+    }
+
+    pub fn resize(
+        &mut self,
+        ctx: &VkContext,
+        res: &mut GpuResources,
+        alloc: &mut Allocator,
+        new_width: usize,
+        fill: u32,
+    ) -> Result<()> {
+        for slot in self.slots.iter_mut() {
+            slot.resize(ctx, res, alloc, new_width, fill)?;
+        }
+        Ok(())
     }
 }
 

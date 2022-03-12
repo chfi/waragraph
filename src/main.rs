@@ -20,7 +20,7 @@ use rspirv_reflect::DescriptorInfo;
 
 use waragraph::graph::{Node, Waragraph};
 use waragraph::util::LabelStorage;
-use waragraph::viewer::{PathViewSlot, ViewDiscrete1D};
+use waragraph::viewer::{PathViewSlot, PathViewer, ViewDiscrete1D};
 use winit::event::{Event, VirtualKeyCode, WindowEvent};
 use winit::{event_loop::EventLoop, window::WindowBuilder};
 
@@ -252,6 +252,22 @@ fn main() -> Result<()> {
     waragraph.sample_node_lengths_db(width as usize, &view, &mut samples_db);
 
     db.insert(b"sample_indices", samples_db.as_bytes())?;
+
+    // let slot_count = waragraph.paths.len();
+    let slot_count = 32;
+
+    let mut path_viewer = engine.with_allocators(|ctx, res, alloc| {
+        PathViewer::new(
+            &db,
+            ctx,
+            res,
+            alloc,
+            width as usize,
+            slot_count,
+            "path_slot_",
+            waragraph.paths.len(),
+        )
+    })?;
 
     let mut path_slots = engine.with_allocators(|ctx, res, alloc| {
         let slot_count = waragraph.paths.len();
@@ -531,17 +547,23 @@ fn main() -> Result<()> {
                     }
                 }
 
+                let mut new_samples_in = None;
+
                 while let Ok(ev) =
                     sample_sub.next_timeout(Duration::from_millis(5))
                 {
                     match ev {
                         sled::Event::Insert { key, value } => {
+                            new_samples_in = Some(value);
+
+                            /*
                             let samples = unsafe {
                                 let len = value.len() / 8;
                                 let ptr = value.as_ptr();
                                 let data: *const [u32; 2] = ptr.cast();
                                 std::slice::from_raw_parts(data, len)
                             };
+
 
                             for (ix, slot) in path_slots.iter_mut().enumerate()
                             {
@@ -557,10 +579,65 @@ fn main() -> Result<()> {
                                     }
                                 });
                             }
+                                */
                         }
                         sled::Event::Remove { key } => {
                             // do nothing yet
                         }
+                    }
+                }
+
+                if let Some(value) = new_samples_in {
+                    let samples = unsafe {
+                        let len = value.len() / 8;
+                        let ptr = value.as_ptr();
+                        let data: *const [u32; 2] = ptr.cast();
+                        std::slice::from_raw_parts(data, len)
+                    };
+
+                    // TODO update the path_viewer view width
+                    path_viewer.update_from(
+                        &mut engine.resources,
+                        |path, ix| {
+                            let path = &waragraph.paths[path];
+                            let [node, _offset] = samples[ix];
+                            let node = node as usize;
+                            if path.get(node.into()).is_some() {
+                                1
+                            } else {
+                                0
+                            }
+                        },
+                    );
+
+                    /*
+                    path_viewer.update_from(
+                        &mut engine.resources,
+                        |path, ix| {
+                            let path = &waragraph.paths[path];
+                            let [node, _offset] = samples[ix];
+                            let node = node as usize;
+                            if path.get(node.into()).is_some() {
+                                1
+                            } else {
+                                0
+                            }
+                        },
+                    );
+                    */
+
+                    for (ix, slot) in path_slots.iter_mut().enumerate() {
+                        let path = &waragraph.paths[ix];
+
+                        slot.update_from(&mut engine.resources, |ix| {
+                            let [node, _offset] = samples[ix];
+                            let node = node as usize;
+                            if path.get(node.into()).is_some() {
+                                1
+                            } else {
+                                0
+                            }
+                        });
                     }
                 }
 
@@ -749,6 +826,7 @@ fn main() -> Result<()> {
                                 size.height,
                             )
                             .unwrap();
+
                             engine
                                 .with_allocators(|ctx, res, alloc| {
                                     res_builder.insert(
@@ -756,6 +834,14 @@ fn main() -> Result<()> {
                                         ctx,
                                         res,
                                         alloc,
+                                    )?;
+
+                                    path_viewer.resize(
+                                        ctx,
+                                        res,
+                                        alloc,
+                                        size.width as usize,
+                                        0u32,
                                     )?;
 
                                     for slot in path_slots.iter_mut() {
