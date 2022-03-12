@@ -37,6 +37,8 @@ use anyhow::{anyhow, bail, Result};
 use zerocopy::{AsBytes, FromBytes};
 
 fn main() -> Result<()> {
+    // disable sled logging
+    // let spec = "debug, sled=info";
     let spec = "debug";
     let _logger = Logger::try_with_env_or_str(spec)?
         .log_to_file(FileSpec::default())
@@ -55,7 +57,11 @@ fn main() -> Result<()> {
         gfa
     };
 
-    let db = sled::open("waragraph_viewer")?;
+    let db_cfg = sled::Config::default()
+        .path("waragraph_viewer")
+        .flush_every_ms(Some(10_000)); // probably don't even need every 10s
+
+    let db = db_cfg.open()?;
 
     let waragraph = Waragraph::from_gfa(&gfa)?;
 

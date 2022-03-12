@@ -281,7 +281,6 @@ impl LabelStorage {
             .buf_key_for_id(id)
             .ok_or(anyhow!("Buffer not found for label ID '{}'", id))?;
 
-        // let bytes = self.db.get(key)?.unwrap();
         let bytes = self.tree.get(key)?;
 
         let result = bytes.and_then(|b| {
@@ -300,7 +299,6 @@ impl LabelStorage {
             .set_key_for_id(id)
             .ok_or(anyhow!("Descriptor set not found for label ID {}", id))?;
 
-        // let bytes = self.db.get(key)?.unwrap();
         let bytes = self.tree.get(key)?;
 
         let result = bytes.and_then(|b| {
@@ -320,7 +318,6 @@ impl LabelStorage {
             name.as_bstr()
         ))?;
 
-        // let bytes = self.db.get(key)?.unwrap();
         let bytes = self.tree.get(key)?;
 
         let result = bytes.and_then(|b| {
@@ -340,7 +337,6 @@ impl LabelStorage {
             name.as_bstr()
         ))?;
 
-        // let bytes = self.db.get(key)?.unwrap();
         let bytes = self.tree.get(key)?;
 
         let result = bytes.and_then(|b| {
