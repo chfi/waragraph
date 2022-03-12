@@ -18,6 +18,7 @@ use gpu_allocator::vulkan::Allocator;
 use parking_lot::Mutex;
 use rspirv_reflect::DescriptorInfo;
 
+use sled::IVec;
 use waragraph::graph::{Node, Waragraph};
 use waragraph::util::LabelStorage;
 use waragraph::viewer::{PathViewSlot, PathViewer, ViewDiscrete1D};
@@ -533,7 +534,7 @@ fn main() -> Result<()> {
                 }
 
                 while let Ok(ev) =
-                    view_sub.next_timeout(Duration::from_millis(5))
+                    view_sub.next_timeout(Duration::from_micros(10))
                 {
                     match ev {
                         sled::Event::Insert { key, value } => {
@@ -550,36 +551,11 @@ fn main() -> Result<()> {
                 let mut new_samples_in = None;
 
                 while let Ok(ev) =
-                    sample_sub.next_timeout(Duration::from_millis(5))
+                    sample_sub.next_timeout(Duration::from_micros(10))
                 {
                     match ev {
                         sled::Event::Insert { key, value } => {
                             new_samples_in = Some(value);
-
-                            /*
-                            let samples = unsafe {
-                                let len = value.len() / 8;
-                                let ptr = value.as_ptr();
-                                let data: *const [u32; 2] = ptr.cast();
-                                std::slice::from_raw_parts(data, len)
-                            };
-
-
-                            for (ix, slot) in path_slots.iter_mut().enumerate()
-                            {
-                                let path = &waragraph.paths[ix];
-
-                                slot.update_from(&mut engine.resources, |ix| {
-                                    let [node, _offset] = samples[ix];
-                                    let node = node as usize;
-                                    if path.get(node.into()).is_some() {
-                                        1
-                                    } else {
-                                        0
-                                    }
-                                });
-                            }
-                                */
                         }
                         sled::Event::Remove { key } => {
                             // do nothing yet
@@ -595,7 +571,6 @@ fn main() -> Result<()> {
                         std::slice::from_raw_parts(data, len)
                     };
 
-                    // TODO update the path_viewer view width
                     path_viewer.update_from(
                         &mut engine.resources,
                         |path, ix| {
@@ -609,22 +584,6 @@ fn main() -> Result<()> {
                             }
                         },
                     );
-
-                    /*
-                    path_viewer.update_from(
-                        &mut engine.resources,
-                        |path, ix| {
-                            let path = &waragraph.paths[path];
-                            let [node, _offset] = samples[ix];
-                            let node = node as usize;
-                            if path.get(node.into()).is_some() {
-                                1
-                            } else {
-                                0
-                            }
-                        },
-                    );
-                    */
 
                     for (ix, slot) in path_slots.iter_mut().enumerate() {
                         let path = &waragraph.paths[ix];
@@ -641,31 +600,35 @@ fn main() -> Result<()> {
                     }
                 }
 
+                let mut updates: HashMap<IVec, IVec> = HashMap::default();
+
                 while let Ok(ev) =
-                    text_sub.next_timeout(Duration::from_millis(5))
+                    text_sub.next_timeout(Duration::from_micros(10))
                 {
                     match ev {
                         sled::Event::Insert { key, value } => {
-                            let id = u64::read_from(key[2..].as_ref()).unwrap();
-                            let buf_ix =
-                                txt.buffer_for_id(id).unwrap().unwrap();
-                            let buffer = &mut engine.resources[buf_ix];
-                            let slice = buffer.mapped_slice_mut().unwrap();
-                            let len = value.len();
-
-                            slice[0..4]
-                                .clone_from_slice(&(len as u32).to_ne_bytes());
-
-                            slice[4..]
-                                .chunks_mut(4)
-                                .zip(value.iter())
-                                .for_each(|(chk, &b)| chk.fill(b));
+                            updates.insert(key, value);
                         }
                         sled::Event::Remove { key } => {
                             // do nothing yet
                         }
                     }
                     //
+                }
+
+                for (key, value) in updates {
+                    let id = u64::read_from(key[2..].as_ref()).unwrap();
+                    let buf_ix = txt.buffer_for_id(id).unwrap().unwrap();
+                    let buffer = &mut engine.resources[buf_ix];
+                    let slice = buffer.mapped_slice_mut().unwrap();
+                    let len = value.len();
+
+                    slice[0..4].clone_from_slice(&(len as u32).to_ne_bytes());
+
+                    slice[4..]
+                        .chunks_mut(4)
+                        .zip(value.iter())
+                        .for_each(|(chk, &b)| chk.fill(b));
                 }
 
                 let t = start.elapsed().as_secs_f32();
