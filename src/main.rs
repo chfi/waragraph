@@ -38,8 +38,8 @@ use zerocopy::{AsBytes, FromBytes};
 
 fn main() -> Result<()> {
     // disable sled logging
-    // let spec = "debug, sled=info";
-    let spec = "debug";
+    let spec = "debug, sled=info";
+    // let spec = "debug";
     let _logger = Logger::try_with_env_or_str(spec)?
         .log_to_file(FileSpec::default())
         .duplicate_to_stderr(Duplicate::Debug)
@@ -63,7 +63,7 @@ fn main() -> Result<()> {
 
     let db = db_cfg.open()?;
 
-    db.insert(b"test-key", b"oh no!!!")?;
+    // db.insert(b"test-key", b"oh no!!!")?;
 
     let waragraph = Waragraph::from_gfa(&gfa)?;
 
@@ -985,7 +985,8 @@ fn main() -> Result<()> {
             }
             Event::WindowEvent { event, .. } => match event {
                 WindowEvent::ReceivedCharacter(c) => {
-                    if !c.is_ascii_control() & !c.is_ascii_whitespace() {
+                    // if !(c.is_ascii_control() && c.is_ascii_whitespace()) {
+                    if !c.is_ascii_control() {
                         console
                             .handle_input(
                                 &db,

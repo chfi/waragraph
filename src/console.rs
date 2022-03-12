@@ -29,6 +29,8 @@ use crate::{util::LabelStorage, viewer::ViewDiscrete1D};
 pub struct Console {
     pub input: String,
     focus: usize,
+
+    scope: rhai::Scope<'static>,
 }
 
 impl Console {
@@ -60,7 +62,11 @@ impl Console {
                 self.focus += 1;
             }
             ConsoleInput::Submit => {
-                match eval::<rhai::Dynamic>(db, &self.input) {
+                match eval_scope::<rhai::Dynamic>(
+                    &mut self.scope,
+                    db,
+                    &self.input,
+                ) {
                     Ok(r) => {
                         log::warn!("Console result: {:?}", r);
                     }
@@ -140,6 +146,11 @@ pub fn append_to_engine(
     engine.register_global_module(module.clone());
 
     engine.register_type_with_name::<IVec>("IVec");
+
+    engine.register_fn("ivec", |len: i64| {
+        let len = len as usize;
+        IVec::from(vec![0u8; len])
+    });
 
     engine.register_fn("print_vec", |v: &mut IVec| {
         if let Ok(string) = v.to_str() {
@@ -280,6 +291,21 @@ pub fn eval<T: Clone + Send + Sync + 'static>(
 ) -> Result<T> {
     let engine = create_engine(db);
     match engine.eval(script) {
+        Ok(result) => Ok(result),
+        Err(err) => Err(anyhow!("eval err: {:?}", err)),
+    }
+}
+
+pub fn eval_scope<T: Clone + Send + Sync + 'static>(
+    scope: &mut rhai::Scope,
+    db: &sled::Db,
+    script: &str,
+) -> Result<T> {
+    // let mut engine = create_engine(db);
+    let engine = create_engine(db);
+    // engine.
+    // match engine.run_with_scope(scope, script) {
+    match engine.eval_with_scope(scope, script) {
         Ok(result) => Ok(result),
         Err(err) => Err(anyhow!("eval err: {:?}", err)),
     }
