@@ -8,6 +8,7 @@ use raving::vk::{
     BatchInput, BufferIx, DescSetIx, FrameResources, GpuResources, ShaderIx,
     VkEngine, WinSizeIndices, WinSizeResourcesBuilder,
 };
+use waragraph::console::{Console, ConsoleInput};
 
 use raving::vk::util::*;
 
@@ -75,6 +76,8 @@ fn main() -> Result<()> {
 
     // let event_loop = EventLoop::new();
 
+    let mut console = Console::default();
+
     let width = 800u32;
     let height = 600u32;
 
@@ -94,6 +97,9 @@ fn main() -> Result<()> {
 
     // path_v
 
+    txt.allocate_label(&db, &mut engine, "console")?;
+    txt.set_label_pos(b"console", 4, 4)?;
+
     txt.allocate_label(&db, &mut engine, "fps")?;
     txt.set_label_pos(b"fps", 50, 4)?;
 
@@ -105,9 +111,9 @@ fn main() -> Result<()> {
     txt.set_label_pos(b"view:len", 300, 16)?;
     txt.set_label_pos(b"view:end", 600, 16)?;
 
-    txt.set_text_for(b"view:start", "view offset")?;
-    txt.set_text_for(b"view:len", "view len")?;
-    txt.set_text_for(b"view:end", "view end")?;
+    // txt.set_text_for(b"view:start", "view offset")?;
+    // txt.set_text_for(b"view:len", "view len")?;
+    // txt.set_text_for(b"view:end", "view end")?;
 
     let window_storage_set_info = {
         let info = DescriptorInfo {
@@ -242,10 +248,27 @@ fn main() -> Result<()> {
         })?;
     }
 
-    let mut view = ViewDiscrete1D::new(waragraph.total_len());
-    view.resize(view.max() / 2);
+    let mut view = if let Some(old_view) = db
+        .get(b"view")?
+        .and_then(|bytes| ViewDiscrete1D::from_bytes(&bytes))
+    {
+        if old_view.max == waragraph.total_len() {
+            old_view
+        } else {
+            let mut view = ViewDiscrete1D::new(waragraph.total_len());
+            view.resize(view.max() / 2);
+            view
+        }
+    } else {
+        let mut view = ViewDiscrete1D::new(waragraph.total_len());
+        view.resize(view.max() / 2);
+        view
+    };
+
+    // let mut view = ViewDiscrete1D::new(waragraph.total_len());
+    // view.resize(view.max() / 2);
     // view.set(0, view.max() / 2);
-    let mut prev_view = view;
+    let mut prev_view = None;
 
     db.insert(b"view", &view.as_bytes())?;
 
@@ -516,8 +539,8 @@ fn main() -> Result<()> {
             Event::MainEventsCleared => {
                 let frame_start = std::time::Instant::now();
 
-                if view != prev_view || path_viewer.should_update() {
-                    prev_view = view;
+                if Some(view) != prev_view || path_viewer.should_update() {
+                    prev_view = Some(view);
 
                     {
                         let range = view.range();
@@ -947,6 +970,11 @@ fn main() -> Result<()> {
                 }
             }
             Event::WindowEvent { event, .. } => match event {
+                WindowEvent::ReceivedCharacter(c) => {
+                    console
+                        .handle_input(&db, &txt, ConsoleInput::AppendChar(c))
+                        .unwrap();
+                }
                 WindowEvent::KeyboardInput { input, .. } => {
                     if let Some(kc) = input.virtual_keycode {
                         use VirtualKeyCode as VK;
@@ -975,6 +1003,23 @@ fn main() -> Result<()> {
                                 path_viewer.scroll_up();
                             } else if matches!(kc, VK::PageDown) {
                                 path_viewer.scroll_down();
+                            } else if matches!(kc, VK::Return) {
+                                update = false;
+                                console
+                                    .handle_input(
+                                        &db,
+                                        &txt,
+                                        ConsoleInput::Submit,
+                                    )
+                                    .unwrap();
+                            } else if matches!(kc, VK::Back) {
+                                console
+                                    .handle_input(
+                                        &db,
+                                        &txt,
+                                        ConsoleInput::Backspace,
+                                    )
+                                    .unwrap();
                             }
                             /*
                             } else if matches!(kc, VK::PageUp) {
