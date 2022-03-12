@@ -92,6 +92,8 @@ fn main() -> Result<()> {
     let mut sample_sub = db.watch_prefix(b"sample_indices");
     let mut text_sub = txt.tree.watch_prefix(b"t:");
 
+    // path_v
+
     txt.allocate_label(&db, &mut engine, "fps")?;
     txt.set_label_pos(b"fps", 50, 4)?;
 
@@ -269,6 +271,16 @@ fn main() -> Result<()> {
             waragraph.paths.len(),
         )
     })?;
+
+    let mut count = 0;
+    for i in path_viewer.visible_indices() {
+        let name = format!("path-name-{}", i);
+        txt.allocate_label(&db, &mut engine, &name)?;
+        count += 1;
+    }
+    log::error!("added {} labels!!!", count);
+
+    path_viewer.update_labels(&waragraph, &txt)?;
 
     let mut path_slots = engine.with_allocators(|ctx, res, alloc| {
         let slot_count = waragraph.paths.len();
@@ -561,6 +573,8 @@ fn main() -> Result<()> {
                         }
                     }
                 }
+
+                path_viewer.update_labels(&waragraph, &txt).unwrap();
 
                 if let Some(value) = new_samples_in {
                     let samples = unsafe {

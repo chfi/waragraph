@@ -1,6 +1,7 @@
 use std::collections::BTreeMap;
 
 use ash::vk;
+use bstr::ByteSlice;
 use gpu_allocator::vulkan::Allocator;
 use raving::vk::{
     context::VkContext, descriptor::DescriptorLayoutInfo, BufferIx, BufferRes,
@@ -14,6 +15,8 @@ use anyhow::{anyhow, Result};
 
 use crossbeam::atomic::AtomicCell;
 use std::sync::Arc;
+
+use crate::{graph::Waragraph, util::LabelStorage};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ViewDiscrete1D {
@@ -223,6 +226,34 @@ impl PathViewer {
         }
 
         Some(())
+    }
+
+    // fn label_name_for(i: usize) -> [u8
+
+    // pub fn allocate_labels(&self, txt: &LabelStorage) -> Result<()> {
+    //     let (_, len) = self.view.load();
+    // for i in self.vie
+    // }
+
+    pub fn update_labels(
+        &self,
+        graph: &Waragraph,
+        txt: &LabelStorage,
+    ) -> Result<()> {
+        let x = 34u32;
+        let y = 40u32;
+        let yd = 66u32;
+
+        for (ix, path_i) in self.visible_indices().enumerate() {
+            let path_name = &graph.path_names[path_i];
+
+            let txt_key = format!("path-name-{}", ix);
+
+            let name = format!("{}", path_name.as_bstr());
+            txt.set_text_for(txt_key.as_bytes(), &name)?;
+            txt.set_label_pos(txt_key.as_bytes(), x, y + yd * ix as u32)?;
+        }
+        Ok(())
     }
 
     pub fn visible_indices(&self) -> std::ops::Range<usize> {

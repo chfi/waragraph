@@ -120,6 +120,8 @@ pub struct Waragraph {
     // pub paths: Vec<CsVecI<Strand, u32>>,
     pub paths: Vec<CsVecI<u32, u32>>,
     pub path_indices: HashMap<Vec<u8>, usize>,
+
+    pub path_names: Vec<Vec<u8>>,
 }
 
 impl Waragraph {
@@ -169,6 +171,8 @@ impl Waragraph {
 
         let mut path_indices = HashMap::default();
 
+        let mut path_names = Vec::new();
+
         dbg!();
         let paths = gfa
             .paths
@@ -177,6 +181,8 @@ impl Waragraph {
             .map(|(ix, path)| {
                 dbg!(ix);
                 let name = path.path_name.as_bstr();
+
+                path_names.push(name.to_vec());
                 path_indices.insert(name.to_vec(), ix);
 
                 let mut loop_count = FxHashMap::default();
@@ -213,6 +219,7 @@ impl Waragraph {
             adj_n_n,
             d0,
 
+            path_names,
             paths,
             path_indices,
         })
