@@ -366,10 +366,12 @@ fn main() -> Result<()> {
 
     let shader_ix = shader_ix.get_unwrap();
 
-    let desc_sets = engine.with_allocators(|ctx, res, alloc| {
+    const MAX_SLOTS: usize = 256;
+
+    let clip_desc_sets = engine.with_allocators(|ctx, res, alloc| {
         let mut desc_sets = Vec::new();
 
-        for slot in path_slots.iter() {
+        for _ in 0..MAX_SLOTS {
             let clip_set =
                 res.allocate_desc_set(shader_ix, 0, |res, builder| {
                     let buffer = &res[clip_rects_buffer];
@@ -384,12 +386,7 @@ fn main() -> Result<()> {
                 })?;
 
             let clip_set_ix = res.insert_desc_set(clip_set);
-            let slot_set_ix = slot.desc_set();
-
-            let mut map = rhai::Map::default();
-            map.insert("clip".into(), rhai::Dynamic::from(clip_set_ix));
-            map.insert("slot".into(), rhai::Dynamic::from(slot_set_ix));
-            desc_sets.push(rhai::Dynamic::from_map(map));
+            desc_sets.push(clip_set_ix);
         }
 
         Ok(desc_sets)
@@ -498,6 +495,8 @@ fn main() -> Result<()> {
 
     let mut prev_frame_end = std::time::Instant::now();
 
+    let mut desc_sets = Vec::new();
+
     event_loop.run(move |event, _, control_flow| {
         *control_flow = winit::event_loop::ControlFlow::Poll;
 
@@ -505,7 +504,7 @@ fn main() -> Result<()> {
             Event::MainEventsCleared => {
                 let frame_start = std::time::Instant::now();
 
-                if view != prev_view {
+                if view != prev_view || path_viewer.should_update() {
                     prev_view = view;
 
                     {
@@ -659,10 +658,31 @@ fn main() -> Result<()> {
                         .collect::<Vec<_>>()
                 };
 
+                desc_sets.clear();
+                desc_sets.extend(
+                    path_viewer.slots.iter().zip(clip_desc_sets.iter()).map(
+                        |(slot, clip)| {
+                            let slot_set_ix = slot.desc_set();
+                            let mut map = rhai::Map::default();
+                            map.insert(
+                                "clip".into(),
+                                rhai::Dynamic::from(*clip),
+                            );
+                            map.insert(
+                                "slot".into(),
+                                rhai::Dynamic::from(slot_set_ix),
+                            );
+                            rhai::Dynamic::from_map(map)
+                            // desc_sets.push(rhai::Dynamic::from_map(map));
+                        },
+                    ),
+                );
+
                 let fg_batch = draw_foreground(
                     batch_builder,
                     label_sets,
                     desc_sets.clone(),
+                    // desc_sets.clone(),
                     slot_width as i64,
                     size.width as i64,
                     size.height as i64,
@@ -938,6 +958,12 @@ fn main() -> Result<()> {
                             } else if matches!(kc, VK::Space) {
                                 view.reset();
                             } else if matches!(kc, VK::PageUp) {
+                                path_viewer.scroll_up();
+                            } else if matches!(kc, VK::PageDown) {
+                                path_viewer.scroll_down();
+                            }
+                            /*
+                            } else if matches!(kc, VK::PageUp) {
                                 // a temporary lil hack
                                 update = false;
                                 waragraph::console::eval::<()>(
@@ -949,6 +975,7 @@ fn main() -> Result<()> {
                                 let offset = view.max() - view.len();
                                 view.set(offset, len as usize);
                             }
+                                */
                         }
 
                         if update {

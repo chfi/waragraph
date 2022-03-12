@@ -142,8 +142,11 @@ pub struct PathViewer {
     view_max: usize,
     view: Arc<AtomicCell<(usize, usize)>>,
 
-    width: usize,
-    slots: Vec<PathViewSlot>,
+    update: AtomicCell<bool>,
+
+    pub width: usize,
+    pub slots: Vec<PathViewSlot>,
+    // slot_path_map: Vec<usize>,
 }
 
 impl PathViewer {
@@ -177,9 +180,32 @@ impl PathViewer {
             tree,
             width,
             slots,
+            update: false.into(),
             view,
             view_max,
         })
+    }
+
+    pub fn should_update(&self) -> bool {
+        let r = self.update.load();
+        self.update.store(false);
+        r
+    }
+
+    pub fn scroll_up(&self) {
+        let (o, l) = self.view.load();
+        if o > 0 {
+            let no = (o - 1).clamp(0, self.view_max - l);
+            self.view.store((no, l));
+            self.update.store(true);
+        }
+    }
+
+    pub fn scroll_down(&self) {
+        let (o, l) = self.view.load();
+        let no = (o + 1).clamp(0, self.view_max - l);
+        self.view.store((no, l));
+        self.update.store(true);
     }
 
     pub fn update_from<F>(
