@@ -971,9 +971,15 @@ fn main() -> Result<()> {
             }
             Event::WindowEvent { event, .. } => match event {
                 WindowEvent::ReceivedCharacter(c) => {
-                    console
-                        .handle_input(&db, &txt, ConsoleInput::AppendChar(c))
-                        .unwrap();
+                    if !c.is_ascii_control() & !c.is_ascii_whitespace() {
+                        console
+                            .handle_input(
+                                &db,
+                                &txt,
+                                ConsoleInput::AppendChar(c),
+                            )
+                            .unwrap();
+                    }
                 }
                 WindowEvent::KeyboardInput { input, .. } => {
                     if let Some(kc) = input.virtual_keycode {
@@ -1013,6 +1019,7 @@ fn main() -> Result<()> {
                                     )
                                     .unwrap();
                             } else if matches!(kc, VK::Back) {
+                                update = false;
                                 console
                                     .handle_input(
                                         &db,

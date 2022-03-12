@@ -245,11 +245,8 @@ impl LabelStorage {
 
         let bytes = contents.as_bytes();
         let len = bytes.len().min(Self::TEXT_BUF_LEN - 1);
-
-        let value = &contents.as_bytes()[..len];
-
+        let value = &bytes[..len];
         self.tree.update_and_fetch(key, |_| Some(value))?;
-        // self.db.insert(key, value)?;
 
         Ok(())
     }
@@ -264,9 +261,7 @@ impl LabelStorage {
     }
 
     pub fn new(db: &sled::Db) -> Result<Self> {
-        // let db = sled::open("waragraph_labels")?;
         let tree = db.open_tree("labels")?;
-
         let label_names = HashMap::default();
         let buffers = Vec::new();
         let desc_sets = Vec::new();

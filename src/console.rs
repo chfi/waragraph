@@ -56,37 +56,41 @@ impl Console {
     ) -> Result<()> {
         match input {
             ConsoleInput::AppendChar(c) => {
-                self.input.push(c);
-                // self.input.insert(self.focus, c);
-                // self.focus += 1;
+                self.input.insert(self.focus, c);
+                self.focus += 1;
             }
             ConsoleInput::Submit => {
                 match eval::<rhai::Dynamic>(db, &self.input) {
                     Ok(r) => {
-                        //
                         log::warn!("Console result: {:?}", r);
                     }
                     Err(e) => {
-                        //
                         log::error!("Console error: {:?}", e);
                     }
                 }
                 self.input.clear();
-                // self.focus = 0;
+                self.focus = 0;
             }
             ConsoleInput::Backspace => {
-                self.input.pop();
-                /*
                 if self.focus >= 1 {
-                    log::error!("backspacing! len: {}", self.input.len());
-                    log::error!("focus: {}", self.focus);
-
-                    log::error!("BEFORE input {}", self.input);
                     self.focus -= 1;
-                    self.input.remove(self.focus - 1);
-                    log::error!(" AFTER input {}", self.input);
+                    self.input.remove(self.focus);
                 }
-                */
+            }
+            ConsoleInput::Delete => {
+                if self.focus < self.input.len() {
+                    self.input.remove(self.focus);
+                }
+            }
+            ConsoleInput::Left => {
+                if self.focus > 0 {
+                    self.focus -= 1;
+                }
+            }
+            ConsoleInput::Right => {
+                if self.focus < self.input.len() {
+                    self.focus += 1;
+                }
             }
         }
 
@@ -103,9 +107,9 @@ pub enum ConsoleInput {
     AppendChar(char),
     Submit,
     Backspace,
-    // Delete,
-    // Left,
-    // Right,
+    Left,
+    Right,
+    Delete,
     // InsertChar(char),
     // Home,
     // End,
