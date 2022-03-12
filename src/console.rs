@@ -25,6 +25,72 @@ use bstr::ByteSlice as BstrByteSlice;
 
 use crate::viewer::ViewDiscrete1D;
 
+#[derive(Default, Clone)]
+pub struct Console {
+    pub input: String,
+    focus: usize,
+}
+
+impl Console {
+    /*
+    pub fn handle_input(
+        &mut self,
+        input: &winit::event::KeyboardInput,
+    ) -> Result<()> {
+        // winit::event::ElementState::
+        // input.state
+        let pressed =
+            matches!(input.state, winit::event::ElementState::Pressed);
+
+        if let Some(vk) = input.virtual_keycode {
+            match vk {}
+        }
+    }
+    */
+
+    fn handle_input(
+        &mut self,
+        db: &sled::Db,
+        input: ConsoleInput,
+    ) -> Result<()> {
+        match input {
+            ConsoleInput::AppendChar(c) => {
+                self.input.insert(self.focus, c);
+                self.focus += 1;
+            }
+            ConsoleInput::Submit => {
+                eval(db, &self.input)?;
+                self.input.clear();
+                self.focus = 0;
+            }
+            ConsoleInput::Backspace => {
+                if self.focus >= 1 {
+                    self.input.remove(self.focus);
+                    self.focus -= 1;
+                }
+            }
+        }
+
+        Ok(())
+    }
+}
+
+// enum ConsoleInput<'a> {
+//     AppendStr(&'a str),
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum ConsoleInput {
+    AppendChar(char),
+    Submit,
+    Backspace,
+    // Delete,
+    // Left,
+    // Right,
+    // InsertChar(char),
+    // Home,
+    // End,
+    // Endline,
+}
+
 pub fn create_engine(db: &sled::Db) -> rhai::Engine {
     //
     let mut engine = rhai::Engine::new();
