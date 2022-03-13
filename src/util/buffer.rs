@@ -37,6 +37,41 @@ pub enum BufFmt {
     FVec4,
 }
 
+macro_rules! as_fns {
+    // ($val:expr, $refn:ident, $res:ty) => {
+    ($val:expr, $refn:ident, $mutn:ident, $res:ty) => {
+        pub fn $refn(&self, bytes: &[u8]) -> Option<&[$res]> {
+            if *self != $val || !self.is_compatible(bytes) {
+                return None;
+            }
+
+            let slice = unsafe {
+                let ptr = bytes.as_ptr();
+                let data = ptr.cast() as *const $res;
+                let len = bytes.len() / self.size();
+                std::slice::from_raw_parts(data, len)
+            };
+
+            Some(slice)
+        }
+
+        pub fn $mutn(&self, bytes: &mut [u8]) -> Option<&mut [$res]> {
+            if *self != $val || !self.is_compatible(bytes) {
+                return None;
+            }
+
+            let slice = unsafe {
+                let ptr = bytes.as_mut_ptr();
+                let data = ptr.cast() as *mut $res;
+                let len = bytes.len() / self.size();
+                std::slice::from_raw_parts_mut(data, len)
+            };
+
+            Some(slice)
+        }
+    };
+}
+
 impl BufFmt {
     pub fn from_fmt(fmt: [u8; 3]) -> Option<Self> {
         match &fmt[..] {
@@ -80,36 +115,9 @@ impl BufFmt {
     }
 
     // TODO these should be put in a macro or handled using const generics
-
-    pub fn as_uint(&self, bytes: &[u8]) -> Option<&[u32]> {
-        if *self != BufFmt::UInt || !self.is_compatible(bytes) {
-            return None;
-        }
-
-        let slice = unsafe {
-            let ptr = bytes.as_ptr();
-            let data = ptr.cast() as *const u32;
-            let len = bytes.len() / self.size();
-            std::slice::from_raw_parts(data, len)
-        };
-
-        Some(slice)
-    }
-
-    pub fn as_uvec2(&self, bytes: &[u8]) -> Option<&[[u32; 2]]> {
-        if *self != BufFmt::UVec2 || !self.is_compatible(bytes) {
-            return None;
-        }
-
-        let slice = unsafe {
-            let ptr = bytes.as_ptr();
-            let data = ptr.cast() as *const [u32; 2];
-            let len = bytes.len() / self.size();
-            std::slice::from_raw_parts(data, len)
-        };
-
-        Some(slice)
-    }
+    as_fns!(BufFmt::UInt, as_uint_ref, as_uint_mut, u32);
+    as_fns!(BufFmt::UInt, as_uvec2_ref, as_uvec2_mut, [u32; 2]);
+    as_fns!(BufFmt::UInt, as_uvec4_ref, as_uvec4_mut, [u32; 4]);
 
     pub fn is_compatible(&self, bytes: &[u8]) -> bool {
         let good_len = bytes.len() % self.size() == 0;
@@ -222,6 +230,10 @@ mod tests {
         assert!(!f_uvec4.is_compatible(z_u4_10.as_bytes()));
 
         assert!(f_uvec4.is_compatible(z_u4_12.as_bytes()));
+
+        // casts
+
+        assert!(f_uint.as_uint_ref(z_u4_10.as_bytes()).is_some());
 
         // assert!(f_1u4.is_compatible(z_u4_1.as_slice()));
 
