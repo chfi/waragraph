@@ -114,6 +114,71 @@ impl BufFmt {
         }
     }
 
+    pub fn as_slice<T: Copy + FromBytes>(&self, bytes: &[u8]) -> Option<&[T]> {
+        if bytes.len() % self.size() != 0 {
+            return None;
+        }
+
+        let slice = unsafe {
+            let ptr = bytes.as_ptr();
+            let data = ptr.cast() as *const T;
+            let len = bytes.len() / self.size();
+            std::slice::from_raw_parts(data, len)
+        };
+
+        Some(slice)
+    }
+
+    pub fn as_slice_mut<T: Copy + FromBytes>(
+        &self,
+        bytes: &mut [u8],
+    ) -> Option<&mut [T]> {
+        if bytes.len() % self.size() != 0 {
+            return None;
+        }
+
+        let slice = unsafe {
+            let ptr = bytes.as_mut_ptr();
+            let data = ptr.cast() as *mut T;
+            let len = bytes.len() / self.size();
+            std::slice::from_raw_parts_mut(data, len)
+        };
+
+        Some(slice)
+    }
+
+    pub fn map<T, F>(&self, bytes: &mut [u8], mut f: F) -> Option<&mut [T]>
+    where
+        T: Copy + FromBytes,
+        F: FnMut(&mut T),
+    {
+        let slice_mut = self.as_slice_mut::<T>(bytes)?;
+
+        for v in slice_mut.iter_mut() {
+            f(v);
+        }
+
+        Some(slice_mut)
+    }
+
+    pub fn map_assign<T, F>(
+        &self,
+        bytes: &mut [u8],
+        mut f: F,
+    ) -> Option<&mut [T]>
+    where
+        T: Copy + FromBytes,
+        F: FnMut(T) -> T,
+    {
+        let slice_mut = self.as_slice_mut::<T>(bytes)?;
+
+        for v in slice_mut.iter_mut() {
+            *v = f(*v);
+        }
+
+        Some(slice_mut)
+    }
+
     // TODO these should be put in a macro or handled using const generics
     as_fns!(BufFmt::UInt, as_uint_ref, as_uint_mut, u32);
     as_fns!(BufFmt::UInt, as_uvec2_ref, as_uvec2_mut, [u32; 2]);
