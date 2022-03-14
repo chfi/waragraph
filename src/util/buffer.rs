@@ -6,7 +6,10 @@ use raving::vk::{
 };
 use rspirv_reflect::DescriptorInfo;
 
-use sled::transaction::{TransactionError, TransactionResult};
+use sled::{
+    transaction::{TransactionError, TransactionResult},
+    IVec,
+};
 use std::{
     collections::{BTreeMap, HashMap},
     sync::Arc,
@@ -29,8 +32,54 @@ pub struct BufMeta<N: AsRef<[u8]>> {
     name: N,
     fmt: BufFmt,
     capacity: usize,
-    buffer_ix: BufferIx,
-    storage_set_ix: DescSetIx,
+}
+
+impl<N: AsRef<[u8]>> BufMeta<N> {
+    pub fn insert_at(&self, store: &BufferStorage, id: u64) -> Result<()> {
+        // create the sled keys for the name, fmt, cap
+        // then the contents
+        // then insert
+        let k_id = BufferStorage::id_key(id);
+        let k_fmt = BufferStorage::fmt_key(id);
+        let k_cap = BufferStorage::cap_key(id);
+
+        store.tree.transaction::<_, _, TransactionError>(|tree| {
+            tree.insert(&k_id, self.name.as_ref())?;
+            tree.insert(&k_fmt, self.fmt.to_bytes().as_slice())?;
+            tree.insert(&k_cap, &self.capacity.to_le_bytes())?;
+            Ok(())
+        })?;
+
+        Ok(())
+    }
+}
+
+impl BufMeta<IVec> {
+    pub fn get_stored(store: &BufferStorage, id: u64) -> Result<Self> {
+        let k_id = BufferStorage::id_key(id);
+        let k_fmt = BufferStorage::fmt_key(id);
+        let k_cap = BufferStorage::cap_key(id);
+
+        let name = store.tree.get(&k_id)?.ok_or(anyhow!("buffer not found"))?;
+
+        let fmt = store
+            .tree
+            .get(&k_fmt)?
+            .and_then(|bs| BufFmt::from_bytes(bs.as_ref()))
+            .ok_or(anyhow!("fmt not found"))?;
+
+        let capacity = store
+            .tree
+            .get(&k_cap)?
+            .and_then(|bs| usize::read_from(bs.as_ref()))
+            .ok_or(anyhow!("capacity not found"))?;
+
+        Ok(Self {
+            name,
+            fmt,
+            capacity,
+        })
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -82,8 +131,21 @@ macro_rules! as_fns {
 }
 
 impl BufFmt {
-    pub fn from_fmt(fmt: [u8; 3]) -> Option<Self> {
-        match &fmt[..] {
+    pub const fn to_bytes(&self) -> [u8; 3] {
+        match self {
+            BufFmt::UInt => *b"1u4",
+            BufFmt::SInt => *b"1i4",
+            BufFmt::Float => *b"1f4",
+            BufFmt::UVec2 => *b"2u4",
+            BufFmt::UVec4 => *b"4u4",
+            BufFmt::SVec4 => *b"4i4",
+            BufFmt::FVec4 => *b"4f4",
+        }
+    }
+
+    // pub fn from_bytes(fmt: [u8; 3]) -> Option<Self> {
+    pub fn from_bytes(fmt: &[u8]) -> Option<Self> {
+        match fmt {
             /*
             // 1-4 bytes as u32
             b"1u1" => Some(Self::UInt),
@@ -228,7 +290,7 @@ pub struct BufferStorage {
 macro_rules! key_fn {
     // ($fn_name:ident, $init:expr, $offset:literal, $out_len:literal) => {
     ($fn_name:ident, $out:ty, $init:expr, $offset:literal) => {
-        const fn $fn_name(id: u64) -> $out {
+        pub const fn $fn_name(id: u64) -> $out {
             let src = id.to_le_bytes();
             let mut key = $init;
 
@@ -244,7 +306,7 @@ macro_rules! key_fn {
 }
 
 impl BufferStorage {
-    const ID_NAME_MASK: [u8; 10] = *b"I:01234567";
+    const ID_NAME_MASK: [u8; 10] = *b"n:01234567";
     // use scan_prefix to iterate through all names and IDs, i guess
     const NAME_ID_PREFIX: &'static [u8] = b"buffer_id:";
 
@@ -256,7 +318,7 @@ impl BufferStorage {
     const BUF_IX_MASK: [u8; 10] = *b"B:01234567";
     const SET_IX_MASK: [u8; 10] = *b"S:01234567";
 
-    const VEC_ID_MASK: [u8; 10] = *b"i:01234567";
+    const VEC_ID_MASK: [u8; 10] = *b"v:01234567";
 
     /*
     const fn buf_ix_key(id: u64) -> [u8; 10] {
@@ -273,14 +335,15 @@ impl BufferStorage {
     }
     */
 
-    key_fn!(buf_ix_key, [u8; 10], Self::BUF_IX_MASK, 2);
-    key_fn!(set_ix_key, [u8; 10], Self::SET_IX_MASK, 2);
-
+    key_fn!(id_key, [u8; 10], Self::ID_NAME_MASK, 2);
     key_fn!(data_key, [u8; 10], Self::BUF_DATA_MASK, 2);
     key_fn!(fmt_key, [u8; 10], Self::BUF_FMT_MASK, 2);
+    key_fn!(cap_key, [u8; 10], Self::BUF_CAP_MASK, 2);
 
     key_fn!(vec_id_key, [u8; 10], Self::VEC_ID_MASK, 2);
 
+    key_fn!(buf_ix_key, [u8; 10], Self::BUF_IX_MASK, 2);
+    key_fn!(set_ix_key, [u8; 10], Self::SET_IX_MASK, 2);
     /*
       each name gets mapped to a u64 sled id
     */
@@ -345,12 +408,25 @@ impl BufferStorage {
 
         let id_u8 = id.to_le_bytes();
 
+        // "buffer_id:{name}" -> id
         self.tree.insert(name_key, &id_u8)?;
+        // id -> name
+        let k_id = Self::id_key(id);
+        self.tree.insert(k_id, name.as_bytes())?;
+
+        // id -> fmt, id -> cap
+        let k_fmt = Self::fmt_key(id);
+        let k_cap = Self::cap_key(id);
+
+        self.tree.insert(k_fmt, &fmt.to_bytes())?;
+        self.tree.insert(k_cap, &capacity.to_le_bytes())?;
+
+        // let k_data = Self::data_key(id);
 
         // self.tree
         //     .insert(Self::buf_ix_key(id), &buf.0.to_bits().as_le_bytes())?;
 
-        todo!();
+        Ok(id)
     }
 }
 
