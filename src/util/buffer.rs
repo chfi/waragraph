@@ -361,6 +361,92 @@ impl BufferStorage {
         })
     }
 
+    /*
+    pub fn allocate_buffer_and_fill(
+        &mut self,
+        engine: &mut VkEngine,
+        db: &sled::Db,
+        name: &str,
+        fmt: BufFmt,
+        capacity: usize,
+
+    ) -> Result<u64> {
+    }
+    */
+
+    pub fn fill_slice_from<T: Copy + FromBytes>(
+        fmt: BufFmt,
+        capacity: usize,
+        src: &[T],
+        dst: &mut [u8],
+    ) -> Option<()> {
+        let elem_size = fmt.size();
+        let align_prefix = elem_size;
+
+        let len = src.len().min(capacity);
+
+        let dst_data = {
+            let len = len as u32;
+            let (prefix, data) = dst.split_at_mut(elem_size);
+
+            let prefix_n = align_prefix / std::mem::size_of::<u32>();
+            log::warn!("prefix_n: {}", prefix_n);
+            for i in 0..prefix_n {
+                let s = i * 4;
+                let e = s + 4;
+                prefix[s..e].clone_from_slice(&len.to_le_bytes());
+            }
+
+            let slice: &mut [T] = fmt.as_slice_mut(data)?;
+            slice
+        };
+
+        for (s, d) in std::iter::zip(src, dst_data) {
+            *d = *s;
+        }
+
+        Some(())
+    }
+
+    pub fn fill_slice_from_data<T: Copy + FromBytes>(
+        &self,
+        id: u64,
+        dst: &mut [u8],
+    ) -> Option<()> {
+        let meta = BufMeta::get_stored(self, id).ok()?;
+
+        let elem_size = meta.fmt.size();
+        let align_prefix = elem_size;
+
+        let src = {
+            let k_dat = Self::data_key(id);
+            let raw = self.tree.get(k_dat).ok()??;
+            let src: &[T] = meta.fmt.as_slice(&raw)?;
+            src
+        };
+
+        let len = src.len().min(meta.capacity);
+
+        let dst_data = {
+            let (prefix, data) = dst.split_at_mut(elem_size);
+
+            for i in 0..(align_prefix / std::mem::size_of::<u32>()) {
+                let s = i * 4;
+                let e = s + 4;
+                prefix[s..e].clone_from_slice(&len.to_le_bytes());
+            }
+
+            let slice: &mut [T] = meta.fmt.as_slice_mut(data)?;
+            slice
+        };
+
+        for (s, d) in std::iter::zip(src, dst_data) {
+            *d = *s;
+        }
+
+        Some(())
+    }
+
     pub fn allocate_buffer(
         &mut self,
         engine: &mut VkEngine,
@@ -432,8 +518,42 @@ impl BufferStorage {
 
 #[cfg(test)]
 mod tests {
+    use rand::prelude::*;
 
     use super::*;
+
+    #[test]
+    fn fill_with_fmt() {
+        let mut rng = rand::thread_rng();
+
+        let fmt = BufFmt::UInt;
+        let capacity = 64;
+
+        let mut buf = vec![0u8; capacity * fmt.size()];
+
+        let len = 40;
+
+        let mut src_uints: Vec<u32> = (0u32..len).collect();
+        src_uints.shuffle(&mut rng);
+
+        let _print_as_u32s = |s: &str, bytes: &[u8]| {
+            if let Some(slice) = fmt.as_slice::<u32>(bytes) {
+                let len = slice[0];
+                eprintln!("{} len {} - {:?}", s, len, &slice[1..]);
+            }
+        };
+
+        BufferStorage::fill_slice_from::<u32>(fmt, 40, &src_uints, &mut buf);
+
+        let (dst_len, dst_data) = {
+            let slice = fmt.as_slice::<u32>(&buf).unwrap();
+            let len = slice[0] as usize;
+            (len, &slice[1..len + 1])
+        };
+
+        assert_eq!(dst_len, src_uints.len());
+        assert_eq!(dst_data, &src_uints);
+    }
 
     #[test]
     fn fmt_compatibility() {
