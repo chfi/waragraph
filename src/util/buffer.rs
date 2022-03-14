@@ -24,6 +24,15 @@ use parking_lot::Mutex;
 #[allow(unused_imports)]
 use anyhow::{anyhow, bail, Result};
 
+#[derive(Clone)]
+pub struct BufMeta<N: AsRef<[u8]>> {
+    name: N,
+    fmt: BufFmt,
+    capacity: usize,
+    buffer_ix: BufferIx,
+    storage_set_ix: DescSetIx,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum BufFmt {
     UInt,
@@ -216,13 +225,65 @@ pub struct BufferStorage {
     desc_sets: Vec<DescSetIx>,
 }
 
+macro_rules! key_fn {
+    // ($fn_name:ident, $init:expr, $offset:literal, $out_len:literal) => {
+    ($fn_name:ident, $out:ty, $init:expr, $offset:literal) => {
+        const fn $fn_name(id: u64) -> $out {
+            let src = id.to_le_bytes();
+            let mut key = $init;
+
+            let mut i = 0;
+            while i < 8 {
+                let s = src[0];
+                key[$offset + i] = s;
+                i += 1;
+            }
+            key
+        }
+    };
+}
+
 impl BufferStorage {
-    const BUF_IX_MASK: [u8; 10] = *b"B:01234567";
-    const SET_IX_MASK: [u8; 10] = *b"S:01234567";
+    const ID_NAME_MASK: [u8; 10] = *b"I:01234567";
+    // use scan_prefix to iterate through all names and IDs, i guess
+    const NAME_ID_PREFIX: &'static [u8] = b"buffer_id:";
 
     const BUF_DATA_MASK: [u8; 10] = *b"d:01234567";
     // used to store e.g. "[u8;2]"; basically a simple schema
     const BUF_FMT_MASK: [u8; 10] = *b"f:01234567";
+    const BUF_CAP_MASK: [u8; 10] = *b"c:01234567";
+
+    const BUF_IX_MASK: [u8; 10] = *b"B:01234567";
+    const SET_IX_MASK: [u8; 10] = *b"S:01234567";
+
+    const VEC_ID_MASK: [u8; 10] = *b"i:01234567";
+
+    /*
+    const fn buf_ix_key(id: u64) -> [u8; 10] {
+        let src = id.to_le_bytes();
+        let mut key = Self::BUF_IX_MASK;
+
+        let mut i = 0;
+        while i < 8 {
+            let s = src[0];
+            key[2 + i] = s;
+            i += 1;
+        }
+        key
+    }
+    */
+
+    key_fn!(buf_ix_key, [u8; 10], Self::BUF_IX_MASK, 2);
+    key_fn!(set_ix_key, [u8; 10], Self::SET_IX_MASK, 2);
+
+    key_fn!(data_key, [u8; 10], Self::BUF_DATA_MASK, 2);
+    key_fn!(fmt_key, [u8; 10], Self::BUF_FMT_MASK, 2);
+
+    key_fn!(vec_id_key, [u8; 10], Self::VEC_ID_MASK, 2);
+
+    /*
+      each name gets mapped to a u64 sled id
+    */
 
     pub fn new(db: &sled::Db) -> Result<Self> {
         let tree = db.open_tree("buffer_storage")?;
@@ -237,7 +298,60 @@ impl BufferStorage {
         })
     }
 
-    // pub fn allocate_buffer(&mut self, name: &str,
+    pub fn allocate_buffer(
+        &mut self,
+        engine: &mut VkEngine,
+        db: &sled::Db,
+        name: &str,
+        fmt: BufFmt,
+        capacity: usize,
+    ) -> Result<u64> {
+        let elem_size = fmt.size();
+
+        let id = db.generate_id()?;
+
+        let (buf, set) = engine.with_allocators(|ctx, res, alloc| {
+            let mem_loc = gpu_allocator::MemoryLocation::CpuToGpu;
+            let usage = vk::BufferUsageFlags::STORAGE_BUFFER
+                | vk::BufferUsageFlags::TRANSFER_SRC
+                | vk::BufferUsageFlags::TRANSFER_DST;
+
+            let buffer = res.allocate_buffer(
+                ctx,
+                alloc,
+                mem_loc,
+                elem_size,
+                capacity,
+                usage,
+                Some(name),
+            )?;
+
+            let buf_ix = res.insert_buffer(buffer);
+
+            let desc_set = crate::util::allocate_buffer_desc_set(buf_ix, res)?;
+
+            let set_ix = res.insert_desc_set(desc_set);
+
+            Ok((buf_ix, set_ix))
+        })?;
+
+        let ix = self.buffers.len();
+
+        self.buffers.push(buf);
+        self.desc_sets.push(set);
+
+        let mut name_key = Self::NAME_ID_PREFIX.to_vec();
+        name_key.extend(name.as_bytes());
+
+        let id_u8 = id.to_le_bytes();
+
+        self.tree.insert(name_key, &id_u8)?;
+
+        // self.tree
+        //     .insert(Self::buf_ix_key(id), &buf.0.to_bits().as_le_bytes())?;
+
+        todo!();
+    }
 }
 
 #[cfg(test)]
