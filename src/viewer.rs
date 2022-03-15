@@ -169,6 +169,8 @@ impl PathViewer {
 
         let mut slots = Vec::with_capacity(slot_count);
 
+        let slot_count = slot_count.min(path_count);
+
         for i in 0..slot_count {
             let name = format!("{}_slot_{}", name_prefix, i);
             let slot = PathViewSlot::new(ctx, res, alloc, width, Some(&name))?;

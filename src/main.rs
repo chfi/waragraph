@@ -287,8 +287,8 @@ fn main() -> Result<()> {
 
     db.insert(b"sample_indices", samples_db.as_bytes())?;
 
-    // let slot_count = waragraph.paths.len();
-    let slot_count = 32;
+    // TODO set slot_count based on available height, and row height
+    let slot_count = 10;
 
     let mut path_viewer = engine.with_allocators(|ctx, res, alloc| {
         PathViewer::new(

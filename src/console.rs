@@ -152,6 +152,8 @@ pub fn append_to_engine(
         IVec::from(vec![0u8; len])
     });
 
+    engine.register_fn("to_blob", |v: &mut IVec| v.to_vec());
+
     engine.register_fn("print_vec", |v: &mut IVec| {
         if let Ok(string) = v.to_str() {
             log::error!("print: {}", string);
