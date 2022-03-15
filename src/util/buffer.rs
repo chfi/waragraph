@@ -484,6 +484,10 @@ impl BufferStorage {
             Ok((buf_ix, set_ix))
         })?;
 
+        if let Some(slice) = engine.resources[buf].mapped_slice_mut() {
+            slice.fill(0);
+        }
+
         let ix = self.buffers.len();
 
         self.buffers.push(buf);
