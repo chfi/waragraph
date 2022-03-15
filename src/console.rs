@@ -25,6 +25,9 @@ use bstr::ByteSlice as BstrByteSlice;
 
 use crate::{util::LabelStorage, viewer::ViewDiscrete1D};
 
+// pub mod ivec;
+// pub mod labels;
+
 #[derive(Default, Clone)]
 pub struct Console {
     pub input: String,
@@ -132,9 +135,8 @@ pub fn append_to_engine(
     db: &sled::Db,
     mut engine: rhai::Engine,
 ) -> rhai::Engine {
-    // engine.register_static_module(name, module)
-
-    //
+    // example of loading a rhai script as a console module
+    /*
     let ast = engine.compile_file("util.rhai".into()).unwrap();
 
     let module =
@@ -144,6 +146,7 @@ pub fn append_to_engine(
     let module = Arc::new(module);
 
     engine.register_global_module(module.clone());
+    */
 
     engine.register_type_with_name::<IVec>("IVec");
 

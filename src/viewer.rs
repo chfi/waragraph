@@ -165,6 +165,7 @@ impl PathViewer {
         name_prefix: &str,
         path_count: usize,
     ) -> Result<Self> {
+        // db.drop_tree(b"path_viewer")?;
         let tree = db.open_tree(b"path_viewer")?;
 
         let mut slots = Vec::with_capacity(slot_count);

@@ -283,8 +283,8 @@ impl BufFmt {
 pub struct BufferStorage {
     pub tree: sled::Tree,
 
-    buffers: Vec<BufferIx>,
-    desc_sets: Vec<DescSetIx>,
+    pub buffers: Vec<BufferIx>,
+    pub desc_sets: Vec<DescSetIx>,
 }
 
 macro_rules! key_fn {
@@ -315,8 +315,8 @@ impl BufferStorage {
     const BUF_FMT_MASK: [u8; 10] = *b"f:01234567";
     const BUF_CAP_MASK: [u8; 10] = *b"c:01234567";
 
-    const BUF_IX_MASK: [u8; 10] = *b"B:01234567";
-    const SET_IX_MASK: [u8; 10] = *b"S:01234567";
+    // const BUF_IX_MASK: [u8; 10] = *b"B:01234567";
+    // const SET_IX_MASK: [u8; 10] = *b"S:01234567";
 
     const VEC_ID_MASK: [u8; 10] = *b"v:01234567";
 
@@ -342,8 +342,8 @@ impl BufferStorage {
 
     key_fn!(vec_id_key, [u8; 10], Self::VEC_ID_MASK, 2);
 
-    key_fn!(buf_ix_key, [u8; 10], Self::BUF_IX_MASK, 2);
-    key_fn!(set_ix_key, [u8; 10], Self::SET_IX_MASK, 2);
+    // key_fn!(buf_ix_key, [u8; 10], Self::BUF_IX_MASK, 2);
+    // key_fn!(set_ix_key, [u8; 10], Self::SET_IX_MASK, 2);
     /*
       each name gets mapped to a u64 sled id
     */
@@ -408,6 +408,27 @@ impl BufferStorage {
         Some(())
     }
 
+    pub fn fill_buffer<T: Copy + FromBytes>(
+        &self,
+        res: &mut GpuResources,
+        id: u64,
+    ) -> Option<()> {
+        // let buf_key = Self::buf_ix_key(id);
+        let k_vec = Self::vec_id_key(id);
+        let vec_ix = self.tree.get(k_vec).ok()??;
+        let vec_ix = usize::read_from(vec_ix.as_ref())?;
+
+        let buf_ix = self.buffers[vec_ix];
+
+        let buf = &mut res[buf_ix];
+
+        let dst = buf.alloc.mapped_slice_mut()?;
+
+        self.fill_slice_from_data::<T>(id, dst)?;
+
+        Some(())
+    }
+
     pub fn fill_slice_from_data<T: Copy + FromBytes>(
         &self,
         id: u64,
@@ -445,6 +466,26 @@ impl BufferStorage {
         }
 
         Some(())
+    }
+
+    pub fn insert_data<T: Copy + FromBytes>(
+        &self,
+        id: u64,
+        src: &[T],
+    ) -> Result<()> {
+        // 1. get the buffer metadata from sled
+        // 2. make sure the format matches T
+        // 3. limit the length of src based on capacity, if needed
+        // 4. cast src to a bytestring
+        // 5. insert bytestring at the data key
+
+        // let meta = BufMeta::get_stored(self, id).ok()?;
+
+        // let elem_size = meta.fmt.size();
+
+        // let mut dst =
+
+        todo!();
     }
 
     pub fn allocate_buffer(
@@ -490,6 +531,10 @@ impl BufferStorage {
 
         let ix = self.buffers.len();
 
+        let k_vec = Self::vec_id_key(id);
+
+        self.tree.insert(k_vec, &ix.to_le_bytes())?;
+
         self.buffers.push(buf);
         self.desc_sets.push(set);
 
@@ -510,11 +555,6 @@ impl BufferStorage {
 
         self.tree.insert(k_fmt, &fmt.to_bytes())?;
         self.tree.insert(k_cap, &capacity.to_le_bytes())?;
-
-        // let k_data = Self::data_key(id);
-
-        // self.tree
-        //     .insert(Self::buf_ix_key(id), &buf.0.to_bits().as_le_bytes())?;
 
         Ok(id)
     }

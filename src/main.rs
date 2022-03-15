@@ -21,7 +21,7 @@ use rspirv_reflect::DescriptorInfo;
 
 use sled::IVec;
 use waragraph::graph::{Node, Waragraph};
-use waragraph::util::LabelStorage;
+use waragraph::util::{BufFmt, BufferStorage, LabelStorage};
 use waragraph::viewer::{PathViewSlot, PathViewer, ViewDiscrete1D};
 use winit::event::{Event, VirtualKeyCode, WindowEvent};
 use winit::{event_loop::EventLoop, window::WindowBuilder};
@@ -63,6 +63,10 @@ fn main() -> Result<()> {
 
     let db = db_cfg.open()?;
 
+    // db.drop_tree("buffer_storage")?;
+    // db.drop_tree("path_viewer")?;
+    // db.drop_tree(b"sample_indices")?;
+
     // db.insert(b"test-key", b"oh no!!!")?;
 
     let waragraph = Waragraph::from_gfa(&gfa)?;
@@ -98,9 +102,16 @@ fn main() -> Result<()> {
 
     let mut engine = VkEngine::new(&window)?;
 
+    let mut buffers = BufferStorage::new(&db)?;
+
+    let fmt = BufFmt::UInt;
+    let buf_0 =
+        buffers.allocate_buffer(&mut engine, &db, "storage_0", fmt, 255)?;
+
     let mut txt = LabelStorage::new(&db)?;
 
     let mut sample_sub = db.watch_prefix(b"sample_indices");
+
     let mut text_sub = txt.tree.watch_prefix(b"t:");
 
     // path_v
@@ -269,7 +280,7 @@ fn main() -> Result<()> {
         }
     } else {
         let mut view = ViewDiscrete1D::new(waragraph.total_len());
-        view.resize(view.max() / 2);
+        // view.resize(view.max() / 2);
         view
     };
 
@@ -388,6 +399,7 @@ fn main() -> Result<()> {
         )?
     };
 
+    // let color_buffer = buffers.buffers[0];
     builder.bind_var("color_buffer", color_buffer)?;
 
     engine.with_allocators(|ctx, res, alloc| {

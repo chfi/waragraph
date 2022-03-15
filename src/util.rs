@@ -266,6 +266,7 @@ impl LabelStorage {
     }
 
     pub fn new(db: &sled::Db) -> Result<Self> {
+        // db.drop_tree("labels")?;
         let tree = db.open_tree("labels")?;
         let label_names = HashMap::default();
         let buffers = Vec::new();
