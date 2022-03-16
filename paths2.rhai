@@ -20,7 +20,7 @@ export let text_shader = load_shader("shaders/text.comp.spv",
 export let text_pipeline = create_compute_pipeline(text_shader);
 
 // line rasterizer
-export let line_shader = load_shader("shaders/lines.comp.spv",
+export let line_shader = load_shader("shaders/lines_sdf.comp.spv",
                                      vk::ShaderStageFlags::COMPUTE);
 export let line_pipeline = create_compute_pipeline(line_shader);
 
@@ -265,13 +265,13 @@ fn foreground(batch, labels, desc_sets, slot_w, w, h) {
   pc.append_int(w);
   pc.append_int(h);
 
-  let x_size = 64;
+  // let x_size = 64;
+  let x_size = 8;
+  let y_size = 8;
 
-  let x_groups = (len / x_size) + len % x_size;
-  let workgroups = #{ x_groups: x_groups,
-                      y_groups: 1,
+  let workgroups = #{ x_groups: (w / x_size) + w % x_size,
+                      y_groups: (h / y_size) + h % y_size,
                       z_groups: 1 };
-
 
 
   batch.dispatch_compute(self::line_pipeline.get(),

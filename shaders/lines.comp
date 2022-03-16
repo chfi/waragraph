@@ -27,6 +27,12 @@ layout (push_constant) uniform Inputs {
 } inputs;
 
 
+float sdSegment( in vec2 p, in vec2 a, in vec2 b )
+{
+    vec2 pa = p-a, ba = b-a;
+    float h = clamp( dot(pa,ba)/dot(ba,ba), 0.0, 1.0 );
+    return length( pa - ba*h );
+}
 
 void main() {
 
@@ -50,6 +56,8 @@ void main() {
   float slope = float(dy)/float(dx);
 
   float y = float(p0.y);
+
+  // float v = sdSegment(
 
   for (uint i = 0; i < dx; i++) {
     int x_i = int(p0.x + i);
