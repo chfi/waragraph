@@ -22,7 +22,7 @@ use rspirv_reflect::DescriptorInfo;
 
 use sled::IVec;
 use waragraph::graph::{Node, Waragraph};
-use waragraph::util::{BufFmt, BufMeta, BufferStorage, LabelStorage};
+use waragraph::util::{BufFmt, BufId, BufMeta, BufferStorage, LabelStorage};
 use waragraph::viewer::{PathViewSlot, PathViewer, ViewDiscrete1D};
 use winit::event::{Event, VirtualKeyCode, WindowEvent};
 use winit::{event_loop::EventLoop, window::WindowBuilder};
@@ -59,8 +59,10 @@ fn main() -> Result<()> {
     };
 
     let db_cfg = sled::Config::default()
-        .path("waragraph_viewer")
-        .flush_every_ms(Some(10_000)); // probably don't even need every 10s
+        .temporary(true)
+        .flush_every_ms(Some(10_000));
+    // .path("waragraph_viewer")
+    // .flush_every_ms(Some(10_000)); // probably don't even need every 10s
 
     let db = db_cfg.open()?;
 
@@ -101,7 +103,12 @@ fn main() -> Result<()> {
     let mut engine = VkEngine::new(&window)?;
 
     let mut buffers = BufferStorage::new(&db)?;
-    let mut buffer_sub = buffers.tree.watch_prefix(b"d:");
+    let mut name_sub = buffers.tree.watch_prefix(b"n:");
+
+    // let mut buffer_sub = buffers.tree.watch_prefix(b"d:");
+    let mut buffer_sub = buffers.tree.watch_prefix(vec![100, 58]);
+
+    // let mut buffer_sub = db.watch_prefix(b"bufferstoraged:");
 
     let fmt = BufFmt::FVec4;
     let buf_0 =
@@ -409,20 +416,24 @@ fn main() -> Result<()> {
     let fmt = BufFmt::UVec4;
     let line_buf =
         buffers.allocate_buffer(&mut engine, &db, "line_storage", fmt, 64)?;
-    log::error!("line_storage -> {}", line_buf);
+    log::error!("line_storage -> {:?}", line_buf);
 
-    let line = |x0: f32, y0: f32, x1: f32, y1: f32| [x0, y0, x1, y1];
+    let line = |x0: u32, y0: u32, x1: u32, y1: u32| [x0, y0, x1, y1];
 
     log::error!("inserting data for line_buf");
     buffers.insert_data(
         line_buf,
-        &[
-            line(100.0, 100.0, 500.0, 300.0),
-            line(100.0, 300.0, 500.0, 300.0),
-        ],
+        &[line(100, 100, 500, 300), line(100, 300, 500, 300)],
     )?;
-
     log::error!("inserted??? data for line_buf");
+
+    dbg!();
+    buffers.fill_buffer(&mut engine.resources, buf_0).unwrap();
+    dbg!();
+    buffers
+        .fill_buffer(&mut engine.resources, line_buf)
+        .unwrap();
+
     println!();
 
     log::warn!("buffer names");
@@ -437,8 +448,13 @@ fn main() -> Result<()> {
     log::warn!("buffers tree d: prefix");
     for (ix, res) in buffers.tree.scan_prefix(b"d:").enumerate() {
         let (key, val) = res.unwrap();
-        let id = u64::read_from(key[2..].as_ref()).unwrap();
-        log::warn!("id {} - {:?}", id, val);
+
+        let id = BufId::read_from_suffix(&key[..]).unwrap();
+        let meta = BufMeta::get_stored(&buffers.tree, id).unwrap();
+
+        // buffers.fill_buffer(&mut engine.resources, id).unwrap();
+
+        log::warn!("id {:?} - {} - {:?}", id, meta.name.as_bstr(), val);
         // log::warn!("key {}", ix);
     }
 
@@ -609,24 +625,36 @@ fn main() -> Result<()> {
                 let frame_start = std::time::Instant::now();
 
                 while let Ok(ev) =
-                    buffer_sub.next_timeout(Duration::from_micros(1000))
+                    name_sub.next_timeout(Duration::from_millis(10))
                 {
+                    log::error!("name sub!");
+                }
+                while let Ok(ev) =
+                    buffer_sub.next_timeout(Duration::from_millis(10))
+                {
+                    log::error!("buffer sub!");
                     match ev {
                         sled::Event::Insert { key, value } => {
-                            let id = u64::read_from(&key[2..]).unwrap();
+                            let id = BufId::read_from_suffix(&key[..]).unwrap();
                             let meta = BufMeta::get_stored(&buffers.tree, id).unwrap();
 
                             log::error!(
-                                "buffer value updated for id {}, name {}\nvalue\t{:#?}",
+                                "buffer value updated for {:?}, name {}\nvalue\t{:#?}",
                                 id,
                                 meta.name.as_bstr(),
                                 value
                             );
+
                             buffers
                                 .fill_buffer(&mut engine.resources, id)
                                 .unwrap();
                         }
-                        _ => (),
+                        sled::Event::Remove { key } => {
+
+                            let id = BufId::read_from_suffix(&key[..]).unwrap();
+                            let meta = BufMeta::get_stored(&buffers.tree, id).unwrap();
+                            log::error!("removed data key for buffer {}", meta.name.as_bstr());
+                        }
                     }
                 }
 
@@ -1101,6 +1129,9 @@ fn main() -> Result<()> {
                             } else if matches!(kc, VK::Down) {
                                 view.resize((len + len / 10) as usize);
                             } else if matches!(kc, VK::Space) {
+
+                                buffers.insert_data(buf_0, &[rgb(0.0, 0.0, 0.0), rgb(1.0, 0.0, 0.0)]).unwrap();
+
                                 view.reset();
                             } else if matches!(kc, VK::PageUp) {
                                 path_viewer.scroll_up();

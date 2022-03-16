@@ -24,7 +24,7 @@ use anyhow::{anyhow, bail, Result};
 use bstr::ByteSlice as BstrByteSlice;
 
 use crate::{
-    util::{BufMeta, BufferStorage, LabelStorage},
+    util::{BufId, BufMeta, BufferStorage, LabelStorage},
     viewer::ViewDiscrete1D,
 };
 
@@ -148,11 +148,11 @@ pub fn register_buffer_storage(
             .get(&name_key)
             .ok()
             .flatten()
-            .and_then(|id| u64::read_from(id.as_ref()))
+            .and_then(|id| BufId::read_from(id.as_ref()))
             .unwrap();
 
         // 2. get the vec index from the ID
-        let k_vec = BufferStorage::vec_id_key(id);
+        let k_vec = id.as_vec_key();
         let vec_ix = tree.get(&k_vec).ok().flatten().unwrap();
         let vec_ix = usize::read_from(vec_ix.as_ref()).unwrap();
 
@@ -162,7 +162,7 @@ pub fn register_buffer_storage(
         // 4. get the length via the buffer data, i guess
         let meta = BufMeta::get_stored(&tree, id).unwrap();
 
-        let k_data = BufferStorage::data_key(id);
+        let k_data = id.as_data_key();
         let data = tree.get(&k_data).ok().flatten();
         let len = data.map(|d| d.len() / meta.fmt.size()).unwrap_or_default();
 

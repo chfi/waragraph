@@ -35,16 +35,16 @@ pub struct BufMeta<N: AsRef<[u8]>> {
 }
 
 impl<N: AsRef<[u8]>> BufMeta<N> {
-    pub fn insert_at(&self, store: &BufferStorage, id: u64) -> Result<()> {
+    pub fn insert_at(&self, store: &BufferStorage, id: BufId) -> Result<()> {
         // create the sled keys for the name, fmt, cap
         // then the contents
         // then insert
-        let k_id = BufferStorage::id_key(id);
-        let k_fmt = BufferStorage::fmt_key(id);
-        let k_cap = BufferStorage::cap_key(id);
+        let k_name = id.as_name_key();
+        let k_fmt = id.as_fmt_key();
+        let k_cap = id.as_cap_key();
 
         store.tree.transaction::<_, _, TransactionError>(|tree| {
-            tree.insert(&k_id, self.name.as_ref())?;
+            tree.insert(&k_name, self.name.as_ref())?;
             tree.insert(&k_fmt, self.fmt.to_bytes().as_slice())?;
             tree.insert(&k_cap, &self.capacity.to_le_bytes())?;
             Ok(())
@@ -55,12 +55,12 @@ impl<N: AsRef<[u8]>> BufMeta<N> {
 }
 
 impl BufMeta<IVec> {
-    pub fn get_stored(tree: &sled::Tree, id: u64) -> Result<Self> {
-        let k_id = BufferStorage::id_key(id);
-        let k_fmt = BufferStorage::fmt_key(id);
-        let k_cap = BufferStorage::cap_key(id);
+    pub fn get_stored(tree: &sled::Tree, id: BufId) -> Result<Self> {
+        let k_name = id.as_name_key();
+        let k_fmt = id.as_fmt_key();
+        let k_cap = id.as_cap_key();
 
-        let name = tree.get(&k_id)?.ok_or(anyhow!("buffer not found"))?;
+        let name = tree.get(&k_name)?.ok_or(anyhow!("buffer not found"))?;
 
         let fmt = tree
             .get(&k_fmt)?
@@ -300,6 +300,9 @@ macro_rules! buf_id_key {
 }
 
 impl BufId {
+    // use scan_prefix to iterate through all names and IDs, i guess
+    const NAME_ID_PREFIX: &'static [u8] = b"buffer_id:";
+
     buf_id_key!(as_name_key, b"n:01234567", 10);
     buf_id_key!(as_data_key, b"d:01234567", 10);
     buf_id_key!(as_fmt_key, b"f:01234567", 10);
@@ -326,44 +329,16 @@ macro_rules! key_fn {
 }
 
 impl BufferStorage {
-    const ID_NAME_MASK: [u8; 10] = *b"n:01234567";
-    // use scan_prefix to iterate through all names and IDs, i guess
-    const NAME_ID_PREFIX: &'static [u8] = b"buffer_id:";
+    // const ID_NAME_MASK: [u8; 10] = *b"n:01234567";
+    // const BUF_DATA_MASK: [u8; 10] = *b"d:01234567";
+    // // used to store e.g. "[u8;2]"; basically a simple schema
+    // const BUF_FMT_MASK: [u8; 10] = *b"f:01234567";
+    // const BUF_CAP_MASK: [u8; 10] = *b"c:01234567";
 
-    const BUF_DATA_MASK: [u8; 10] = *b"d:01234567";
-    // used to store e.g. "[u8;2]"; basically a simple schema
-    const BUF_FMT_MASK: [u8; 10] = *b"f:01234567";
-    const BUF_CAP_MASK: [u8; 10] = *b"c:01234567";
-
-    // const BUF_IX_MASK: [u8; 10] = *b"B:01234567";
-    // const SET_IX_MASK: [u8; 10] = *b"S:01234567";
-
-    const VEC_ID_MASK: [u8; 10] = *b"v:01234567";
-
-    /*
-    const fn buf_ix_key(id: u64) -> [u8; 10] {
-        let src = id.to_le_bytes();
-        let mut key = Self::BUF_IX_MASK;
-
-        let mut i = 0;
-        while i < 8 {
-            let s = src[0];
-            key[2 + i] = s;
-            i += 1;
-        }
-        key
-    }
-    */
-
-    key_fn!(id_key, [u8; 10], Self::ID_NAME_MASK, 2);
-    key_fn!(data_key, [u8; 10], Self::BUF_DATA_MASK, 2);
-    key_fn!(fmt_key, [u8; 10], Self::BUF_FMT_MASK, 2);
-    key_fn!(cap_key, [u8; 10], Self::BUF_CAP_MASK, 2);
-
-    key_fn!(vec_id_key, [u8; 10], Self::VEC_ID_MASK, 2);
+    // const VEC_ID_MASK: [u8; 10] = *b"v:01234567";
 
     pub fn name_key(name: &str) -> Vec<u8> {
-        let mut name_key = BufferStorage::NAME_ID_PREFIX.to_vec();
+        let mut name_key = BufId::NAME_ID_PREFIX.to_vec();
         name_key.extend(name.as_bytes());
         name_key
     }
@@ -434,8 +409,10 @@ impl BufferStorage {
         Some(())
     }
 
-    pub fn fill_buffer(&self, res: &mut GpuResources, id: u64) -> Option<()> {
-        let k_vec = Self::vec_id_key(id);
+    pub fn fill_buffer(&self, res: &mut GpuResources, id: BufId) -> Option<()> {
+        log::error!("whatttttttttttttTT!");
+        let k_vec = id.as_vec_key();
+        // let k_vec = Self::vec_id_key(id);
         let vec_ix = self.tree.get(k_vec).ok()??;
         let vec_ix = usize::read_from(vec_ix.as_ref())?;
 
@@ -464,10 +441,11 @@ impl BufferStorage {
     pub fn fill_buffer_impl<T: Copy + FromBytes>(
         &self,
         res: &mut GpuResources,
-        id: u64,
+        id: BufId,
     ) -> Option<()> {
         // let buf_key = Self::buf_ix_key(id);
-        let k_vec = Self::vec_id_key(id);
+        let k_vec = id.as_vec_key();
+        // let k_vec = Self::vec_id_key(id);
         let vec_ix = self.tree.get(k_vec).ok()??;
         let vec_ix = usize::read_from(vec_ix.as_ref())?;
 
@@ -484,7 +462,7 @@ impl BufferStorage {
 
     pub fn fill_slice_from_data<T: Copy + FromBytes>(
         &self,
-        id: u64,
+        id: BufId,
         dst: &mut [u8],
     ) -> Option<()> {
         let meta = BufMeta::get_stored(&self.tree, id).ok()?;
@@ -493,7 +471,7 @@ impl BufferStorage {
         let align_prefix = elem_size;
 
         let src = {
-            let k_dat = Self::data_key(id);
+            let k_dat = id.as_data_key();
             let raw = self.tree.get(k_dat).ok()??;
             let src: &[T] = meta.fmt.as_slice(&raw)?;
             src
@@ -530,7 +508,7 @@ impl BufferStorage {
 
     pub fn insert_data<T: Copy + AsBytes + std::fmt::Debug>(
         &self,
-        id: u64,
+        id: BufId,
         src: &[T],
     ) -> Result<()> {
         dbg!();
@@ -564,10 +542,12 @@ impl BufferStorage {
 
         dbg!();
         // 5. insert bytestring at the data key
-        let key = Self::data_key(id);
+        let key = id.as_data_key();
         dbg!(key);
         // self.tree.remove(key);
-        self.tree.insert(key, value)?;
+        self.tree
+            .update_and_fetch(key, |_| Some(value.as_slice()))?;
+        // self.tree.insert(key, value)?;
         dbg!();
 
         Ok(())
@@ -580,10 +560,11 @@ impl BufferStorage {
         name: &str,
         fmt: BufFmt,
         capacity: usize,
-    ) -> Result<u64> {
+    ) -> Result<BufId> {
         let elem_size = fmt.size();
 
         let id = db.generate_id()?;
+        let id = BufId(id);
 
         let (buf, set) = engine.with_allocators(|ctx, res, alloc| {
             let mem_loc = gpu_allocator::MemoryLocation::CpuToGpu;
@@ -614,36 +595,31 @@ impl BufferStorage {
             slice.fill(0);
         }
 
-        let ix = self.buffers.len();
+        let id_u8 = id.0.to_le_bytes();
 
-        let k_vec = Self::vec_id_key(id);
+        // name -> id
+        let name_key = Self::name_key(name);
+        self.tree.insert(name_key, &id_u8)?;
+
+        // metadata (id -> name, fmt, capacity)
+        let k_name = id.as_name_key();
+        self.tree.insert(k_name, name)?;
+        self.tree.insert(id.as_fmt_key(), &fmt.to_bytes())?;
+        self.tree.insert(id.as_cap_key(), &capacity.to_le_bytes())?;
+
+        let ix = self.buffers.len();
+        let k_vec = id.as_vec_key();
 
         self.tree.insert(k_vec, &ix.to_le_bytes())?;
-
-        // remove old buffer data, if any
-        let k_data = Self::data_key(id);
-        self.tree.remove(k_data)?;
-
         self.buffers.push(buf);
         self.desc_sets.push(set);
 
-        let mut name_key = Self::NAME_ID_PREFIX.to_vec();
-        name_key.extend(name.as_bytes());
+        let k_data = id.as_data_key();
+        // remove old buffer data, if any
+        self.tree.remove(k_data)?;
 
-        let id_u8 = id.to_le_bytes();
-
-        // "buffer_id:{name}" -> id
-        self.tree.insert(name_key, &id_u8)?;
-        // id -> name
-        let k_id = Self::id_key(id);
-        self.tree.insert(k_id, name.as_bytes())?;
-
-        // id -> fmt, id -> cap
-        let k_fmt = Self::fmt_key(id);
-        let k_cap = Self::cap_key(id);
-
-        self.tree.insert(k_fmt, &fmt.to_bytes())?;
-        self.tree.insert(k_cap, &capacity.to_le_bytes())?;
+        log::warn!("inserted: {}", name);
+        log::warn!("data key: {:?}", k_data);
 
         Ok(id)
     }
