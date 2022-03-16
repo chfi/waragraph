@@ -16,6 +16,10 @@ use anyhow::{anyhow, Result};
 use crossbeam::atomic::AtomicCell;
 use std::sync::Arc;
 
+pub mod sampler;
+
+pub use sampler::*;
+
 use crate::{graph::Waragraph, util::LabelStorage};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

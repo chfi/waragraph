@@ -468,24 +468,33 @@ impl BufferStorage {
         Some(())
     }
 
-    pub fn insert_data<T: Copy + FromBytes>(
+    pub fn insert_data<T: Copy + AsBytes>(
         &self,
         id: u64,
         src: &[T],
     ) -> Result<()> {
         // 1. get the buffer metadata from sled
+        let meta = BufMeta::get_stored(self, id)?;
+
         // 2. make sure the format matches T
+        if meta.fmt.size() != std::mem::size_of::<T>() {
+            bail!("src type size doesn't match buffer metadata");
+        }
+
         // 3. limit the length of src based on capacity, if needed
         // 4. cast src to a bytestring
+        let value = src
+            .iter()
+            .take(meta.capacity)
+            .flat_map(|s| s.as_bytes())
+            .copied()
+            .collect::<Vec<_>>();
+
         // 5. insert bytestring at the data key
+        let key = Self::data_key(id);
+        self.tree.insert(key, value)?;
 
-        // let meta = BufMeta::get_stored(self, id).ok()?;
-
-        // let elem_size = meta.fmt.size();
-
-        // let mut dst =
-
-        todo!();
+        Ok(())
     }
 
     pub fn allocate_buffer(
