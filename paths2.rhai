@@ -58,6 +58,7 @@ export let path_shader = load_shader("shaders/path_new.comp.spv",
                                      vk::ShaderStageFlags::COMPUTE);
 
 
+
 export let color_desc_set =
   create_desc_set(path_shader,
                   2,
@@ -200,10 +201,12 @@ fn foreground(batch, labels, desc_sets, slot_w, w, h) {
     pc.append_int(slot_h);
     pc.append_int(ix);
 
+    let color_data = get_buffer("storage_0");
+
     batch.dispatch_compute(self::path_pipeline.get(),
                            [slot_set,
                             clip_set,
-                            self::color_desc_set.get(),
+                            color_data.set,
                             self::out_desc_set.get()],
                            pc,
                            workgroups);
@@ -252,16 +255,10 @@ fn foreground(batch, labels, desc_sets, slot_w, w, h) {
 
   // draw lines
 
-  // hacky test
-  // if exists("test-key") {
-  //   print_vec(get("test-key"));
-  // }
-
-
   // let line_data_set = buffers::get_uvec4("line_storage").storage_set;
 
   // let line_data = buffers::get_uvec4("line_storage");
-  let line_data = get_uvec4("line_storage");
+  let line_data = get_buffer("line_storage");
   let len = line_data.len; // should be same as GPUs line_count
 
   let pc = blob();
@@ -274,6 +271,7 @@ fn foreground(batch, labels, desc_sets, slot_w, w, h) {
   let workgroups = #{ x_groups: x_groups,
                       y_groups: 1,
                       z_groups: 1 };
+
 
 
   batch.dispatch_compute(self::line_pipeline.get(),

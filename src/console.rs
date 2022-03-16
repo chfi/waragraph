@@ -137,7 +137,7 @@ pub fn register_buffer_storage(
     let desc_sets = Arc::new(buffers.desc_sets.clone());
 
     let tree = buffers.tree.clone();
-    engine.register_result_fn("get_uvec4", move |name: &str| {
+    engine.register_result_fn("get_buffer", move |name: &str| {
         // 1. get the ID from the name
 
         // all of this should be either methods, in a transaction with

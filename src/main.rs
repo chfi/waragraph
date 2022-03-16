@@ -423,7 +423,7 @@ fn main() -> Result<()> {
     log::error!("inserting data for line_buf");
     buffers.insert_data(
         line_buf,
-        &[line(100, 100, 500, 300), line(100, 300, 500, 300)],
+        &[line(200, 300, 500, 300), line(100, 100, 500, 400)],
     )?;
     log::error!("inserted??? data for line_buf");
 
