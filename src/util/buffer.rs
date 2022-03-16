@@ -285,6 +285,33 @@ pub struct BufferStorage {
     pub desc_sets: Vec<DescSetIx>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct BufId(pub u64);
+
+macro_rules! buf_id_key {
+    ($fn_name:ident, $mask:literal, $len:literal) => {
+        pub fn $fn_name(&self) -> [u8; $len] {
+            let mut res = *$mask;
+            self.0.write_to_suffix(&mut res[..]);
+            res
+        }
+    };
+}
+
+impl BufId {
+    buf_id_key!(as_name_key, b"n:01234567", 10);
+    buf_id_key!(as_data_key, b"d:01234567", 10);
+    buf_id_key!(as_fmt_key, b"f:01234567", 10);
+    buf_id_key!(as_cap_key, b"c:01234567", 10);
+    buf_id_key!(as_vec_key, b"v:01234567", 10);
+
+    // pub fn as_name_key(&self) -> [u8; 10] {
+    //     let mut res = *b"n:01234567";
+    //     self.0.write_to_suffix(&mut res[..]);
+    //     res
+    // }
+}
+
 macro_rules! key_fn {
     // ($fn_name:ident, $init:expr, $offset:literal, $out_len:literal) => {
     ($fn_name:ident, $out:ty, $init:expr, $offset:literal) => {
@@ -339,6 +366,12 @@ impl BufferStorage {
     key_fn!(cap_key, [u8; 10], Self::BUF_CAP_MASK, 2);
 
     key_fn!(vec_id_key, [u8; 10], Self::VEC_ID_MASK, 2);
+
+    pub fn name_key(name: &str) -> Vec<u8> {
+        let mut name_key = BufferStorage::NAME_ID_PREFIX.to_vec();
+        name_key.extend(name.as_bytes());
+        name_key
+    }
 
     // key_fn!(buf_ix_key, [u8; 10], Self::BUF_IX_MASK, 2);
     // key_fn!(set_ix_key, [u8; 10], Self::SET_IX_MASK, 2);
@@ -417,7 +450,8 @@ impl BufferStorage {
 
         let dst = buf.alloc.mapped_slice_mut()?;
 
-        let meta = BufMeta::get_stored(self, id).ok()?;
+        let meta = BufMeta::get_stored(&self.tree, id).ok()?;
+        log::error!("filling buffer {}", meta.name.as_bstr());
 
         match meta.fmt {
             BufFmt::UInt => self.fill_slice_from_data::<u32>(id, dst),
@@ -458,7 +492,7 @@ impl BufferStorage {
         id: u64,
         dst: &mut [u8],
     ) -> Option<()> {
-        let meta = BufMeta::get_stored(self, id).ok()?;
+        let meta = BufMeta::get_stored(&self.tree, id).ok()?;
 
         let elem_size = meta.fmt.size();
         let align_prefix = elem_size;
@@ -475,6 +509,11 @@ impl BufferStorage {
         let dst_data = {
             let len = len as u32;
 
+            log::error!(
+                "writing len {} for buffer {}",
+                len,
+                meta.name.as_bstr()
+            );
             let (prefix, data) = dst.split_at_mut(elem_size);
 
             for i in 0..(align_prefix / std::mem::size_of::<u32>()) {
@@ -494,19 +533,31 @@ impl BufferStorage {
         Some(())
     }
 
-    pub fn insert_data<T: Copy + AsBytes>(
+    pub fn insert_data<T: Copy + AsBytes + std::fmt::Debug>(
         &self,
         id: u64,
         src: &[T],
     ) -> Result<()> {
+        dbg!();
         // 1. get the buffer metadata from sled
-        let meta = BufMeta::get_stored(self, id)?;
+        let meta = BufMeta::get_stored(&self.tree, id)?;
+        log::warn!("src.len(): {}", src.len());
+        log::warn!("src: {:?}", src);
 
+        // dbg!(&meta);
+        log::warn!(
+            "meta.name {}\nmeta.capacity {}\nmeta.fmt {:?}\nmeta.fmt.size() {}",
+            meta.name.as_bstr(),
+            meta.capacity,
+            meta.fmt,
+            meta.fmt.size()
+        );
         // 2. make sure the format matches T
         if meta.fmt.size() != std::mem::size_of::<T>() {
             bail!("src type size doesn't match buffer metadata");
         }
 
+        dbg!();
         // 3. limit the length of src based on capacity, if needed
         // 4. cast src to a bytestring
         let value = src
@@ -516,9 +567,13 @@ impl BufferStorage {
             .copied()
             .collect::<Vec<_>>();
 
+        dbg!();
         // 5. insert bytestring at the data key
         let key = Self::data_key(id);
+        dbg!(key);
+        // self.tree.remove(key);
         self.tree.insert(key, value)?;
+        dbg!();
 
         Ok(())
     }
@@ -604,6 +659,11 @@ mod tests {
     use rand::prelude::*;
 
     use super::*;
+
+    #[test]
+    fn id_transforms() {
+        // name -> "buffer_id:{name}"
+    }
 
     #[test]
     fn fill_with_fmt() {

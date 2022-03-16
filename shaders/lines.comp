@@ -1,0 +1,110 @@
+#version 450
+
+// all (x,y) and (z,w) (as (x,y)) pairs in `lines` *must* be inside
+// the box defined by inputs.lines_origin and inputs.bbox
+
+// or essentially the same if line_points is used
+layout (set = 0, binding = 0) readonly buffer LineData {
+  uint line_count;
+
+  // uint line_points[];
+  uvec4 lines[];
+} lines;
+
+layout (rgba8, set = 1, binding = 0) writeonly uniform image2D image_out;
+
+layout(local_size_x = 64, local_size_y = 1, local_size_z = 1) in;
+
+layout (push_constant) uniform Inputs {
+  // ivec2 lines_origin;
+  // uvec2 bbox;
+
+  // ivec2 dst_offset;
+  // int src_width;
+  // int src_height;
+  int width;
+  int height;
+} inputs;
+
+
+
+void main() {
+
+  uint line_ix = gl_GlobalInvocationID.x;
+
+
+  // imageStore(image_out,
+  //            ivec2(200 + line_ix, 200),
+  //            vec4(0.0, 0.1, 1.0, 1.0));
+
+  // groupMemoryBarrier();
+
+  for (int j = 0; j < 2; j++) {
+    for (int i = 0; i < 10; i++) {
+
+      float g = float(line_ix + 32) / 128.0;
+
+      imageStore(image_out,
+                 ivec2(200 + line_ix * 2 + j, 200 + i),
+                 vec4(0.1, g, 0.1, 1.0));
+    }
+  }
+
+  if (line_ix >= lines.line_count) {
+    return;
+  }
+
+
+  for (int j = 0; j < 2; j++) {
+    for (int i = 0; i < 10; i++) {
+
+      imageStore(image_out,
+                 ivec2(200 + line_ix * 2 + j, 200 + i),
+                 vec4(1.0, 0.1, 0.1, 1.0));
+    }
+  }
+
+  // imageStore(image_out,
+  //            ivec2(300 + line_ix, 199),
+  //            vec4(1.0, 0.1, 0.1, 1.0));
+  // imageStore(image_out,
+  //            ivec2(300 + line_ix, 200),
+  //            vec4(1.0, 0.1, 0.1, 1.0));
+  // imageStore(image_out,
+  //            ivec2(300 + line_ix, 201),
+  //            vec4(1.0, 0.1, 0.1, 1.0));
+
+  // groupMemoryBarrier();
+
+
+
+  // uint p0_ix = line * 2;
+  // uint p1_ix = p0_ix + 2;
+
+  // lines *must* be in left-to right order, i.e. x0 <= x1
+
+  uvec4 l = lines.lines[line_ix];
+
+  uvec2 p0 = l.xy;
+  uvec2 p1 = l.zw;
+
+  uvec2 d = p1 - p0;
+  uint dx = d.x;
+  uint dy = d.y;
+
+  float slope = float(dy)/float(dx);
+
+  float y = float(p0.y);
+
+
+  for (uint i = 0; i < dx; i++) {
+    int x_i = int(p0.x + i);
+
+    ivec2 pixel = ivec2(x_i, int(y));
+
+    imageStore(image_out, pixel, vec4(1.0, 0.0, 0.0, 1.0));
+    y += slope;
+    // uint iy =
+    // uint y =
+  }
+}
