@@ -63,11 +63,8 @@ fn main() -> Result<()> {
 
     let db = db_cfg.open()?;
 
-    // db.drop_tree("buffer_storage")?;
-    // db.drop_tree("path_viewer")?;
-    // db.drop_tree(b"sample_indices")?;
-
-    // db.insert(b"test-key", b"oh no!!!")?;
+    // make sure the first frame gets resampled
+    db.remove(b"sample_indices")?;
 
     let waragraph = Waragraph::from_gfa(&gfa)?;
 
@@ -103,6 +100,7 @@ fn main() -> Result<()> {
     let mut engine = VkEngine::new(&window)?;
 
     let mut buffers = BufferStorage::new(&db)?;
+    let mut buffer_sub = buffers.tree.watch_prefix(b"d:");
 
     let fmt = BufFmt::FVec4;
     let buf_0 =
@@ -111,10 +109,6 @@ fn main() -> Result<()> {
     let rgb = |r: f32, g: f32, b: f32| [r, g, b, 1.0];
 
     buffers.insert_data(buf_0, &[rgb(0.0, 0.0, 0.0), rgb(1.0, 0.0, 0.0)])?;
-
-    buffers
-        .fill_buffer::<[f32; 4]>(&mut engine.resources, buf_0)
-        .unwrap();
 
     let mut txt = LabelStorage::new(&db)?;
 
@@ -570,6 +564,20 @@ fn main() -> Result<()> {
         match event {
             Event::MainEventsCleared => {
                 let frame_start = std::time::Instant::now();
+
+                while let Ok(ev) =
+                    buffer_sub.next_timeout(Duration::from_micros(10))
+                {
+                    match ev {
+                        sled::Event::Insert { key, value: _ } => {
+                            let id = u64::read_from(&key[2..]).unwrap();
+                            buffers
+                                .fill_buffer(&mut engine.resources, id)
+                                .unwrap();
+                        }
+                        _ => (),
+                    }
+                }
 
                 if Some(view) != prev_view || path_viewer.should_update() {
                     prev_view = Some(view);

@@ -408,7 +408,33 @@ impl BufferStorage {
         Some(())
     }
 
-    pub fn fill_buffer<T: Copy + FromBytes>(
+    pub fn fill_buffer(&self, res: &mut GpuResources, id: u64) -> Option<()> {
+        let k_vec = Self::vec_id_key(id);
+        let vec_ix = self.tree.get(k_vec).ok()??;
+        let vec_ix = usize::read_from(vec_ix.as_ref())?;
+
+        let buf_ix = self.buffers[vec_ix];
+
+        let buf = &mut res[buf_ix];
+
+        let dst = buf.alloc.mapped_slice_mut()?;
+
+        let meta = BufMeta::get_stored(self, id).ok()?;
+
+        match meta.fmt {
+            BufFmt::UInt => self.fill_slice_from_data::<u32>(id, dst),
+            BufFmt::SInt => self.fill_slice_from_data::<i32>(id, dst),
+            BufFmt::Float => self.fill_slice_from_data::<f32>(id, dst),
+            BufFmt::UVec2 => self.fill_slice_from_data::<[u32; 2]>(id, dst),
+            BufFmt::UVec4 => self.fill_slice_from_data::<[u32; 4]>(id, dst),
+            BufFmt::SVec4 => self.fill_slice_from_data::<[i32; 4]>(id, dst),
+            BufFmt::FVec4 => self.fill_slice_from_data::<[f32; 4]>(id, dst),
+        }?;
+
+        Some(())
+    }
+
+    pub fn fill_buffer_impl<T: Copy + FromBytes>(
         &self,
         res: &mut GpuResources,
         id: u64,
@@ -545,6 +571,10 @@ impl BufferStorage {
         let k_vec = Self::vec_id_key(id);
 
         self.tree.insert(k_vec, &ix.to_le_bytes())?;
+
+        // remove old buffer data, if any
+        let k_data = Self::data_key(id);
+        self.tree.remove(k_data)?;
 
         self.buffers.push(buf);
         self.desc_sets.push(set);
