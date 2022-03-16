@@ -4,16 +4,28 @@ export let out_desc_set = desc_set_var("out_desc_set");
 
 export let color_buf = buffer_var("color_buffer");
 
+export let alt_color_set = desc_set_var("alt_color_desc_set");
+
 export let bg_shader = load_shader("shaders/bg_color.comp.spv",
                                    vk::ShaderStageFlags::COMPUTE);
 
 export let bg_pipeline = create_compute_pipeline(bg_shader);
+
+// text
 
 export let text_shader = load_shader("shaders/text.comp.spv",
                                    vk::ShaderStageFlags::COMPUTE);
 
 
 export let text_pipeline = create_compute_pipeline(text_shader);
+
+// line rasterizer
+export let line_shader = load_shader("shaders/lines.comp.spv",
+                                     vk::ShaderStageFlags::COMPUTE);
+export let line_pipeline = create_compute_pipeline(line_shader);
+
+
+// font
 
 export let font_image = allocate_image("font_image",
                                        1024,
@@ -132,11 +144,6 @@ fn init() {
 
 fn foreground(batch, labels, desc_sets, slot_w, w, h) {
 
-  // hacky test
-  // if exists("test-key") {
-  //   print_vec(get("test-key"));
-  // }
-
   let img = self::out_image.get();
 
   batch.transition_image(img,
@@ -180,6 +187,7 @@ fn foreground(batch, labels, desc_sets, slot_w, w, h) {
   let workgroups = #{ x_groups: (slot_w / x_size) + slot_w % x_size,
                       y_groups: (slot_h / y_size) + slot_h % y_size,
                       z_groups: 1 };
+
 
   for ix in 0..desc_sets.len() {
     let desc_sets = desc_sets[ix];
@@ -231,6 +239,48 @@ fn foreground(batch, labels, desc_sets, slot_w, w, h) {
 
 
   }
+
+
+
+  batch.transition_image(img,
+                         vk::AccessFlags::SHADER_WRITE,
+                         vk::PipelineStageFlags::COMPUTE_SHADER,
+                         vk::AccessFlags::SHADER_READ,
+                         vk::PipelineStageFlags::COMPUTE_SHADER,
+                         vk::ImageLayout::GENERAL,
+                         vk::ImageLayout::GENERAL);
+
+  // draw lines
+
+  // hacky test
+  // if exists("test-key") {
+  //   print_vec(get("test-key"));
+  // }
+
+
+  // let line_data_set = buffers::get_uvec4("line_storage").storage_set;
+
+  // let line_data = buffers::get_uvec4("line_storage");
+  let line_data = get_uvec4("line_storage");
+  let len = line_data.len; // should be same as GPUs line_count
+
+  let pc = blob();
+  pc.append_int(w);
+  pc.append_int(h);
+
+  let x_size = 64;
+
+  let x_groups = (len / x_size) + len % x_size;
+  let workgroups = #{ x_groups: x_groups,
+                      y_groups: 1,
+                      z_groups: 1 };
+
+
+  batch.dispatch_compute(self::line_pipeline.get(),
+                         [line_data.set,
+                          self::out_desc_set.get()],
+                         pc,
+                         workgroups);
 
 
   // complete

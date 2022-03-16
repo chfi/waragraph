@@ -23,7 +23,10 @@ use anyhow::{anyhow, bail, Result};
 
 use bstr::ByteSlice as BstrByteSlice;
 
-use crate::{util::LabelStorage, viewer::ViewDiscrete1D};
+use crate::{
+    util::{BufMeta, BufferStorage, LabelStorage},
+    viewer::ViewDiscrete1D,
+};
 
 // pub mod ivec;
 // pub mod labels;
@@ -56,6 +59,7 @@ impl Console {
     pub fn handle_input(
         &mut self,
         db: &sled::Db,
+        buffers: &BufferStorage,
         txt: &LabelStorage,
         input: ConsoleInput,
     ) -> Result<()> {
@@ -68,6 +72,7 @@ impl Console {
                 match eval_scope::<rhai::Dynamic>(
                     &mut self.scope,
                     db,
+                    buffers,
                     &self.input,
                 ) {
                     Ok(r) => {
@@ -125,8 +130,56 @@ pub enum ConsoleInput {
     // Endline,
 }
 
-pub fn create_engine(db: &sled::Db) -> rhai::Engine {
+pub fn register_buffer_storage(
+    buffers: &BufferStorage,
+    engine: &mut rhai::Engine,
+) {
+    let desc_sets = Arc::new(buffers.desc_sets.clone());
+
+    let tree = buffers.tree.clone();
+    engine.register_result_fn("get_uvec4", move |name: &str| {
+        // 1. get the ID from the name
+
+        // all of this should be either methods, in a transaction with
+        // proper error handling, or both
+        let name_key = BufferStorage::name_key(name);
+
+        let id = tree
+            .get(&name_key)
+            .ok()
+            .flatten()
+            .and_then(|id| u64::read_from(id.as_ref()))
+            .unwrap();
+
+        // 2. get the vec index from the ID
+        let k_vec = BufferStorage::vec_id_key(id);
+        let vec_ix = tree.get(&k_vec).ok().flatten().unwrap();
+        let vec_ix = usize::read_from(vec_ix.as_ref()).unwrap();
+
+        // 3. get the set from the Arc<Vec<->> via the index
+        let set = desc_sets[vec_ix];
+
+        // 4. get the length via the buffer data, i guess
+        let meta = BufMeta::get_stored(&tree, id).unwrap();
+
+        let k_data = BufferStorage::data_key(id);
+        let data = tree.get(&k_data).ok().flatten();
+        let len = data.map(|d| d.len() / meta.fmt.size()).unwrap_or_default();
+
+        // return object map with length and storage set, at least
+        let mut map = rhai::Map::default();
+        map.insert("set".into(), rhai::Dynamic::from(set));
+        map.insert("len".into(), rhai::Dynamic::from(len as i64));
+
+        Ok(map)
+    });
+}
+
+pub fn create_engine(db: &sled::Db, buffers: &BufferStorage) -> rhai::Engine {
     let mut engine = raving::script::console::create_batch_engine();
+
+    register_buffer_storage(buffers, &mut engine);
+
     append_to_engine(db, engine)
 }
 
@@ -292,9 +345,10 @@ pub fn append_to_engine(
 
 pub fn eval<T: Clone + Send + Sync + 'static>(
     db: &sled::Db,
+    buffers: &BufferStorage,
     script: &str,
 ) -> Result<T> {
-    let engine = create_engine(db);
+    let engine = create_engine(db, buffers);
     match engine.eval(script) {
         Ok(result) => Ok(result),
         Err(err) => Err(anyhow!("eval err: {:?}", err)),
@@ -304,10 +358,11 @@ pub fn eval<T: Clone + Send + Sync + 'static>(
 pub fn eval_scope<T: Clone + Send + Sync + 'static>(
     scope: &mut rhai::Scope,
     db: &sled::Db,
+    buffers: &BufferStorage,
     script: &str,
 ) -> Result<T> {
     // let mut engine = create_engine(db);
-    let engine = create_engine(db);
+    let engine = create_engine(db, buffers);
     // engine.
     // match engine.run_with_scope(scope, script) {
     match engine.eval_with_scope(scope, script) {

@@ -27,11 +27,11 @@ use parking_lot::Mutex;
 #[allow(unused_imports)]
 use anyhow::{anyhow, bail, Result};
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct BufMeta<N: AsRef<[u8]>> {
-    name: N,
-    fmt: BufFmt,
-    capacity: usize,
+    pub name: N,
+    pub fmt: BufFmt,
+    pub capacity: usize,
 }
 
 impl<N: AsRef<[u8]>> BufMeta<N> {
@@ -55,21 +55,19 @@ impl<N: AsRef<[u8]>> BufMeta<N> {
 }
 
 impl BufMeta<IVec> {
-    pub fn get_stored(store: &BufferStorage, id: u64) -> Result<Self> {
+    pub fn get_stored(tree: &sled::Tree, id: u64) -> Result<Self> {
         let k_id = BufferStorage::id_key(id);
         let k_fmt = BufferStorage::fmt_key(id);
         let k_cap = BufferStorage::cap_key(id);
 
-        let name = store.tree.get(&k_id)?.ok_or(anyhow!("buffer not found"))?;
+        let name = tree.get(&k_id)?.ok_or(anyhow!("buffer not found"))?;
 
-        let fmt = store
-            .tree
+        let fmt = tree
             .get(&k_fmt)?
             .and_then(|bs| BufFmt::from_bytes(bs.as_ref()))
             .ok_or(anyhow!("fmt not found"))?;
 
-        let capacity = store
-            .tree
+        let capacity = tree
             .get(&k_cap)?
             .and_then(|bs| usize::read_from(bs.as_ref()))
             .ok_or(anyhow!("capacity not found"))?;
