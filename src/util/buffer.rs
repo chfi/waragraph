@@ -449,6 +449,8 @@ impl BufferStorage {
         let len = src.len().min(meta.capacity);
 
         let dst_data = {
+            let len = len as u32;
+
             let (prefix, data) = dst.split_at_mut(elem_size);
 
             for i in 0..(align_prefix / std::mem::size_of::<u32>()) {

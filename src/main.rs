@@ -104,9 +104,17 @@ fn main() -> Result<()> {
 
     let mut buffers = BufferStorage::new(&db)?;
 
-    let fmt = BufFmt::UInt;
+    let fmt = BufFmt::FVec4;
     let buf_0 =
         buffers.allocate_buffer(&mut engine, &db, "storage_0", fmt, 255)?;
+
+    let rgb = |r: f32, g: f32, b: f32| [r, g, b, 1.0];
+
+    buffers.insert_data(buf_0, &[rgb(0.0, 0.0, 0.0), rgb(1.0, 0.0, 0.0)])?;
+
+    buffers
+        .fill_buffer::<[f32; 4]>(&mut engine.resources, buf_0)
+        .unwrap();
 
     let mut txt = LabelStorage::new(&db)?;
 
@@ -399,7 +407,7 @@ fn main() -> Result<()> {
         )?
     };
 
-    // let color_buffer = buffers.buffers[0];
+    let color_buffer = buffers.buffers[0];
     builder.bind_var("color_buffer", color_buffer)?;
 
     engine.with_allocators(|ctx, res, alloc| {
