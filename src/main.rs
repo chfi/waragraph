@@ -1,3 +1,4 @@
+use bstr::ByteSlice;
 use crossbeam::atomic::AtomicCell;
 use gfa::gfa::GFA;
 use raving::script::console::frame::{FrameBuilder, Resolvable};
@@ -21,7 +22,7 @@ use rspirv_reflect::DescriptorInfo;
 
 use sled::IVec;
 use waragraph::graph::{Node, Waragraph};
-use waragraph::util::{BufFmt, BufferStorage, LabelStorage};
+use waragraph::util::{BufFmt, BufMeta, BufferStorage, LabelStorage};
 use waragraph::viewer::{PathViewSlot, PathViewer, ViewDiscrete1D};
 use winit::event::{Event, VirtualKeyCode, WindowEvent};
 use winit::{event_loop::EventLoop, window::WindowBuilder};
@@ -401,8 +402,49 @@ fn main() -> Result<()> {
         )?
     };
 
-    let color_buffer = buffers.buffers[0];
+    // let color_buffer = buffers.buffers[0];
     builder.bind_var("color_buffer", color_buffer)?;
+    builder.bind_var("alt_color_desc_set", buffers.desc_sets[0])?;
+
+    let fmt = BufFmt::UVec4;
+    let line_buf =
+        buffers.allocate_buffer(&mut engine, &db, "line_storage", fmt, 64)?;
+    log::error!("line_storage -> {}", line_buf);
+
+    let line = |x0: f32, y0: f32, x1: f32, y1: f32| [x0, y0, x1, y1];
+
+    log::error!("inserting data for line_buf");
+    buffers.insert_data(
+        line_buf,
+        &[
+            line(100.0, 100.0, 500.0, 300.0),
+            line(100.0, 300.0, 500.0, 300.0),
+        ],
+    )?;
+
+    log::error!("inserted??? data for line_buf");
+    println!();
+
+    log::warn!("buffer names");
+
+    for (ix, res) in buffers.tree.scan_prefix(b"buffer_id:").enumerate() {
+        let (key, val) = res.unwrap();
+        let id = u64::read_from(val.as_ref()).unwrap();
+        log::warn!("name {} - {}", key.as_bstr(), id);
+    }
+    println!();
+
+    log::warn!("buffers tree d: prefix");
+    for (ix, res) in buffers.tree.scan_prefix(b"d:").enumerate() {
+        let (key, val) = res.unwrap();
+        let id = u64::read_from(key[2..].as_ref()).unwrap();
+        log::warn!("id {} - {:?}", id, val);
+        // log::warn!("key {}", ix);
+    }
+
+    println!();
+
+    log::warn!("buffers.buffers.len(): {}", buffers.buffers.len());
 
     engine.with_allocators(|ctx, res, alloc| {
         builder.resolve(ctx, res, alloc)?;
@@ -452,7 +494,8 @@ fn main() -> Result<()> {
     let arc_module = Arc::new(builder.module.clone());
 
     // let mut rhai_engine = raving::script::console::create_batch_engine();
-    let mut rhai_engine = waragraph::console::create_engine(&db);
+    let mut rhai_engine = waragraph::console::create_engine(&db, &buffers);
+
     rhai_engine.register_static_module("self", arc_module.clone());
 
     let mut draw_foreground = rhai::Func::<
@@ -465,7 +508,7 @@ fn main() -> Result<()> {
     );
 
     // let mut rhai_engine = raving::script::console::create_batch_engine();
-    let mut rhai_engine = waragraph::console::create_engine(&db);
+    let mut rhai_engine = waragraph::console::create_engine(&db, &buffers);
     rhai_engine.register_static_module("self", arc_module.clone());
 
     let copy_to_swapchain = rhai::Func::<
@@ -481,7 +524,7 @@ fn main() -> Result<()> {
 
     {
         // let mut rhai_engine = raving::script::console::create_batch_engine();
-        let mut rhai_engine = waragraph::console::create_engine(&db);
+        let mut rhai_engine = waragraph::console::create_engine(&db, &buffers);
 
         let arc_module = Arc::new(builder.module.clone());
 
@@ -510,7 +553,7 @@ fn main() -> Result<()> {
 
     let update_clip_rects = {
         // let mut rhai_engine = raving::script::console::create_batch_engine();
-        let mut rhai_engine = waragraph::console::create_engine(&db);
+        let mut rhai_engine = waragraph::console::create_engine(&db, &buffers);
 
         let arc_module = Arc::new(builder.module.clone());
 
@@ -566,11 +609,19 @@ fn main() -> Result<()> {
                 let frame_start = std::time::Instant::now();
 
                 while let Ok(ev) =
-                    buffer_sub.next_timeout(Duration::from_micros(10))
+                    buffer_sub.next_timeout(Duration::from_micros(1000))
                 {
                     match ev {
-                        sled::Event::Insert { key, value: _ } => {
+                        sled::Event::Insert { key, value } => {
                             let id = u64::read_from(&key[2..]).unwrap();
+                            let meta = BufMeta::get_stored(&buffers.tree, id).unwrap();
+
+                            log::error!(
+                                "buffer value updated for id {}, name {}\nvalue\t{:#?}",
+                                id,
+                                meta.name.as_bstr(),
+                                value
+                            );
                             buffers
                                 .fill_buffer(&mut engine.resources, id)
                                 .unwrap();
@@ -984,7 +1035,9 @@ fn main() -> Result<()> {
                             // let mut rhai_engine =
                             //     raving::script::console::create_batch_engine();
                             let mut rhai_engine =
-                                waragraph::console::create_engine(&db);
+                                waragraph::console::create_engine(
+                                    &db, &buffers,
+                                );
                             rhai_engine.register_static_module(
                                 "self",
                                 arc_module.clone(),
@@ -1018,6 +1071,7 @@ fn main() -> Result<()> {
                         console
                             .handle_input(
                                 &db,
+                                &buffers,
                                 &txt,
                                 ConsoleInput::AppendChar(c),
                             )
@@ -1057,6 +1111,7 @@ fn main() -> Result<()> {
                                 console
                                     .handle_input(
                                         &db,
+                                        &buffers,
                                         &txt,
                                         ConsoleInput::Submit,
                                     )
@@ -1066,6 +1121,7 @@ fn main() -> Result<()> {
                                 console
                                     .handle_input(
                                         &db,
+                                        &buffers,
                                         &txt,
                                         ConsoleInput::Backspace,
                                     )

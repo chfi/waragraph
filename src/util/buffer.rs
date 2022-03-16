@@ -285,14 +285,15 @@ pub struct BufferStorage {
     pub desc_sets: Vec<DescSetIx>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, AsBytes, FromBytes)]
+#[repr(transparent)]
 pub struct BufId(pub u64);
 
 macro_rules! buf_id_key {
     ($fn_name:ident, $mask:literal, $len:literal) => {
         pub fn $fn_name(&self) -> [u8; $len] {
             let mut res = *$mask;
-            self.0.write_to_suffix(&mut res[..]);
+            self.write_to_suffix(&mut res[..]);
             res
         }
     };
@@ -304,12 +305,6 @@ impl BufId {
     buf_id_key!(as_fmt_key, b"f:01234567", 10);
     buf_id_key!(as_cap_key, b"c:01234567", 10);
     buf_id_key!(as_vec_key, b"v:01234567", 10);
-
-    // pub fn as_name_key(&self) -> [u8; 10] {
-    //     let mut res = *b"n:01234567";
-    //     self.0.write_to_suffix(&mut res[..]);
-    //     res
-    // }
 }
 
 macro_rules! key_fn {
