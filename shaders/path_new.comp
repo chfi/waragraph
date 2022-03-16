@@ -54,5 +54,5 @@ void main() {
 
   ivec2 pixel = ivec2(screen_dst);
 
-  imageStore(image_out, pixel, color.bgra);
+  imageStore(image_out, pixel, color.rgba);
 }

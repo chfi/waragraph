@@ -30,6 +30,6 @@ void main() {
   vec4 color = texture(sampler2D(u_image_in, u_sampler), src);
 
   // if (color.a != 0.0) {
-  imageStore(image_out, dst, color.bgra);
+  imageStore(image_out, dst, color.rgba);
   // }
 }
