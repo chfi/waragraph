@@ -420,10 +420,32 @@ fn main() -> Result<()> {
 
     let line = |x0: u32, y0: u32, x1: u32, y1: u32| [x0, y0, x1, y1];
 
+    let mut lines = vec![];
+
+    let n = 24;
+
+    for i in 0..n {
+        use std::f32::consts::TAU;
+        let angle_d = TAU / (n as f32);
+        let ti = (i as f32) * angle_d;
+        let ti_2 = ((i + 1) as f32) * angle_d;
+
+        let radius = 200.0;
+        let o = 300.0;
+
+        let x0 = o + ti.cos() * radius;
+        let y0 = o + ti.sin() * radius;
+        let x1 = o + ti_2.cos() * radius;
+        let y1 = o + ti_2.sin() * radius;
+
+        lines.push(line(x0 as u32, y0 as u32, x1 as u32, y1 as u32));
+    }
+
     log::error!("inserting data for line_buf");
     buffers.insert_data(
         line_buf,
-        &[line(200, 300, 500, 300), line(100, 100, 500, 400)],
+        &lines,
+        // &[line(200, 300, 500, 300), line(100, 100, 500, 400)],
     )?;
     log::error!("inserted??? data for line_buf");
 
