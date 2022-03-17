@@ -236,6 +236,13 @@ impl Waragraph {
         })
     }
 
+    // pub fn paths_on(&self, node: Node) -> roaring::RoaringBitmap {
+    //     let i = node.0;
+
+    // self.path_nodes.
+
+    // }
+
     pub fn node_count(&self) -> usize {
         self.node_count
     }

@@ -262,8 +262,16 @@ fn foreground(batch, labels, desc_sets, slot_w, w, h) {
   let len = line_data.len; // should be same as GPUs line_count
 
   let pc = blob();
+
+  pc.append_float(0.0);
+  pc.append_float(0.0);
+  pc.append_float(0.0);
+  pc.append_float(1.0);
+
   pc.append_int(w);
   pc.append_int(h);
+
+  pc.append_float(1.0);
 
   // let x_size = 64;
   let x_size = 8;
