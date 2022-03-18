@@ -235,6 +235,26 @@ impl PathViewer {
         Some(())
     }
 
+    pub fn update_from_range<F>(
+        &mut self,
+        res: &mut GpuResources,
+        mut fill: F,
+    ) -> Option<()>
+    where
+        F: FnMut([(usize, usize); 2]) -> u32,
+    {
+        todo!();
+        /*
+        let vis = self.visible_indices();
+
+        for (path, slot) in vis.zip(self.slots.iter_mut()) {
+            slot.update_from(res, |ix| fill(path, ix));
+        }
+        */
+
+        Some(())
+    }
+
     // fn label_name_for(i: usize) -> [u8
 
     // pub fn allocate_labels(&self, txt: &LabelStorage) -> Result<()> {
@@ -444,6 +464,45 @@ impl PathViewSlot {
 
         Some(())
     }
+
+    /*
+    pub fn update_from<F>(
+        &mut self,
+        res: &mut GpuResources,
+        mut fill: F,
+    ) -> Option<()>
+    where
+        F: FnMut(usize) -> u32,
+    {
+        let slice = res[self.buffer].mapped_slice_mut()?;
+
+        slice
+            .chunks_exact_mut(4)
+            .take(self.width)
+            .enumerate()
+            .for_each(|(i, c)| c.clone_from_slice(&fill(i).to_ne_bytes()));
+
+        Some(())
+    }
+    pub fn update_from_range<F>(
+        &mut self,
+        res: &mut GpuResources,
+        mut fill: F,
+    ) -> Option<()>
+    where
+        F: FnMut((usize, usize)) -> u32,
+    {
+        let slice = res[self.buffer].mapped_slice_mut()?;
+
+        slice
+            .chunks_exact_mut(4)
+            .take(self.width)
+            .enumerate()
+            .for_each(|(i, c)| c.clone_from_slice(&fill(i).to_ne_bytes()));
+
+        Some(())
+    }
+    */
 
     pub fn capacity(&self) -> usize {
         self.capacity

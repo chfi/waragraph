@@ -733,8 +733,11 @@ fn main() -> Result<()> {
                         &mut engine.resources,
                         |path, ix| {
                             let path = &waragraph.paths[path];
-                            let [node, _offset] = samples[ix];
-                            let node = node as usize;
+
+                            let [left, _offset] = samples[ix];
+                            let [right, _offset] = samples[ix + 1];
+
+                            let node = left as usize;
                             if path.get(node.into()).is_some() {
                                 1
                             } else {

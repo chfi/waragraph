@@ -304,9 +304,9 @@ impl Waragraph {
             }
         };
 
-        let p0 = pos_offset + sample_width / 2;
+        let p0 = pos_offset;
 
-        for i in 0..nsamples {
+        for i in 0..=nsamples {
             let p = p0 + i * sample_width;
             let ix = sample_point(p);
             let offset = self.node_sum_lens[ix];
