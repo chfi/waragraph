@@ -334,25 +334,6 @@ fn main() -> Result<()> {
 
     path_viewer.update_labels(&waragraph, &txt)?;
 
-    let mut path_slots = engine.with_allocators(|ctx, res, alloc| {
-        let slot_count = waragraph.paths.len();
-        let mut slots = Vec::with_capacity(slot_count);
-
-        for i in 0..slot_count {
-            let name = format!("path_slot_{}", i);
-            let slot = PathViewSlot::new(
-                ctx,
-                res,
-                alloc,
-                width as usize,
-                Some(&name),
-            )?;
-            slots.push(slot);
-        }
-
-        Ok(slots)
-    })?;
-
     let out_image = *win_size_resource_index.images.get("out_image").unwrap();
     let out_view = *win_size_resource_index
         .image_views
@@ -694,7 +675,7 @@ fn main() -> Result<()> {
                         txt.set_text_for(b"view:end", &end).unwrap();
                     }
 
-                    let slot_width = path_slots[0].width();
+                    let slot_width = path_viewer.width;
 
                     waragraph.sample_node_lengths_db(
                         slot_width,
@@ -762,19 +743,6 @@ fn main() -> Result<()> {
                         },
                     );
 
-                    for (ix, slot) in path_slots.iter_mut().enumerate() {
-                        let path = &waragraph.paths[ix];
-
-                        slot.update_from(&mut engine.resources, |ix| {
-                            let [node, _offset] = samples[ix];
-                            let node = node as usize;
-                            if path.get(node.into()).is_some() {
-                                1
-                            } else {
-                                0
-                            }
-                        });
-                    }
                 }
 
                 let mut updates: HashMap<IVec, IVec> = HashMap::default();
@@ -818,7 +786,7 @@ fn main() -> Result<()> {
 
                 let size = window.inner_size();
 
-                let slot_width = path_slots[0].width();
+                let slot_width = path_viewer.width;
 
                 let label_sets = {
                     txt.label_names
@@ -925,21 +893,6 @@ fn main() -> Result<()> {
                     // Some(vec![(1, vk::PipelineStageFlags::COMPUTE_SHADER)]),
                 ];
 
-                {
-                    // let rhai_offset =
-                    //     waragraph::console::eval::<i64>(&db, "view_offset()")
-                    //         .unwrap();
-                    // log::warn!("rhai_offset: {}", rhai_offset);
-
-                    // let rhai_offset =
-                    //     waragraph::console::eval::<rhai::Dynamic>(
-                    //         &db,
-                    //         "get(\"view\").subslice(8, 8).as_u64()",
-                    //     )
-                    //     .unwrap();
-                    // log::warn!("rhai_offset: {}", rhai_offset);
-                }
-
                 if recreate_swapchain_timer.is_none() && !recreate_swapchain {
                     let render_success = engine
                         .draw_from_batches(frame, &batches, deps.as_slice(), 1)
@@ -1005,22 +958,13 @@ fn main() -> Result<()> {
                                         0u32,
                                     )?;
 
-                                    for slot in path_slots.iter_mut() {
-                                        slot.resize(
-                                            ctx,
-                                            res,
-                                            alloc,
-                                            size.width as usize,
-                                            0u32,
-                                        )?;
-                                    }
 
                                     Ok(())
                                 })
                                 .unwrap();
 
                             {
-                                let slot_width = path_slots[0].width();
+                                let slot_width = path_viewer.width;
 
                                 // txt.set_label_pos(b"view:start", 20, 16)?;
                                 let len_len =
