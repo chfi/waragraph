@@ -201,12 +201,13 @@ fn foreground(batch, labels, desc_sets, slot_w, w, h) {
     pc.append_int(slot_h);
     pc.append_int(ix);
 
-    let color_data = get_buffer("storage_0");
+    // let color_data = get_buffer("storage_0");
 
     batch.dispatch_compute(self::path_pipeline.get(),
                            [slot_set,
                             clip_set,
-                            color_data.set,
+                            self::color_desc_set.get(),
+                            // color_data.set,
                             self::out_desc_set.get()],
                            pc,
                            workgroups);
@@ -253,6 +254,8 @@ fn foreground(batch, labels, desc_sets, slot_w, w, h) {
                          vk::ImageLayout::GENERAL,
                          vk::ImageLayout::GENERAL);
 
+
+  /*
   // draw lines
 
   // let line_data_set = buffers::get_uvec4("line_storage").storage_set;
@@ -287,6 +290,7 @@ fn foreground(batch, labels, desc_sets, slot_w, w, h) {
                           self::out_desc_set.get()],
                          pc,
                          workgroups);
+                         */
 
 
   // complete

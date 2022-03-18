@@ -734,15 +734,45 @@ fn main() -> Result<()> {
                         |path, ix| {
                             let path = &waragraph.paths[path];
 
-                            let [left, _offset] = samples[ix];
-                            let [right, _offset] = samples[ix + 1];
+                            // this is only needed right now because
+                            // there are some potential races in the
+                            // sampling and slot updating, but that's
+                            // fixable
+                            let left_ix = ix.min(samples.len() - 1);
+                            let right_ix = (ix + 1).min(samples.len() - 1);
 
-                            let node = left as usize;
-                            if path.get(node.into()).is_some() {
-                                1
-                            } else {
-                                0
+                            let [left, _offset] = samples[left_ix];
+                            let [right, _offset] = samples[right_ix];
+
+                            let max_loop = (left..right).filter_map(|n| path.get(n as usize)).copied().max().unwrap_or_default();
+
+                            max_loop
+
+                            /*
+                            let mut total = 0;
+                            let mut count = 0;
+
+                            for node in left..right {
+                                if let Some(v) = path.get(node as usize) {
+                                    total += v;
+                                    count += 1;
+                                }
                             }
+
+                            let avg = total.checked_div(count).unwrap_or_default();
+                            avg
+                            */
+
+                            // let v = (left..right).filter_map(|node| {
+                            //     path.get(node.into()).copied()
+                            // });
+
+                            // let node = left as usize;
+                            // if path.get(node.into()).is_some() {
+                            //     1
+                            // } else {
+                            //     0
+                            // }
                         },
                     );
 
@@ -913,7 +943,7 @@ fn main() -> Result<()> {
             }
             Event::RedrawEventsCleared => {
                 let should_recreate = recreate_swapchain_timer
-                    .map(|t| t.elapsed().as_millis() > 15)
+                    .map(|t| t.elapsed().as_millis() > 50)
                     .unwrap_or_default();
 
                 if should_recreate || recreate_swapchain {
