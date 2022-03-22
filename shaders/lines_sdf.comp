@@ -1,0 +1,78 @@
+#version 450
+
+// all (x,y) and (z,w) (as (x,y)) pairs in `lines` *must* be inside
+// the box defined by inputs.lines_origin and inputs.bbox
+
+// or essentially the same if line_points is used
+layout (set = 0, binding = 0) readonly buffer LineData {
+  uint line_count;
+
+  // uint line_points[];
+  uvec4 lines[];
+} lines;
+
+layout (rgba8, set = 1, binding = 0) writeonly uniform image2D image_out;
+
+layout(local_size_x = 8, local_size_y = 8, local_size_z = 1) in;
+
+layout (push_constant) uniform Inputs {
+  vec4 color;
+  // ivec2 lines_origin;
+  // uvec2 bbox;
+
+  // ivec2 dst_offset;
+  // int src_width;
+  // int src_height;
+  int width;
+  int height;
+
+  float range;
+} inputs;
+
+
+float sdSegment( in vec2 p, in vec2 a, in vec2 b )
+{
+    vec2 pa = p-a, ba = b-a;
+    float h = clamp( dot(pa,ba)/dot(ba,ba), 0.0, 1.0 );
+    return length( pa - ba*h );
+}
+
+uint lines_per_z = 64;
+
+void main() {
+  uint line_start = gl_WorkGroupID.z * lines_per_z;
+  uint line_end = min(line_start + lines_per_z, lines.line_count);
+
+  ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);
+
+  vec2 fp = vec2(pixel);
+
+  float min_dist = 1000000.0;
+
+  for (uint i = 0; i < lines_per_z; i++) {
+    uint li = line_start + i;
+
+    uvec4 l = lines.lines[li];
+
+    uvec2 ia = l.xy;
+    uvec2 ib = l.zw;
+
+    vec2 a = vec2(ia);
+    vec2 b = vec2(ib);
+
+    if (li < line_end) {
+      float d = sdSegment(fp, a, b);
+      min_dist = min(d, min_dist);
+    }
+  }
+
+  if (min_dist < inputs.range) {
+    float t = min_dist / 4.0;
+    float t_ = clamp(1.0 - t, 0.0, 1.0);
+
+    vec4 col = vec4(t_ * inputs.color.xyz, 1.0);
+
+    imageStore(image_out, pixel, col);
+  }
+
+}
