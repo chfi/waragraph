@@ -236,13 +236,6 @@ impl Waragraph {
         })
     }
 
-    // pub fn paths_on(&self, node: Node) -> roaring::RoaringBitmap {
-    //     let i = node.0;
-
-    // self.path_nodes.
-
-    // }
-
     pub fn node_count(&self) -> usize {
         self.node_count
     }
@@ -251,12 +244,6 @@ impl Waragraph {
         self.total_len
     }
 
-    // pub fn neighbors_fwd(&self, node: Node) -> Option<CsVecView<'_, u8>> {
-    //     let i = node.0 as usize;
-    //     self.adj_n_n.outer_view(i)
-    // }
-
-    // pub fn neighbors_fwd(&self, node: Node) -> Option<CsVecView<'_, u8>> {
     pub fn neighbors_fwd<'a>(&'a self, node: Node) -> Option<&'a [Node]> {
         let i = node.0 as usize;
         let range = self.adj_n_n.indptr().outer_inds_sz(i);
@@ -348,9 +335,10 @@ impl Waragraph {
             }
         };
 
-        let p0 = pos_offset + sample_width / 2;
+        // let p0 = pos_offset + sample_width / 2;
+        let p0 = pos_offset;
 
-        for i in 0..nsamples {
+        for i in 0..=nsamples {
             let p = p0 + i * sample_width;
             let ix = sample_point(p);
             let offset = self.node_sum_lens[ix];

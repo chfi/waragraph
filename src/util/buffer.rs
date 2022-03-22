@@ -274,10 +274,6 @@ impl BufFmt {
     */
 }
 
-// pub struct BufFmt {
-//     fmt: [u8;3],
-// }
-
 pub struct BufferStorage {
     pub tree: sled::Tree,
 
@@ -329,25 +325,11 @@ macro_rules! key_fn {
 }
 
 impl BufferStorage {
-    // const ID_NAME_MASK: [u8; 10] = *b"n:01234567";
-    // const BUF_DATA_MASK: [u8; 10] = *b"d:01234567";
-    // // used to store e.g. "[u8;2]"; basically a simple schema
-    // const BUF_FMT_MASK: [u8; 10] = *b"f:01234567";
-    // const BUF_CAP_MASK: [u8; 10] = *b"c:01234567";
-
-    // const VEC_ID_MASK: [u8; 10] = *b"v:01234567";
-
     pub fn name_key(name: &str) -> Vec<u8> {
         let mut name_key = BufId::NAME_ID_PREFIX.to_vec();
         name_key.extend(name.as_bytes());
         name_key
     }
-
-    // key_fn!(buf_ix_key, [u8; 10], Self::BUF_IX_MASK, 2);
-    // key_fn!(set_ix_key, [u8; 10], Self::SET_IX_MASK, 2);
-    /*
-      each name gets mapped to a u64 sled id
-    */
 
     pub fn new(db: &sled::Db) -> Result<Self> {
         let tree = db.open_tree("buffer_storage")?;
@@ -361,19 +343,6 @@ impl BufferStorage {
             desc_sets,
         })
     }
-
-    /*
-    pub fn allocate_buffer_and_fill(
-        &mut self,
-        engine: &mut VkEngine,
-        db: &sled::Db,
-        name: &str,
-        fmt: BufFmt,
-        capacity: usize,
-
-    ) -> Result<u64> {
-    }
-    */
 
     pub fn fill_slice_from<T: Copy + FromBytes>(
         fmt: BufFmt,

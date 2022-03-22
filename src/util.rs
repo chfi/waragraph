@@ -114,9 +114,6 @@ impl ColorBuffers {
         Ok(())
     }
 
-    // fn buffer_name_key(name: &[u8]) ->
-    // pub fn na
-
     pub fn get_id(&self, name: &[u8]) -> Option<u64> {
         let key = Self::buffer_name_key(name);
         let v = self.tree.get(&key).ok()??;
@@ -171,9 +168,6 @@ impl ColorBuffers {
         Ok(())
     }
 
-    // &self,
-    // res: &mut GpuResources,
-
     pub fn flush_buffer(
         &self,
         res: &mut GpuResources,
@@ -200,28 +194,6 @@ impl ColorBuffers {
 
         Ok(())
     }
-
-    // pub fn
-
-    /*
-    pub fn get_id(&self, name: &[u8]) -> Option<u64> {
-        let mut key = self.key_buf.lock();
-        if key.len() < 11 {
-            key.clear();
-            key.clone_from_slice(b"buffer_name");
-        }
-        key.resize(11 + name.len(), 0);
-        key[11..11 + name.len()].clone_from_slice(name);
-
-        // if self.key_buf.len() < name.len() + 11 {
-        //     self.key_buf_len.resiz
-        // }
-        // let mut key = Vec::with_capacity(name.len() + 11);
-
-        let v = self.tree.get(&*key).ok()??;
-        u64::read_from(v.as_ref())
-    }
-    */
 }
 
 pub struct LabelStorage {
