@@ -316,6 +316,7 @@ impl PathViewer {
         for slot in self.slots.iter_mut() {
             slot.resize(ctx, res, alloc, new_width, fill)?;
         }
+        self.width = new_width;
         Ok(())
     }
 }

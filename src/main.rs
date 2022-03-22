@@ -731,51 +731,18 @@ fn main() -> Result<()> {
 
                     path_viewer.update_from(
                         &mut engine.resources,
-                        |path, ix| {
-                            let path = &waragraph.paths[path];
-
-                            // this is only needed right now because
-                            // there are some potential races in the
-                            // sampling and slot updating, but that's
-                            // fixable
-                            let left_ix = ix.min(samples.len() - 1);
-                            let right_ix = (ix + 1).min(samples.len() - 1);
-
-                            let [left, _offset] = samples[left_ix];
-                            let [right, _offset] = samples[right_ix];
-
-                            let max_loop = (left..right).filter_map(|n| path.get(n as usize)).copied().max().unwrap_or_default();
-
-                            max_loop
-
-                            /*
-                            let mut total = 0;
-                            let mut count = 0;
-
-                            for node in left..right {
-                                if let Some(v) = path.get(node as usize) {
-                                    total += v;
-                                    count += 1;
-                                }
-                            }
-
-                            let avg = total.checked_div(count).unwrap_or_default();
-                            avg
-                            */
-
-                            // let v = (left..right).filter_map(|node| {
-                            //     path.get(node.into()).copied()
-                            // });
-
-                            // let node = left as usize;
-                            // if path.get(node.into()).is_some() {
-                            //     1
-                            // } else {
-                            //     0
-                            // }
-                        },
+                        update_slot_node_present(&waragraph, samples)
                     );
 
+                    // path_viewer.update_from(
+                    //     &mut engine.resources,
+                    //     update_slot_mean_loops(&waragraph, samples)
+                    // );
+
+                    // path_viewer.update_from(
+                    //     &mut engine.resources,
+                    //     update_slot_loops_mid(&waragraph, samples)
+                    // );
                 }
 
                 let mut updates: HashMap<IVec, IVec> = HashMap::default();
@@ -1209,4 +1176,79 @@ fn main() -> Result<()> {
     });
 
     Ok(())
+}
+
+fn update_slot_mean_loops<'a>(
+    graph: &'a Waragraph,
+    samples: &'a [[u32; 2]],
+) -> impl Fn(usize, usize) -> u32 + 'a {
+    |path, ix| {
+        let path = &graph.paths[path];
+
+        // this is only needed right now because
+        // there are some potential races in the
+        // sampling and slot updating, but that's
+        // fixable
+        let left_ix = ix.min(samples.len() - 1);
+        let right_ix = (ix + 1).min(samples.len() - 1);
+
+        let [left, _offset] = samples[left_ix];
+        let [right, _offset] = samples[right_ix];
+
+        let mut total = 0;
+        let mut count = 0;
+
+        for node in left..right {
+            if let Some(v) = path.get(node as usize) {
+                total += v;
+                count += 1;
+            }
+        }
+
+        let avg = total.checked_div(count).unwrap_or_default();
+        avg
+    }
+}
+
+fn update_slot_loops_mid<'a>(
+    graph: &'a Waragraph,
+    samples: &'a [[u32; 2]],
+) -> impl Fn(usize, usize) -> u32 + 'a {
+    |path, ix| {
+        let path = &graph.paths[path];
+
+        let left_ix = ix.min(samples.len() - 1);
+        let right_ix = (ix + 1).min(samples.len() - 1);
+
+        let [left, _offset] = samples[left_ix];
+        let [right, _offset] = samples[right_ix];
+
+        let node = left + (right - left) / 2;
+
+        let val = path.get(node as usize).copied().unwrap_or_default();
+        val
+    }
+}
+
+fn update_slot_node_present<'a>(
+    graph: &'a Waragraph,
+    samples: &'a [[u32; 2]],
+) -> impl Fn(usize, usize) -> u32 + 'a {
+    |path, ix| {
+        let path = &graph.paths[path];
+
+        let left_ix = ix.min(samples.len() - 1);
+        let right_ix = (ix + 1).min(samples.len() - 1);
+
+        let [left, _offset] = samples[left_ix];
+        let [right, _offset] = samples[right_ix];
+
+        let node = left + (right - left) / 2;
+
+        if path.get(node as usize).is_some() {
+            1
+        } else {
+            0
+        }
+    }
 }
