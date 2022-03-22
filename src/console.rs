@@ -201,6 +201,11 @@ pub fn append_to_engine(
     engine.register_global_module(module.clone());
     */
 
+    let db_ = db.clone();
+    engine.register_fn("set_slot_fn", move |s: &str| {
+        db_.update_and_fetch(b"slot_function", |_| Some(s)).unwrap();
+    });
+
     engine.register_type_with_name::<IVec>("IVec");
 
     engine.register_fn("ivec", |len: i64| {
@@ -246,6 +251,8 @@ pub fn append_to_engine(
             v[offset..offset + bytes.len()].clone_from_slice(bytes);
         },
     );
+
+    engine.register_fn("to_ivec", |s: &str| IVec::from(s.as_bytes()));
 
     engine.register_result_fn(
         "subslice",
@@ -307,13 +314,8 @@ pub fn append_to_engine(
         // v
     });
 
-    let db_ = db.clone();
-    engine.register_fn("set", move |k: &mut IVec, v: IVec| {
-        // let k = k.as_bytes();
-        db_.insert(k, v).unwrap();
-        // let v = db_.get(k).unwrap().unwrap();
-        // v
-    });
+    // let db_ = db.clone();
+    // engine.register_fn("set", move |
 
     let db_ = db.clone();
     engine.register_fn("view", move || {

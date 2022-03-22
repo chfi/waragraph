@@ -66,6 +66,10 @@ fn main() -> Result<()> {
 
     let db = db_cfg.open()?;
 
+    db.insert(b"slot_function", b"loops_mean")?;
+    // db.insert(b"slot_function", b"loops_midpoint")?;
+    // db.insert(b"slot_function", b"node_present")?;
+
     // make sure the first frame gets resampled
     db.remove(b"sample_indices")?;
 
@@ -128,9 +132,10 @@ fn main() -> Result<()> {
 
     txt.allocate_label(&db, &mut engine, "console")?;
     txt.set_label_pos(b"console", 4, 4)?;
+    txt.set_text_for(b"console", "")?;
 
     txt.allocate_label(&db, &mut engine, "fps")?;
-    txt.set_label_pos(b"fps", 50, 4)?;
+    txt.set_label_pos(b"fps", 0, 580)?;
 
     txt.allocate_label(&db, &mut engine, "view:start")?;
     txt.allocate_label(&db, &mut engine, "view:len")?;
@@ -309,7 +314,7 @@ fn main() -> Result<()> {
     db.insert(b"sample_indices", samples_db.as_bytes())?;
 
     // TODO set slot_count based on available height, and row height
-    let slot_count = 10;
+    let slot_count = 20;
 
     let mut path_viewer = engine.with_allocators(|ctx, res, alloc| {
         PathViewer::new(
@@ -729,20 +734,43 @@ fn main() -> Result<()> {
                         std::slice::from_raw_parts(data, len)
                     };
 
-                    path_viewer.update_from(
-                        &mut engine.resources,
-                        update_slot_node_present(&waragraph, samples)
-                    );
+                    let update_key = db.get(b"slot_function").ok().flatten();
 
-                    // path_viewer.update_from(
-                    //     &mut engine.resources,
-                    //     update_slot_mean_loops(&waragraph, samples)
-                    // );
-
-                    // path_viewer.update_from(
-                    //     &mut engine.resources,
-                    //     update_slot_loops_mid(&waragraph, samples)
-                    // );
+                    if let Some(key) = update_key {
+                        match key.as_ref() {
+                        b"loops_mean" => {
+                            path_viewer.update_from(
+                                &mut engine.resources,
+                                update_slot_mean_loops(&waragraph, samples)
+                            );
+                        }
+                        b"loops_midpoint" => {
+                            path_viewer.update_from(
+                                &mut engine.resources,
+                                update_slot_loops_mid(&waragraph, samples)
+                            );
+                        }
+                        b"node_present" => {
+                            path_viewer.update_from(
+                                &mut engine.resources,
+                                update_slot_node_present(&waragraph, samples)
+                            );
+                        }
+                            _ => {
+                                log::warn!("unknown slot_function");
+                                path_viewer.update_from(
+                                    &mut engine.resources,
+                                    update_slot_node_present(&waragraph, samples)
+                                );
+                            }
+                        }
+                    } else {
+                        log::warn!("unknown slot_function");
+                        path_viewer.update_from(
+                            &mut engine.resources,
+                            update_slot_node_present(&waragraph, samples)
+                        );
+                    }
                 }
 
                 let mut updates: HashMap<IVec, IVec> = HashMap::default();
@@ -988,6 +1016,8 @@ fn main() -> Result<()> {
                                 )
                                 .unwrap();
 
+                                txt.set_label_pos(b"fps", 0, (size.height - 12) as u32).unwrap();
+
                                 waragraph.sample_node_lengths_db(
                                     slot_width,
                                     &view,
@@ -1094,10 +1124,8 @@ fn main() -> Result<()> {
                                 view.resize((len - len / 9) as usize);
                             } else if matches!(kc, VK::Down) {
                                 view.resize((len + len / 10) as usize);
-                            } else if matches!(kc, VK::Space) {
-
-                                buffers.insert_data(buf_0, &[rgb(0.0, 0.0, 0.0), rgb(1.0, 0.0, 0.0)]).unwrap();
-
+                            } else if matches!(kc, VK::Escape) {
+                                // buffers.insert_data(buf_0, &[rgb(0.0, 0.0, 0.0), rgb(1.0, 0.0, 0.0)]).unwrap();
                                 view.reset();
                             } else if matches!(kc, VK::PageUp) {
                                 path_viewer.scroll_up();
