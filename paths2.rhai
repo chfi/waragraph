@@ -343,15 +343,11 @@ fn foreground(batch, labels, desc_sets, slot_w, w, h) {
 
 
 
-export let img_shader = load_shader("shaders/sample_image.comp.spv",
+export let img_shader = load_shader("shaders/copy_image.comp.spv",
                                     vk::ShaderStageFlags::COMPUTE);
 
 export let img_pipeline = create_compute_pipeline(img_shader);
 
-export let sampler_set =
-  create_desc_set(img_shader,
-                  0,
-                  [ #{ binding: 0, sampler: sampler } ]);
 
 
 // `swapchain` should be #{ img, img_view, storage_set } for the correct swapchain image
@@ -387,8 +383,7 @@ fn copy_to_swapchain(batch, source_set, swapchain, w, h) {
                       z_groups: 1 };
 
   batch.dispatch_compute(self::img_pipeline.get(),
-                         [self::sampler_set.get(),
-                          source_set,
+                         [self::out_desc_set.get(),
                           swapchain.storage_set],
                          pc,
                          workgroups);
