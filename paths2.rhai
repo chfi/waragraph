@@ -2,7 +2,7 @@ export let out_image = image_var("out_image");
 export let out_image_view = image_view_var("out_image_view");
 export let out_desc_set = desc_set_var("out_desc_set");
 
-let sampler_info =
+let unnorm_sampler_info =
 #{ mag_filter: vk::Filter::NEAREST,
    min_filter: vk::Filter::NEAREST,
    address_mode_u: vk::SamplerAddressMode::REPEAT,
@@ -16,7 +16,22 @@ let sampler_info =
    max_lod: 1.0,
  };
 
-export let sampler = create_sampler(sampler_info);
+let norm_sampler_info =
+#{ mag_filter: vk::Filter::NEAREST,
+   min_filter: vk::Filter::NEAREST,
+   address_mode_u: vk::SamplerAddressMode::REPEAT,
+   address_mode_v: vk::SamplerAddressMode::REPEAT,
+   address_mode_w: vk::SamplerAddressMode::REPEAT,
+   anisotropy_enable: false,
+   unnormalized_coordinates: false,
+   mipmap_mode: vk::SamplerMipmapMode::NEAREST,
+   mip_lod_bias: 0.0,
+   min_lod: 0.0,
+   max_lod: 1.0,
+ };
+
+export let unnorm_sampler = create_sampler(unnorm_sampler_info);
+export let norm_sampler = create_sampler(norm_sampler_info);
 
 
 export let color_buf = buffer_var("color_buffer");
@@ -60,7 +75,7 @@ export let font_desc_set =
   create_desc_set(text_shader,
                   0,
                   [ #{ binding: 0, image_view: font_image_view } ,
-                    #{ binding: 1, sampler: sampler } ]);
+                    #{ binding: 1, sampler: norm_sampler } ]);
 
 
 export let clip_rects_buffer =

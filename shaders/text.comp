@@ -39,10 +39,10 @@ void main() {
 
   vec4 font = texture(sampler2D(font_img, u_sampler), char_px);
 
-  vec4 font_col = vec4(vec3(1.0) - font.rgb, 1.0 - font.r);
+  vec4 font_col = vec4(font.rgb, 1.0 - font.r);
 
   // if (font_col.r == 0.0 &&
-  if (font_col.r == 0.0 &&
+  if (font_col.a > 0.0 &&
       x_offset <= inputs.img_width &&
       y_offset <= inputs.img_height) {
     ivec2 dst_px = ivec2(x_offset, y_offset);
