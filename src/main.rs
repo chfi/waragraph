@@ -517,6 +517,20 @@ fn main() -> Result<()> {
 
     let arc_module = Arc::new(builder.module.clone());
 
+    // draw_labels
+    let mut rhai_engine = waragraph::console::create_engine(&db, &buffers);
+
+    rhai_engine.register_static_module("self", arc_module.clone());
+
+    let mut draw_labels = rhai::Func::<
+        (BatchBuilder, i64, i64, rhai::Array),
+        BatchBuilder,
+    >::create_from_ast(
+        rhai_engine,
+        builder.ast.clone_functions_only(),
+        "draw_labels",
+    );
+
     // let mut rhai_engine = raving::script::console::create_batch_engine();
     let mut rhai_engine = waragraph::console::create_engine(&db, &buffers);
 
@@ -810,8 +824,6 @@ fn main() -> Result<()> {
 
                 let frame = &mut frames[f_ix % raving::vk::FRAME_OVERLAP];
 
-                let batch_builder = BatchBuilder::default();
-
                 let size = window.inner_size();
 
                 let slot_width = path_viewer.width;
@@ -852,25 +864,36 @@ fn main() -> Result<()> {
                     ),
                 );
 
+
+                let batch_builder = BatchBuilder::default();
                 let fg_batch = draw_foreground(
                     batch_builder,
-                    label_sets,
+                    label_sets.clone(),
                     desc_sets.clone(),
-                    // desc_sets.clone(),
                     slot_width as i64,
                     size.width as i64,
                     size.height as i64,
                 )
                 .unwrap();
                 let fg_batch_fn = fg_batch.build();
-                let fg_rhai_batch = fg_batch_fn.clone();
+
+                let batch_builder = BatchBuilder::default();
+                let labels_batch = draw_labels(
+                    batch_builder,
+                    size.width as i64,
+                    size.height as i64,
+                    label_sets,
+                ).unwrap();
+                let labels_batch_fn = labels_batch.build();
+
 
                 let fg_batch = Box::new(
                     move |dev: &Device,
                           res: &GpuResources,
                           _input: &BatchInput,
                           cmd: vk::CommandBuffer| {
-                        fg_rhai_batch(dev, res, cmd);
+                              fg_batch_fn(dev, res, cmd);
+                              labels_batch_fn(dev, res, cmd);
                     },
                 ) as Box<_>;
 

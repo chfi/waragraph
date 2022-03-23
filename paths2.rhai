@@ -246,39 +246,6 @@ fn foreground(batch, labels, desc_sets, slot_w, w, h) {
                            workgroups);
   }
 
-  // draw labels
-
-
-  let x_size = 16;
-  let y_size = 16;
-
-  let x_groups = (w / x_size) + w % x_size;
-  let y_groups = (h / y_size) + h % y_size;
-  let workgroups = #{ x_groups: x_groups,
-                      y_groups: y_groups,
-                      z_groups: 1 };
-
-  for label in labels {
-    // let desc_set = info.desc_set;
-
-    let pc = blob();
-    pc.append_int(label.x);
-    pc.append_int(label.y);
-    pc.append_int(w);
-    pc.append_int(h);
-
-    batch.dispatch_compute(self::text_pipeline.get(),
-                           [self::font_desc_set.get(),
-                            label.desc_set,
-                            self::out_desc_set.get()],
-                           pc,
-                           workgroups);
-
-
-  }
-
-
-
   batch.transition_image(img,
                          vk::AccessFlags::SHADER_WRITE,
                          vk::PipelineStageFlags::COMPUTE_SHADER,
@@ -402,9 +369,9 @@ fn copy_to_swapchain(batch, source_set, swapchain, w, h) {
 }
 
 
-fn draw_labels(batch, dims, labels) {
-  let w = dims.width;
-  let h = dims.height;
+fn draw_labels(batch, width, height, labels) {
+  let w = width;
+  let h = height;
 
   let x_size = 16;
   let y_size = 16;
@@ -434,6 +401,17 @@ fn draw_labels(batch, dims, labels) {
 
 
   }
+
+  let img = self::out_image.get();
+  batch.transition_image(img,
+                         vk::AccessFlags::SHADER_WRITE,
+                         vk::PipelineStageFlags::COMPUTE_SHADER,
+                         vk::AccessFlags::SHADER_READ,
+                         vk::PipelineStageFlags::COMPUTE_SHADER,
+                         vk::ImageLayout::GENERAL,
+                         vk::ImageLayout::GENERAL);
+
+  batch
 }
 
 fn draw_slots(batch, slot_dims, slot_desc_sets) {
@@ -471,4 +449,5 @@ fn draw_slots(batch, slot_dims, slot_desc_sets) {
                            workgroups);
   }
 
+  batch
 }
