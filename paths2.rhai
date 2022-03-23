@@ -400,3 +400,75 @@ fn copy_to_swapchain(batch, source_set, swapchain, w, h) {
 
   batch
 }
+
+
+fn draw_labels(batch, dims, labels) {
+  let w = dims.width;
+  let h = dims.height;
+
+  let x_size = 16;
+  let y_size = 16;
+
+  let x_groups = (w / x_size) + w % x_size;
+  let y_groups = (h / y_size) + h % y_size;
+  let workgroups = #{ x_groups: x_groups,
+                      y_groups: y_groups,
+                      z_groups: 1 };
+
+
+  for label in labels {
+    // let desc_set = info.desc_set;
+
+    let pc = blob();
+    pc.append_int(label.x);
+    pc.append_int(label.y);
+    pc.append_int(w);
+    pc.append_int(h);
+
+    batch.dispatch_compute(self::text_pipeline.get(),
+                           [self::font_desc_set.get(),
+                            label.desc_set,
+                            self::out_desc_set.get()],
+                           pc,
+                           workgroups);
+
+
+  }
+}
+
+fn draw_slots(batch, slot_dims, slot_desc_sets) {
+  let x_size = 8;
+  let y_size = 8;
+
+  let slot_w = slot_dims.width;
+  let slot_h = slot_dims.height;
+
+  let workgroups = #{ x_groups: (slot_w / x_size) + slot_w % x_size,
+                      y_groups: (slot_h / y_size) + slot_h % y_size,
+                      z_groups: 1 };
+
+
+  for ix in 0..slot_desc_sets.len() {
+    let desc_sets = desc_sets[ix];
+
+    let slot_set = desc_sets.slot;
+    let clip_set = desc_sets.clip;
+
+    let pc = blob();
+    pc.append_int(slot_w);
+    pc.append_int(slot_h);
+    pc.append_int(ix);
+
+    // let color_data = get_buffer("storage_0");
+
+    batch.dispatch_compute(self::path_pipeline.get(),
+                           [slot_set,
+                            clip_set,
+                            self::color_desc_set.get(),
+                            // color_data.set,
+                            self::out_desc_set.get()],
+                           pc,
+                           workgroups);
+  }
+
+}
