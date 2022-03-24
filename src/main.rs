@@ -1238,10 +1238,9 @@ fn update_slot_mean_loops<'a>(
     |path, ix| {
         let path = &graph.paths[path];
 
-        // this is only needed right now because
-        // there are some potential races in the
-        // sampling and slot updating, but that's
-        // fixable
+        // this bounds check is only needed right now because there
+        // are some potential races in the sampling and slot updating,
+        // but that's fixable
         let left_ix = ix.min(samples.len() - 1);
         let right_ix = (ix + 1).min(samples.len() - 1);
 
