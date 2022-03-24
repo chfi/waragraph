@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 
 use ash::vk;
 use bstr::ByteSlice;
@@ -15,6 +15,32 @@ use anyhow::{anyhow, Result};
 
 use crossbeam::atomic::AtomicCell;
 use std::sync::Arc;
+
+use crate::graph::Node;
+
+// pub type Path = usize;
+
+pub type DataSource =
+    Arc<dyn Fn(usize, Node) -> Option<u32> + Send + Sync + 'static>;
+
+#[derive(Default)]
+pub struct SlotRenderers {
+    data_sources: HashMap<String, DataSource>,
+}
+
+impl SlotRenderers {
+    pub fn register_data_source<F>(&mut self, id: &str, f: F)
+    where
+        F: Fn(usize, Node) -> Option<u32> + Send + Sync + 'static,
+    {
+        let data_source = Arc::new(f) as DataSource;
+        self.data_sources.insert(id.to_string(), data_source);
+    }
+
+    pub fn get_data_source(&self, id: &str) -> Option<&DataSource> {
+        self.data_sources.get(id)
+    }
+}
 
 // pub struct SlotCache {
 // }

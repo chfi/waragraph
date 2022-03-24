@@ -23,7 +23,9 @@ use rspirv_reflect::DescriptorInfo;
 use sled::IVec;
 use waragraph::graph::{Node, Waragraph};
 use waragraph::util::{BufFmt, BufId, BufMeta, BufferStorage, LabelStorage};
-use waragraph::viewer::{PathViewSlot, PathViewer, ViewDiscrete1D};
+use waragraph::viewer::{
+    PathViewSlot, PathViewer, SlotRenderers, ViewDiscrete1D,
+};
 use winit::event::{Event, VirtualKeyCode, WindowEvent};
 use winit::{event_loop::EventLoop, window::WindowBuilder};
 
@@ -73,7 +75,15 @@ fn main() -> Result<()> {
     // make sure the first frame gets resampled
     db.remove(b"sample_indices")?;
 
-    let waragraph = Waragraph::from_gfa(&gfa)?;
+    let waragraph = Arc::new(Waragraph::from_gfa(&gfa)?);
+
+    let mut slot_renderers = SlotRenderers::default();
+
+    let graph = waragraph.clone();
+    slot_renderers.register_data_source("loop_count", move |path, node| {
+        let path = &graph.paths[path];
+        path.get(node.into()).copied()
+    });
 
     let event_loop: EventLoop<()>;
 
