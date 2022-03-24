@@ -16,7 +16,7 @@ use anyhow::{anyhow, Result};
 use crossbeam::atomic::AtomicCell;
 use std::sync::Arc;
 
-use crate::graph::Node;
+use crate::graph::{Node, Waragraph};
 
 // pub type Path = usize;
 
@@ -39,6 +39,45 @@ impl SlotRenderers {
 
     pub fn get_data_source(&self, id: &str) -> Option<&DataSource> {
         self.data_sources.get(id)
+    }
+
+    pub fn create_sampler_mean<'a>(
+        &self,
+        id: &str,
+        // graph: &'a Waragraph,
+        // samples: &'a [(Node, usize)],
+        samples: &'a [[u32; 2]],
+    ) -> Option<impl Fn(usize, usize) -> u32 + 'a> {
+        let data_source = self.get_data_source(id)?.clone();
+
+        let f = move |path, ix: usize| {
+            let left_ix = ix.min(samples.len() - 1);
+            let right_ix = (ix + 1).min(samples.len() - 1);
+
+            // let (left, _offset) = samples[left_ix];
+            // let (right, _offset) = samples[right_ix];
+
+            let [left, _offset] = samples[left_ix];
+            let [right, _offset] = samples[right_ix];
+
+            let mut total = 0;
+            let mut count = 0;
+
+            // let l: u32 = left.into();
+            // let r: u32 = right.into();
+
+            for n in left..right {
+                let node = Node::from(n);
+                if let Some(v) = data_source(path, node) {
+                    total += v;
+                    count += 1;
+                }
+            }
+
+            let avg = total.checked_div(count).unwrap_or_default();
+            avg
+        };
+        Some(f)
     }
 }
 

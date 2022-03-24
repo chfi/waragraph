@@ -765,9 +765,13 @@ fn main() -> Result<()> {
                     if let Some(key) = update_key {
                         match key.as_ref() {
                         b"loops_mean" => {
+                            let updater = slot_renderers
+                                .create_sampler_mean("loop_count", samples)
+                                .unwrap();
+
                             path_viewer.update_from(
                                 &mut engine.resources,
-                                update_slot_mean_loops(&waragraph, samples)
+                                updater,
                             );
                         }
                         b"loops_midpoint" => {
