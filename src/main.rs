@@ -706,6 +706,8 @@ fn main() -> Result<()> {
                         Some(samples_db.as_bytes())
                     })
                     .unwrap();
+
+                    path_viewer.sample(&waragraph, &view);
                 }
 
                 while let Ok(ev) =

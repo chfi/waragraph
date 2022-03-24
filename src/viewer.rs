@@ -20,7 +20,10 @@ pub mod sampler;
 
 pub use sampler::*;
 
-use crate::{graph::Waragraph, util::LabelStorage};
+use crate::{
+    graph::{Node, Waragraph},
+    util::LabelStorage,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ViewDiscrete1D {
@@ -154,6 +157,7 @@ pub struct PathViewer {
     pub width: usize,
     pub slots: Vec<PathViewSlot>,
     // slot_path_map: Vec<usize>,
+    sample_buf: Vec<(Node, usize)>,
 }
 
 impl PathViewer {
@@ -193,6 +197,8 @@ impl PathViewer {
             update: false.into(),
             view,
             view_max,
+
+            sample_buf: Vec::new(),
         })
     }
 
@@ -200,6 +206,10 @@ impl PathViewer {
         let r = self.update.load();
         self.update.store(false);
         r
+    }
+
+    pub fn sample(&mut self, graph: &Waragraph, view: &ViewDiscrete1D) {
+        graph.sample_node_lengths(self.width, view, &mut self.sample_buf);
     }
 
     pub fn scroll_up(&self) {
@@ -320,7 +330,7 @@ impl PathViewSlot {
 // where
     //     F: FnMut(usize) -> u32,
     {
-        let mut buffer = Self::allocate_buffer(ctx, res, alloc, width, name)?;
+        let buffer = Self::allocate_buffer(ctx, res, alloc, width, name)?;
 
         // let buf_size = buffer.alloc.size() as usize;
 
