@@ -138,7 +138,7 @@ fn main() -> Result<()> {
 
     let mut txt = LabelStorage::new(&db)?;
 
-    let mut sample_sub = db.watch_prefix(b"sample_indices");
+    // let mut sample_sub = db.watch_prefix(b"sample_indices");
 
     let mut text_sub = txt.tree.watch_prefix(b"t:");
 
@@ -314,11 +314,6 @@ fn main() -> Result<()> {
 
     let mut view_sub = db.watch_prefix(b"view");
 
-    let mut samples_db = Vec::new();
-    waragraph.sample_node_lengths_db(width as usize, &view, &mut samples_db);
-
-    db.insert(b"sample_indices", samples_db.as_bytes())?;
-
     // TODO set slot_count based on available height, and row height
     let slot_count = 20;
 
@@ -334,6 +329,8 @@ fn main() -> Result<()> {
             waragraph.paths.len(),
         )
     })?;
+
+    path_viewer.sample(&waragraph, &view);
 
     let mut count = 0;
     for i in path_viewer.visible_indices() {
@@ -700,19 +697,6 @@ fn main() -> Result<()> {
                         txt.set_text_for(b"view:end", &end).unwrap();
                     }
 
-                    let slot_width = path_viewer.width;
-
-                    waragraph.sample_node_lengths_db(
-                        slot_width,
-                        &view,
-                        &mut samples_db,
-                    );
-
-                    db.update_and_fetch("sample_indices", |_| {
-                        Some(samples_db.as_bytes())
-                    })
-                    .unwrap();
-
                     path_viewer.sample(&waragraph, &view);
                 }
 
@@ -731,31 +715,33 @@ fn main() -> Result<()> {
                     }
                 }
 
-                let mut new_samples_in = None;
-
-                while let Ok(ev) =
-                    sample_sub.next_timeout(Duration::from_micros(10))
-                {
-                    match ev {
-                        sled::Event::Insert { key, value } => {
-                            new_samples_in = Some(value);
-                        }
-                        sled::Event::Remove { key } => {
-                            // do nothing yet
-                        }
-                    }
-                }
-
                 path_viewer.update_labels(&waragraph, &txt).unwrap();
 
-                if let Some(value) = new_samples_in {
-                    let samples = unsafe {
-                        let len = value.len() / 8;
-                        let ptr = value.as_ptr();
-                        let data: *const [u32; 2] = ptr.cast();
-                        std::slice::from_raw_parts(data, len)
+                if path_viewer.has_new_samples() {
+
+                    let update_key = db.get(b"slot_function").ok().flatten();
+
+                    let updater = if let Some(key) = update_key {
+                        match key.as_ref() {
+                        b"loops_mean" | _ => {
+                            slot_renderers
+                                .create_sampler_mean_arc("loop_count")
+                                .unwrap()
+                        }
+                        }
+                    } else {
+                        log::warn!("unknown slot_function");
+                            slot_renderers
+                                .create_sampler_mean_arc("loop_count")
+                                .unwrap()
                     };
 
+                    path_viewer.update_from_alt(
+                        &mut engine.resources,
+                        &updater,
+                    );
+
+                    /*
                     let update_key = db.get(b"slot_function").ok().flatten();
 
                     if let Some(key) = update_key {
@@ -802,6 +788,7 @@ fn main() -> Result<()> {
                             updater,
                         );
                     }
+                    */
                 }
 
                 let mut updates: HashMap<IVec, IVec> = HashMap::default();
@@ -1058,16 +1045,18 @@ fn main() -> Result<()> {
 
                                 txt.set_label_pos(b"fps", 0, (size.height - 12) as u32).unwrap();
 
-                                waragraph.sample_node_lengths_db(
-                                    slot_width,
-                                    &view,
-                                    &mut samples_db,
-                                );
+                                path_viewer.sample(&waragraph, &view);
 
-                                db.update_and_fetch("sample_indices", |_| {
-                                    Some(samples_db.as_bytes())
-                                })
-                                .unwrap();
+                                // waragraph.sample_node_lengths_db(
+                                //     slot_width,
+                                //     &view,
+                                //     &mut samples_db,
+                                // );
+
+                                // db.update_and_fetch("sample_indices", |_| {
+                                //     Some(samples_db.as_bytes())
+                                // })
+                                // .unwrap();
                             }
 
                             {

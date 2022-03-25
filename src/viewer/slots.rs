@@ -26,8 +26,6 @@ pub type DataSource =
 pub type SlotUpdateFn<T> =
     Arc<dyn Fn(&[(Node, usize)], usize, usize) -> T + Send + Sync + 'static>;
 
-// ) -> Option<impl Fn(usize, usize) -> u32 + 'a> {
-
 #[derive(Default)]
 pub struct SlotRenderers {
     data_sources: HashMap<String, DataSource>,

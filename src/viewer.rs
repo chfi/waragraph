@@ -160,6 +160,8 @@ pub struct PathViewer {
     pub slots: Vec<PathViewSlot>,
     // slot_path_map: Vec<usize>,
     sample_buf: Vec<(Node, usize)>,
+
+    new_samples: AtomicCell<bool>,
 }
 
 impl PathViewer {
@@ -196,11 +198,12 @@ impl PathViewer {
             tree,
             width,
             slots,
-            update: false.into(),
             view,
             view_max,
 
             sample_buf: Vec::new(),
+            update: false.into(),
+            new_samples: false.into(),
         })
     }
 
@@ -212,6 +215,11 @@ impl PathViewer {
 
     pub fn sample(&mut self, graph: &Waragraph, view: &ViewDiscrete1D) {
         graph.sample_node_lengths(self.width, view, &mut self.sample_buf);
+        self.new_samples.store(true);
+    }
+
+    pub fn has_new_samples(&self) -> bool {
+        self.new_samples.load()
     }
 
     pub fn scroll_up(&self) {
@@ -228,6 +236,24 @@ impl PathViewer {
         let no = (o + 1).clamp(0, self.view_max - l);
         self.view.store((no, l));
         self.update.store(true);
+    }
+
+    pub fn update_from_alt(
+        &mut self,
+        res: &mut GpuResources,
+        updater: &SlotUpdateFn<u32>,
+    ) -> Option<()> {
+        let vis = self.visible_indices();
+
+        let samples = &self.sample_buf;
+
+        for (path, slot) in vis.zip(self.slots.iter_mut()) {
+            slot.update_from(res, |ix| updater(samples, path, ix));
+        }
+
+        self.new_samples.store(false);
+
+        Some(())
     }
 
     pub fn update_from<F>(
