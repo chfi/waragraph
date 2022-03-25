@@ -79,6 +79,27 @@ impl SlotRenderers {
         };
         Some(f)
     }
+
+    pub fn create_sampler_mid<'a>(
+        &self,
+        id: &str,
+        samples: &'a [[u32; 2]],
+    ) -> Option<impl Fn(usize, usize) -> u32 + 'a> {
+        let data_source = self.get_data_source(id)?.clone();
+
+        let f = move |path, ix: usize| {
+            let left_ix = ix.min(samples.len() - 1);
+            let right_ix = (ix + 1).min(samples.len() - 1);
+
+            let [left, _offset] = samples[left_ix];
+            let [right, _offset] = samples[right_ix];
+
+            let node = left + (right - left) / 2;
+
+            data_source(path, node.into()).unwrap_or_default()
+        };
+        Some(f)
+    }
 }
 
 // pub struct SlotCache {

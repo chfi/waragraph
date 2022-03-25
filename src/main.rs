@@ -85,6 +85,12 @@ fn main() -> Result<()> {
         path.get(node.into()).copied()
     });
 
+    let graph = waragraph.clone();
+    slot_renderers.register_data_source("has_node", move |path, node| {
+        let path = &graph.paths[path];
+        path.get(node.into()).map(|_| 1)
+    });
+
     let event_loop: EventLoop<()>;
 
     #[cfg(target_os = "linux")]
@@ -122,8 +128,6 @@ fn main() -> Result<()> {
     // let mut buffer_sub = buffers.tree.watch_prefix(b"d:");
     let mut buffer_sub = buffers.tree.watch_prefix(vec![100, 58]);
 
-    // let mut buffer_sub = db.watch_prefix(b"bufferstoraged:");
-
     let fmt = BufFmt::FVec4;
     let buf_0 =
         buffers.allocate_buffer(&mut engine, &db, "storage_0", fmt, 255)?;
@@ -154,10 +158,6 @@ fn main() -> Result<()> {
     txt.set_label_pos(b"view:start", 20, 16)?;
     txt.set_label_pos(b"view:len", 300, 16)?;
     txt.set_label_pos(b"view:end", 600, 16)?;
-
-    // txt.set_text_for(b"view:start", "view offset")?;
-    // txt.set_text_for(b"view:len", "view len")?;
-    // txt.set_text_for(b"view:end", "view end")?;
 
     let window_storage_set_info = {
         let info = DescriptorInfo {
@@ -217,7 +217,6 @@ fn main() -> Result<()> {
 
         let (img, view, sampled_desc_set, desc_set) =
             engine.with_allocators(|ctx, res, alloc| {
-                dbg!();
                 let out_image = res.allocate_image(
                     ctx,
                     alloc,
@@ -230,7 +229,6 @@ fn main() -> Result<()> {
                     Some("out_image"),
                 )?;
 
-                dbg!();
                 let out_view = res.new_image_view(ctx, &out_image)?;
 
                 let sampled_desc_set = res.allocate_desc_set_raw(
@@ -248,7 +246,6 @@ fn main() -> Result<()> {
                     },
                 )?;
 
-                dbg!();
                 let out_desc_set = res.allocate_desc_set_raw(
                     &window_storage_image_layout,
                     &window_storage_set_info,
@@ -263,7 +260,6 @@ fn main() -> Result<()> {
                         Ok(())
                     },
                 )?;
-                dbg!();
 
                 Ok((out_image, out_view, sampled_desc_set, out_desc_set))
             })?;
@@ -775,30 +771,35 @@ fn main() -> Result<()> {
                             );
                         }
                         b"loops_midpoint" => {
+                            let updater = slot_renderers
+                                .create_sampler_mid("loop_count", samples)
+                                .unwrap();
+
                             path_viewer.update_from(
                                 &mut engine.resources,
-                                update_slot_loops_mid(&waragraph, samples)
+                                updater,
                             );
                         }
-                        b"node_present" => {
+                        b"node_present" | _ => {
+                            let updater = slot_renderers
+                                .create_sampler_mid("has_node", samples)
+                                .unwrap();
+
                             path_viewer.update_from(
                                 &mut engine.resources,
-                                update_slot_node_present(&waragraph, samples)
+                                updater,
                             );
                         }
-                            _ => {
-                                log::warn!("unknown slot_function");
-                                path_viewer.update_from(
-                                    &mut engine.resources,
-                                    update_slot_node_present(&waragraph, samples)
-                                );
-                            }
                         }
                     } else {
                         log::warn!("unknown slot_function");
+                        let updater = slot_renderers
+                            .create_sampler_mid("has_node", samples)
+                            .unwrap();
+
                         path_viewer.update_from(
                             &mut engine.resources,
-                            update_slot_node_present(&waragraph, samples)
+                            updater,
                         );
                     }
                 }
@@ -1243,78 +1244,4 @@ fn main() -> Result<()> {
     });
 
     Ok(())
-}
-
-fn update_slot_mean_loops<'a>(
-    graph: &'a Waragraph,
-    samples: &'a [[u32; 2]],
-) -> impl Fn(usize, usize) -> u32 + 'a {
-    |path, ix| {
-        let path = &graph.paths[path];
-
-        // this bounds check is only needed right now because there
-        // are some potential races in the sampling and slot updating,
-        // but that's fixable
-        let left_ix = ix.min(samples.len() - 1);
-        let right_ix = (ix + 1).min(samples.len() - 1);
-
-        let [left, _offset] = samples[left_ix];
-        let [right, _offset] = samples[right_ix];
-
-        let mut total = 0;
-        let mut count = 0;
-
-        for node in left..right {
-            if let Some(v) = path.get(node as usize) {
-                total += v;
-                count += 1;
-            }
-        }
-
-        let avg = total.checked_div(count).unwrap_or_default();
-        avg
-    }
-}
-
-fn update_slot_loops_mid<'a>(
-    graph: &'a Waragraph,
-    samples: &'a [[u32; 2]],
-) -> impl Fn(usize, usize) -> u32 + 'a {
-    |path, ix| {
-        let path = &graph.paths[path];
-
-        let left_ix = ix.min(samples.len() - 1);
-        let right_ix = (ix + 1).min(samples.len() - 1);
-
-        let [left, _offset] = samples[left_ix];
-        let [right, _offset] = samples[right_ix];
-
-        let node = left + (right - left) / 2;
-
-        let val = path.get(node as usize).copied().unwrap_or_default();
-        val
-    }
-}
-
-fn update_slot_node_present<'a>(
-    graph: &'a Waragraph,
-    samples: &'a [[u32; 2]],
-) -> impl Fn(usize, usize) -> u32 + 'a {
-    |path, ix| {
-        let path = &graph.paths[path];
-
-        let left_ix = ix.min(samples.len() - 1);
-        let right_ix = (ix + 1).min(samples.len() - 1);
-
-        let [left, _offset] = samples[left_ix];
-        let [right, _offset] = samples[right_ix];
-
-        let node = left + (right - left) / 2;
-
-        if path.get(node as usize).is_some() {
-            1
-        } else {
-            0
-        }
-    }
 }
