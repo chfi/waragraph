@@ -330,6 +330,14 @@ fn main() -> Result<()> {
         )
     })?;
 
+    let updater_loop_count_mean = slot_renderers
+        .create_sampler_mean_arc("loop_count")
+        .unwrap();
+    let updater_loop_count_mid =
+        slot_renderers.create_sampler_mid_arc("loop_count").unwrap();
+    let updater_has_node_mid =
+        slot_renderers.create_sampler_mid_arc("has_node").unwrap();
+
     path_viewer.sample(&waragraph, &view);
 
     let mut count = 0;
@@ -723,72 +731,30 @@ fn main() -> Result<()> {
 
                     let updater = if let Some(key) = update_key {
                         match key.as_ref() {
-                        b"loops_mean" | _ => {
-                            slot_renderers
-                                .create_sampler_mean_arc("loop_count")
-                                .unwrap()
+                        b"loops_mean" => {
+                            &updater_loop_count_mean
+                        }
+                        b"loops_midpoint" => {
+                            &updater_loop_count_mid
+                        }
+                        b"node_present" => {
+                            &updater_has_node_mid
+                        }
+                         _ => {
+                        log::warn!("unknown slot_function");
+                            &updater_has_node_mid
                         }
                         }
                     } else {
-                        log::warn!("unknown slot_function");
-                            slot_renderers
-                                .create_sampler_mean_arc("loop_count")
-                                .unwrap()
+                        log::warn!("missing slot_function");
+                        &updater_has_node_mid
                     };
 
                     path_viewer.update_from_alt(
                         &mut engine.resources,
-                        &updater,
+                        updater,
                     );
 
-                    /*
-                    let update_key = db.get(b"slot_function").ok().flatten();
-
-                    if let Some(key) = update_key {
-                        match key.as_ref() {
-                        b"loops_mean" => {
-                            let updater = slot_renderers
-                                .create_sampler_mean("loop_count", samples)
-                                .unwrap();
-
-                            path_viewer.update_from(
-                                &mut engine.resources,
-                                updater,
-                            );
-                        }
-                        b"loops_midpoint" => {
-                            let updater = slot_renderers
-                                .create_sampler_mid("loop_count", samples)
-                                .unwrap();
-
-                            path_viewer.update_from(
-                                &mut engine.resources,
-                                updater,
-                            );
-                        }
-                        b"node_present" | _ => {
-                            let updater = slot_renderers
-                                .create_sampler_mid("has_node", samples)
-                                .unwrap();
-
-                            path_viewer.update_from(
-                                &mut engine.resources,
-                                updater,
-                            );
-                        }
-                        }
-                    } else {
-                        log::warn!("unknown slot_function");
-                        let updater = slot_renderers
-                            .create_sampler_mid("has_node", samples)
-                            .unwrap();
-
-                        path_viewer.update_from(
-                            &mut engine.resources,
-                            updater,
-                        );
-                    }
-                    */
                 }
 
                 let mut updates: HashMap<IVec, IVec> = HashMap::default();

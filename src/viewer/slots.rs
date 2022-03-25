@@ -77,6 +77,28 @@ impl SlotRenderers {
         Some(Arc::new(f) as SlotUpdateFn<u32>)
     }
 
+    pub fn create_sampler_mid_arc(
+        &self,
+        id: &str,
+    ) -> Option<SlotUpdateFn<u32>> {
+        let data_source = self.get_data_source(id)?.clone();
+
+        let f = move |samples: &[(Node, usize)], path, ix: usize| {
+            let left_ix = ix.min(samples.len() - 1);
+            let right_ix = (ix + 1).min(samples.len() - 1);
+
+            let (left, _offset) = samples[left_ix];
+            let (right, _offset) = samples[right_ix];
+
+            let l: u32 = left.into();
+            let r: u32 = right.into();
+
+            let node = l + (r - l) / 2;
+            data_source(path, node.into()).unwrap_or_default()
+        };
+        Some(Arc::new(f) as SlotUpdateFn<u32>)
+    }
+
     pub fn create_sampler_mean<'a>(
         &self,
         id: &str,
