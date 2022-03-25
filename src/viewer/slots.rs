@@ -23,6 +23,11 @@ use crate::graph::{Node, Waragraph};
 pub type DataSource =
     Arc<dyn Fn(usize, Node) -> Option<u32> + Send + Sync + 'static>;
 
+pub type SlotUpdateFn<T> =
+    Arc<dyn Fn(&[(Node, usize)], usize, usize) -> T + Send + Sync + 'static>;
+
+// ) -> Option<impl Fn(usize, usize) -> u32 + 'a> {
+
 #[derive(Default)]
 pub struct SlotRenderers {
     data_sources: HashMap<String, DataSource>,
@@ -39,6 +44,39 @@ impl SlotRenderers {
 
     pub fn get_data_source(&self, id: &str) -> Option<&DataSource> {
         self.data_sources.get(id)
+    }
+
+    pub fn create_sampler_mean_arc(
+        &self,
+        id: &str,
+    ) -> Option<SlotUpdateFn<u32>> {
+        let data_source = self.get_data_source(id)?.clone();
+
+        let f = move |samples: &[(Node, usize)], path, ix: usize| {
+            let left_ix = ix.min(samples.len() - 1);
+            let right_ix = (ix + 1).min(samples.len() - 1);
+
+            let (left, _offset) = samples[left_ix];
+            let (right, _offset) = samples[right_ix];
+
+            let mut total = 0;
+            let mut count = 0;
+
+            let l: u32 = left.into();
+            let r: u32 = right.into();
+
+            for n in l..r {
+                let node = Node::from(n);
+                if let Some(v) = data_source(path, node) {
+                    total += v;
+                    count += 1;
+                }
+            }
+
+            let avg = total.checked_div(count).unwrap_or_default();
+            avg
+        };
+        Some(Arc::new(f) as SlotUpdateFn<u32>)
     }
 
     pub fn create_sampler_mean<'a>(
