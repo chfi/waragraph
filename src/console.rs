@@ -135,15 +135,15 @@ pub fn register_buffer_storage(
     buffers: &BufferStorage,
     engine: &mut rhai::Engine,
 ) {
-    let desc_sets = Arc::new(buffers.desc_sets.clone());
+    let buffers_ = buffers.clone();
 
-    let tree = buffers.tree.clone();
     engine.register_result_fn("get_buffer", move |name: &str| {
         // 1. get the ID from the name
 
         // all of this should be either methods, in a transaction with
         // proper error handling, or both
         let name_key = BufferStorage::name_key(name);
+        let tree = &buffers_.tree;
 
         let id = tree
             .get(&name_key)
@@ -158,7 +158,7 @@ pub fn register_buffer_storage(
         let vec_ix = usize::read_from(vec_ix.as_ref()).unwrap();
 
         // 3. get the set from the Arc<Vec<->> via the index
-        let set = desc_sets[vec_ix];
+        let set = buffers_.desc_sets.read()[vec_ix];
 
         // 4. get the length via the buffer data, i guess
         let meta = BufMeta::get_stored(&tree, id).unwrap();
@@ -171,6 +171,7 @@ pub fn register_buffer_storage(
         let mut map = rhai::Map::default();
         map.insert("set".into(), rhai::Dynamic::from(set));
         map.insert("len".into(), rhai::Dynamic::from(len as i64));
+        map.insert("id".into(), rhai::Dynamic::from(id));
 
         Ok(map)
     });
@@ -217,13 +218,21 @@ pub fn register_buffer_storage(
         },
     );
 
-    let db_ = db.clone();
+    // let db_ = db.clone();
+    let buffers_ = buffers.clone();
 
     // TODO check if the name already exists here
     engine.register_result_fn(
         "fill_vec4_buffer",
-        move |name: &str, vals: Vec<rhai::Dynamic>| {
-            todo!();
+        move |id: BufId, vals: Vec<rhai::Dynamic>| {
+            let vals = vals
+                .into_iter()
+                .filter_map(|v| v.try_cast::<[f32; 4]>())
+                .collect::<Vec<_>>();
+
+            buffers_.insert_data(id, &vals).unwrap();
+
+            Ok(())
             // let id = db_.generate_id().unwrap();
             // let id = BufId(id);
             // let fmt = BufFmt::FVec4;

@@ -542,23 +542,31 @@ impl BufferStorage {
         Ok(id)
     }
 
-    pub fn allocate_queued(&mut self, engine: &mut VkEngine) -> Result<()> {
+    pub fn allocate_queued(&mut self, engine: &mut VkEngine) -> Result<usize> {
         let queue = {
             let mut old_queue = self.alloc_queue.lock();
+
+            if old_queue.is_empty() {
+                return Ok(0);
+            }
+            log::warn!("allocating {} queued buffers", old_queue.len());
+
             let mut queue = Vec::new();
             std::mem::swap(&mut queue, &mut old_queue);
             queue
         };
 
+        let mut count = 0;
         let mut max_id = self.allocated_id.load();
         for (id, name, fmt, cap) in queue {
             self.allocate_buffer_impl(engine, id, &name, fmt, cap)?;
             let id = id.0;
             max_id = id.max(max_id);
+            count += 1;
         }
         self.allocated_id.store(max_id);
 
-        Ok(())
+        Ok(count)
     }
 
     pub fn allocate_buffer_impl(

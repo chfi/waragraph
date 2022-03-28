@@ -408,7 +408,7 @@ fn main() -> Result<()> {
 
     // let color_buffer = buffers.buffers[0];
     builder.bind_var("color_buffer", color_buffer)?;
-    builder.bind_var("alt_color_desc_set", buffers.desc_sets[0])?;
+    builder.bind_var("alt_color_desc_set", buffers.desc_sets.read()[0])?;
 
     let fmt = BufFmt::UVec4;
     let line_buf =
@@ -479,7 +479,7 @@ fn main() -> Result<()> {
 
     println!();
 
-    log::warn!("buffers.buffers.len(): {}", buffers.buffers.len());
+    log::warn!("buffers.buffers.len(): {}", buffers.buffers.read().len());
 
     engine.with_allocators(|ctx, res, alloc| {
         builder.resolve(ctx, res, alloc)?;
@@ -656,6 +656,8 @@ fn main() -> Result<()> {
         match event {
             Event::MainEventsCleared => {
                 let frame_start = std::time::Instant::now();
+
+                buffers.allocate_queued(&mut engine).unwrap();
 
                 while let Ok(ev) =
                     name_sub.next_timeout(Duration::from_millis(10))
