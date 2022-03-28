@@ -173,6 +173,17 @@ pub fn register_buffer_storage(
 
         Ok(map)
     });
+
+    let alloc_queue = buffers.alloc_queue.clone();
+    let alloc_id = buffers.allocated_id.clone();
+
+    engine.register_type_with_name::<BufId>("BufId");
+
+    engine.register_fn("is_ready", move |id: BufId| {
+        let alloc = alloc_id.load();
+        let id = id.0;
+        alloc >= id
+    });
 }
 
 pub fn create_engine(db: &sled::Db, buffers: &BufferStorage) -> rhai::Engine {

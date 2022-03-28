@@ -279,6 +279,10 @@ pub struct BufferStorage {
 
     pub buffers: Vec<BufferIx>,
     pub desc_sets: Vec<DescSetIx>,
+
+    pub alloc_queue: Arc<Mutex<Vec<(BufId, String, BufFmt, usize)>>>,
+
+    pub allocated_id: Arc<AtomicCell<u64>>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, AsBytes, FromBytes)]
@@ -341,6 +345,9 @@ impl BufferStorage {
             tree,
             buffers,
             desc_sets,
+
+            alloc_queue: Default::default(),
+            allocated_id: Arc::new(0.into()),
         })
     }
 
@@ -379,7 +386,6 @@ impl BufferStorage {
     }
 
     pub fn fill_buffer(&self, res: &mut GpuResources, id: BufId) -> Option<()> {
-        log::error!("whatttttttttttttTT!");
         let k_vec = id.as_vec_key();
         // let k_vec = Self::vec_id_key(id);
         let vec_ix = self.tree.get(k_vec).ok()??;
@@ -522,18 +528,50 @@ impl BufferStorage {
         Ok(())
     }
 
-    pub fn allocate_buffer(
-        &mut self,
-        engine: &mut VkEngine,
+    pub fn queue_allocate_buffer(
+        &self,
         db: &sled::Db,
         name: &str,
         fmt: BufFmt,
         capacity: usize,
     ) -> Result<BufId> {
-        let elem_size = fmt.size();
-
         let id = db.generate_id()?;
         let id = BufId(id);
+
+        let params = (id, name.to_string(), fmt, capacity);
+        self.alloc_queue.lock().push(params);
+
+        Ok(id)
+    }
+
+    pub fn allocate_queued(&mut self, engine: &mut VkEngine) -> Result<()> {
+        let queue = {
+            let mut old_queue = self.alloc_queue.lock();
+            let mut queue = Vec::new();
+            std::mem::swap(&mut queue, &mut old_queue);
+            queue
+        };
+
+        let mut max_id = self.allocated_id.load();
+        for (id, name, fmt, cap) in queue {
+            self.allocate_buffer_impl(engine, id, &name, fmt, cap)?;
+            let id = id.0;
+            max_id = id.max(max_id);
+        }
+        self.allocated_id.store(max_id);
+
+        Ok(())
+    }
+
+    pub fn allocate_buffer_impl(
+        &mut self,
+        engine: &mut VkEngine,
+        id: BufId,
+        name: &str,
+        fmt: BufFmt,
+        capacity: usize,
+    ) -> Result<BufId> {
+        let elem_size = fmt.size();
 
         let (buf, set) = engine.with_allocators(|ctx, res, alloc| {
             let mem_loc = gpu_allocator::MemoryLocation::CpuToGpu;
@@ -591,6 +629,20 @@ impl BufferStorage {
         log::warn!("data key: {:?}", k_data);
 
         Ok(id)
+    }
+
+    pub fn allocate_buffer(
+        &mut self,
+        engine: &mut VkEngine,
+        db: &sled::Db,
+        name: &str,
+        fmt: BufFmt,
+        capacity: usize,
+    ) -> Result<BufId> {
+        let id = db.generate_id()?;
+        let id = BufId(id);
+
+        self.allocate_buffer_impl(engine, id, name, fmt, capacity)
     }
 }
 
