@@ -22,7 +22,7 @@ use bstr::ByteSlice;
 
 use zerocopy::{AsBytes, FromBytes};
 
-use parking_lot::Mutex;
+use parking_lot::{Mutex, RwLock};
 
 #[allow(unused_imports)]
 use anyhow::{anyhow, bail, Result};
@@ -274,11 +274,12 @@ impl BufFmt {
     */
 }
 
+#[derive(Clone)]
 pub struct BufferStorage {
     pub tree: sled::Tree,
 
-    pub buffers: Vec<BufferIx>,
-    pub desc_sets: Vec<DescSetIx>,
+    pub buffers: Arc<RwLock<Vec<BufferIx>>>,
+    pub desc_sets: Arc<RwLock<Vec<DescSetIx>>>,
 
     pub alloc_queue: Arc<Mutex<Vec<(BufId, String, BufFmt, usize)>>>,
 
@@ -338,13 +339,10 @@ impl BufferStorage {
     pub fn new(db: &sled::Db) -> Result<Self> {
         let tree = db.open_tree("buffer_storage")?;
 
-        let buffers = Vec::new();
-        let desc_sets = Vec::new();
-
         Ok(Self {
             tree,
-            buffers,
-            desc_sets,
+            buffers: Default::default(),
+            desc_sets: Default::default(),
 
             alloc_queue: Default::default(),
             allocated_id: Arc::new(0.into()),
@@ -391,7 +389,7 @@ impl BufferStorage {
         let vec_ix = self.tree.get(k_vec).ok()??;
         let vec_ix = usize::read_from(vec_ix.as_ref())?;
 
-        let buf_ix = self.buffers[vec_ix];
+        let buf_ix = self.buffers.read()[vec_ix];
 
         let buf = &mut res[buf_ix];
 
@@ -424,7 +422,7 @@ impl BufferStorage {
         let vec_ix = self.tree.get(k_vec).ok()??;
         let vec_ix = usize::read_from(vec_ix.as_ref())?;
 
-        let buf_ix = self.buffers[vec_ix];
+        let buf_ix = self.buffers.read()[vec_ix];
 
         let buf = &mut res[buf_ix];
 
@@ -614,12 +612,12 @@ impl BufferStorage {
         self.tree.insert(id.as_fmt_key(), &fmt.to_bytes())?;
         self.tree.insert(id.as_cap_key(), &capacity.to_le_bytes())?;
 
-        let ix = self.buffers.len();
+        let ix = self.buffers.read().len();
         let k_vec = id.as_vec_key();
 
         self.tree.insert(k_vec, &ix.to_le_bytes())?;
-        self.buffers.push(buf);
-        self.desc_sets.push(set);
+        self.buffers.write().push(buf);
+        self.desc_sets.write().push(set);
 
         let k_data = id.as_data_key();
         // remove old buffer data, if any

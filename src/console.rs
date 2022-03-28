@@ -24,7 +24,7 @@ use anyhow::{anyhow, bail, Result};
 use bstr::ByteSlice as BstrByteSlice;
 
 use crate::{
-    util::{BufId, BufMeta, BufferStorage, LabelStorage},
+    util::{BufFmt, BufId, BufMeta, BufferStorage, LabelStorage},
     viewer::ViewDiscrete1D,
 };
 
@@ -131,6 +131,7 @@ pub enum ConsoleInput {
 }
 
 pub fn register_buffer_storage(
+    db: &sled::Db,
     buffers: &BufferStorage,
     engine: &mut rhai::Engine,
 ) {
@@ -174,7 +175,7 @@ pub fn register_buffer_storage(
         Ok(map)
     });
 
-    let alloc_queue = buffers.alloc_queue.clone();
+    // let alloc_queue = buffers.alloc_queue.clone();
     let alloc_id = buffers.allocated_id.clone();
 
     engine.register_type_with_name::<BufId>("BufId");
@@ -184,12 +185,60 @@ pub fn register_buffer_storage(
         let id = id.0;
         alloc >= id
     });
+
+    /*
+    let alloc_queue = buffers.alloc_queue.clone();
+    let alloc_id = buffers.allocated_id.clone();
+
+    engine.register_result_fn("get", move |id: BufId| {
+        if alloc_id.load().0 >= id.0 {
+            Ok
+        } else {
+            Err("buffer not ready".into())
+        }
+    });
+    */
+
+    let alloc_queue = buffers.alloc_queue.clone();
+
+    let db_ = db.clone();
+
+    // TODO check if the name already exists here
+    engine.register_result_fn(
+        "allocate_vec4_buffer",
+        move |name: &str, capacity: i64| {
+            let id = db_.generate_id().unwrap();
+            let id = BufId(id);
+            let fmt = BufFmt::FVec4;
+            let params = (id, name.to_string(), fmt, capacity as usize);
+            alloc_queue.lock().push(params);
+
+            Ok(id)
+        },
+    );
+
+    let db_ = db.clone();
+
+    // TODO check if the name already exists here
+    engine.register_result_fn(
+        "fill_vec4_buffer",
+        move |name: &str, vals: Vec<rhai::Dynamic>| {
+            todo!();
+            // let id = db_.generate_id().unwrap();
+            // let id = BufId(id);
+            // let fmt = BufFmt::FVec4;
+            // let params = (id, name.to_string(), fmt, capacity as usize);
+            // alloc_queue.lock().push(params);
+
+            // Ok(id)
+        },
+    );
 }
 
 pub fn create_engine(db: &sled::Db, buffers: &BufferStorage) -> rhai::Engine {
     let mut engine = raving::script::console::create_batch_engine();
 
-    register_buffer_storage(buffers, &mut engine);
+    register_buffer_storage(db, buffers, &mut engine);
 
     append_to_engine(db, engine)
 }
