@@ -123,10 +123,6 @@ fn main() -> Result<()> {
     let mut engine = VkEngine::new(&window)?;
 
     let mut buffers = BufferStorage::new(&db)?;
-    let mut name_sub = buffers.tree.watch_prefix(b"n:");
-
-    // let mut buffer_sub = buffers.tree.watch_prefix(b"d:");
-    let mut buffer_sub = buffers.tree.watch_prefix(vec![100, 58]);
 
     let fmt = BufFmt::FVec4;
     let buf_0 =
@@ -134,11 +130,9 @@ fn main() -> Result<()> {
 
     let rgb = |r: f32, g: f32, b: f32| [r, g, b, 1.0];
 
-    buffers.insert_data(buf_0, &[rgb(0.0, 0.0, 0.0), rgb(1.0, 0.0, 0.0)])?;
+    buffers.insert_data(buf_0, &[rgb(0.0, 0.0, 0.0), rgb(0.8, 0.0, 0.0)])?;
 
     let mut txt = LabelStorage::new(&db)?;
-
-    // let mut sample_sub = db.watch_prefix(b"sample_indices");
 
     let mut text_sub = txt.tree.watch_prefix(b"t:");
 
@@ -438,48 +432,11 @@ fn main() -> Result<()> {
         lines.push(line(x0 as u32, y0 as u32, x1 as u32, y1 as u32));
     }
 
-    log::error!("inserting data for line_buf");
     buffers.insert_data(
         line_buf,
         &lines,
         // &[line(200, 300, 500, 300), line(100, 100, 500, 400)],
     )?;
-    log::error!("inserted??? data for line_buf");
-
-    dbg!();
-    buffers.fill_buffer(&mut engine.resources, buf_0).unwrap();
-    dbg!();
-    buffers
-        .fill_buffer(&mut engine.resources, line_buf)
-        .unwrap();
-
-    println!();
-
-    log::warn!("buffer names");
-
-    for (ix, res) in buffers.tree.scan_prefix(b"buffer_id:").enumerate() {
-        let (key, val) = res.unwrap();
-        let id = u64::read_from(val.as_ref()).unwrap();
-        log::warn!("name {} - {}", key.as_bstr(), id);
-    }
-    println!();
-
-    log::warn!("buffers tree d: prefix");
-    for (ix, res) in buffers.tree.scan_prefix(b"d:").enumerate() {
-        let (key, val) = res.unwrap();
-
-        let id = BufId::read_from_suffix(&key[..]).unwrap();
-        let meta = BufMeta::get_stored(&buffers.tree, id).unwrap();
-
-        // buffers.fill_buffer(&mut engine.resources, id).unwrap();
-
-        log::warn!("id {:?} - {} - {:?}", id, meta.name.as_bstr(), val);
-        // log::warn!("key {}", ix);
-    }
-
-    println!();
-
-    log::warn!("buffers.buffers.len(): {}", buffers.buffers.read().len());
 
     engine.with_allocators(|ctx, res, alloc| {
         builder.resolve(ctx, res, alloc)?;
@@ -659,39 +616,7 @@ fn main() -> Result<()> {
 
                 buffers.allocate_queued(&mut engine).unwrap();
 
-                while let Ok(ev) =
-                    name_sub.next_timeout(Duration::from_millis(10))
-                {
-                    log::error!("name sub!");
-                }
-                while let Ok(ev) =
-                    buffer_sub.next_timeout(Duration::from_millis(10))
-                {
-                    log::error!("buffer sub!");
-                    match ev {
-                        sled::Event::Insert { key, value } => {
-                            let id = BufId::read_from_suffix(&key[..]).unwrap();
-                            let meta = BufMeta::get_stored(&buffers.tree, id).unwrap();
-
-                            log::error!(
-                                "buffer value updated for {:?}, name {}\nvalue\t{:#?}",
-                                id,
-                                meta.name.as_bstr(),
-                                value
-                            );
-
-                            buffers
-                                .fill_buffer(&mut engine.resources, id)
-                                .unwrap();
-                        }
-                        sled::Event::Remove { key } => {
-
-                            let id = BufId::read_from_suffix(&key[..]).unwrap();
-                            let meta = BufMeta::get_stored(&buffers.tree, id).unwrap();
-                            log::error!("removed data key for buffer {}", meta.name.as_bstr());
-                        }
-                    }
-                }
+                buffers.fill_updated_buffers(&mut engine.resources).unwrap();
 
                 if Some(view) != prev_view || path_viewer.should_update() {
                     prev_view = Some(view);
@@ -728,35 +653,24 @@ fn main() -> Result<()> {
                 path_viewer.update_labels(&waragraph, &txt).unwrap();
 
                 if path_viewer.has_new_samples() {
-
                     let update_key = db.get(b"slot_function").ok().flatten();
 
                     let updater = if let Some(key) = update_key {
                         match key.as_ref() {
-                        b"loops_mean" => {
-                            &updater_loop_count_mean
-                        }
-                        b"loops_midpoint" => {
-                            &updater_loop_count_mid
-                        }
-                        b"node_present" => {
-                            &updater_has_node_mid
-                        }
-                         _ => {
-                        log::warn!("unknown slot_function");
-                            &updater_has_node_mid
-                        }
+                            b"loops_mean" => &updater_loop_count_mean,
+                            b"loops_midpoint" => &updater_loop_count_mid,
+                            b"node_present" => &updater_has_node_mid,
+                            _ => {
+                                log::warn!("unknown slot_function");
+                                &updater_has_node_mid
+                            }
                         }
                     } else {
                         log::warn!("missing slot_function");
                         &updater_has_node_mid
                     };
 
-                    path_viewer.update_from_alt(
-                        &mut engine.resources,
-                        updater,
-                    );
-
+                    path_viewer.update_from_alt(&mut engine.resources, updater);
                 }
 
                 let mut updates: HashMap<IVec, IVec> = HashMap::default();
@@ -836,7 +750,6 @@ fn main() -> Result<()> {
                     ),
                 );
 
-
                 let batch_builder = BatchBuilder::default();
                 let fg_batch = draw_foreground(
                     batch_builder,
@@ -855,17 +768,17 @@ fn main() -> Result<()> {
                     size.width as i64,
                     size.height as i64,
                     label_sets,
-                ).unwrap();
+                )
+                .unwrap();
                 let labels_batch_fn = labels_batch.build();
-
 
                 let fg_batch = Box::new(
                     move |dev: &Device,
                           res: &GpuResources,
                           _input: &BatchInput,
                           cmd: vk::CommandBuffer| {
-                              fg_batch_fn(dev, res, cmd);
-                              labels_batch_fn(dev, res, cmd);
+                        fg_batch_fn(dev, res, cmd);
+                        labels_batch_fn(dev, res, cmd);
                     },
                 ) as Box<_>;
 
@@ -981,7 +894,6 @@ fn main() -> Result<()> {
                                         0u32,
                                     )?;
 
-
                                     Ok(())
                                 })
                                 .unwrap();
@@ -1011,7 +923,12 @@ fn main() -> Result<()> {
                                 )
                                 .unwrap();
 
-                                txt.set_label_pos(b"fps", 0, (size.height - 12) as u32).unwrap();
+                                txt.set_label_pos(
+                                    b"fps",
+                                    0,
+                                    (size.height - 12) as u32,
+                                )
+                                .unwrap();
 
                                 path_viewer.sample(&waragraph, &view);
 

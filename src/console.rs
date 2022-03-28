@@ -242,6 +242,25 @@ pub fn register_buffer_storage(
             // Ok(id)
         },
     );
+
+    let buffers_ = buffers.clone();
+
+    // TODO check if the name already exists here
+    engine.register_result_fn("fill_vec4_buffer_test", move |id: BufId| {
+        let rgb = |r: f32, g, b| [r, g, b, 1.0];
+        let vals = [rgb(0.0, 0.0, 1.0), rgb(1.0, 1.0, 1.0)];
+
+        buffers_.insert_data(id, &vals).unwrap();
+
+        Ok(())
+        // let id = db_.generate_id().unwrap();
+        // let id = BufId(id);
+        // let fmt = BufFmt::FVec4;
+        // let params = (id, name.to_string(), fmt, capacity as usize);
+        // alloc_queue.lock().push(params);
+
+        // Ok(id)
+    });
 }
 
 pub fn create_engine(db: &sled::Db, buffers: &BufferStorage) -> rhai::Engine {
@@ -269,6 +288,8 @@ pub fn append_to_engine(
 
     engine.register_global_module(module.clone());
     */
+
+    engine.register_fn("rgba", |r: f32, g: f32, b: f32, a: f32| [r, g, b, a]);
 
     let db_ = db.clone();
     engine.register_fn("set_slot_fn", move |s: &str| {

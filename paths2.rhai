@@ -234,13 +234,13 @@ fn foreground(batch, labels, desc_sets, slot_w, w, h) {
     pc.append_int(slot_h);
     pc.append_int(ix);
 
-    // let color_data = get_buffer("storage_0");
+    let color_data = get_buffer("storage_0");
 
     batch.dispatch_compute(self::path_pipeline.get(),
                            [slot_set,
                             clip_set,
-                            self::color_desc_set.get(),
-                            // color_data.set,
+                            // self::color_desc_set.get(),
+                            color_data.set,
                             self::out_desc_set.get()],
                            pc,
                            workgroups);

@@ -284,6 +284,9 @@ pub struct BufferStorage {
     pub alloc_queue: Arc<Mutex<Vec<(BufId, String, BufFmt, usize)>>>,
 
     pub allocated_id: Arc<AtomicCell<u64>>,
+
+    update_rx: crossbeam::channel::Receiver<BufId>,
+    update_tx: crossbeam::channel::Sender<BufId>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, AsBytes, FromBytes)]
@@ -305,7 +308,7 @@ impl BufId {
     const NAME_ID_PREFIX: &'static [u8] = b"buffer_id:";
 
     buf_id_key!(as_name_key, b"n:01234567", 10);
-    buf_id_key!(as_data_key, b"d:01234567", 10);
+    buf_id_key!(as_data_key, b"D:01234567", 10);
     buf_id_key!(as_fmt_key, b"f:01234567", 10);
     buf_id_key!(as_cap_key, b"c:01234567", 10);
     buf_id_key!(as_vec_key, b"v:01234567", 10);
@@ -339,6 +342,8 @@ impl BufferStorage {
     pub fn new(db: &sled::Db) -> Result<Self> {
         let tree = db.open_tree("buffer_storage")?;
 
+        let (update_tx, update_rx) = crossbeam::channel::unbounded();
+
         Ok(Self {
             tree,
             buffers: Default::default(),
@@ -346,6 +351,9 @@ impl BufferStorage {
 
             alloc_queue: Default::default(),
             allocated_id: Arc::new(0.into()),
+
+            update_tx,
+            update_rx,
         })
     }
 
@@ -520,8 +528,18 @@ impl BufferStorage {
         // self.tree.remove(key);
         self.tree
             .update_and_fetch(key, |_| Some(value.as_slice()))?;
-        // self.tree.insert(key, value)?;
+        self.tree.insert(key, value)?;
         dbg!();
+
+        self.update_tx.send(id)?;
+
+        Ok(())
+    }
+
+    pub fn fill_updated_buffers(&self, res: &mut GpuResources) -> Result<()> {
+        while let Ok(id) = self.update_rx.try_recv() {
+            self.fill_buffer(res, id);
+        }
 
         Ok(())
     }
@@ -629,7 +647,8 @@ impl BufferStorage {
 
         let k_data = id.as_data_key();
         // remove old buffer data, if any
-        self.tree.remove(k_data)?;
+        // self.tree.remove(k_data)?;
+        // self.tree.insert(k_data, b"")?;
 
         log::warn!("inserted: {}", name);
         log::warn!("data key: {:?}", k_data);
