@@ -173,14 +173,18 @@ fn main() -> Result<()> {
         "vertex_0",
         fmt,
         255,
-        vk::BufferUsageFlags::VERTEX_BUFFER,
-        // | vk::BufferUsageFlags::TRANSFER_SRC
-        // | vk::BufferUsageFlags::TRANSFER_DST,
+        vk::BufferUsageFlags::VERTEX_BUFFER
+            | vk::BufferUsageFlags::STORAGE_BUFFER
+            | vk::BufferUsageFlags::TRANSFER_SRC
+            | vk::BufferUsageFlags::TRANSFER_DST,
     )?;
+
+    let vx_buf_ix = buffers.get_buffer_ix(vx_buf_0).unwrap();
 
     // let xy = |x: f32, y: f32| [x, y]
 
-    buffers.insert_data(vx_buf_0, &[[0.0, 0.0], [1.0, 0.0], [0.0, 1.0]])?;
+    // buffers.insert_data(vx_buf_0, &[[-1f32, 0.0], [1.0, 0.0], [0.0, 1.0]])?;
+    buffers.insert_data(vx_buf_0, &[[0f32, 0.0], [1.0, 0.0], [0.0, 1.0]])?;
 
     let mut txt = LabelStorage::new(&db)?;
 
@@ -878,6 +882,42 @@ fn main() -> Result<()> {
                                 &pass_info,
                                 vk::SubpassContents::INLINE,
                             );
+
+                            let vx_buf = res[vx_buf_ix].buffer;
+                            let (pipeline, _) = res[pipeline_ix];
+                            let vxs = [vx_buf];
+                            // dev.cmd_bind_vertex_buffers(cmd, 0, &vxs, &[2]);
+                            dev.cmd_bind_vertex_buffers(cmd, 0, &vxs, &[8]);
+                            // dev.cmd_bind_vertex_buffers(cmd, 0, &vxs, &[16]);
+
+                            dev.cmd_bind_pipeline(
+                                cmd,
+                                vk::PipelineBindPoint::GRAPHICS,
+                                pipeline,
+                            );
+
+                            let viewport = vk::Viewport {
+                                x: 0.0,
+                                y: 0.0,
+                                width: extent.width as f32,
+                                height: extent.height as f32,
+                                min_depth: 0.0,
+                                max_depth: 1.0,
+                            };
+
+                            let viewports = [viewport];
+
+                            dev.cmd_set_viewport(cmd, 0, &viewports);
+
+                            let scissor = vk::Rect2D {
+                                offset: vk::Offset2D { x: 0, y: 0 },
+                                extent,
+                            };
+                            let scissors = [scissor];
+
+                            dev.cmd_set_scissor(cmd, 0, &scissors);
+
+                            dev.cmd_draw(cmd, 3, 1, 0, 0);
 
                             dev.cmd_end_render_pass(cmd);
                         }

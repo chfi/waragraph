@@ -514,7 +514,11 @@ impl BufferStorage {
         );
         // 2. make sure the format matches T
         if meta.fmt.size() != std::mem::size_of::<T>() {
-            bail!("src type size doesn't match buffer metadata");
+            bail!(
+                "src type size {} doesn't match buffer metadata size {}",
+                std::mem::size_of::<T>(),
+                meta.fmt.size(),
+            );
         }
 
         dbg!();
@@ -548,6 +552,14 @@ impl BufferStorage {
         }
 
         Ok(())
+    }
+
+    pub fn get_buffer_ix(&self, buf: BufId) -> Option<BufferIx> {
+        let k = buf.as_vec_key();
+        let vec_ix = self.tree.get(k).ok()??;
+        let vec_ix = usize::read_from(vec_ix.as_ref())?;
+        let buf_ix = self.buffers.read()[vec_ix];
+        Some(buf_ix)
     }
 
     pub fn queue_allocate_buffer(
