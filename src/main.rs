@@ -243,8 +243,8 @@ fn main() -> Result<()> {
           -> Result<WinSizeResourcesBuilder> {
         let mut builder = WinSizeResourcesBuilder::default();
 
-        let (img, view, sampled_desc_set, desc_set) =
-            engine.with_allocators(|ctx, res, alloc| {
+        let (img, view, sampled_desc_set, desc_set, framebuffer) = engine
+            .with_allocators(|ctx, res, alloc| {
                 let out_image = res.allocate_image(
                     ctx,
                     alloc,
@@ -253,11 +253,16 @@ fn main() -> Result<()> {
                     vk::Format::R8G8B8A8_UNORM,
                     vk::ImageUsageFlags::STORAGE
                         | vk::ImageUsageFlags::SAMPLED
+                        | vk::ImageUsageFlags::COLOR_ATTACHMENT
                         | vk::ImageUsageFlags::TRANSFER_SRC,
                     Some("out_image"),
                 )?;
 
                 let out_view = res.new_image_view(ctx, &out_image)?;
+
+                let attchs = [out_view];
+                let framebuffer = res
+                    .create_framebuffer(ctx, pass_ix, &attchs, width, height)?;
 
                 let sampled_desc_set = res.allocate_desc_set_raw(
                     &window_texture_layout,
@@ -289,7 +294,13 @@ fn main() -> Result<()> {
                     },
                 )?;
 
-                Ok((out_image, out_view, sampled_desc_set, out_desc_set))
+                Ok((
+                    out_image,
+                    out_view,
+                    sampled_desc_set,
+                    out_desc_set,
+                    framebuffer,
+                ))
             })?;
 
         builder.images.insert("out_image".to_string(), img);
@@ -302,6 +313,10 @@ fn main() -> Result<()> {
         builder
             .desc_sets
             .insert("out_desc_set".to_string(), desc_set);
+
+        builder
+            .framebuffers
+            .insert("out_framebuffer".to_string(), framebuffer);
 
         Ok(builder)
     };
@@ -390,6 +405,11 @@ fn main() -> Result<()> {
     let sample_out_desc_set = *win_size_resource_index
         .desc_sets
         .get("sampled_desc_set")
+        .unwrap();
+
+    let out_framebuffer = *win_size_resource_index
+        .framebuffers
+        .get("out_framebuffer")
         .unwrap();
 
     // let mut builder = FrameBuilder::from_script("paths.rhai")?;
@@ -806,6 +826,11 @@ fn main() -> Result<()> {
                 .unwrap();
                 let labels_batch_fn = labels_batch.build();
 
+                let extent = vk::Extent2D {
+                    width: size.width,
+                    height: size.height,
+                };
+
                 let fg_batch = Box::new(
                     move |dev: &Device,
                           res: &GpuResources,
@@ -813,6 +838,33 @@ fn main() -> Result<()> {
                           cmd: vk::CommandBuffer| {
                         fg_batch_fn(dev, res, cmd);
                         labels_batch_fn(dev, res, cmd);
+
+                        // let clear_values = [vk::ClearValue {
+                        //     color: vk::ClearColorValue {
+                        //         float32: [0.0, 0.0, 0.0, 1.0],
+                        //     },
+                        // }];
+
+                        let pass_info = vk::RenderPassBeginInfo::builder()
+                            .render_pass(res[pass_ix])
+                            .framebuffer(res[out_framebuffer])
+                            .render_area(vk::Rect2D {
+                                offset: vk::Offset2D { x: 0, y: 0 },
+                                extent,
+                            })
+                            // .clear_values(&clear_values)
+                            .clear_values(&[])
+                            .build();
+
+                        unsafe {
+                            dev.cmd_begin_render_pass(
+                                cmd,
+                                &pass_info,
+                                vk::SubpassContents::INLINE,
+                            );
+
+                            dev.cmd_end_render_pass(cmd);
+                        }
                     },
                 ) as Box<_>;
 
