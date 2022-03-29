@@ -87,6 +87,7 @@ pub enum BufFmt {
     Float,
 
     UVec2,
+    FVec2,
 
     UVec4,
     SVec4,
@@ -135,6 +136,7 @@ impl BufFmt {
             BufFmt::SInt => *b"1i4",
             BufFmt::Float => *b"1f4",
             BufFmt::UVec2 => *b"2u4",
+            BufFmt::FVec2 => *b"2f4",
             BufFmt::UVec4 => *b"4u4",
             BufFmt::SVec4 => *b"4i4",
             BufFmt::FVec4 => *b"4f4",
@@ -158,8 +160,10 @@ impl BufFmt {
             // int
             b"1i4" => Some(Self::SInt),
 
-            // uvec4
+            // uvec2
             b"2u4" => Some(Self::UVec2),
+            // vec2
+            b"2f4" => Some(Self::FVec2),
 
             // vec4
             b"4f4" => Some(Self::FVec4),
@@ -177,6 +181,7 @@ impl BufFmt {
             BufFmt::SInt => 4,
             BufFmt::Float => 4,
             BufFmt::UVec2 => 8,
+            BufFmt::FVec2 => 8,
             BufFmt::UVec4 => 16,
             BufFmt::SVec4 => 16,
             BufFmt::FVec4 => 16,
@@ -411,6 +416,7 @@ impl BufferStorage {
             BufFmt::SInt => self.fill_slice_from_data::<i32>(id, dst),
             BufFmt::Float => self.fill_slice_from_data::<f32>(id, dst),
             BufFmt::UVec2 => self.fill_slice_from_data::<[u32; 2]>(id, dst),
+            BufFmt::FVec2 => self.fill_slice_from_data::<[f32; 2]>(id, dst),
             BufFmt::UVec4 => self.fill_slice_from_data::<[u32; 4]>(id, dst),
             BufFmt::SVec4 => self.fill_slice_from_data::<[i32; 4]>(id, dst),
             BufFmt::FVec4 => self.fill_slice_from_data::<[f32; 4]>(id, dst),
@@ -574,10 +580,14 @@ impl BufferStorage {
             queue
         };
 
+        let usage = vk::BufferUsageFlags::STORAGE_BUFFER
+            | vk::BufferUsageFlags::TRANSFER_SRC
+            | vk::BufferUsageFlags::TRANSFER_DST;
+
         let mut count = 0;
         let mut max_id = self.allocated_id.load();
         for (id, name, fmt, cap) in queue {
-            self.allocate_buffer_impl(engine, id, &name, fmt, cap)?;
+            self.allocate_buffer_impl(engine, id, &name, fmt, cap, usage)?;
             let id = id.0;
             max_id = id.max(max_id);
             count += 1;
@@ -594,14 +604,12 @@ impl BufferStorage {
         name: &str,
         fmt: BufFmt,
         capacity: usize,
+        usage: vk::BufferUsageFlags,
     ) -> Result<BufId> {
         let elem_size = fmt.size();
 
         let (buf, set) = engine.with_allocators(|ctx, res, alloc| {
             let mem_loc = gpu_allocator::MemoryLocation::CpuToGpu;
-            let usage = vk::BufferUsageFlags::STORAGE_BUFFER
-                | vk::BufferUsageFlags::TRANSFER_SRC
-                | vk::BufferUsageFlags::TRANSFER_DST;
 
             let buffer = res.allocate_buffer(
                 ctx,
@@ -667,7 +675,26 @@ impl BufferStorage {
         let id = db.generate_id()?;
         let id = BufId(id);
 
-        self.allocate_buffer_impl(engine, id, name, fmt, capacity)
+        let usage = vk::BufferUsageFlags::STORAGE_BUFFER
+            | vk::BufferUsageFlags::TRANSFER_SRC
+            | vk::BufferUsageFlags::TRANSFER_DST;
+
+        self.allocate_buffer_impl(engine, id, name, fmt, capacity, usage)
+    }
+
+    pub fn allocate_buffer_with_usage(
+        &mut self,
+        engine: &mut VkEngine,
+        db: &sled::Db,
+        name: &str,
+        fmt: BufFmt,
+        capacity: usize,
+        usage: vk::BufferUsageFlags,
+    ) -> Result<BufId> {
+        let id = db.generate_id()?;
+        let id = BufId(id);
+
+        self.allocate_buffer_impl(engine, id, name, fmt, capacity, usage)
     }
 }
 

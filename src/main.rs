@@ -166,6 +166,22 @@ fn main() -> Result<()> {
 
     buffers.insert_data(buf_0, &[rgb(0.0, 0.0, 0.0), rgb(0.8, 0.0, 0.0)])?;
 
+    let fmt = BufFmt::FVec2;
+    let vx_buf_0 = buffers.allocate_buffer_with_usage(
+        &mut engine,
+        &db,
+        "vertex_0",
+        fmt,
+        255,
+        vk::BufferUsageFlags::VERTEX_BUFFER,
+        // | vk::BufferUsageFlags::TRANSFER_SRC
+        // | vk::BufferUsageFlags::TRANSFER_DST,
+    )?;
+
+    // let xy = |x: f32, y: f32| [x, y]
+
+    buffers.insert_data(vx_buf_0, &[[0.0, 0.0], [1.0, 0.0], [0.0, 1.0]])?;
+
     let mut txt = LabelStorage::new(&db)?;
 
     let mut text_sub = txt.tree.watch_prefix(b"t:");
