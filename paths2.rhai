@@ -239,8 +239,8 @@ fn foreground(batch, labels, desc_sets, slot_w, w, h) {
     batch.dispatch_compute(self::path_pipeline.get(),
                            [slot_set,
                             clip_set,
-                            // self::color_desc_set.get(),
-                            color_data.set,
+                            self::color_desc_set.get(),
+                            // color_data.set,
                             self::out_desc_set.get()],
                            pc,
                            workgroups);

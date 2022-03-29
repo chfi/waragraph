@@ -122,6 +122,40 @@ fn main() -> Result<()> {
 
     let mut engine = VkEngine::new(&window)?;
 
+    let (pass_ix, pipeline_ix) = {
+        // let format = engine.swapchain_props.format.format;
+        let format = vk::Format::R8G8B8A8_UNORM;
+
+        engine.with_allocators(|ctx, res, _| {
+            let pass = res.create_line_render_pass(
+                ctx,
+                format,
+                vk::ImageLayout::GENERAL,
+                vk::ImageLayout::GENERAL,
+            )?;
+
+            let vert = res.load_shader(
+                "shaders/tmp.vert.spv",
+                vk::ShaderStageFlags::VERTEX,
+            )?;
+            let frag = res.load_shader(
+                "shaders/tmp.frag.spv",
+                vk::ShaderStageFlags::FRAGMENT,
+            )?;
+
+            let pass_ix = res.insert_render_pass(pass);
+            let vx = res.insert_shader(vert);
+            let fx = res.insert_shader(frag);
+
+            let pass = res[pass_ix];
+
+            let pipeline_ix =
+                res.create_graphics_pipeline_tmp(ctx, vx, fx, pass)?;
+
+            Ok((pass_ix, pipeline_ix))
+        })?
+    };
+
     let mut buffers = BufferStorage::new(&db)?;
 
     let fmt = BufFmt::FVec4;
