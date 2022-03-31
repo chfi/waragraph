@@ -7,7 +7,7 @@ use raving::vk::context::VkContext;
 use raving::vk::descriptor::DescriptorLayoutInfo;
 use raving::vk::{
     BatchInput, BufferIx, DescSetIx, FrameResources, GpuResources, ShaderIx,
-    VkEngine, WinSizeIndices, WinSizeResourcesBuilder,
+    VkEngine, WinSizeIndices, WinSizeResourcesBuilder, WindowResources,
 };
 use waragraph::console::{Console, ConsoleInput};
 
@@ -207,146 +207,28 @@ fn main() -> Result<()> {
     txt.set_label_pos(b"view:len", 300, 16)?;
     txt.set_label_pos(b"view:end", 600, 16)?;
 
-    let window_storage_set_info = {
-        let info = DescriptorInfo {
-            ty: rspirv_reflect::DescriptorType::STORAGE_IMAGE,
-            binding_count: rspirv_reflect::BindingCount::One,
-            name: "out_image".to_string(),
-        };
+    let mut window_resources = WindowResources::new();
 
-        Some((0u32, info)).into_iter().collect::<BTreeMap<_, _>>()
-    };
-
-    let window_storage_image_layout = {
-        let mut info = DescriptorLayoutInfo::default();
-
-        let binding = vk::DescriptorSetLayoutBinding::builder()
-            .binding(0)
-            .descriptor_count(1)
-            .descriptor_type(vk::DescriptorType::STORAGE_IMAGE)
-            .stage_flags(vk::ShaderStageFlags::COMPUTE) // TODO should also be graphics
-            .build();
-
-        info.bindings.push(binding);
-        info
-    };
-
-    let window_texture_set_info = {
-        let info = DescriptorInfo {
-            ty: rspirv_reflect::DescriptorType::SAMPLED_IMAGE,
-            binding_count: rspirv_reflect::BindingCount::One,
-            name: "out_image".to_string(),
-        };
-
-        Some((0u32, info)).into_iter().collect::<BTreeMap<_, _>>()
-    };
-
-    let window_texture_layout = {
-        let mut info = DescriptorLayoutInfo::default();
-
-        let binding = vk::DescriptorSetLayoutBinding::builder()
-            .binding(0)
-            .descriptor_count(1)
-            .descriptor_type(vk::DescriptorType::SAMPLED_IMAGE)
-            .stage_flags(vk::ShaderStageFlags::COMPUTE) // TODO should also be graphics
-            .build();
-
-        info.bindings.push(binding);
-        info
-    };
-
-    let mut win_size_resource_index = WinSizeIndices::default();
-
-    let win_size_res_builder = move |engine: &mut VkEngine,
-                                     width: u32,
-                                     height: u32|
-          -> Result<WinSizeResourcesBuilder> {
-        let mut builder = WinSizeResourcesBuilder::default();
-
-        let (img, view, sampled_desc_set, desc_set, framebuffer) = engine
-            .with_allocators(|ctx, res, alloc| {
-                let out_image = res.allocate_image(
-                    ctx,
-                    alloc,
-                    width,
-                    height,
-                    vk::Format::R8G8B8A8_UNORM,
-                    vk::ImageUsageFlags::STORAGE
-                        | vk::ImageUsageFlags::SAMPLED
-                        | vk::ImageUsageFlags::COLOR_ATTACHMENT
-                        | vk::ImageUsageFlags::TRANSFER_SRC,
-                    Some("out_image"),
-                )?;
-
-                let out_view = res.new_image_view(ctx, &out_image)?;
-
-                let attchs = [out_view];
-                let framebuffer = res
-                    .create_framebuffer(ctx, pass_ix, &attchs, width, height)?;
-
-                let sampled_desc_set = res.allocate_desc_set_raw(
-                    &window_texture_layout,
-                    &window_texture_set_info,
-                    |res, builder| {
-                        let info = ash::vk::DescriptorImageInfo::builder()
-                            .image_layout(vk::ImageLayout::GENERAL)
-                            .image_view(out_view)
-                            .build();
-
-                        builder.bind_image(0, &[info]);
-
-                        Ok(())
-                    },
-                )?;
-
-                let out_desc_set = res.allocate_desc_set_raw(
-                    &window_storage_image_layout,
-                    &window_storage_set_info,
-                    |res, builder| {
-                        let info = ash::vk::DescriptorImageInfo::builder()
-                            .image_layout(vk::ImageLayout::GENERAL)
-                            .image_view(out_view)
-                            .build();
-
-                        builder.bind_image(0, &[info]);
-
-                        Ok(())
-                    },
-                )?;
-
-                Ok((
-                    out_image,
-                    out_view,
-                    sampled_desc_set,
-                    out_desc_set,
-                    framebuffer,
-                ))
-            })?;
-
-        builder.images.insert("out_image".to_string(), img);
-        builder
-            .image_views
-            .insert("out_image_view".to_string(), view);
-        builder
-            .desc_sets
-            .insert("sampled_desc_set".to_string(), sampled_desc_set);
-        builder
-            .desc_sets
-            .insert("out_desc_set".to_string(), desc_set);
-
-        builder
-            .framebuffers
-            .insert("out_framebuffer".to_string(), framebuffer);
-
-        Ok(builder)
-    };
+    window_resources.add_image(
+        "out",
+        vk::Format::R8G8B8A8_UNORM,
+        vk::ImageUsageFlags::STORAGE
+            | vk::ImageUsageFlags::SAMPLED
+            | vk::ImageUsageFlags::COLOR_ATTACHMENT
+            | vk::ImageUsageFlags::TRANSFER_SRC,
+        [
+            (vk::ImageUsageFlags::STORAGE, vk::ImageLayout::GENERAL),
+            (vk::ImageUsageFlags::SAMPLED, vk::ImageLayout::GENERAL),
+        ],
+        Some(pass_ix),
+    )?;
 
     {
         let size = window.inner_size();
         let builder =
-            win_size_res_builder(&mut engine, size.width, size.height)?;
+            window_resources.build(&mut engine, size.width, size.height)?;
         engine.with_allocators(|ctx, res, alloc| {
-            builder.insert(&mut win_size_resource_index, ctx, res, alloc)?;
+            builder.insert(&mut window_resources.indices, ctx, res, alloc)?;
             Ok(())
         })?;
     }
@@ -413,24 +295,33 @@ fn main() -> Result<()> {
 
     path_viewer.update_labels(&waragraph, &txt)?;
 
-    let out_image = *win_size_resource_index.images.get("out_image").unwrap();
-    let out_view = *win_size_resource_index
-        .image_views
-        .get("out_image_view")
-        .unwrap();
-    let out_desc_set = *win_size_resource_index
+    let out_image = *window_resources.indices.images.get("out").unwrap();
+    let out_view = *window_resources.indices.image_views.get("out").unwrap();
+    let out_desc_set = *window_resources
+        .indices
         .desc_sets
-        .get("out_desc_set")
+        .get("out")
+        .and_then(|s| {
+            s.get(&(
+                vk::DescriptorType::STORAGE_IMAGE,
+                vk::ImageLayout::GENERAL,
+            ))
+        })
         .unwrap();
-    let sample_out_desc_set = *win_size_resource_index
+    let sample_out_desc_set = *window_resources
+        .indices
         .desc_sets
-        .get("sampled_desc_set")
+        .get("out")
+        .and_then(|s| {
+            s.get(&(
+                vk::DescriptorType::SAMPLED_IMAGE,
+                vk::ImageLayout::GENERAL,
+            ))
+        })
         .unwrap();
 
-    let out_framebuffer = *win_size_resource_index
-        .framebuffers
-        .get("out_framebuffer")
-        .unwrap();
+    let out_framebuffer =
+        *window_resources.indices.framebuffers.get("out").unwrap();
 
     // let mut builder = FrameBuilder::from_script("paths.rhai")?;
     let mut builder = FrameBuilder::from_script("paths2.rhai")?;
@@ -477,40 +368,6 @@ fn main() -> Result<()> {
     // let color_buffer = buffers.buffers[0];
     builder.bind_var("color_buffer", color_buffer)?;
     builder.bind_var("alt_color_desc_set", buffers.desc_sets.read()[0])?;
-
-    let fmt = BufFmt::UVec4;
-    let line_buf =
-        buffers.allocate_buffer(&mut engine, &db, "line_storage", fmt, 64)?;
-    log::error!("line_storage -> {:?}", line_buf);
-
-    let line = |x0: u32, y0: u32, x1: u32, y1: u32| [x0, y0, x1, y1];
-
-    let mut lines = vec![];
-
-    let n = 24;
-
-    for i in 0..n {
-        use std::f32::consts::TAU;
-        let angle_d = TAU / (n as f32);
-        let ti = (i as f32) * angle_d;
-        let ti_2 = ((i + 1) as f32) * angle_d;
-
-        let radius = 200.0;
-        let o = 300.0;
-
-        let x0 = o + ti.cos() * radius;
-        let y0 = o + ti.sin() * radius;
-        let x1 = o + ti_2.cos() * radius;
-        let y1 = o + ti_2.sin() * radius;
-
-        lines.push(line(x0 as u32, y0 as u32, x1 as u32, y1 as u32));
-    }
-
-    buffers.insert_data(
-        line_buf,
-        &lines,
-        // &[line(200, 300, 500, 300), line(100, 100, 500, 400)],
-    )?;
 
     engine.with_allocators(|ctx, res, alloc| {
         builder.resolve(ctx, res, alloc)?;
@@ -1012,17 +869,14 @@ fn main() -> Result<()> {
                         swapchain_dims.store(engine.swapchain_dimensions());
 
                         {
-                            let res_builder = win_size_res_builder(
-                                &mut engine,
-                                size.width,
-                                size.height,
-                            )
-                            .unwrap();
+                            let res_builder = window_resources
+                                .build(&mut engine, size.width, size.height)
+                                .unwrap();
 
                             engine
                                 .with_allocators(|ctx, res, alloc| {
                                     res_builder.insert(
-                                        &mut win_size_resource_index,
+                                        &mut window_resources.indices,
                                         ctx,
                                         res,
                                         alloc,
