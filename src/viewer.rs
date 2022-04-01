@@ -16,6 +16,8 @@ use anyhow::{anyhow, Result};
 use crossbeam::atomic::AtomicCell;
 use std::sync::Arc;
 
+pub mod app;
+
 pub mod sampler;
 pub mod slots;
 

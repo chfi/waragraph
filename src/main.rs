@@ -181,9 +181,6 @@ fn main() -> Result<()> {
 
     let vx_buf_ix = buffers.get_buffer_ix(vx_buf_0).unwrap();
 
-    // let xy = |x: f32, y: f32| [x, y]
-
-    // buffers.insert_data(vx_buf_0, &[[-1f32, 0.0], [1.0, 0.0], [0.0, 1.0]])?;
     buffers.insert_data(vx_buf_0, &[[0f32, 0.0], [1.0, 0.0], [0.0, 1.0]])?;
 
     let mut txt = LabelStorage::new(&db)?;
@@ -245,14 +242,10 @@ fn main() -> Result<()> {
             view
         }
     } else {
-        let mut view = ViewDiscrete1D::new(waragraph.total_len());
-        // view.resize(view.max() / 2);
+        let view = ViewDiscrete1D::new(waragraph.total_len());
         view
     };
 
-    // let mut view = ViewDiscrete1D::new(waragraph.total_len());
-    // view.resize(view.max() / 2);
-    // view.set(0, view.max() / 2);
     let mut prev_view = None;
 
     db.insert(b"view", &view.as_bytes())?;
@@ -927,17 +920,6 @@ fn main() -> Result<()> {
                                 .unwrap();
 
                                 path_viewer.sample(&waragraph, &view);
-
-                                // waragraph.sample_node_lengths_db(
-                                //     slot_width,
-                                //     &view,
-                                //     &mut samples_db,
-                                // );
-
-                                // db.update_and_fetch("sample_indices", |_| {
-                                //     Some(samples_db.as_bytes())
-                                // })
-                                // .unwrap();
                             }
 
                             {
