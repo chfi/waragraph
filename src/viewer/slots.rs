@@ -86,43 +86,21 @@ impl SlotRenderers {
         Some(Arc::new(f) as SlotUpdateFn<u32>)
     }
 
-    pub fn create_sampler_mean_arc(
+    pub fn create_sampler_mean_round(
         &self,
         id: &str,
     ) -> Option<SlotUpdateFn<u32>> {
-        let data_source = self.get_data_source(id)?.clone();
-
-        let f = move |samples: &[(Node, usize)], path, ix: usize| {
-            let left_ix = ix.min(samples.len() - 1);
-            let right_ix = (ix + 1).min(samples.len() - 1);
-
-            let (left, _offset) = samples[left_ix];
-            let (right, _offset) = samples[right_ix];
-
-            let mut total = 0;
-            let mut count = 0;
-
-            let l: u32 = left.into();
-            let r: u32 = right.into();
-
-            for n in l..r {
-                let node = Node::from(n);
-                if let Some(v) = data_source(path, node) {
-                    total += v;
-                    count += 1;
-                }
-            }
-
-            let avg = total.checked_div(count).unwrap_or_default();
-            avg
-        };
-        Some(Arc::new(f) as SlotUpdateFn<u32>)
+        self.create_sampler_mean_with(id, |v| v as u32)
     }
 
-    pub fn create_sampler_mid_arc(
+    pub fn create_sampler_mid_with<F>(
         &self,
         id: &str,
-    ) -> Option<SlotUpdateFn<u32>> {
+        f: F,
+    ) -> Option<SlotUpdateFn<u32>>
+    where
+        F: Fn(u32) -> u32 + Send + Sync + 'static,
+    {
         let data_source = self.get_data_source(id)?.clone();
 
         let f = move |samples: &[(Node, usize)], path, ix: usize| {
@@ -136,74 +114,17 @@ impl SlotRenderers {
             let r: u32 = right.into();
 
             let node = l + (r - l) / 2;
-            data_source(path, node.into()).unwrap_or_default()
+            let v = data_source(path, node.into()).unwrap_or_default();
+
+            f(v)
         };
         Some(Arc::new(f) as SlotUpdateFn<u32>)
     }
 
-    pub fn create_sampler_mean<'a>(
-        &self,
-        id: &str,
-        // graph: &'a Waragraph,
-        // samples: &'a [(Node, usize)],
-        samples: &'a [[u32; 2]],
-    ) -> Option<impl Fn(usize, usize) -> u32 + 'a> {
-        let data_source = self.get_data_source(id)?.clone();
-
-        let f = move |path, ix: usize| {
-            let left_ix = ix.min(samples.len() - 1);
-            let right_ix = (ix + 1).min(samples.len() - 1);
-
-            // let (left, _offset) = samples[left_ix];
-            // let (right, _offset) = samples[right_ix];
-
-            let [left, _offset] = samples[left_ix];
-            let [right, _offset] = samples[right_ix];
-
-            let mut total = 0;
-            let mut count = 0;
-
-            // let l: u32 = left.into();
-            // let r: u32 = right.into();
-
-            for n in left..right {
-                let node = Node::from(n);
-                if let Some(v) = data_source(path, node) {
-                    total += v;
-                    count += 1;
-                }
-            }
-
-            let avg = total.checked_div(count).unwrap_or_default();
-            avg
-        };
-        Some(f)
-    }
-
-    pub fn create_sampler_mid<'a>(
-        &self,
-        id: &str,
-        samples: &'a [[u32; 2]],
-    ) -> Option<impl Fn(usize, usize) -> u32 + 'a> {
-        let data_source = self.get_data_source(id)?.clone();
-
-        let f = move |path, ix: usize| {
-            let left_ix = ix.min(samples.len() - 1);
-            let right_ix = (ix + 1).min(samples.len() - 1);
-
-            let [left, _offset] = samples[left_ix];
-            let [right, _offset] = samples[right_ix];
-
-            let node = left + (right - left) / 2;
-
-            data_source(path, node.into()).unwrap_or_default()
-        };
-        Some(f)
+    pub fn create_sampler_mid(&self, id: &str) -> Option<SlotUpdateFn<u32>> {
+        self.create_sampler_mid_with(id, |v| v)
     }
 }
-
-// pub struct SlotCache {
-// }
 
 pub struct PathViewSlot {
     capacity: usize,

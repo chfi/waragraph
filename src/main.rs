@@ -268,8 +268,6 @@ fn main() -> Result<()> {
         )
     })?;
 
-    // let intervals = [
-
     let updater_loop_count_mean = slot_renderers
         .create_sampler_mean_with("loop_count", |v| {
             if v == 0.0 {
@@ -287,9 +285,9 @@ fn main() -> Result<()> {
         .unwrap();
 
     let updater_loop_count_mid =
-        slot_renderers.create_sampler_mid_arc("loop_count").unwrap();
+        slot_renderers.create_sampler_mid("loop_count").unwrap();
     let updater_has_node_mid =
-        slot_renderers.create_sampler_mid_arc("has_node").unwrap();
+        slot_renderers.create_sampler_mid("has_node").unwrap();
 
     path_viewer.sample(&waragraph, &view);
 
@@ -331,8 +329,7 @@ fn main() -> Result<()> {
     let out_framebuffer =
         *window_resources.indices.framebuffers.get("out").unwrap();
 
-    // let mut builder = FrameBuilder::from_script("paths.rhai")?;
-    let mut builder = FrameBuilder::from_script("paths2.rhai")?;
+    let mut builder = FrameBuilder::from_script("paths.rhai")?;
 
     builder.bind_var("out_image", out_image)?;
     builder.bind_var("out_image_view", out_view)?;
@@ -696,13 +693,14 @@ fn main() -> Result<()> {
                           cmd: vk::CommandBuffer| {
                         fg_batch_fn(dev, res, cmd);
                         labels_batch_fn(dev, res, cmd);
+                    },
+                ) as Box<_>;
 
-                        // let clear_values = [vk::ClearValue {
-                        //     color: vk::ClearColorValue {
-                        //         float32: [0.0, 0.0, 0.0, 1.0],
-                        //     },
-                        // }];
-
+                let graphics_batch = Box::new(
+                    move |dev: &Device,
+                          res: &GpuResources,
+                          _input: &BatchInput,
+                          cmd: vk::CommandBuffer| {
                         let pass_info = vk::RenderPassBeginInfo::builder()
                             .render_pass(res[pass_ix])
                             .framebuffer(res[out_framebuffer])
@@ -724,9 +722,7 @@ fn main() -> Result<()> {
                             let vx_buf = res[vx_buf_ix].buffer;
                             let (pipeline, _) = res[pipeline_ix];
                             let vxs = [vx_buf];
-                            // dev.cmd_bind_vertex_buffers(cmd, 0, &vxs, &[2]);
                             dev.cmd_bind_vertex_buffers(cmd, 0, &vxs, &[8]);
-                            // dev.cmd_bind_vertex_buffers(cmd, 0, &vxs, &[16]);
 
                             dev.cmd_bind_pipeline(
                                 cmd,

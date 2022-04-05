@@ -1,7 +1,7 @@
 #version 450
 
 layout (set = 0, binding = 0) readonly buffer PathData {
-  uint counts[];
+  uint val[];
 } path;
 
 layout (set = 1, binding = 0) readonly buffer ClipRects {
@@ -46,7 +46,7 @@ void main() {
 
   uint src_ix = uint(inputs.slot_width * t);
 
-  uint src = path.counts[src_ix];
+  uint src = path.val[src_ix];
 
   uvec2 screen_dst = rel_dst + uvec2(p);
 
