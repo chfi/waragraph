@@ -353,45 +353,6 @@ fn main() -> Result<()> {
     })?;
     log::warn!("is resolved: {}", builder.is_resolved());
 
-    let clip_rects_buffer = builder
-        .module
-        .get_var_value::<Resolvable<BufferIx>>("clip_rects_buffer")
-        .unwrap()
-        .get_unwrap();
-
-    let shader_ix = builder
-        .module
-        .get_var_value::<Resolvable<ShaderIx>>("path_shader")
-        .unwrap();
-
-    let shader_ix = shader_ix.get_unwrap();
-
-    const MAX_SLOTS: usize = 256;
-
-    let clip_desc_sets = engine.with_allocators(|ctx, res, alloc| {
-        let mut desc_sets = Vec::new();
-
-        for _ in 0..MAX_SLOTS {
-            let clip_set =
-                res.allocate_desc_set(shader_ix, 0, |res, builder| {
-                    let buffer = &res[clip_rects_buffer];
-                    let buf_info = ash::vk::DescriptorBufferInfo::builder()
-                        .buffer(buffer.buffer)
-                        .offset(0)
-                        .range(ash::vk::WHOLE_SIZE)
-                        .build();
-                    let buffer_info = [buf_info];
-                    builder.bind_buffer(0, &buffer_info);
-                    Ok(())
-                })?;
-
-            let clip_set_ix = res.insert_desc_set(clip_set);
-            desc_sets.push(clip_set_ix);
-        }
-
-        Ok(desc_sets)
-    })?;
-
     let arc_module = Arc::new(builder.module.clone());
 
     // draw_labels
@@ -399,7 +360,7 @@ fn main() -> Result<()> {
 
     rhai_engine.register_static_module("self", arc_module.clone());
 
-    let mut draw_labels = rhai::Func::<
+    let draw_labels = rhai::Func::<
         (BatchBuilder, i64, i64, rhai::Array),
         BatchBuilder,
     >::create_from_ast(
@@ -466,7 +427,7 @@ fn main() -> Result<()> {
         }
     }
 
-    let update_clip_rects = {
+    let on_resize = {
         // let mut rhai_engine = raving::script::console::create_batch_engine();
         let mut rhai_engine = waragraph::console::create_engine(&db, &buffers);
 
@@ -640,24 +601,13 @@ fn main() -> Result<()> {
                 };
 
                 desc_sets.clear();
-                desc_sets.extend(
-                    path_viewer.slots.iter().zip(clip_desc_sets.iter()).map(
-                        |(slot, clip)| {
-                            let slot_set_ix = slot.desc_set();
-                            let mut map = rhai::Map::default();
-                            map.insert(
-                                "clip".into(),
-                                rhai::Dynamic::from(*clip),
-                            );
-                            map.insert(
-                                "slot".into(),
-                                rhai::Dynamic::from(slot_set_ix),
-                            );
-                            rhai::Dynamic::from_map(map)
-                            // desc_sets.push(rhai::Dynamic::from_map(map));
-                        },
-                    ),
-                );
+                desc_sets.extend(path_viewer.slots.iter().map(|slot| {
+                    let slot_set_ix = slot.desc_set();
+                    let mut map = rhai::Map::default();
+                    map.insert("slot".into(), rhai::Dynamic::from(slot_set_ix));
+                    rhai::Dynamic::from_map(map)
+                    // desc_sets.push(rhai::Dynamic::from_map(map));
+                }));
 
                 let batch_builder = BatchBuilder::default();
                 let fg_batch = draw_foreground(
@@ -695,6 +645,7 @@ fn main() -> Result<()> {
                     },
                 ) as Box<_>;
 
+                /*
                 let graphics_batch = Box::new(
                     move |dev: &Device,
                           res: &GpuResources,
@@ -756,6 +707,7 @@ fn main() -> Result<()> {
                         }
                     },
                 ) as Box<_>;
+                */
 
                 let copy_to_swapchain = copy_to_swapchain.clone();
 
@@ -906,7 +858,7 @@ fn main() -> Result<()> {
                             }
 
                             {
-                                let mut init_builder = update_clip_rects(
+                                let mut init_builder = on_resize(
                                     size.width as i64,
                                     size.height as i64,
                                 )

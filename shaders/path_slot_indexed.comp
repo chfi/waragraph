@@ -4,35 +4,44 @@ layout (set = 0, binding = 0) readonly buffer PathData {
   uint val[];
 } path;
 
-layout (set = 1, binding = 0) readonly buffer ClipRects {
-  vec4 rect[];
-} clip_rects;
+// layout (set = 1, binding = 0) readonly buffer ClipRects {
+//   vec4 rect[];
+// } clip_rects;
 
-layout (set = 2, binding = 0) readonly buffer Colors {
+layout (set = 1, binding = 0) readonly buffer Colors {
   uint len;
   vec4 colors[];
 } colors;
 
-layout (rgba8, set = 3, binding = 0) writeonly uniform image2D image_out;
+layout (rgba8, set = 2, binding = 0) writeonly uniform image2D image_out;
 
 layout (push_constant) uniform Inputs {
-  int slot_width;
-  int slot_height;
-  uint clip_ix;
+  ivec2 offset;
+  ivec2 dims;
+  // int slot_width;
+  // int slot_height;
+  // uint clip_ix;
 } inputs;
 
 layout(local_size_x = 8, local_size_y = 8, local_size_z = 1) in;
 
 
 void main() {
-  uint clip_ix = inputs.clip_ix;
+  // uint clip_ix = inputs.clip_ix;
 
-  vec4 rect = clip_rects.rect[clip_ix];
+  // vec4 rect = clip_rects.rect[clip_ix];
 
-  vec2 p = rect.xy;
 
-  float w = rect.z;
-  float h = rect.w;
+  vec2 p = vec2(inputs.offset);
+  vec2 dims = vec2(inputs.dims);
+
+  // vec2 p = rect.xy;
+
+  float w = dims.x;
+  float h = dims.y;
+
+  // float w = rect.z;
+  // float h = rect.w;
 
   uvec2 rel_dst = gl_GlobalInvocationID.xy;
   uvec2 rel_dst_local = gl_LocalInvocationID.xy;
@@ -44,7 +53,7 @@ void main() {
 
   float t = clamp(0.0, 1.0, float(rel_dst.x) / w);
 
-  uint src_ix = uint(inputs.slot_width * t);
+  uint src_ix = uint(inputs.dims.x * t);
 
   uint src = path.val[src_ix];
 

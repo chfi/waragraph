@@ -73,15 +73,6 @@ export let font_desc_set =
                     #{ binding: 1, sampler: norm_sampler } ]);
 
 
-export let clip_rects_buffer =
-  allocate_buffer("rect_buffer",
-                  vk::MemoryLocation::CPU_TO_GPU,
-                  1,
-                  4 * 4 * 32, // vec4 * 8
-                  vk::BufferUsageFlags::TRANSFER_DST
-                  | vk::BufferUsageFlags::STORAGE_BUFFER);
-
-
 export let path_shader = load_shader("shaders/path_slot_indexed.comp.spv",
                                      vk::ShaderStageFlags::COMPUTE);
 
@@ -90,29 +81,8 @@ export let path_pipeline = create_compute_pipeline(path_shader);
 
 export let rect = #{ x: 20.0, y: 48.0, w: -40.0, h: 40.0 };
 
-fn rect_blob(rect) {
-  let data = blob();
-  data.append_float(rect.x);
-  data.append_float(rect.y);
-  data.append_float(rect.w);
-  data.append_float(rect.h);
-  data
-}
-
 fn resize(width, height) {
   let init_batch = batch_builder();
-
-  let clip_buf = self::clip_rects_buffer.get();
-  let clip_rects = [];
-
-  let yd = 66.0;
-
-  for i in 0..16 {
-    let r = self::rect;
-    r.y = r.y + yd * i;
-    r.w = r.w + width.to_float();
-    clip_rects.push(r);
-  }
 
   let img = self::out_image.get();
 
@@ -125,15 +95,7 @@ fn resize(width, height) {
                               vk::ImageLayout::UNDEFINED,
                               vk::ImageLayout::GENERAL);
 
-  init_batch.initialize_buffer_with(Fn("rect_blob"),
-                                    self::clip_rects_buffer.get(),
-                                    clip_rects);
-
   init_batch
-}
-
-fn visible_slots(win_height) {
-  ((win_height - 40.0) / 56.0).to_int()
 }
 
 fn init() {
@@ -153,18 +115,6 @@ fn init() {
                               vk::PipelineStageFlags::COMPUTE_SHADER,
                               vk::ImageLayout::UNDEFINED,
                               vk::ImageLayout::GENERAL);
-
-  let clip_buf = self::clip_rects_buffer.get();
-  let clip_rects = [];
-
-  for i in 0..16 {
-    clip_rects.push(#{ x: 20.0,  y: 40.0 + 56.0 * i,
-                       w: 760.0, h: 50.0 });
-  }
-
-  init_batch.initialize_buffer_with(Fn("rect_blob"),
-                                    self::clip_rects_buffer.get(),
-                                    clip_rects);
 
   init_batch
 }
@@ -205,7 +155,12 @@ fn foreground(batch, desc_sets, slot_w, w, h) {
 
 
   // draw paths
-  let batch = draw_slots(batch, h, #{ width: slot_w, height: 50 }, desc_sets, "gradient_rainbow");
+  let dims = #{ width: w, height: h };
+  let batch = draw_slots(batch,
+                         dims, #{ width: slot_w, height: 50 },
+                         desc_sets,
+                         "gradient_rainbow");
+  // let batch = draw_slots(batch, h, #{ width: slot_w, height: 50 }, desc_sets, "gradient_rainbow");
 
   batch.transition_image(img,
                          vk::AccessFlags::SHADER_WRITE,
@@ -373,7 +328,28 @@ fn draw_labels(batch, width, height, labels) {
   batch
 }
 
-fn draw_slots(batch, height, slot_dims, slot_desc_sets, color_buffer) {
+fn visible_slots(win_height) {
+  ((win_height - 40.0) / 56.0).to_int()
+}
+
+
+fn slot_push_constant(win_dims, slot_ix) {
+  let pc = blob();
+
+  let yd = 66.0;
+
+  let r = self::rect;
+  r.y = r.y + yd * slot_ix;
+  r.w = r.w + win_dims.width;
+
+  pc.append_int(r.x.to_int());
+  pc.append_int(r.y.to_int());
+  pc.append_int(r.w.to_int());
+  pc.append_int(r.h.to_int());
+  pc
+}
+
+fn draw_slots(batch, win_dims, slot_dims, slot_desc_sets, color_buffer) {
   let x_size = 8;
   let y_size = 8;
 
@@ -386,7 +362,7 @@ fn draw_slots(batch, height, slot_dims, slot_desc_sets, color_buffer) {
 
   let color_data = get_buffer(color_buffer);
 
-  let vis_count = visible_slots(height);
+  let vis_count = visible_slots(win_dims.height);
   if vis_count >= slot_desc_sets.len() {
     vis_count = slot_desc_sets.len()
   }
@@ -395,17 +371,12 @@ fn draw_slots(batch, height, slot_dims, slot_desc_sets, color_buffer) {
     let desc_sets = slot_desc_sets[ix];
 
     let slot_set = desc_sets.slot;
-    let clip_set = desc_sets.clip;
 
-    let pc = blob();
-    pc.append_int(slot_w);
-    pc.append_int(slot_h);
-    pc.append_int(ix);
-
+    let pc = slot_push_constant(win_dims, ix);
 
     batch.dispatch_compute(self::path_pipeline.get(),
                            [slot_set,
-                            clip_set,
+                            // clip_set,
                             color_data.set,
                             self::out_desc_set.get()],
                            pc,
