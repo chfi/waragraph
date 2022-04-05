@@ -132,6 +132,10 @@ fn resize(width, height) {
   init_batch
 }
 
+fn visible_slots(win_height) {
+  ((win_height - 40.0) / 56.0).to_int()
+}
+
 fn init() {
   let init_batch = batch_builder();
 
@@ -165,7 +169,7 @@ fn init() {
   init_batch
 }
 
-fn foreground(batch, labels, desc_sets, slot_w, w, h) {
+fn foreground(batch, desc_sets, slot_w, w, h) {
 
   let img = self::out_image.get();
 
@@ -200,41 +204,8 @@ fn foreground(batch, labels, desc_sets, slot_w, w, h) {
 
 
 
-  // draw_slots(batch, #{ width: slot_w, height: slot_h }, desc_sets, "gradient_cubehelix");
-
   // draw paths
-
-  let x_size = 8;
-  let y_size = 8;
-
-  let slot_h = 50;
-
-  let workgroups = #{ x_groups: (slot_w / x_size) + slot_w % x_size,
-                      y_groups: (slot_h / y_size) + slot_h % y_size,
-                      z_groups: 1 };
-
-
-  for ix in 0..desc_sets.len() {
-    let desc_sets = desc_sets[ix];
-
-    let slot_set = desc_sets.slot;
-    let clip_set = desc_sets.clip;
-
-    let pc = blob();
-    pc.append_int(slot_w);
-    pc.append_int(slot_h);
-    pc.append_int(ix);
-
-    let color_data = get_buffer("gradient_rainbow");
-
-    batch.dispatch_compute(self::path_pipeline.get(),
-                           [slot_set,
-                            clip_set,
-                            color_data.set,
-                            self::out_desc_set.get()],
-                           pc,
-                           workgroups);
-  }
+  let batch = draw_slots(batch, h, #{ width: slot_w, height: 50 }, desc_sets, "gradient_rainbow");
 
   batch.transition_image(img,
                          vk::AccessFlags::SHADER_WRITE,
@@ -374,8 +345,6 @@ fn draw_labels(batch, width, height, labels) {
 
 
   for label in labels {
-    // let desc_set = info.desc_set;
-
     let pc = blob();
     pc.append_int(label.x);
     pc.append_int(label.y);
@@ -404,7 +373,7 @@ fn draw_labels(batch, width, height, labels) {
   batch
 }
 
-fn draw_slots(batch, slot_dims, slot_desc_sets, color_buffer) {
+fn draw_slots(batch, height, slot_dims, slot_desc_sets, color_buffer) {
   let x_size = 8;
   let y_size = 8;
 
@@ -417,8 +386,13 @@ fn draw_slots(batch, slot_dims, slot_desc_sets, color_buffer) {
 
   let color_data = get_buffer(color_buffer);
 
-  for ix in 0..slot_desc_sets.len() {
-    let desc_sets = desc_sets[ix];
+  let vis_count = visible_slots(height);
+  if vis_count >= slot_desc_sets.len() {
+    vis_count = slot_desc_sets.len()
+  }
+
+  for ix in 0..vis_count {
+    let desc_sets = slot_desc_sets[ix];
 
     let slot_set = desc_sets.slot;
     let clip_set = desc_sets.clip;

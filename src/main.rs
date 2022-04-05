@@ -253,7 +253,7 @@ fn main() -> Result<()> {
     let mut view_sub = db.watch_prefix(b"view");
 
     // TODO set slot_count based on available height, and row height
-    let slot_count = 20;
+    let slot_count = 32;
 
     let mut path_viewer = engine.with_allocators(|ctx, res, alloc| {
         PathViewer::new(
@@ -414,7 +414,7 @@ fn main() -> Result<()> {
     rhai_engine.register_static_module("self", arc_module.clone());
 
     let mut draw_foreground = rhai::Func::<
-        (BatchBuilder, rhai::Array, rhai::Array, i64, i64, i64),
+        (BatchBuilder, rhai::Array, i64, i64, i64),
         BatchBuilder,
     >::create_from_ast(
         rhai_engine,
@@ -662,7 +662,6 @@ fn main() -> Result<()> {
                 let batch_builder = BatchBuilder::default();
                 let fg_batch = draw_foreground(
                     batch_builder,
-                    label_sets.clone(),
                     desc_sets.clone(),
                     slot_width as i64,
                     size.width as i64,
@@ -944,14 +943,7 @@ fn main() -> Result<()> {
                             );
 
                             draw_foreground = rhai::Func::<
-                                (
-                                    BatchBuilder,
-                                    rhai::Array,
-                                    rhai::Array,
-                                    i64,
-                                    i64,
-                                    i64,
-                                ),
+                                (BatchBuilder, rhai::Array, i64, i64, i64),
                                 BatchBuilder,
                             >::create_from_ast(
                                 rhai_engine,
