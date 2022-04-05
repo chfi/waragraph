@@ -343,8 +343,15 @@ fn main() -> Result<()> {
     ]
     .into_iter()
     .for_each(|(n, g)| {
-        create_gradient_buffer(&mut engine, &mut buffers, &db, n, g, 256)
-            .expect("error creating gradient buffers");
+        waragraph::viewer::app::create_gradient_buffer(
+            &mut engine,
+            &mut buffers,
+            &db,
+            n,
+            g,
+            256,
+        )
+        .expect("error creating gradient buffers");
     });
 
     engine.with_allocators(|ctx, res, alloc| {
@@ -374,7 +381,7 @@ fn main() -> Result<()> {
 
     rhai_engine.register_static_module("self", arc_module.clone());
 
-    let mut draw_foreground = rhai::Func::<
+    let draw_foreground = rhai::Func::<
         (BatchBuilder, rhai::Array, i64, i64, i64),
         BatchBuilder,
     >::create_from_ast(
@@ -540,7 +547,12 @@ fn main() -> Result<()> {
                         &updater_has_node_mid
                     };
 
-                    path_viewer.update_from_alt(&mut engine.resources, updater);
+                    let t0 = std::time::Instant::now();
+                    path_viewer.update_from(&mut engine.resources, updater);
+                    log::warn!(
+                        "path_viewer.update_from took {} us",
+                        t0.elapsed().as_micros()
+                    );
                 }
 
                 let mut updates: HashMap<IVec, IVec> = HashMap::default();
@@ -556,7 +568,6 @@ fn main() -> Result<()> {
                             // do nothing yet
                         }
                     }
-                    //
                 }
 
                 for (key, value) in updates {
@@ -882,26 +893,6 @@ fn main() -> Result<()> {
                                         .unwrap();
                                 }
                             }
-
-                            // let mut rhai_engine =
-                            //     raving::script::console::create_batch_engine();
-                            let mut rhai_engine =
-                                waragraph::console::create_engine(
-                                    &db, &buffers,
-                                );
-                            rhai_engine.register_static_module(
-                                "self",
-                                arc_module.clone(),
-                            );
-
-                            draw_foreground = rhai::Func::<
-                                (BatchBuilder, rhai::Array, i64, i64, i64),
-                                BatchBuilder,
-                            >::create_from_ast(
-                                rhai_engine,
-                                builder.ast.clone_functions_only(),
-                                "foreground",
-                            );
                         }
 
                         recreate_swapchain_timer = None;
@@ -1022,27 +1013,6 @@ fn main() -> Result<()> {
             _ => (),
         }
     });
-
-    Ok(())
-}
-
-fn create_gradient_buffer(
-    engine: &mut VkEngine,
-    buffers: &mut BufferStorage,
-    db: &sled::Db,
-    name: &str,
-    gradient: colorous::Gradient,
-    len: usize,
-) -> Result<()> {
-    let buf = buffers.allocate_buffer(engine, &db, name, BufFmt::FVec4, 256)?;
-
-    let len = len.min(255);
-
-    buffers.insert_data_from(
-        buf,
-        len,
-        waragraph::util::gradient_color_fn(gradient, len),
-    )?;
 
     Ok(())
 }

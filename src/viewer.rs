@@ -240,7 +240,7 @@ impl PathViewer {
         self.update.store(true);
     }
 
-    pub fn update_from_alt(
+    pub fn update_from(
         &mut self,
         res: &mut GpuResources,
         updater: &SlotUpdateFn<u32>,
@@ -254,23 +254,6 @@ impl PathViewer {
         }
 
         self.new_samples.store(false);
-
-        Some(())
-    }
-
-    pub fn update_from<F>(
-        &mut self,
-        res: &mut GpuResources,
-        mut fill: F,
-    ) -> Option<()>
-    where
-        F: FnMut(usize, usize) -> u32,
-    {
-        let vis = self.visible_indices();
-
-        for (path, slot) in vis.zip(self.slots.iter_mut()) {
-            slot.update_from(res, |ix| fill(path, ix));
-        }
 
         Some(())
     }
