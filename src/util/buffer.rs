@@ -362,40 +362,6 @@ impl BufferStorage {
         })
     }
 
-    pub fn fill_slice_from<T: Copy + FromBytes>(
-        fmt: BufFmt,
-        capacity: usize,
-        src: &[T],
-        dst: &mut [u8],
-    ) -> Option<()> {
-        let elem_size = fmt.size();
-        let align_prefix = elem_size;
-
-        let len = src.len().min(capacity);
-
-        let dst_data = {
-            let len = len as u32;
-            let (prefix, data) = dst.split_at_mut(elem_size);
-
-            let prefix_n = align_prefix / std::mem::size_of::<u32>();
-            log::warn!("prefix_n: {}", prefix_n);
-            for i in 0..prefix_n {
-                let s = i * 4;
-                let e = s + 4;
-                prefix[s..e].clone_from_slice(&len.to_le_bytes());
-            }
-
-            let slice: &mut [T] = fmt.as_slice_mut(data)?;
-            slice
-        };
-
-        for (s, d) in std::iter::zip(src, dst_data) {
-            *d = *s;
-        }
-
-        Some(())
-    }
-
     pub fn fill_buffer(&self, res: &mut GpuResources, id: BufId) -> Option<()> {
         let k_vec = id.as_vec_key();
         // let k_vec = Self::vec_id_key(id);
@@ -493,16 +459,42 @@ impl BufferStorage {
         Some(())
     }
 
-    pub fn insert_data<T: Copy + AsBytes + std::fmt::Debug>(
+    pub fn insert_data_from<T, F>(
+        &self,
+        id: BufId,
+        len: usize,
+        f: F,
+    ) -> Result<()>
+    where
+        T: Copy + AsBytes,
+        F: FnMut(usize) -> T,
+    {
+        let meta = BufMeta::get_stored(&self.tree, id)?;
+
+        if meta.fmt.size() != std::mem::size_of::<T>() {
+            bail!(
+                "src type size {} doesn't match buffer metadata size {}",
+                std::mem::size_of::<T>(),
+                meta.fmt.size(),
+            );
+        }
+
+        let len = len.min(meta.capacity);
+
+        let src = (0..len).map(f).collect::<Vec<_>>();
+
+        self.insert_data(id, &src)
+    }
+
+    pub fn insert_data<T: Copy + AsBytes>(
         &self,
         id: BufId,
         src: &[T],
     ) -> Result<()> {
-        dbg!();
         // 1. get the buffer metadata from sled
         let meta = BufMeta::get_stored(&self.tree, id)?;
         log::warn!("src.len(): {}", src.len());
-        log::warn!("src: {:?}", src);
+        // log::warn!("src: {:?}", src);
 
         // dbg!(&meta);
         log::warn!(
@@ -521,7 +513,6 @@ impl BufferStorage {
             );
         }
 
-        dbg!();
         // 3. limit the length of src based on capacity, if needed
         // 4. cast src to a bytestring
         let value = src
@@ -531,15 +522,12 @@ impl BufferStorage {
             .copied()
             .collect::<Vec<_>>();
 
-        dbg!();
         // 5. insert bytestring at the data key
         let key = id.as_data_key();
-        dbg!(key);
         // self.tree.remove(key);
         self.tree
             .update_and_fetch(key, |_| Some(value.as_slice()))?;
-        self.tree.insert(key, value)?;
-        dbg!();
+        // self.tree.insert(key, value)?;
 
         self.update_tx.send(id)?;
 

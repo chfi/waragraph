@@ -268,9 +268,24 @@ fn main() -> Result<()> {
         )
     })?;
 
+    // let intervals = [
+
     let updater_loop_count_mean = slot_renderers
-        .create_sampler_mean_arc("loop_count")
+        .create_sampler_mean_with("loop_count", |v| {
+            if v == 0.0 {
+                0
+            } else if v < 1.5 {
+                16
+            } else if v < 3.0 {
+                32
+            } else if v < 4.5 {
+                64
+            } else {
+                128
+            }
+        })
         .unwrap();
+
     let updater_loop_count_mid =
         slot_renderers.create_sampler_mid_arc("loop_count").unwrap();
     let updater_has_node_mid =

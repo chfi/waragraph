@@ -44,6 +44,48 @@ impl SlotRenderers {
         self.data_sources.get(id)
     }
 
+    pub fn create_sampler_mean_with<F>(
+        &self,
+        id: &str,
+        f: F,
+    ) -> Option<SlotUpdateFn<u32>>
+    where
+        F: Fn(f32) -> u32 + Send + Sync + 'static,
+    {
+        let data_source = self.get_data_source(id)?.clone();
+
+        let f = move |samples: &[(Node, usize)], path, ix: usize| {
+            let left_ix = ix.min(samples.len() - 1);
+            let right_ix = (ix + 1).min(samples.len() - 1);
+
+            let (left, _offset) = samples[left_ix];
+            let (right, _offset) = samples[right_ix];
+
+            let mut total = 0;
+            let mut count = 0;
+
+            let l: u32 = left.into();
+            let r: u32 = right.into();
+
+            for n in l..r {
+                let node = Node::from(n);
+                if let Some(v) = data_source(path, node) {
+                    total += v;
+                    count += 1;
+                }
+            }
+
+            let avg = if count == 0 {
+                0.0
+            } else {
+                (total as f32) / (count as f32)
+            };
+
+            f(avg)
+        };
+        Some(Arc::new(f) as SlotUpdateFn<u32>)
+    }
+
     pub fn create_sampler_mean_arc(
         &self,
         id: &str,
