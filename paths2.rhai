@@ -34,9 +34,9 @@ export let unnorm_sampler = create_sampler(unnorm_sampler_info);
 export let norm_sampler = create_sampler(norm_sampler_info);
 
 
-export let color_buf = buffer_var("color_buffer");
+// export let color_buf = buffer_var("color_buffer");
 
-export let alt_color_set = desc_set_var("alt_color_desc_set");
+// export let alt_color_set = desc_set_var("alt_color_desc_set");
 
 export let bg_shader = load_shader("shaders/bg_color.comp.spv",
                                    vk::ShaderStageFlags::COMPUTE);
@@ -92,10 +92,10 @@ export let path_shader = load_shader("shaders/path_new.comp.spv",
 
 
 
-export let color_desc_set =
-  create_desc_set(path_shader,
-                  2,
-                  [ #{ binding: 0, buffer: color_buf } ]);
+// export let color_desc_set =
+//   create_desc_set(path_shader,
+//                   2,
+//                   [ #{ binding: 0, buffer: color_buf } ]);
 
 export let path_pipeline = create_compute_pipeline(path_shader);
 
@@ -211,6 +211,8 @@ fn foreground(batch, labels, desc_sets, slot_w, w, h) {
 
 
 
+  // draw_slots(batch, #{ width: slot_w, height: slot_h }, desc_sets, "gradient_cubehelix");
+
   // draw paths
 
   let x_size = 8;
@@ -234,13 +236,12 @@ fn foreground(batch, labels, desc_sets, slot_w, w, h) {
     pc.append_int(slot_h);
     pc.append_int(ix);
 
-    let color_data = get_buffer("storage_0");
+    let color_data = get_buffer("gradient_cubehelix");
 
     batch.dispatch_compute(self::path_pipeline.get(),
                            [slot_set,
                             clip_set,
-                            self::color_desc_set.get(),
-                            // color_data.set,
+                            color_data.set,
                             self::out_desc_set.get()],
                            pc,
                            workgroups);
@@ -414,7 +415,7 @@ fn draw_labels(batch, width, height, labels) {
   batch
 }
 
-fn draw_slots(batch, slot_dims, slot_desc_sets) {
+fn draw_slots(batch, slot_dims, slot_desc_sets, color_buffer) {
   let x_size = 8;
   let y_size = 8;
 
@@ -425,6 +426,7 @@ fn draw_slots(batch, slot_dims, slot_desc_sets) {
                       y_groups: (slot_h / y_size) + slot_h % y_size,
                       z_groups: 1 };
 
+  let color_data = get_buffer(color_buffer);
 
   for ix in 0..slot_desc_sets.len() {
     let desc_sets = desc_sets[ix];
@@ -437,13 +439,11 @@ fn draw_slots(batch, slot_dims, slot_desc_sets) {
     pc.append_int(slot_h);
     pc.append_int(ix);
 
-    // let color_data = get_buffer("storage_0");
 
     batch.dispatch_compute(self::path_pipeline.get(),
                            [slot_set,
                             clip_set,
-                            self::color_desc_set.get(),
-                            // color_data.set,
+                            color_data.set,
                             self::out_desc_set.get()],
                            pc,
                            workgroups);

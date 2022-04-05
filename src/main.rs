@@ -323,44 +323,17 @@ fn main() -> Result<()> {
     builder.bind_var("out_image_view", out_view)?;
     builder.bind_var("out_desc_set", out_desc_set)?;
 
-    #[rustfmt::skip]
-    let color_buffer = {
-        let usage = vk::BufferUsageFlags::TRANSFER_DST
-            | vk::BufferUsageFlags::STORAGE_BUFFER;
-
-        let gradient = colorous::RAINBOW;
-
-        let l = 4;
-
-        waragraph::util::alloc_buffer_with(
-            &mut engine,
-            Some("color_buffer"),
-            usage,
-            true,
-            0..l,
-            |ix| {
-                let color = gradient.eval_rational(ix, l);
-
-                let to_bytes = |c| ((c as f32) / 255.0).to_ne_bytes();
-
-                let r = to_bytes(color.r);
-                let g = to_bytes(color.g);
-                let b = to_bytes(color.b);
-                let a = 1.0f32.to_ne_bytes();
-
-                [
-                    r[0], r[1], r[2], r[3],
-                    g[0], g[1], g[2], g[3],
-                    b[0], b[1], b[2], b[3],
-                    a[0], a[1], a[2], a[3],
-                ]
-            },
-        )?
-    };
-
-    // let color_buffer = buffers.buffers[0];
-    builder.bind_var("color_buffer", color_buffer)?;
-    builder.bind_var("alt_color_desc_set", buffers.desc_sets.read()[0])?;
+    [
+        ("gradient_rainbow", colorous::RAINBOW),
+        ("gradient_cubehelix", colorous::CUBEHELIX),
+        ("gradient_blue_purple", colorous::BLUE_PURPLE),
+        ("gradient_magma", colorous::MAGMA),
+    ]
+    .into_iter()
+    .for_each(|(n, g)| {
+        create_gradient_buffer(&mut engine, &mut buffers, &db, n, g, 256)
+            .expect("error creating gradient buffers");
+    });
 
     engine.with_allocators(|ctx, res, alloc| {
         builder.resolve(ctx, res, alloc)?;
@@ -1094,6 +1067,27 @@ fn main() -> Result<()> {
             _ => (),
         }
     });
+
+    Ok(())
+}
+
+fn create_gradient_buffer(
+    engine: &mut VkEngine,
+    buffers: &mut BufferStorage,
+    db: &sled::Db,
+    name: &str,
+    gradient: colorous::Gradient,
+    len: usize,
+) -> Result<()> {
+    let buf = buffers.allocate_buffer(engine, &db, name, BufFmt::FVec4, 256)?;
+
+    let len = len.min(255);
+
+    buffers.insert_data_from(
+        buf,
+        len,
+        waragraph::util::gradient_color_fn(gradient, len),
+    )?;
 
     Ok(())
 }
