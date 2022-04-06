@@ -187,7 +187,7 @@ fn main() -> Result<()> {
 
                     let def = viewer
                         .slot_renderer_cache
-                        .get("updater_loop_count_mean")
+                        .get("loop_count_mean")
                         .unwrap();
                     let updater = update_key
                         .and_then(|k| {

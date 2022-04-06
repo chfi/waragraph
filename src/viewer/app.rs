@@ -6,8 +6,6 @@ use raving::vk::{
 
 use raving::vk::resource::WindowResources;
 
-use raving::vk::util::*;
-
 use ash::{vk, Device};
 
 use winit::window::Window;
@@ -103,53 +101,53 @@ impl ViewerSys {
         // using a Rhai function for the final step in mapping values to color indices
         let mut rhai_engine = Self::create_engine(db, buffers, &arc_module);
         rhai_engine.set_optimization_level(rhai::OptimizationLevel::Full);
+
         let color_map = rhai::Func::<(f32,), i64>::create_from_ast(
             rhai_engine,
             builder.ast.clone_functions_only(),
             "value_color_index_map",
         );
+        let color_map = Arc::new(move |v| {
+            let i = (&color_map)(v).unwrap();
+            i as u32
+        })
+            as Arc<dyn Fn(f32) -> u32 + Send + Sync + 'static>;
+
+        let cmap = color_map.clone();
         let updater_loop_count_mean = slot_renderers
-            .create_sampler_mean_with("loop_count", move |v| {
-                let i = (&color_map)(v).unwrap();
-                i as u32
-            })
+            .create_sampler_mean_with("loop_count", move |v| (&cmap)(v))
             .unwrap();
 
-        /*
-        let updater_loop_count_mean = slot_renderers
-            .create_sampler_mean_with("loop_count", |v| {
-                if v == 0.0 {
-                    0
-                } else if v < 1.5 {
-                    16
-                } else if v < 3.0 {
-                    32
-                } else if v < 4.5 {
-                    64
-                } else {
-                    128
-                }
-            })
-            .unwrap();
-        */
+        slot_renderer_cache
+            .insert("loop_count_mean".to_string(), updater_loop_count_mean);
 
+        let cmap = color_map.clone();
         slot_renderer_cache.insert(
-            "updater_loop_count_mean".to_string(),
-            // f,
-            updater_loop_count_mean,
+            "loop_count_mid".to_string(),
+            slot_renderers
+                .create_sampler_mid_with("loop_count", move |v| {
+                    (&cmap)(v as f32)
+                })
+                .unwrap(),
         );
 
-        slot_renderer_cache.insert(
-            "updater_loop_count_mid".to_string(),
-            slot_renderers.create_sampler_mid("loop_count").unwrap(),
-        );
+        let has_node_mid =
+            slot_renderers
+                .create_sampler_mid_with("has_node", |v| {
+                    if v == 0 {
+                        0
+                    } else {
+                        255
+                    }
+                })
+                .unwrap();
+        slot_renderer_cache.insert("has_node_mid".to_string(), has_node_mid);
 
-        slot_renderer_cache.insert(
-            "updater_has_node_mid".to_string(),
-            slot_renderers.create_sampler_mid("has_node").unwrap(),
-        );
-
-        db.insert(b"slot_function", b"updater_loop_count_mean")?;
+        let slot_function = builder
+            .module
+            .get_var_value::<rhai::ImmutableString>("slot_function")
+            .unwrap_or_else(|| "loop_count_mean".into());
+        db.insert(b"slot_function", slot_function.as_bytes())?;
 
         //
         let view = ViewDiscrete1D::new(waragraph.total_len());
@@ -203,6 +201,7 @@ impl ViewerSys {
             Ok(())
         })?;
 
+        // gradient buffers
         [
             ("gradient_rainbow", colorous::RAINBOW),
             ("gradient_cubehelix", colorous::CUBEHELIX),
@@ -549,7 +548,6 @@ impl ViewerSys {
         module: &Arc<rhai::Module>,
     ) -> rhai::Engine {
         let mut rhai_engine = crate::console::create_engine(db, buffers);
-        // let arc_module = Arc::new(builder.module.clone());
         rhai_engine.register_static_module("viewer", module.clone());
         rhai_engine
     }

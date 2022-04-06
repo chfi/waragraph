@@ -2,6 +2,8 @@
 // configurable options
 //
 
+// colors and theming
+
 export let bg_color = #{ r: 0.95, g: 0.95, b: 0.95 };
 export let slot_gradient = "gradient_rainbow";
 export let label_color = #{ r: 0.0, g: 0.0, b: 0.0 };
@@ -11,10 +13,17 @@ export let label_color = #{ r: 0.0, g: 0.0, b: 0.0 };
 // export let slot_gradient = "gradient_inferno";
 // export let label_color = #{ r: 0.85, g: 0.85, b: 0.85 };
 
+
+// other options
+
 // controls the slot offset and size (not fully integrated yet)
 export let slot_rect = #{ x: 20.0, y: 48.0, w: -40.0, h: 40.0 };
 // export let label_offset = #{ x: 34.0, y: 40.0 }; // not used yet
 
+
+export let slot_function = "loop_count_mean";
+// export let slot_function = "loop_count_mid";
+// export let slot_function = "has_node_mid";
 
 // this function can be edited to change the mapping from values to colors;
 // the output is used an index into a 256-long gradient buffer
@@ -31,7 +40,6 @@ fn value_color_index_map(v) {
     128
   }
 }
-
 
 //
 // engine-related resources
