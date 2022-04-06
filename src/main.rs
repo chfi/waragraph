@@ -489,6 +489,8 @@ fn main() -> Result<()> {
 
         match event {
             Event::MainEventsCleared => {
+                // updating start
+
                 let frame_start = std::time::Instant::now();
 
                 buffers.allocate_queued(&mut engine).unwrap();
@@ -584,6 +586,8 @@ fn main() -> Result<()> {
                         .zip(value.iter())
                         .for_each(|(chk, &b)| chk.fill(b));
                 }
+
+                // update end
 
                 let t = start.elapsed().as_secs_f32();
 
@@ -807,6 +811,7 @@ fn main() -> Result<()> {
 
                         swapchain_dims.store(engine.swapchain_dimensions());
 
+                        // ViewerSys::resize
                         {
                             let res_builder = window_resources
                                 .build(&mut engine, size.width, size.height)

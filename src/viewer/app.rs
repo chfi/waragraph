@@ -21,6 +21,7 @@ use flexi_logger::{Duplicate, FileSpec, Logger};
 use gpu_allocator::vulkan::Allocator;
 use parking_lot::Mutex;
 use rspirv_reflect::DescriptorInfo;
+use winit::window::Window;
 
 use crate::graph::{Node, Waragraph};
 use crate::util::{BufFmt, BufId, BufMeta, BufferStorage, LabelStorage};
@@ -50,8 +51,7 @@ pub struct ViewerSys {
     slot_renderer_cache: HashMap<String, SlotUpdateFn<u32>>,
 
     labels: LabelStorage,
-    buffers: BufferStorage,
-
+    // buffers: BufferStorage,
     frame_resources: [FrameResources; 2],
     frame: FrameBuilder,
 
@@ -60,7 +60,7 @@ pub struct ViewerSys {
     draw_labels: RhaiBatchFn4<BatchBuilder, i64, i64, rhai::Array>,
     draw_foreground: RhaiBatchFn5<BatchBuilder, rhai::Array, i64, i64, i64>,
     copy_to_swapchain:
-        RhaiBatchFn5<BatchBuilder, DescSetIx, rhai::Map, i64, i64>,
+        Arc<RhaiBatchFn5<BatchBuilder, DescSetIx, rhai::Map, i64, i64>>,
 }
 
 impl ViewerSys {
@@ -68,11 +68,13 @@ impl ViewerSys {
         engine: &mut VkEngine,
         waragraph: &Arc<Waragraph>,
         db: &sled::Db,
+        buffers: &mut BufferStorage,
         window_resources: &mut WindowResources,
         width: u32,
         height: u32,
     ) -> Result<Self> {
-        let mut buffers = BufferStorage::new(&db)?;
+        // let buffers = buffers.clone();
+        // let mut buffers = BufferStorage::new(&db)?;
 
         let mut txt = LabelStorage::new(&db)?;
 
@@ -146,11 +148,25 @@ impl ViewerSys {
         let mut slot_renderer_cache: HashMap<String, SlotUpdateFn<u32>> =
             HashMap::default();
 
+        let updater_loop_count_mean = slot_renderers
+            .create_sampler_mean_with("loop_count", |v| {
+                if v == 0.0 {
+                    0
+                } else if v < 1.5 {
+                    16
+                } else if v < 3.0 {
+                    32
+                } else if v < 4.5 {
+                    64
+                } else {
+                    128
+                }
+            })
+            .unwrap();
+
         slot_renderer_cache.insert(
             "updater_loop_count_mean".to_string(),
-            slot_renderers
-                .create_sampler_mean_round("loop_count")
-                .unwrap(),
+            updater_loop_count_mean,
         );
 
         slot_renderer_cache.insert(
@@ -242,7 +258,7 @@ impl ViewerSys {
         ]
         .into_iter()
         .for_each(|(n, g)| {
-            create_gradient_buffer(engine, &mut buffers, &db, n, g, 256)
+            create_gradient_buffer(engine, buffers, &db, n, g, 256)
                 .expect("error creating gradient buffers");
         });
 
@@ -363,8 +379,7 @@ impl ViewerSys {
             slot_renderer_cache,
 
             labels: txt,
-            buffers,
-
+            // buffers,
             frame_resources,
             frame: builder,
 
@@ -372,8 +387,232 @@ impl ViewerSys {
 
             draw_labels,
             draw_foreground,
-            copy_to_swapchain,
+            copy_to_swapchain: Arc::new(copy_to_swapchain),
         })
+    }
+
+    pub fn update(&mut self, engine: &mut VkEngine) -> Result<()> {
+        Ok(())
+    }
+
+    pub fn resize(
+        &mut self,
+        waragraph: &Arc<Waragraph>,
+        engine: &mut VkEngine,
+        window_resources: &mut WindowResources,
+        width: u32,
+        height: u32,
+    ) -> Result<()> {
+        let res_builder =
+            window_resources.build(engine, width, height).unwrap();
+
+        engine
+            .with_allocators(|ctx, res, alloc| {
+                res_builder.insert(
+                    &mut window_resources.indices,
+                    ctx,
+                    res,
+                    alloc,
+                )?;
+
+                self.path_viewer.resize(
+                    ctx,
+                    res,
+                    alloc,
+                    width as usize,
+                    0u32,
+                )?;
+
+                Ok(())
+            })
+            .unwrap();
+
+        {
+            let slot_width = self.path_viewer.width;
+
+            // txt.set_label_pos(b"view:start", 20, 16)?;
+            let len_len = self.labels.label_len(b"view:len").unwrap();
+            let end_len = self.labels.label_len(b"view:end").unwrap();
+            let end_label_x = slot_width - (end_len * 8) - 40;
+            let len_label_x = (end_label_x / 2) - len_len / 2;
+            self.labels
+                .set_label_pos(b"view:len", len_label_x as u32, 16)
+                .unwrap();
+            self.labels
+                .set_label_pos(b"view:end", end_label_x as u32, 16)
+                .unwrap();
+
+            self.labels
+                .set_label_pos(b"fps", 0, (height - 12) as u32)
+                .unwrap();
+
+            self.path_viewer.sample(waragraph, &self.view);
+        }
+
+        {
+            let mut init_builder =
+                (&self.on_resize)(width as i64, height as i64).unwrap();
+
+            if !init_builder.init_fn.is_empty() {
+                log::warn!("submitting update batches");
+                let fence = engine
+                    .submit_batches_fence(init_builder.init_fn.as_slice())
+                    .unwrap();
+
+                engine.block_on_fence(fence).unwrap();
+
+                engine
+                    .with_allocators(|c, r, a| {
+                        init_builder.free_staging_buffers(c, r, a)
+                    })
+                    .unwrap();
+            }
+        }
+
+        Ok(())
+    }
+
+    pub fn render(
+        &mut self,
+        engine: &mut VkEngine,
+        window: &Window,
+        txt: &LabelStorage,
+        window_resources: &WindowResources,
+    ) -> Result<bool> {
+        let f_ix = engine.current_frame_number();
+
+        let frame = &mut self.frame_resources[f_ix % raving::vk::FRAME_OVERLAP];
+
+        let size = window.inner_size();
+
+        let slot_width = self.path_viewer.width;
+
+        let label_sets = {
+            txt.label_names
+                .values()
+                .map(|&id| {
+                    use rhai::Dynamic as Dyn;
+                    let mut data = rhai::Map::default();
+                    let set = txt.desc_set_for_id(id).unwrap().unwrap();
+                    let (x, y) = txt.get_label_pos_id(id).unwrap();
+                    data.insert("x".into(), Dyn::from_int(x as i64));
+                    data.insert("y".into(), Dyn::from_int(y as i64));
+                    data.insert("desc_set".into(), Dyn::from(set));
+                    Dyn::from_map(data)
+                })
+                .collect::<Vec<_>>()
+        };
+
+        let mut desc_sets = Vec::new();
+        desc_sets.extend(self.path_viewer.slots.iter().map(|slot| {
+            let slot_set_ix = slot.desc_set();
+            let mut map = rhai::Map::default();
+            map.insert("slot".into(), rhai::Dynamic::from(slot_set_ix));
+            rhai::Dynamic::from_map(map)
+            // desc_sets.push(rhai::Dynamic::from_map(map));
+        }));
+
+        let batch_builder = BatchBuilder::default();
+        let fg_batch = (&self.draw_foreground)(
+            batch_builder,
+            desc_sets.clone(),
+            slot_width as i64,
+            size.width as i64,
+            size.height as i64,
+        )
+        .unwrap();
+        let fg_batch_fn = fg_batch.build();
+
+        let batch_builder = BatchBuilder::default();
+        let labels_batch = (&self.draw_labels)(
+            batch_builder,
+            size.width as i64,
+            size.height as i64,
+            label_sets,
+        )
+        .unwrap();
+        let labels_batch_fn = labels_batch.build();
+
+        let extent = vk::Extent2D {
+            width: size.width,
+            height: size.height,
+        };
+
+        let fg_batch = Box::new(
+            move |dev: &Device,
+                  res: &GpuResources,
+                  _input: &BatchInput,
+                  cmd: vk::CommandBuffer| {
+                fg_batch_fn(dev, res, cmd);
+                labels_batch_fn(dev, res, cmd);
+            },
+        ) as Box<_>;
+
+        // let copy_to_swapchain = self.copy_to_swapchain.clone();
+
+        let sample_out_desc_set = *window_resources
+            .indices
+            .desc_sets
+            .get("out")
+            .and_then(|s| {
+                s.get(&(
+                    vk::DescriptorType::SAMPLED_IMAGE,
+                    vk::ImageLayout::GENERAL,
+                ))
+            })
+            .unwrap();
+
+        let copy_to_swapchain = self.copy_to_swapchain.clone();
+
+        let copy_swapchain_batch = Box::new(
+            move |dev: &Device,
+                  res: &GpuResources,
+                  input: &BatchInput,
+                  cmd: vk::CommandBuffer| {
+                let mut cp_swapchain = rhai::Map::default();
+
+                cp_swapchain.insert(
+                    "storage_set".into(),
+                    rhai::Dynamic::from(input.storage_set.unwrap()),
+                );
+
+                cp_swapchain.insert(
+                    "img".into(),
+                    rhai::Dynamic::from(input.swapchain_image.unwrap()),
+                );
+
+                let batch_builder = BatchBuilder::default();
+
+                let batch = copy_to_swapchain(
+                    batch_builder,
+                    sample_out_desc_set,
+                    cp_swapchain,
+                    size.width as i64,
+                    size.height as i64,
+                );
+
+                if let Err(e) = &batch {
+                    log::error!("copy_to_swapchain error: {:?}", e);
+                }
+
+                let batch = batch.unwrap();
+                let batch_fn = batch.build();
+                batch_fn(dev, res, cmd)
+            },
+        ) as Box<_>;
+
+        let batches = [&fg_batch, &copy_swapchain_batch];
+
+        let deps = vec![
+            None,
+            Some(vec![(0, vk::PipelineStageFlags::COMPUTE_SHADER)]),
+            // Some(vec![(1, vk::PipelineStageFlags::COMPUTE_SHADER)]),
+        ];
+
+        let result =
+            engine.draw_from_batches(frame, &batches, deps.as_slice(), 1)?;
+
+        Ok(result)
     }
 
     // pub fn on_resize(&self) -> impl rhai::Func<(i64, i64), BatchBuilder> {
