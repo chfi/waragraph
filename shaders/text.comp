@@ -15,6 +15,7 @@ layout (push_constant) uniform Inputs {
   int y;
   int img_width;
   int img_height;
+  vec4 color;
 } inputs;
 
 layout(local_size_x = 8, local_size_y = 8, local_size_z = 1) in;
@@ -41,15 +42,12 @@ void main() {
 
   vec4 font_col = vec4(font.rgb, 1.0 - font.r);
 
-  // if (font_col.r == 0.0 &&
   if (font_col.a > 0.0 &&
       x_offset <= inputs.img_width &&
       y_offset <= inputs.img_height) {
     ivec2 dst_px = ivec2(x_offset, y_offset);
 
-    vec4 bg_col = imageLoad(image_out, dst_px);
-
-    vec4 out_col = bg_col * font_col;
+    vec4 out_col = inputs.color;
 
     imageStore(image_out, dst_px, out_col);
   }

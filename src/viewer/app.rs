@@ -190,6 +190,7 @@ impl ViewerSys {
             ("gradient_cubehelix", colorous::CUBEHELIX),
             ("gradient_blue_purple", colorous::BLUE_PURPLE),
             ("gradient_magma", colorous::MAGMA),
+            ("gradient_inferno", colorous::INFERNO),
         ]
         .into_iter()
         .for_each(|(n, g)| {

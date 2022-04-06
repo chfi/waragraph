@@ -1,16 +1,25 @@
-
+//
 // configurable options
+//
 
-export let rect = #{ x: 20.0, y: 48.0, w: -40.0, h: 40.0 };
+export let slot_rect = #{ x: 20.0, y: 48.0, w: -40.0, h: 40.0 };
 
 export let bg_color = #{ r: 0.95, g: 0.95, b: 0.95 };
 export let slot_gradient = "gradient_rainbow";
+export let label_color = #{ r: 0.0, g: 0.0, b: 0.0 };
 
+// alternative dark mode example
 // export let bg_color = #{ r: 0.05, g: 0.05, b: 0.05 };
-// export let slot_gradient = "gradient_magma";
+// export let slot_gradient = "gradient_inferno";
+// export let label_color = #{ r: 0.85, g: 0.85, b: 0.85 };
 
+// controls the slot offset and size (not fully integrated yet)
+export let slot_rect = #{ x: 20.0, y: 48.0, w: -40.0, h: 40.0 };
+// export let label_offset = #{ x: 34.0, y: 40.0 }; // not used yet
 
-// engine-related
+//
+// engine-related resources
+//
 
 // these are bound to the WindowResources' "out" image in
 // ViewerSys::init, in src/viewer/app.rs
@@ -311,6 +320,11 @@ fn draw_labels(batch, width, height, labels) {
     pc.append_int(w);
     pc.append_int(h);
 
+    pc.append_float(viewer::label_color.r);
+    pc.append_float(viewer::label_color.g);
+    pc.append_float(viewer::label_color.b);
+    pc.append_float(1.0);
+
     batch.dispatch_compute(viewer::text_pipeline.get(),
                            [viewer::font_desc_set.get(),
                             label.desc_set,
@@ -343,7 +357,7 @@ fn slot_push_constant(win_dims, slot_ix) {
 
   let yd = 66.0;
 
-  let r = viewer::rect;
+  let r = viewer::slot_rect;
   r.y = r.y + yd * slot_ix;
   r.w = r.w + win_dims.width;
 
@@ -381,7 +395,6 @@ fn draw_slots(batch, win_dims, slot_dims, slot_desc_sets, color_buffer) {
 
     batch.dispatch_compute(viewer::path_pipeline.get(),
                            [slot_set,
-                            // clip_set,
                             color_data.set,
                             viewer::out_desc_set.get()],
                            pc,
