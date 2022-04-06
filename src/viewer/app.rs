@@ -1,14 +1,7 @@
-use crate::console::{Console, ConsoleInput};
-use bstr::ByteSlice;
-use crossbeam::atomic::AtomicCell;
-use gfa::gfa::GFA;
-use raving::script::console::frame::{FrameBuilder, Resolvable};
+use raving::script::console::frame::FrameBuilder;
 use raving::script::console::BatchBuilder;
-use raving::vk::context::VkContext;
-use raving::vk::descriptor::DescriptorLayoutInfo;
 use raving::vk::{
-    BatchInput, BufferIx, DescSetIx, FrameResources, GpuResources, ShaderIx,
-    VkEngine, WinSizeIndices, WinSizeResourcesBuilder,
+    BatchInput, DescSetIx, FrameResources, GpuResources, VkEngine,
 };
 
 use raving::vk::resource::WindowResources;
@@ -17,30 +10,19 @@ use raving::vk::util::*;
 
 use ash::{vk, Device};
 
-use flexi_logger::{Duplicate, FileSpec, Logger};
-use gpu_allocator::vulkan::Allocator;
-use parking_lot::Mutex;
-use rspirv_reflect::DescriptorInfo;
 use winit::window::Window;
 
-use crate::graph::{Node, Waragraph};
-use crate::util::{BufFmt, BufId, BufMeta, BufferStorage, LabelStorage};
-use crate::viewer::{PathViewSlot, PathViewer, SlotRenderers, ViewDiscrete1D};
-use sled::IVec;
-use winit::event::{Event, VirtualKeyCode, WindowEvent};
-use winit::{event_loop::EventLoop, window::WindowBuilder};
+use crate::graph::Waragraph;
+use crate::util::{BufFmt, BufferStorage, LabelStorage};
+use crate::viewer::{SlotRenderers, ViewDiscrete1D};
 
-use std::collections::{BTreeMap, HashMap};
-use std::io::{prelude::*, BufReader};
+use std::collections::HashMap;
 
 use std::sync::Arc;
-use std::time::Duration;
 
 use anyhow::{anyhow, bail, Result};
 
-use zerocopy::{AsBytes, FromBytes};
-
-use super::SlotUpdateFn;
+use super::{PathViewer, SlotUpdateFn};
 
 pub struct ViewerSys {
     pub view: ViewDiscrete1D,
@@ -81,6 +63,8 @@ impl ViewerSys {
         let mut txt = LabelStorage::new(&db)?;
 
         let mut label_updates = txt.tree.watch_prefix(b"t:");
+
+        let mut builder = FrameBuilder::from_script("paths.rhai")?;
 
         // path_v
 
@@ -195,8 +179,6 @@ impl ViewerSys {
             })
             .unwrap();
 
-        let mut builder = FrameBuilder::from_script("paths.rhai")?;
-
         builder.bind_var("out_image", out_image)?;
         builder.bind_var("out_image_view", out_view)?;
         builder.bind_var("out_desc_set", out_desc_set)?;
@@ -255,14 +237,9 @@ impl ViewerSys {
             "copy_to_swapchain",
         );
 
-        // let copy_to_swapchain = Arc::new(copy_to_swapchain);
-
         {
-            // let mut rhai_engine = raving::script::console::create_batch_engine();
             let mut rhai_engine = crate::console::create_engine(&db, &buffers);
-
             let arc_module = Arc::new(builder.module.clone());
-
             rhai_engine.register_static_module("self", arc_module.clone());
 
             let init = rhai::Func::<(), BatchBuilder>::create_from_ast(
@@ -287,11 +264,8 @@ impl ViewerSys {
         }
 
         let on_resize = {
-            // let mut rhai_engine = raving::script::console::create_batch_engine();
             let mut rhai_engine = crate::console::create_engine(&db, &buffers);
-
             let arc_module = Arc::new(builder.module.clone());
-
             rhai_engine.register_static_module("self", arc_module.clone());
 
             let resize =
@@ -303,7 +277,7 @@ impl ViewerSys {
             resize
         };
 
-        let mut frame_resources = {
+        let frame_resources = {
             let queue_ix = engine.queues.thread.queue_family_index;
 
             // hardcoded for now
@@ -568,11 +542,6 @@ impl ViewerSys {
 
         Ok(result)
     }
-
-    // pub fn on_resize(&self) -> impl rhai::Func<(i64, i64), BatchBuilder> {
-
-    // }
-    // pub fn on_resize(&self) -> impl Fn(i64, i64) -> Result<BatchBuilder
 }
 
 pub fn create_gradient_buffer(

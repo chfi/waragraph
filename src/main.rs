@@ -1,37 +1,21 @@
-use bstr::ByteSlice;
 use crossbeam::atomic::AtomicCell;
 use gfa::gfa::GFA;
-use raving::script::console::frame::{FrameBuilder, Resolvable};
-use raving::script::console::BatchBuilder;
-use raving::vk::context::VkContext;
-use raving::vk::descriptor::DescriptorLayoutInfo;
-use raving::vk::{
-    BatchInput, BufferIx, DescSetIx, FrameResources, GpuResources, ShaderIx,
-    VkEngine, WinSizeIndices, WinSizeResourcesBuilder, WindowResources,
-};
+use raving::vk::{VkEngine, WindowResources};
 use waragraph::console::{Console, ConsoleInput};
 
-use raving::vk::util::*;
-
-use ash::{vk, Device};
+use ash::vk;
 
 use flexi_logger::{Duplicate, FileSpec, Logger};
-use gpu_allocator::vulkan::Allocator;
-use parking_lot::Mutex;
-use rspirv_reflect::DescriptorInfo;
 
 use sled::IVec;
-use waragraph::graph::{Node, Waragraph};
-use waragraph::util::{BufFmt, BufId, BufMeta, BufferStorage, LabelStorage};
+use waragraph::graph::Waragraph;
+use waragraph::util::{BufferStorage, LabelStorage};
 use waragraph::viewer::app::ViewerSys;
-use waragraph::viewer::{
-    PathViewSlot, PathViewer, SlotRenderers, ViewDiscrete1D,
-};
+use waragraph::viewer::{SlotRenderers, ViewDiscrete1D};
 use winit::event::{Event, VirtualKeyCode, WindowEvent};
 use winit::{event_loop::EventLoop, window::WindowBuilder};
 
-use std::collections::{BTreeMap, HashMap};
-use std::io::{prelude::*, BufReader};
+use std::collections::HashMap;
 
 use std::sync::Arc;
 use std::time::Duration;
@@ -45,7 +29,7 @@ fn main() -> Result<()> {
     let spec = "debug, sled=info";
     // let spec = "debug";
     let _logger = Logger::try_with_env_or_str(spec)?
-        .log_to_file(FileSpec::default())
+        .log_to_file(FileSpec::default().suppress_timestamp())
         .duplicate_to_stderr(Duplicate::Debug)
         .start()?;
 
@@ -350,7 +334,6 @@ fn main() -> Result<()> {
                             } else if matches!(kc, VK::Down) {
                                 view.resize((len + len / 10) as usize);
                             } else if matches!(kc, VK::Escape) {
-                                // buffers.insert_data(buf_0, &[rgb(0.0, 0.0, 0.0), rgb(1.0, 0.0, 0.0)]).unwrap();
                                 view.reset();
                             } else if matches!(kc, VK::PageUp) {
                                 viewer.path_viewer.scroll_up();
@@ -377,20 +360,6 @@ fn main() -> Result<()> {
                                     )
                                     .unwrap();
                             }
-                            /*
-                            } else if matches!(kc, VK::PageUp) {
-                                // a temporary lil hack
-                                update = false;
-                                waragraph::console::eval::<()>(
-                                    &db,
-                                    "set_view_offset(0)",
-                                )
-                                .unwrap();
-                            } else if matches!(kc, VK::PageDown) {
-                                let offset = view.max() - view.len();
-                                view.set(offset, len as usize);
-                            }
-                                */
                         }
 
                         if update {
