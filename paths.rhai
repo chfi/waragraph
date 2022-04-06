@@ -2,8 +2,6 @@
 // configurable options
 //
 
-export let slot_rect = #{ x: 20.0, y: 48.0, w: -40.0, h: 40.0 };
-
 export let bg_color = #{ r: 0.95, g: 0.95, b: 0.95 };
 export let slot_gradient = "gradient_rainbow";
 export let label_color = #{ r: 0.0, g: 0.0, b: 0.0 };
@@ -16,6 +14,24 @@ export let label_color = #{ r: 0.0, g: 0.0, b: 0.0 };
 // controls the slot offset and size (not fully integrated yet)
 export let slot_rect = #{ x: 20.0, y: 48.0, w: -40.0, h: 40.0 };
 // export let label_offset = #{ x: 34.0, y: 40.0 }; // not used yet
+
+
+// this function can be edited to change the mapping from values to colors;
+// the output is used an index into a 256-long gradient buffer
+fn value_color_index_map(v) {
+  if v == 0.0 {
+    0
+  } else if v < 1.5 {
+    16
+  } else if v < 3.0 {
+    32
+  } else if v < 4.5 {
+    64
+  } else {
+    128
+  }
+}
+
 
 //
 // engine-related resources

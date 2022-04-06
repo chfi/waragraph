@@ -63,6 +63,8 @@ impl ViewerSys {
 
         let mut builder = FrameBuilder::from_script("paths.rhai")?;
 
+        let arc_module = Arc::new(builder.module.clone());
+
         // kind of a temporary hack; the console should be a fully
         // separate system, but right now it's using the viewer label
         // system for rendering
@@ -98,6 +100,22 @@ impl ViewerSys {
         let mut slot_renderer_cache: HashMap<String, SlotUpdateFn<u32>> =
             HashMap::default();
 
+        // using a Rhai function for the final step in mapping values to color indices
+        let mut rhai_engine = Self::create_engine(db, buffers, &arc_module);
+        rhai_engine.set_optimization_level(rhai::OptimizationLevel::Full);
+        let color_map = rhai::Func::<(f32,), i64>::create_from_ast(
+            rhai_engine,
+            builder.ast.clone_functions_only(),
+            "value_color_index_map",
+        );
+        let updater_loop_count_mean = slot_renderers
+            .create_sampler_mean_with("loop_count", move |v| {
+                let i = (&color_map)(v).unwrap();
+                i as u32
+            })
+            .unwrap();
+
+        /*
         let updater_loop_count_mean = slot_renderers
             .create_sampler_mean_with("loop_count", |v| {
                 if v == 0.0 {
@@ -113,9 +131,11 @@ impl ViewerSys {
                 }
             })
             .unwrap();
+        */
 
         slot_renderer_cache.insert(
             "updater_loop_count_mean".to_string(),
+            // f,
             updater_loop_count_mean,
         );
 
@@ -182,8 +202,6 @@ impl ViewerSys {
             builder.resolve(ctx, res, alloc)?;
             Ok(())
         })?;
-
-        let arc_module = Arc::new(builder.module.clone());
 
         [
             ("gradient_rainbow", colorous::RAINBOW),
