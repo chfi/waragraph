@@ -78,8 +78,6 @@ impl ViewerSys {
         // let buffers = buffers.clone();
         // let mut buffers = BufferStorage::new(&db)?;
 
-        db.insert(b"slot_function", b"loops_mean")?;
-
         let mut txt = LabelStorage::new(&db)?;
 
         let mut label_updates = txt.tree.watch_prefix(b"t:");
@@ -148,6 +146,8 @@ impl ViewerSys {
             "updater_has_node_mid".to_string(),
             slot_renderers.create_sampler_mid("has_node").unwrap(),
         );
+
+        db.insert(b"slot_function", b"updater_loop_count_mean")?;
 
         //
         let view = ViewDiscrete1D::new(waragraph.total_len());
