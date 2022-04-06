@@ -43,23 +43,25 @@ use zerocopy::{AsBytes, FromBytes};
 use super::SlotUpdateFn;
 
 pub struct ViewerSys {
-    view: ViewDiscrete1D,
+    pub view: ViewDiscrete1D,
 
-    path_viewer: PathViewer,
-    slot_renderers: SlotRenderers,
+    pub path_viewer: PathViewer,
+    pub slot_renderers: SlotRenderers,
 
-    slot_renderer_cache: HashMap<String, SlotUpdateFn<u32>>,
+    pub slot_renderer_cache: HashMap<String, SlotUpdateFn<u32>>,
 
-    labels: LabelStorage,
+    pub labels: LabelStorage,
+    pub label_updates: sled::Subscriber,
+
     // buffers: BufferStorage,
-    frame_resources: [FrameResources; 2],
-    frame: FrameBuilder,
+    pub frame_resources: [FrameResources; 2],
+    pub frame: FrameBuilder,
 
-    on_resize: RhaiBatchFn2<i64, i64>,
+    pub on_resize: RhaiBatchFn2<i64, i64>,
 
-    draw_labels: RhaiBatchFn4<BatchBuilder, i64, i64, rhai::Array>,
-    draw_foreground: RhaiBatchFn5<BatchBuilder, rhai::Array, i64, i64, i64>,
-    copy_to_swapchain:
+    pub draw_labels: RhaiBatchFn4<BatchBuilder, i64, i64, rhai::Array>,
+    pub draw_foreground: RhaiBatchFn5<BatchBuilder, rhai::Array, i64, i64, i64>,
+    pub copy_to_swapchain:
         Arc<RhaiBatchFn5<BatchBuilder, DescSetIx, rhai::Map, i64, i64>>,
 }
 
@@ -71,14 +73,16 @@ impl ViewerSys {
         buffers: &mut BufferStorage,
         window_resources: &mut WindowResources,
         width: u32,
-        height: u32,
+        // height: u32,
     ) -> Result<Self> {
         // let buffers = buffers.clone();
         // let mut buffers = BufferStorage::new(&db)?;
 
+        db.insert(b"slot_function", b"loops_mean")?;
+
         let mut txt = LabelStorage::new(&db)?;
 
-        let mut text_sub = txt.tree.watch_prefix(b"t:");
+        let mut label_updates = txt.tree.watch_prefix(b"t:");
 
         // path_v
 
@@ -96,40 +100,6 @@ impl ViewerSys {
         txt.set_label_pos(b"view:start", 20, 16)?;
         txt.set_label_pos(b"view:len", 300, 16)?;
         txt.set_label_pos(b"view:end", 600, 16)?;
-
-        let (pass_ix, pipeline_ix) = {
-            // let format = engine.swapchain_props.format.format;
-            let format = vk::Format::R8G8B8A8_UNORM;
-
-            engine.with_allocators(|ctx, res, _| {
-                let pass = res.create_line_render_pass(
-                    ctx,
-                    format,
-                    vk::ImageLayout::GENERAL,
-                    vk::ImageLayout::GENERAL,
-                )?;
-
-                let vert = res.load_shader(
-                    "shaders/tmp.vert.spv",
-                    vk::ShaderStageFlags::VERTEX,
-                )?;
-                let frag = res.load_shader(
-                    "shaders/tmp.frag.spv",
-                    vk::ShaderStageFlags::FRAGMENT,
-                )?;
-
-                let pass_ix = res.insert_render_pass(pass);
-                let vx = res.insert_shader(vert);
-                let fx = res.insert_shader(frag);
-
-                let pass = res[pass_ix];
-
-                let pipeline_ix =
-                    res.create_graphics_pipeline_tmp(ctx, vx, fx, pass)?;
-
-                Ok((pass_ix, pipeline_ix))
-            })?
-        };
 
         let mut slot_renderers = SlotRenderers::default();
 
@@ -224,20 +194,6 @@ impl ViewerSys {
                 ))
             })
             .unwrap();
-        let sample_out_desc_set = *window_resources
-            .indices
-            .desc_sets
-            .get("out")
-            .and_then(|s| {
-                s.get(&(
-                    vk::DescriptorType::SAMPLED_IMAGE,
-                    vk::ImageLayout::GENERAL,
-                ))
-            })
-            .unwrap();
-
-        let out_framebuffer =
-            *window_resources.indices.framebuffers.get("out").unwrap();
 
         let mut builder = FrameBuilder::from_script("paths.rhai")?;
 
@@ -379,6 +335,8 @@ impl ViewerSys {
             slot_renderer_cache,
 
             labels: txt,
+            label_updates,
+
             // buffers,
             frame_resources,
             frame: builder,
@@ -389,10 +347,6 @@ impl ViewerSys {
             draw_foreground,
             copy_to_swapchain: Arc::new(copy_to_swapchain),
         })
-    }
-
-    pub fn update(&mut self, engine: &mut VkEngine) -> Result<()> {
-        Ok(())
     }
 
     pub fn resize(
@@ -476,7 +430,6 @@ impl ViewerSys {
         &mut self,
         engine: &mut VkEngine,
         window: &Window,
-        txt: &LabelStorage,
         window_resources: &WindowResources,
     ) -> Result<bool> {
         let f_ix = engine.current_frame_number();
@@ -488,13 +441,14 @@ impl ViewerSys {
         let slot_width = self.path_viewer.width;
 
         let label_sets = {
-            txt.label_names
+            self.labels
+                .label_names
                 .values()
                 .map(|&id| {
                     use rhai::Dynamic as Dyn;
                     let mut data = rhai::Map::default();
-                    let set = txt.desc_set_for_id(id).unwrap().unwrap();
-                    let (x, y) = txt.get_label_pos_id(id).unwrap();
+                    let set = self.labels.desc_set_for_id(id).unwrap().unwrap();
+                    let (x, y) = self.labels.get_label_pos_id(id).unwrap();
                     data.insert("x".into(), Dyn::from_int(x as i64));
                     data.insert("y".into(), Dyn::from_int(y as i64));
                     data.insert("desc_set".into(), Dyn::from(set));
