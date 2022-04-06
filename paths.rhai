@@ -1,3 +1,19 @@
+
+// configurable options
+
+export let rect = #{ x: 20.0, y: 48.0, w: -40.0, h: 40.0 };
+
+export let bg_color = #{ r: 0.95, g: 0.95, b: 0.95 };
+export let slot_gradient = "gradient_rainbow";
+
+// export let bg_color = #{ r: 0.05, g: 0.05, b: 0.05 };
+// export let slot_gradient = "gradient_magma";
+
+
+// engine-related
+
+// these are bound to the WindowResources' "out" image in
+// ViewerSys::init, in src/viewer/app.rs
 export let out_image = image_var("out_image");
 export let out_image_view = image_view_var("out_image_view");
 export let out_desc_set = desc_set_var("out_desc_set");
@@ -35,15 +51,12 @@ export let norm_sampler = create_sampler(norm_sampler_info);
 
 export let bg_shader = load_shader("shaders/bg_color.comp.spv",
                                    vk::ShaderStageFlags::COMPUTE);
-
 export let bg_pipeline = create_compute_pipeline(bg_shader);
 
 // text
 
 export let text_shader = load_shader("shaders/text.comp.spv",
                                    vk::ShaderStageFlags::COMPUTE);
-
-
 export let text_pipeline = create_compute_pipeline(text_shader);
 
 // line rasterizer
@@ -53,7 +66,6 @@ export let line_pipeline = create_compute_pipeline(line_shader);
 
 
 // font
-
 export let font_image = allocate_image("font_image",
                                        1024,
                                        8,
@@ -62,10 +74,7 @@ export let font_image = allocate_image("font_image",
                                        | vk::ImageUsageFlags::SAMPLED
                                        | vk::ImageUsageFlags::TRANSFER_SRC
                                        | vk::ImageUsageFlags::TRANSFER_DST);
-
 export let font_image_view = image_view_for(font_image);
-
-
 export let font_desc_set =
   create_desc_set(text_shader,
                   0,
@@ -75,39 +84,19 @@ export let font_desc_set =
 
 export let path_shader = load_shader("shaders/path_slot_indexed.comp.spv",
                                      vk::ShaderStageFlags::COMPUTE);
-
-
 export let path_pipeline = create_compute_pipeline(path_shader);
 
-export let rect = #{ x: 20.0, y: 48.0, w: -40.0, h: 40.0 };
-
-fn resize(width, height) {
-  let init_batch = batch_builder();
-
-  let img = self::out_image.get();
-
-  init_batch.transition_image(self::out_image.get(),
-                              vk::AccessFlags::empty(),
-                              vk::PipelineStageFlags::TOP_OF_PIPE,
-                              vk::AccessFlags::SHADER_READ
-                              | vk::AccessFlags::SHADER_WRITE,
-                              vk::PipelineStageFlags::COMPUTE_SHADER,
-                              vk::ImageLayout::UNDEFINED,
-                              vk::ImageLayout::GENERAL);
-
-  init_batch
-}
 
 fn init() {
   let init_batch = batch_builder();
 
   init_batch.load_image_from_file("8x8font.png",
-                                  self::font_image.get(),
+                                  viewer::font_image.get(),
                                   vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL);
 
-  let img = self::out_image.get();
+  let img = viewer::out_image.get();
 
-  init_batch.transition_image(self::out_image.get(),
+  init_batch.transition_image(viewer::out_image.get(),
                               vk::AccessFlags::empty(),
                               vk::PipelineStageFlags::TOP_OF_PIPE,
                               vk::AccessFlags::SHADER_READ
@@ -119,9 +108,29 @@ fn init() {
   init_batch
 }
 
+
+// called when the window is resized
+fn resize(width, height) {
+  let init_batch = batch_builder();
+
+  let img = viewer::out_image.get();
+
+  init_batch.transition_image(viewer::out_image.get(),
+                              vk::AccessFlags::empty(),
+                              vk::PipelineStageFlags::TOP_OF_PIPE,
+                              vk::AccessFlags::SHADER_READ
+                              | vk::AccessFlags::SHADER_WRITE,
+                              vk::PipelineStageFlags::COMPUTE_SHADER,
+                              vk::ImageLayout::UNDEFINED,
+                              vk::ImageLayout::GENERAL);
+
+  init_batch
+}
+
+
 fn foreground(batch, desc_sets, slot_w, w, h) {
 
-  let img = self::out_image.get();
+  let img = viewer::out_image.get();
 
   batch.transition_image(img,
                          vk::AccessFlags::SHADER_WRITE,
@@ -134,9 +143,9 @@ fn foreground(batch, desc_sets, slot_w, w, h) {
   // draw background
   let pc = blob();
   // background color in push constant
-  pc.append_float(0.95);
-  pc.append_float(0.95);
-  pc.append_float(0.95);
+  pc.append_float(viewer::bg_color.r);
+  pc.append_float(viewer::bg_color.g);
+  pc.append_float(viewer::bg_color.b);
   pc.append_float(1.0);
   pc.append_int(w);
   pc.append_int(h);
@@ -147,9 +156,9 @@ fn foreground(batch, desc_sets, slot_w, w, h) {
   let x_groups = (w / x_size) + w % x_size;
   let y_groups = (h / y_size) + h % y_size;
 
-  batch.dispatch_compute(self::bg_pipeline.get(),
-                         self::out_desc_set.get(),
-                         // self::bg_desc_set.get(),
+  batch.dispatch_compute(viewer::bg_pipeline.get(),
+                         viewer::out_desc_set.get(),
+                         // viewer::bg_desc_set.get(),
                          pc, x_groups, y_groups, 1);
 
 
@@ -159,9 +168,7 @@ fn foreground(batch, desc_sets, slot_w, w, h) {
   let batch = draw_slots(batch,
                          dims, #{ width: slot_w, height: 50 },
                          desc_sets,
-                         "gradient_rainbow");
-  // let batch = draw_slots(batch, h, #{ width: slot_w, height: 50 }, desc_sets, "gradient_rainbow");
-
+                         viewer::slot_gradient);
   batch.transition_image(img,
                          vk::AccessFlags::SHADER_WRITE,
                          vk::PipelineStageFlags::COMPUTE_SHADER,
@@ -201,16 +208,15 @@ fn foreground(batch, desc_sets, slot_w, w, h) {
                       z_groups: 1 };
 
 
-  batch.dispatch_compute(self::line_pipeline.get(),
+  batch.dispatch_compute(viewer::line_pipeline.get(),
                          [line_data.set,
-                          self::out_desc_set.get()],
+                          viewer::out_desc_set.get()],
                          pc,
                          workgroups);
                          */
 
 
-  // complete
-
+  // add a memory barrier (may not be needed, but)
   batch.transition_image(img,
                          vk::AccessFlags::SHADER_WRITE,
                          vk::PipelineStageFlags::COMPUTE_SHADER,
@@ -233,7 +239,6 @@ export let img_pipeline = create_compute_pipeline(img_shader);
 
 
 
-// `swapchain` should be #{ img, img_view, storage_set } for the correct swapchain image
 fn copy_to_swapchain(batch, source_set, swapchain, w, h) {
 
   batch.transition_image(swapchain.img,
@@ -265,8 +270,8 @@ fn copy_to_swapchain(batch, source_set, swapchain, w, h) {
                       y_groups: (h / y_size) + h % y_size,
                       z_groups: 1 };
 
-  batch.dispatch_compute(self::img_pipeline.get(),
-                         [self::out_desc_set.get(),
+  batch.dispatch_compute(viewer::img_pipeline.get(),
+                         [viewer::out_desc_set.get(),
                           swapchain.storage_set],
                          pc,
                          workgroups);
@@ -306,17 +311,17 @@ fn draw_labels(batch, width, height, labels) {
     pc.append_int(w);
     pc.append_int(h);
 
-    batch.dispatch_compute(self::text_pipeline.get(),
-                           [self::font_desc_set.get(),
+    batch.dispatch_compute(viewer::text_pipeline.get(),
+                           [viewer::font_desc_set.get(),
                             label.desc_set,
-                            self::out_desc_set.get()],
+                            viewer::out_desc_set.get()],
                            pc,
                            workgroups);
 
 
   }
 
-  let img = self::out_image.get();
+  let img = viewer::out_image.get();
   batch.transition_image(img,
                          vk::AccessFlags::SHADER_WRITE,
                          vk::PipelineStageFlags::COMPUTE_SHADER,
@@ -338,7 +343,7 @@ fn slot_push_constant(win_dims, slot_ix) {
 
   let yd = 66.0;
 
-  let r = self::rect;
+  let r = viewer::rect;
   r.y = r.y + yd * slot_ix;
   r.w = r.w + win_dims.width;
 
@@ -374,11 +379,11 @@ fn draw_slots(batch, win_dims, slot_dims, slot_desc_sets, color_buffer) {
 
     let pc = slot_push_constant(win_dims, ix);
 
-    batch.dispatch_compute(self::path_pipeline.get(),
+    batch.dispatch_compute(viewer::path_pipeline.get(),
                            [slot_set,
                             // clip_set,
                             color_data.set,
-                            self::out_desc_set.get()],
+                            viewer::out_desc_set.get()],
                            pc,
                            workgroups);
   }

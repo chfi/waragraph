@@ -57,17 +57,15 @@ impl ViewerSys {
         width: u32,
         // height: u32,
     ) -> Result<Self> {
-        // let buffers = buffers.clone();
-        // let mut buffers = BufferStorage::new(&db)?;
-
         let mut txt = LabelStorage::new(&db)?;
 
-        let mut label_updates = txt.tree.watch_prefix(b"t:");
+        let label_updates = txt.tree.watch_prefix(b"t:");
 
         let mut builder = FrameBuilder::from_script("paths.rhai")?;
 
-        // path_v
-
+        // kind of a temporary hack; the console should be a fully
+        // separate system, but right now it's using the viewer label
+        // system for rendering
         txt.allocate_label(&db, engine, "console")?;
         txt.set_label_pos(b"console", 4, 4)?;
         txt.set_text_for(b"console", "")?;
@@ -154,13 +152,10 @@ impl ViewerSys {
 
         path_viewer.sample(&waragraph, &view);
 
-        let mut count = 0;
         for i in path_viewer.visible_indices() {
             let name = format!("path-name-{}", i);
             txt.allocate_label(&db, engine, &name)?;
-            count += 1;
         }
-        log::error!("added {} labels!!!", count);
 
         path_viewer.update_labels(&waragraph, &txt)?;
 
@@ -188,6 +183,8 @@ impl ViewerSys {
             Ok(())
         })?;
 
+        let arc_module = Arc::new(builder.module.clone());
+
         [
             ("gradient_rainbow", colorous::RAINBOW),
             ("gradient_cubehelix", colorous::CUBEHELIX),
@@ -200,50 +197,38 @@ impl ViewerSys {
                 .expect("error creating gradient buffers");
         });
 
-        let arc_module = Arc::new(builder.module.clone());
-
         // draw_labels
-        let mut rhai_engine = crate::console::create_engine(&db, &buffers);
-        rhai_engine.register_static_module("self", arc_module.clone());
         let draw_labels = rhai::Func::<
             (BatchBuilder, i64, i64, rhai::Array),
             BatchBuilder,
         >::create_from_ast(
-            rhai_engine,
+            Self::create_engine(db, buffers, &arc_module),
             builder.ast.clone_functions_only(),
             "draw_labels",
         );
 
         // main draw function
-        let mut rhai_engine = crate::console::create_engine(&db, &buffers);
-        rhai_engine.register_static_module("self", arc_module.clone());
         let draw_foreground = rhai::Func::<
             (BatchBuilder, rhai::Array, i64, i64, i64),
             BatchBuilder,
         >::create_from_ast(
-            rhai_engine,
+            Self::create_engine(db, buffers, &arc_module),
             builder.ast.clone_functions_only(),
             "foreground",
         );
 
-        let mut rhai_engine = crate::console::create_engine(&db, &buffers);
-        rhai_engine.register_static_module("self", arc_module.clone());
         let copy_to_swapchain = rhai::Func::<
             (BatchBuilder, DescSetIx, rhai::Map, i64, i64),
             BatchBuilder,
         >::create_from_ast(
-            rhai_engine,
+            Self::create_engine(db, buffers, &arc_module),
             builder.ast.clone_functions_only(),
             "copy_to_swapchain",
         );
 
         {
-            let mut rhai_engine = crate::console::create_engine(&db, &buffers);
-            let arc_module = Arc::new(builder.module.clone());
-            rhai_engine.register_static_module("self", arc_module.clone());
-
             let init = rhai::Func::<(), BatchBuilder>::create_from_ast(
-                rhai_engine,
+                Self::create_engine(db, buffers, &arc_module),
                 builder.ast.clone_functions_only(),
                 "init",
             );
@@ -264,13 +249,9 @@ impl ViewerSys {
         }
 
         let on_resize = {
-            let mut rhai_engine = crate::console::create_engine(&db, &buffers);
-            let arc_module = Arc::new(builder.module.clone());
-            rhai_engine.register_static_module("self", arc_module.clone());
-
             let resize =
                 rhai::Func::<(i64, i64), BatchBuilder>::create_from_ast(
-                    rhai_engine,
+                    Self::create_engine(db, buffers, &arc_module),
                     builder.ast.clone_functions_only(),
                     "resize",
                 );
@@ -541,6 +522,17 @@ impl ViewerSys {
             engine.draw_from_batches(frame, &batches, deps.as_slice(), 1)?;
 
         Ok(result)
+    }
+
+    fn create_engine(
+        db: &sled::Db,
+        buffers: &BufferStorage,
+        module: &Arc<rhai::Module>,
+    ) -> rhai::Engine {
+        let mut rhai_engine = crate::console::create_engine(db, buffers);
+        // let arc_module = Arc::new(builder.module.clone());
+        rhai_engine.register_static_module("viewer", module.clone());
+        rhai_engine
     }
 }
 
