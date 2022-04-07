@@ -263,9 +263,13 @@ impl PathViewer {
         graph: &Waragraph,
         txt: &LabelStorage,
     ) -> Result<()> {
-        let x = 34u32;
+        // let x = 34u32;
+        // let y = 40u32;
+        // let yd = 66u32;
+
+        let x = 14u32;
         let y = 40u32;
-        let yd = 66u32;
+        let yd = 20u32;
 
         let max_len = 16;
 

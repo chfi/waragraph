@@ -21,7 +21,7 @@ export let label_color = #{ r: 0.0, g: 0.0, b: 0.0 };
 // other options
 
 // controls the slot offset and size (not fully integrated yet)
-export let slot_rect = #{ x: 20.0, y: 48.0, w: -40.0, h: 40.0 };
+export let slot_rect = #{ x: 130.0, y: 36.0, w: -40.0, h: 16.0 };
 // export let label_offset = #{ x: 34.0, y: 40.0 }; // not used yet
 
 
@@ -385,15 +385,25 @@ fn draw_labels(batch, width, height, labels) {
   batch
 }
 
+// hacky as hell lmao
+fn get_yd() {
+  let rect = viewer::slot_rect;
+  let padding = 4;
+  rect.h + padding
+}
+
 fn visible_slots(win_height) {
-  ((win_height - 40.0) / 56.0).to_int()
+  let rect = viewer::slot_rect;
+  let padding = 4;
+  ((win_height - rect.y) / (rect.h + padding)).to_int()
 }
 
 
 fn slot_push_constant(win_dims, slot_ix) {
   let pc = blob();
 
-  let yd = 66.0;
+  let yd = get_yd();
+  // let yd = 46.0;
 
   let r = viewer::slot_rect;
   r.y = r.y + yd * slot_ix;
