@@ -6,7 +6,8 @@ let buffer = allocate_vec4_buffer("gradient-test", 256);
 
 
 fill_vec4_buffer(buffer,
-                 [rgba(128, 128, 128),
+                 [rgba(255, 255, 255),
+                  rgba(128, 128, 128),
                   rgba(196, 196, 196),
                   rgba(158,1,66),
                   rgba(213,62,79),

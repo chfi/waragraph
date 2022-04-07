@@ -32,8 +32,13 @@ export let slot_function = "loop_count_mean";
 // this function can be edited to change the mapping from values to colors;
 // the output is used an index into a 256-long gradient buffer
 fn value_color_index_map(v) {
-  v += 0.5;
-  v.to_int()
+  // if v < 0.2 {
+  if v == 0.0 {
+    0
+  } else {
+    v += 0.5;
+    v.to_int() + 1
+  }
 }
 
 // fn value_color_index_map(v) {
