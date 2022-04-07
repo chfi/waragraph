@@ -243,6 +243,10 @@ pub fn register_buffer_storage(
         },
     );
 
+    // let buffers_ = buffers.clone();
+
+    // engine.register
+
     let buffers_ = buffers.clone();
 
     // TODO check if the name already exists here
@@ -268,14 +272,13 @@ pub fn create_engine(db: &sled::Db, buffers: &BufferStorage) -> rhai::Engine {
 
     register_buffer_storage(db, buffers, &mut engine);
 
-    append_to_engine(db, engine)
+    append_to_engine(db, &mut engine);
+
+    engine
 }
 
 // pub fn create_engine(db: &sled::Db) -> rhai::Engine {
-pub fn append_to_engine(
-    db: &sled::Db,
-    mut engine: rhai::Engine,
-) -> rhai::Engine {
+pub fn append_to_engine(db: &sled::Db, engine: &mut rhai::Engine) {
     // example of loading a rhai script as a console module
     /*
     let ast = engine.compile_file("util.rhai".into()).unwrap();
@@ -290,6 +293,16 @@ pub fn append_to_engine(
     */
 
     engine.register_fn("rgba", |r: f32, g: f32, b: f32, a: f32| [r, g, b, a]);
+    engine.register_fn("rgba", |r: i64, g: i64, b: i64, a: i64| {
+        let f = |v: i64| -> f32 { ((v as u8) as f32) / 255.0 };
+        [f(r), f(g), f(b), f(a)]
+    });
+
+    engine.register_fn("rgba", |r: f32, g: f32, b: f32| [r, g, b, 1.0]);
+    engine.register_fn("rgba", |r: i64, g: i64, b: i64| {
+        let f = |v: i64| -> f32 { ((v as u8) as f32) / 255.0 };
+        [f(r), f(g), f(b), 1.0]
+    });
 
     let db_ = db.clone();
     engine.register_fn("set_slot_fn", move |s: &str| {
@@ -431,8 +444,6 @@ pub fn append_to_engine(
         view.offset() as i64
     });
     // let tree =
-
-    engine
 }
 
 pub fn eval<T: Clone + Send + Sync + 'static>(

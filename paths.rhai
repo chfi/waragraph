@@ -4,8 +4,12 @@
 
 // colors and theming
 
-export let bg_color = #{ r: 0.95, g: 0.95, b: 0.95 };
-export let slot_gradient = "gradient_rainbow";
+import "color" as color;
+
+// export let bg_color = #{ r: 0.95, g: 0.95, b: 0.95 };
+export let bg_color = color::bg_light;
+// export let slot_gradient = "gradient_spectral";
+export let slot_gradient = "gradient-test";
 export let label_color = #{ r: 0.0, g: 0.0, b: 0.0 };
 
 // alternative dark mode example
@@ -28,7 +32,7 @@ export let slot_function = "loop_count_mean";
 // this function can be edited to change the mapping from values to colors;
 // the output is used an index into a 256-long gradient buffer
 fn value_color_index_map(v) {
-  if v == 0.0 {
+  if v <= 0.5 {
     0
   } else if v < 1.5 {
     16

@@ -59,7 +59,11 @@ impl ViewerSys {
 
         let label_updates = txt.tree.watch_prefix(b"t:");
 
-        let mut builder = FrameBuilder::from_script("paths.rhai")?;
+        let mut builder =
+            FrameBuilder::from_script_with("paths.rhai", |engine| {
+                crate::console::register_buffer_storage(db, buffers, engine);
+                crate::console::append_to_engine(db, engine);
+            })?;
 
         let arc_module = Arc::new(builder.module.clone());
 
@@ -208,6 +212,7 @@ impl ViewerSys {
             ("gradient_blue_purple", colorous::BLUE_PURPLE),
             ("gradient_magma", colorous::MAGMA),
             ("gradient_inferno", colorous::INFERNO),
+            ("gradient_spectral", colorous::SPECTRAL),
         ]
         .into_iter()
         .for_each(|(n, g)| {
