@@ -8,8 +8,8 @@ import "color" as color;
 
 // export let bg_color = #{ r: 0.95, g: 0.95, b: 0.95 };
 export let bg_color = color::bg_light;
-export let slot_gradient = "gradient_spectral";
-// export let slot_gradient = "gradient-test";
+// export let slot_gradient = "gradient_spectral";
+export let slot_gradient = "gradient-test";
 export let label_color = #{ r: 0.0, g: 0.0, b: 0.0 };
 
 // alternative dark mode example

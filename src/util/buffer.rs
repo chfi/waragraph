@@ -6,6 +6,7 @@ use raving::vk::{
 };
 use rspirv_reflect::DescriptorInfo;
 
+use rustc_hash::FxHashMap;
 use sled::{
     transaction::{TransactionError, TransactionResult},
     IVec,
@@ -283,8 +284,7 @@ impl BufFmt {
 pub struct BufferStorage {
     pub tree: sled::Tree,
 
-    pub buffers: Arc<RwLock<Vec<BufferIx>>>,
-    pub desc_sets: Arc<RwLock<Vec<DescSetIx>>>,
+    pub resource_indices: Arc<RwLock<FxHashMap<BufId, (BufferIx, DescSetIx)>>>,
 
     pub alloc_queue: Arc<Mutex<Vec<(BufId, String, BufFmt, usize)>>>,
 
@@ -294,7 +294,9 @@ pub struct BufferStorage {
     update_tx: crossbeam::channel::Sender<BufId>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, AsBytes, FromBytes)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, AsBytes, FromBytes, PartialOrd, Ord, Hash,
+)]
 #[repr(transparent)]
 pub struct BufId(pub u64);
 
@@ -316,7 +318,6 @@ impl BufId {
     buf_id_key!(as_data_key, b"D:01234567", 10);
     buf_id_key!(as_fmt_key, b"f:01234567", 10);
     buf_id_key!(as_cap_key, b"c:01234567", 10);
-    buf_id_key!(as_vec_key, b"v:01234567", 10);
 }
 
 macro_rules! key_fn {
@@ -351,8 +352,7 @@ impl BufferStorage {
 
         Ok(Self {
             tree,
-            buffers: Default::default(),
-            desc_sets: Default::default(),
+            resource_indices: Default::default(),
 
             alloc_queue: Default::default(),
             allocated_id: Arc::new(0.into()),
@@ -363,12 +363,7 @@ impl BufferStorage {
     }
 
     pub fn fill_buffer(&self, res: &mut GpuResources, id: BufId) -> Option<()> {
-        let k_vec = id.as_vec_key();
-        // let k_vec = Self::vec_id_key(id);
-        let vec_ix = self.tree.get(k_vec).ok()??;
-        let vec_ix = usize::read_from(vec_ix.as_ref())?;
-
-        let buf_ix = *self.buffers.read().get(vec_ix)?;
+        let (buf_ix, _) = *self.resource_indices.read().get(&id)?;
 
         let buf = &mut res[buf_ix];
 
@@ -396,13 +391,7 @@ impl BufferStorage {
         res: &mut GpuResources,
         id: BufId,
     ) -> Option<()> {
-        // let buf_key = Self::buf_ix_key(id);
-        let k_vec = id.as_vec_key();
-        // let k_vec = Self::vec_id_key(id);
-        let vec_ix = self.tree.get(k_vec).ok()??;
-        let vec_ix = usize::read_from(vec_ix.as_ref())?;
-
-        let buf_ix = self.buffers.read()[vec_ix];
+        let (buf_ix, _) = *self.resource_indices.read().get(&id)?;
 
         let buf = &mut res[buf_ix];
 
@@ -492,8 +481,8 @@ impl BufferStorage {
         src: &[T],
     ) -> Result<()> {
         // 1. get the buffer metadata from sled
-        let meta = BufMeta::get_stored(&self.tree, id)?;
         log::warn!("src.len(): {}", src.len());
+        let meta = BufMeta::get_stored(&self.tree, id)?;
         // log::warn!("src: {:?}", src);
 
         // dbg!(&meta);
@@ -524,10 +513,9 @@ impl BufferStorage {
 
         // 5. insert bytestring at the data key
         let key = id.as_data_key();
-        // self.tree.remove(key);
+
         self.tree
             .update_and_fetch(key, |_| Some(value.as_slice()))?;
-        // self.tree.insert(key, value)?;
 
         self.update_tx.send(id)?;
 
@@ -543,11 +531,13 @@ impl BufferStorage {
         Ok(())
     }
 
-    pub fn get_buffer_ix(&self, buf: BufId) -> Option<BufferIx> {
-        let k = buf.as_vec_key();
-        let vec_ix = self.tree.get(k).ok()??;
-        let vec_ix = usize::read_from(vec_ix.as_ref())?;
-        let buf_ix = self.buffers.read()[vec_ix];
+    pub fn get_desc_set_ix(&self, id: BufId) -> Option<DescSetIx> {
+        let (_, set_ix) = *self.resource_indices.read().get(&id)?;
+        Some(set_ix)
+    }
+
+    pub fn get_buffer_ix(&self, id: BufId) -> Option<BufferIx> {
+        let (buf_ix, _) = *self.resource_indices.read().get(&id)?;
         Some(buf_ix)
     }
 
@@ -618,16 +608,9 @@ impl BufferStorage {
         // metadata (id -> name, fmt, capacity)
         let k_name = id.as_name_key();
         self.tree.insert(k_name, name)?;
+
         self.tree.insert(id.as_fmt_key(), &fmt.to_bytes())?;
         self.tree.insert(id.as_cap_key(), &capacity.to_le_bytes())?;
-
-        let k_data = id.as_data_key();
-        // remove old buffer data, if any
-        // self.tree.remove(k_data)?;
-        // self.tree.insert(k_data, b"")?;
-
-        log::warn!("inserted: {}", name);
-        log::warn!("data key: {:?}", k_data);
 
         Ok(id)
     }
@@ -669,15 +652,7 @@ impl BufferStorage {
             slice.fill(0);
         }
 
-        // self.
-
-        let ix = self.buffers.read().len();
-        let k_vec = id.as_vec_key();
-
-        self.buffers.write().push(buf);
-        self.desc_sets.write().push(set);
-
-        self.tree.insert(k_vec, &ix.to_le_bytes())?;
+        self.resource_indices.write().insert(id, (buf, set));
 
         Ok(id)
     }

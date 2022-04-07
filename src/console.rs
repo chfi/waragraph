@@ -154,16 +154,9 @@ pub fn register_buffer_storage(
                 "buffer `{}` not found",
                 name_key.as_bstr()
             )))?;
-        // .ok_or(Err("buffer not found").into())?;
-        // .unwrap_or("buffer not found".into())?;
-
-        // 2. get the vec index from the ID
-        let k_vec = id.as_vec_key();
-        let vec_ix = tree.get(&k_vec).ok().flatten().unwrap();
-        let vec_ix = usize::read_from(vec_ix.as_ref()).unwrap();
 
         // 3. get the set from the Arc<Vec<->> via the index
-        let set = buffers_.desc_sets.read()[vec_ix];
+        let set = buffers_.get_desc_set_ix(id).unwrap();
 
         // 4. get the length via the buffer data, i guess
         let meta = BufMeta::get_stored(&tree, id).unwrap();
@@ -208,16 +201,19 @@ pub fn register_buffer_storage(
     let alloc_queue = buffers.alloc_queue.clone();
 
     let db_ = db.clone();
-
+    let buffers_ = buffers.clone();
     // TODO check if the name already exists here
     engine.register_result_fn(
         "allocate_vec4_buffer",
         move |name: &str, capacity: i64| {
-            let id = db_.generate_id().unwrap();
-            let id = BufId(id);
             let fmt = BufFmt::FVec4;
-            let params = (id, name.to_string(), fmt, capacity as usize);
-            alloc_queue.lock().push(params);
+            // let params = (id, name.to_string(), fmt, capacity as usize);
+
+            let id = buffers_
+                .queue_allocate_buffer(&db_, name, fmt, capacity as usize)
+                .map_err(|e| rhai::EvalAltResult::from(e.to_string()))?;
+
+            // alloc_queue.lock().push(params);
 
             Ok(id)
         },
