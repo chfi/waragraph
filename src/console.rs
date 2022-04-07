@@ -150,7 +150,12 @@ pub fn register_buffer_storage(
             .ok()
             .flatten()
             .and_then(|id| BufId::read_from(id.as_ref()))
-            .unwrap();
+            .ok_or(rhai::EvalAltResult::from(format!(
+                "buffer `{}` not found",
+                name_key.as_bstr()
+            )))?;
+        // .ok_or(Err("buffer not found").into())?;
+        // .unwrap_or("buffer not found".into())?;
 
         // 2. get the vec index from the ID
         let k_vec = id.as_vec_key();

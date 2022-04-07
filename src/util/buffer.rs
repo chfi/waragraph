@@ -368,7 +368,7 @@ impl BufferStorage {
         let vec_ix = self.tree.get(k_vec).ok()??;
         let vec_ix = usize::read_from(vec_ix.as_ref())?;
 
-        let buf_ix = self.buffers.read()[vec_ix];
+        let buf_ix = *self.buffers.read().get(vec_ix)?;
 
         let buf = &mut res[buf_ix];
 
@@ -536,6 +536,7 @@ impl BufferStorage {
 
     pub fn fill_updated_buffers(&self, res: &mut GpuResources) -> Result<()> {
         while let Ok(id) = self.update_rx.try_recv() {
+            // is the problem here
             self.fill_buffer(res, id);
         }
 
@@ -561,6 +562,8 @@ impl BufferStorage {
         let id = BufId(id);
 
         let params = (id, name.to_string(), fmt, capacity);
+
+        self.initialize_buffer_metadata(id, name, fmt, capacity)?;
         self.alloc_queue.lock().push(params);
 
         Ok(id)
@@ -595,6 +598,38 @@ impl BufferStorage {
         self.allocated_id.store(max_id);
 
         Ok(count)
+    }
+
+    fn initialize_buffer_metadata(
+        &self,
+        id: BufId,
+        name: &str,
+        fmt: BufFmt,
+        capacity: usize,
+    ) -> Result<BufId> {
+        //
+
+        let id_u8 = id.0.to_le_bytes();
+
+        // name -> id
+        let name_key = Self::name_key(name);
+        self.tree.insert(name_key, &id_u8)?;
+
+        // metadata (id -> name, fmt, capacity)
+        let k_name = id.as_name_key();
+        self.tree.insert(k_name, name)?;
+        self.tree.insert(id.as_fmt_key(), &fmt.to_bytes())?;
+        self.tree.insert(id.as_cap_key(), &capacity.to_le_bytes())?;
+
+        let k_data = id.as_data_key();
+        // remove old buffer data, if any
+        // self.tree.remove(k_data)?;
+        // self.tree.insert(k_data, b"")?;
+
+        log::warn!("inserted: {}", name);
+        log::warn!("data key: {:?}", k_data);
+
+        Ok(id)
     }
 
     pub fn allocate_buffer_impl(
@@ -634,32 +669,15 @@ impl BufferStorage {
             slice.fill(0);
         }
 
-        let id_u8 = id.0.to_le_bytes();
-
-        // name -> id
-        let name_key = Self::name_key(name);
-        self.tree.insert(name_key, &id_u8)?;
-
-        // metadata (id -> name, fmt, capacity)
-        let k_name = id.as_name_key();
-        self.tree.insert(k_name, name)?;
-        self.tree.insert(id.as_fmt_key(), &fmt.to_bytes())?;
-        self.tree.insert(id.as_cap_key(), &capacity.to_le_bytes())?;
+        // self.
 
         let ix = self.buffers.read().len();
         let k_vec = id.as_vec_key();
 
-        self.tree.insert(k_vec, &ix.to_le_bytes())?;
         self.buffers.write().push(buf);
         self.desc_sets.write().push(set);
 
-        let k_data = id.as_data_key();
-        // remove old buffer data, if any
-        // self.tree.remove(k_data)?;
-        // self.tree.insert(k_data, b"")?;
-
-        log::warn!("inserted: {}", name);
-        log::warn!("data key: {:?}", k_data);
+        self.tree.insert(k_vec, &ix.to_le_bytes())?;
 
         Ok(id)
     }
@@ -679,6 +697,7 @@ impl BufferStorage {
             | vk::BufferUsageFlags::TRANSFER_SRC
             | vk::BufferUsageFlags::TRANSFER_DST;
 
+        self.initialize_buffer_metadata(id, name, fmt, capacity)?;
         self.allocate_buffer_impl(engine, id, name, fmt, capacity, usage)
     }
 

@@ -8,8 +8,8 @@ import "color" as color;
 
 // export let bg_color = #{ r: 0.95, g: 0.95, b: 0.95 };
 export let bg_color = color::bg_light;
-// export let slot_gradient = "gradient_spectral";
-export let slot_gradient = "gradient-test";
+export let slot_gradient = "gradient_spectral";
+// export let slot_gradient = "gradient-test";
 export let label_color = #{ r: 0.0, g: 0.0, b: 0.0 };
 
 // alternative dark mode example
@@ -407,26 +407,32 @@ fn draw_slots(batch, win_dims, slot_dims, slot_desc_sets, color_buffer) {
                       y_groups: (slot_h / y_size) + slot_h % y_size,
                       z_groups: 1 };
 
-  let color_data = get_buffer(color_buffer);
+  try {
+    let color_data = get_buffer(color_buffer);
 
-  let vis_count = visible_slots(win_dims.height);
-  if vis_count >= slot_desc_sets.len() {
-    vis_count = slot_desc_sets.len()
+    let vis_count = visible_slots(win_dims.height);
+    if vis_count >= slot_desc_sets.len() {
+      vis_count = slot_desc_sets.len()
+    }
+
+    for ix in 0..vis_count {
+      let desc_sets = slot_desc_sets[ix];
+
+      let slot_set = desc_sets.slot;
+
+      let pc = slot_push_constant(win_dims, ix);
+
+      batch.dispatch_compute(viewer::path_pipeline.get(),
+                             [slot_set,
+                              color_data.set,
+                              viewer::out_desc_set.get()],
+                             pc,
+                             workgroups);
+    }
   }
-
-  for ix in 0..vis_count {
-    let desc_sets = slot_desc_sets[ix];
-
-    let slot_set = desc_sets.slot;
-
-    let pc = slot_push_constant(win_dims, ix);
-
-    batch.dispatch_compute(viewer::path_pipeline.get(),
-                           [slot_set,
-                            color_data.set,
-                            viewer::out_desc_set.get()],
-                           pc,
-                           workgroups);
+  catch (err)
+  {
+    print(err);
   }
 
   batch
