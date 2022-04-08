@@ -5,6 +5,8 @@ pub mod paths;
 pub mod util;
 pub mod viewer;
 
+pub mod graph_3d_app;
+
 #[cfg(test)]
 mod tests {
     #[test]

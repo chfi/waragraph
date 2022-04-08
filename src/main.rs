@@ -24,6 +24,12 @@ use anyhow::{anyhow, bail, Result};
 
 use zerocopy::{AsBytes, FromBytes};
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum Modes {
+    PathViewer,
+    Graph3D,
+}
+
 fn main() -> Result<()> {
     // disable sled logging
     let spec = "debug, sled=info";
@@ -97,7 +103,6 @@ fn main() -> Result<()> {
             (vk::ImageUsageFlags::SAMPLED, vk::ImageLayout::GENERAL),
         ],
         None,
-        // Some(pass_ix),
     )?;
 
     {
@@ -132,7 +137,7 @@ fn main() -> Result<()> {
 
     let mut prev_frame_end = std::time::Instant::now();
 
-    let mut prev_view = None;
+    let mut mode = Modes::PathViewer;
 
     event_loop.run(move |event, _, control_flow| {
         *control_flow = winit::event_loop::ControlFlow::Poll;
@@ -144,32 +149,22 @@ fn main() -> Result<()> {
                 buffers.fill_updated_buffers(&mut engine.resources).unwrap();
 
                 // path-viewer specific, dependent on previous view
+                if viewer.path_viewer.should_update() {
+                    let view = viewer.view;
+                    let range = view.range();
+                    let start = range.start.to_string();
+                    let end = range.end.to_string();
+                    let len = view.len().to_string();
 
-                let view = viewer.view;
-
-                if Some(view) != prev_view || viewer.path_viewer.should_update()
-                {
-                    prev_view = Some(view);
-
-                    {
-                        let range = view.range();
-                        let start = range.start.to_string();
-                        let end = range.end.to_string();
-                        let len = view.len().to_string();
-
-                        viewer
-                            .labels
-                            .set_text_for(b"view:start", &start)
-                            .unwrap();
-                        viewer.labels.set_text_for(b"view:len", &len).unwrap();
-                        viewer.labels.set_text_for(b"view:end", &end).unwrap();
-                    }
+                    viewer.labels.set_text_for(b"view:start", &start).unwrap();
+                    viewer.labels.set_text_for(b"view:len", &len).unwrap();
+                    viewer.labels.set_text_for(b"view:end", &end).unwrap();
 
                     viewer.path_viewer.sample(&waragraph, &view);
-                }
 
-                // should only be called when the view has scrolled
-                viewer.update_labels(&waragraph);
+                    // should only be called when the view has scrolled
+                    viewer.update_labels(&waragraph);
+                }
 
                 if viewer.path_viewer.has_new_samples() {
                     let update_key = db.get(b"slot_function").ok().flatten();
@@ -196,6 +191,7 @@ fn main() -> Result<()> {
                 }
 
                 // handle sled-based label updates
+                // TODO: currently console relies on this to render
                 let mut updates: HashMap<IVec, IVec> = HashMap::default();
 
                 while let Ok(ev) =
@@ -228,9 +224,12 @@ fn main() -> Result<()> {
                 // update end
 
                 if recreate_swapchain_timer.is_none() && !recreate_swapchain {
-                    let render_success = viewer
-                        .render(&mut engine, &window, &window_resources)
-                        .unwrap();
+                    let render_success = match mode {
+                        Modes::PathViewer => viewer
+                            .render(&mut engine, &window, &window_resources)
+                            .unwrap(),
+                        Modes::Graph3D => todo!(),
+                    };
 
                     if !render_success {
                         recreate_swapchain = true;
@@ -270,6 +269,7 @@ fn main() -> Result<()> {
 
                         swapchain_dims.store(engine.swapchain_dimensions());
 
+                        // TODO queue this up somehow
                         viewer
                             .resize(
                                 &waragraph,
@@ -286,7 +286,13 @@ fn main() -> Result<()> {
             }
 
             Event::WindowEvent { event, .. } => {
-                viewer.handle_input(&event);
+                match mode {
+                    Modes::PathViewer => {
+                        //
+                        viewer.handle_input(&event);
+                    }
+                    Modes::Graph3D => todo!(),
+                }
 
                 match event {
                     WindowEvent::ReceivedCharacter(c) => {

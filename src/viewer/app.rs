@@ -11,6 +11,7 @@ use ash::{vk, Device};
 use winit::window::Window;
 
 use crate::config::ConfigMap;
+use crate::console::{RhaiBatchFn2, RhaiBatchFn4, RhaiBatchFn5};
 use crate::graph::Waragraph;
 use crate::util::{BufFmt, BufferStorage, LabelStorage};
 use crate::viewer::{SlotRenderers, ViewDiscrete1D};
@@ -349,25 +350,36 @@ impl ViewerSys {
                     let pre_len = view.len();
                     let len = view.len() as isize;
 
+                    let mut update = false;
+
                     if input.state == winit::event::ElementState::Pressed {
                         if matches!(kc, VK::Left) {
                             view.translate(-len / 10);
+                            update = true;
                             assert_eq!(pre_len, view.len());
                         } else if matches!(kc, VK::Right) {
                             view.translate(len / 10);
+                            update = true;
                             assert_eq!(pre_len, view.len());
                         } else if matches!(kc, VK::Up) {
                             view.resize((len - len / 9) as usize);
+                            update = true;
                         } else if matches!(kc, VK::Down) {
                             view.resize((len + len / 10) as usize);
+                            update = true;
                         } else if matches!(kc, VK::Escape) {
                             view.reset();
+                            update = true;
                         } else if matches!(kc, VK::PageUp) {
                             self.path_viewer.scroll_up();
+                            update = true;
                         } else if matches!(kc, VK::PageDown) {
                             self.path_viewer.scroll_down();
+                            update = true;
                         }
                     }
+
+                    self.path_viewer.update.fetch_or(update);
                 }
                 //
             }
@@ -667,27 +679,3 @@ pub fn create_gradient_buffer(
 
     Ok(())
 }
-
-pub type RhaiBatchFn1<A> = Box<
-    dyn Fn(A) -> Result<BatchBuilder, Box<rhai::EvalAltResult>> + Send + Sync,
->;
-pub type RhaiBatchFn2<A, B> = Box<
-    dyn Fn(A, B) -> Result<BatchBuilder, Box<rhai::EvalAltResult>>
-        + Send
-        + Sync,
->;
-pub type RhaiBatchFn3<A, B, C> = Box<
-    dyn Fn(A, B, C) -> Result<BatchBuilder, Box<rhai::EvalAltResult>>
-        + Send
-        + Sync,
->;
-pub type RhaiBatchFn4<A, B, C, D> = Box<
-    dyn Fn(A, B, C, D) -> Result<BatchBuilder, Box<rhai::EvalAltResult>>
-        + Send
-        + Sync,
->;
-pub type RhaiBatchFn5<A, B, C, D, E> = Box<
-    dyn Fn(A, B, C, D, E) -> Result<BatchBuilder, Box<rhai::EvalAltResult>>
-        + Send
-        + Sync,
->;

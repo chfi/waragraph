@@ -4,7 +4,10 @@ use ash::vk;
 use bstr::ByteSlice;
 use gfa::gfa::GFA;
 use gpu_allocator::vulkan::Allocator;
-use raving::vk::{context::VkContext, BufferIx, GpuResources, VkEngine};
+use raving::{
+    script::console::BatchBuilder,
+    vk::{context::VkContext, BufferIx, GpuResources, VkEngine},
+};
 use rustc_hash::FxHashMap;
 
 use sled::IVec;
@@ -486,3 +489,27 @@ pub fn eval_scope<T: Clone + Send + Sync + 'static>(
         Err(err) => Err(anyhow!("eval err: {:?}", err)),
     }
 }
+
+pub type RhaiBatchFn1<A> = Box<
+    dyn Fn(A) -> Result<BatchBuilder, Box<rhai::EvalAltResult>> + Send + Sync,
+>;
+pub type RhaiBatchFn2<A, B> = Box<
+    dyn Fn(A, B) -> Result<BatchBuilder, Box<rhai::EvalAltResult>>
+        + Send
+        + Sync,
+>;
+pub type RhaiBatchFn3<A, B, C> = Box<
+    dyn Fn(A, B, C) -> Result<BatchBuilder, Box<rhai::EvalAltResult>>
+        + Send
+        + Sync,
+>;
+pub type RhaiBatchFn4<A, B, C, D> = Box<
+    dyn Fn(A, B, C, D) -> Result<BatchBuilder, Box<rhai::EvalAltResult>>
+        + Send
+        + Sync,
+>;
+pub type RhaiBatchFn5<A, B, C, D, E> = Box<
+    dyn Fn(A, B, C, D, E) -> Result<BatchBuilder, Box<rhai::EvalAltResult>>
+        + Send
+        + Sync,
+>;
