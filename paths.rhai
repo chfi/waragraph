@@ -23,11 +23,20 @@ export let cfg = config::new_config_map();
 let layout = {
   let padding = 4;
   let slot = #{ x: 130, y: 36, w: -40, h: 16 };
-  let label = #{ x: 14, y: 40 };
+  let label = #{ x: 14, y: 40, max_len: 6 };
   #{ slot: slot, label: label, padding: padding }
 };
 
-cfg.set("layout", layout);
+// TODO: the slot offset should be derived from the label length, but
+// i'm not sure where to put the logic
+// for now it's best to just change these values as needed
+cfg.set("layout.slot", #{ x: 130, y: 36, w: -40, h: 16 });
+cfg.set("layout.label", #{ x: 14, y: 40 });
+cfg.set("layout.max_label_len", 32);
+cfg.set("layout.padding", 4);
+
+
+// cfg.set("layout", layout);
 
 // other options
 export let slot_function = "loop_count_mean";
@@ -392,19 +401,22 @@ fn draw_labels(batch, width, height, labels) {
 
 fn visible_slots(win_height) {
   let cfg = viewer::cfg;
-  let layout = cfg.get("layout");
+  let slot = cfg.get("layout.slot");
+  let padding = cfg.get("layout.padding");
 
-  ((win_height - layout.slot.y) / (layout.slot.h + layout.padding)).to_int()
+  ((win_height - slot.y) / (slot.h + padding)).to_int()
 }
 
 fn slot_push_constant(win_dims, slot_ix) {
   let pc = blob();
 
-  let yd = layout.slot.h + layout.padding;
   let cfg = viewer::cfg;
-  let layout = cfg.get("layout");
+  let slot = cfg.get("layout.slot");
+  let padding = cfg.get("layout.padding");
+  // let layout = cfg.get("layout");
 
-  let r = layout.slot;
+  let yd = slot.h + padding;
+  let r = slot;
 
   r.y = r.y + yd * slot_ix;
   r.w = r.w + win_dims.width;

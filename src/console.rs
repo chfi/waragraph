@@ -46,7 +46,7 @@ pub struct Console {
     pub input: String,
     focus: usize,
 
-    scope: rhai::Scope<'static>,
+    pub scope: rhai::Scope<'static>,
 }
 
 impl Console {

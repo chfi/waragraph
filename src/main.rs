@@ -134,6 +134,9 @@ fn main() -> Result<()> {
     )?;
 
     let mut console = Console::default();
+
+    console.scope.set_value("cfg", viewer.config.clone());
+
     viewer.labels.allocate_label(&db, &mut engine, "console")?;
     viewer.labels.set_label_pos(b"console", 4, 4)?;
     viewer.labels.set_text_for(b"console", "")?;

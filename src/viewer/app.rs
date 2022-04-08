@@ -343,13 +343,12 @@ impl ViewerSys {
         path_viewer: &PathViewer,
     ) {
         let map = config.map.read();
-        let layout = map.get("layout").unwrap();
+        // let layout = map.get("layout").unwrap();
 
-        let layout = layout.clone_cast::<rhai::Map>();
-        let padding = layout.get("padding").unwrap().clone_cast::<i64>();
-
-        let slot = layout.get("slot").unwrap().clone_cast::<rhai::Map>();
-        let label = layout.get("label").unwrap().clone_cast::<rhai::Map>();
+        // let layout = layout.clone_cast::<rhai::Map>();
+        let padding = map.get("layout.padding").unwrap().clone_cast::<i64>();
+        let slot = map.get("layout.slot").unwrap().clone_cast::<rhai::Map>();
+        let label = map.get("layout.label").unwrap().clone_cast::<rhai::Map>();
 
         let get_cast =
             |m: &rhai::Map, k| m.get(k).unwrap().clone_cast::<i64>() as u32;
@@ -361,8 +360,11 @@ impl ViewerSys {
 
         let y_delta = (padding as u32) + h;
 
+        let max_len = get_cast(&map, "layout.max_label_len");
+        // let max_len = get_cast(&label, "max_len");
+
         path_viewer
-            .update_labels(waragraph, labels, [x, y], y_delta, 16)
+            .update_labels(waragraph, labels, [x, y], y_delta, max_len as u8)
             .unwrap();
     }
 
