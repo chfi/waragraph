@@ -28,6 +28,16 @@ use crate::{
     viewer::ViewDiscrete1D,
 };
 
+use lazy_static::lazy_static;
+
+// use lazy_static so that the config module only has to be loaded once
+lazy_static! {
+    static ref CONFIG_MODULE: Arc<rhai::Module> = {
+        let module = rhai::exported_module!(crate::config::config);
+        Arc::new(module)
+    };
+}
+
 // pub mod ivec;
 // pub mod labels;
 
@@ -280,6 +290,8 @@ pub fn create_engine(db: &sled::Db, buffers: &BufferStorage) -> rhai::Engine {
 
 // pub fn create_engine(db: &sled::Db) -> rhai::Engine {
 pub fn append_to_engine(db: &sled::Db, engine: &mut rhai::Engine) {
+    engine.register_static_module("config", CONFIG_MODULE.clone());
+
     // example of loading a rhai script as a console module
     /*
     let ast = engine.compile_file("util.rhai".into()).unwrap();

@@ -370,7 +370,7 @@ impl BufferStorage {
         let dst = buf.alloc.mapped_slice_mut()?;
 
         let meta = BufMeta::get_stored(&self.tree, id).ok()?;
-        log::error!("filling buffer {}", meta.name.as_bstr());
+        log::trace!("filling buffer {}", meta.name.as_bstr());
 
         match meta.fmt {
             BufFmt::UInt => self.fill_slice_from_data::<u32>(id, dst),
@@ -424,7 +424,7 @@ impl BufferStorage {
         let dst_data = {
             let len = len as u32;
 
-            log::error!(
+            log::trace!(
                 "writing len {} for buffer {}",
                 len,
                 meta.name.as_bstr()
@@ -481,12 +481,12 @@ impl BufferStorage {
         src: &[T],
     ) -> Result<()> {
         // 1. get the buffer metadata from sled
-        log::warn!("src.len(): {}", src.len());
+        log::trace!("src.len(): {}", src.len());
         let meta = BufMeta::get_stored(&self.tree, id)?;
         // log::warn!("src: {:?}", src);
 
         // dbg!(&meta);
-        log::warn!(
+        log::trace!(
             "meta.name {}\nmeta.capacity {}\nmeta.fmt {:?}\nmeta.fmt.size() {}",
             meta.name.as_bstr(),
             meta.capacity,
@@ -566,7 +566,7 @@ impl BufferStorage {
             if old_queue.is_empty() {
                 return Ok(0);
             }
-            log::warn!("allocating {} queued buffers", old_queue.len());
+            log::trace!("allocating {} queued buffers", old_queue.len());
 
             let mut queue = Vec::new();
             std::mem::swap(&mut queue, &mut old_queue);

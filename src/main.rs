@@ -177,10 +177,7 @@ fn main() -> Result<()> {
                     viewer.path_viewer.sample(&waragraph, &view);
                 }
 
-                viewer
-                    .path_viewer
-                    .update_labels(&waragraph, &viewer.labels)
-                    .unwrap();
+                viewer.update_labels(&waragraph);
 
                 if viewer.path_viewer.has_new_samples() {
                     let update_key = db.get(b"slot_function").ok().flatten();

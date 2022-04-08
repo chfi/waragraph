@@ -10,6 +10,7 @@ use ash::{vk, Device};
 
 use winit::window::Window;
 
+use crate::config::ConfigMap;
 use crate::graph::Waragraph;
 use crate::util::{BufFmt, BufferStorage, LabelStorage};
 use crate::viewer::{SlotRenderers, ViewDiscrete1D};
@@ -23,6 +24,8 @@ use anyhow::{anyhow, bail, Result};
 use super::{PathViewer, SlotUpdateFn};
 
 pub struct ViewerSys {
+    pub config: ConfigMap,
+
     pub view: ViewDiscrete1D,
 
     pub path_viewer: PathViewer,
@@ -64,6 +67,10 @@ impl ViewerSys {
                 crate::console::register_buffer_storage(db, buffers, engine);
                 crate::console::append_to_engine(db, engine);
             })?;
+
+        let config = builder.module.get_var_value::<ConfigMap>("cfg").unwrap();
+
+        log::warn!("Config: {:?}", config);
 
         let arc_module = Arc::new(builder.module.clone());
 
@@ -179,7 +186,8 @@ impl ViewerSys {
             txt.allocate_label(&db, engine, &name)?;
         }
 
-        path_viewer.update_labels(&waragraph, &txt)?;
+        Self::update_labels_impl(&config, &txt, &waragraph, &path_viewer);
+        // path_viewer.update_labels(&waragraph, &txt)?;
 
         let out_image = *window_resources.indices.images.get("out").unwrap();
         let out_view =
@@ -305,6 +313,7 @@ impl ViewerSys {
         };
 
         Ok(Self {
+            config,
             view,
 
             path_viewer,
@@ -325,6 +334,45 @@ impl ViewerSys {
             draw_foreground,
             copy_to_swapchain: Arc::new(copy_to_swapchain),
         })
+    }
+
+    fn update_labels_impl(
+        config: &ConfigMap,
+        labels: &LabelStorage,
+        waragraph: &Arc<Waragraph>,
+        path_viewer: &PathViewer,
+    ) {
+        let map = config.map.read();
+        let layout = map.get("layout").unwrap();
+
+        let layout = layout.clone_cast::<rhai::Map>();
+        let padding = layout.get("padding").unwrap().clone_cast::<i64>();
+
+        let slot = layout.get("slot").unwrap().clone_cast::<rhai::Map>();
+        let label = layout.get("label").unwrap().clone_cast::<rhai::Map>();
+
+        let get_cast =
+            |m: &rhai::Map, k| m.get(k).unwrap().clone_cast::<i64>() as u32;
+
+        let x = get_cast(&label, "x");
+        let y = get_cast(&label, "y");
+
+        let h = get_cast(&slot, "h");
+
+        let y_delta = (padding as u32) + h;
+
+        path_viewer
+            .update_labels(waragraph, labels, [x, y], y_delta, 16)
+            .unwrap();
+    }
+
+    pub fn update_labels(&self, waragraph: &Arc<Waragraph>) {
+        Self::update_labels_impl(
+            &self.config,
+            &self.labels,
+            waragraph,
+            &self.path_viewer,
+        )
     }
 
     pub fn resize(

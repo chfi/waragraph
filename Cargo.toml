@@ -19,6 +19,8 @@ sled = "0.34"
 zerocopy = "0.6.1"
 roaring = "0.9"
 
+lazy_static = "1.4"
+
 rand = "0.8.5"
 
 rgb = "0.8.25"

@@ -17,14 +17,19 @@ export let label_color = #{ r: 0.0, g: 0.0, b: 0.0 };
 // export let slot_gradient = "gradient_inferno";
 // export let label_color = #{ r: 0.85, g: 0.85, b: 0.85 };
 
+export let cfg = config::new_config_map();
+
+// controls the slot offset and size, and the relative label offset
+let layout = {
+  let padding = 4;
+  let slot = #{ x: 130, y: 36, w: -40, h: 16 };
+  let label = #{ x: 14, y: 40 };
+  #{ slot: slot, label: label, padding: padding }
+};
+
+cfg.set("layout", layout);
 
 // other options
-
-// controls the slot offset and size (not fully integrated yet)
-export let slot_rect = #{ x: 130.0, y: 36.0, w: -40.0, h: 16.0 };
-// export let label_offset = #{ x: 34.0, y: 40.0 }; // not used yet
-
-
 export let slot_function = "loop_count_mean";
 // export let slot_function = "loop_count_mid";
 // export let slot_function = "has_node_mid";
@@ -385,27 +390,22 @@ fn draw_labels(batch, width, height, labels) {
   batch
 }
 
-// hacky as hell lmao
-fn get_yd() {
-  let rect = viewer::slot_rect;
-  let padding = 4;
-  rect.h + padding
-}
-
 fn visible_slots(win_height) {
-  let rect = viewer::slot_rect;
-  let padding = 4;
-  ((win_height - rect.y) / (rect.h + padding)).to_int()
-}
+  let cfg = viewer::cfg;
+  let layout = cfg.get("layout");
 
+  ((win_height - layout.slot.y) / (layout.slot.h + layout.padding)).to_int()
+}
 
 fn slot_push_constant(win_dims, slot_ix) {
   let pc = blob();
 
-  let yd = get_yd();
-  // let yd = 46.0;
+  let yd = layout.slot.h + layout.padding;
+  let cfg = viewer::cfg;
+  let layout = cfg.get("layout");
 
-  let r = viewer::slot_rect;
+  let r = layout.slot;
+
   r.y = r.y + yd * slot_ix;
   r.w = r.w + win_dims.width;
 

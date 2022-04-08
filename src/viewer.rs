@@ -262,16 +262,22 @@ impl PathViewer {
         &self,
         graph: &Waragraph,
         txt: &LabelStorage,
+        offset: [u32; 2],
+        y_delta: u32,
+        max_len: u8,
     ) -> Result<()> {
         // let x = 34u32;
         // let y = 40u32;
         // let yd = 66u32;
 
-        let x = 14u32;
-        let y = 40u32;
-        let yd = 20u32;
+        // let x = 14u32;
+        // let y = 40u32;
+        // let yd = 20u32;
+        let [x, y] = offset;
+        let yd = y_delta;
 
-        let max_len = 16;
+        // let max_len = 16;
+        let max_len = max_len as usize;
 
         for (ix, path_i) in self.visible_indices().enumerate() {
             let path_name = &graph.path_names[path_i];

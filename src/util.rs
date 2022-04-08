@@ -308,10 +308,10 @@ impl LabelStorage {
             let buf_key = self.buf_key_for(nb).unwrap();
             let set_key = self.set_key_for(nb).unwrap();
 
-            log::warn!("pk: {:?}", pk);
-            log::warn!("tk: {:?}", tk);
-            log::warn!("buf_key: {:?}", buf_key);
-            log::warn!("set_key: {:?}", set_key);
+            // log::warn!("pk: {:?}", pk);
+            // log::warn!("tk: {:?}", tk);
+            // log::warn!("buf_key: {:?}", buf_key);
+            // log::warn!("set_key: {:?}", set_key);
 
             db.insert(&buf_key, &buf_u64.to_le_bytes())?;
             db.insert(&set_key, &set_u64.to_le_bytes())?;
