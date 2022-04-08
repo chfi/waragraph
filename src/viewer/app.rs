@@ -336,6 +336,45 @@ impl ViewerSys {
         })
     }
 
+    pub fn handle_input(&mut self, event: &winit::event::WindowEvent<'_>) {
+        use winit::event::{VirtualKeyCode, WindowEvent};
+
+        match event {
+            WindowEvent::KeyboardInput { input, .. } => {
+                if let Some(kc) = input.virtual_keycode {
+                    use VirtualKeyCode as VK;
+
+                    let view = &mut self.view;
+
+                    let pre_len = view.len();
+                    let len = view.len() as isize;
+
+                    if input.state == winit::event::ElementState::Pressed {
+                        if matches!(kc, VK::Left) {
+                            view.translate(-len / 10);
+                            assert_eq!(pre_len, view.len());
+                        } else if matches!(kc, VK::Right) {
+                            view.translate(len / 10);
+                            assert_eq!(pre_len, view.len());
+                        } else if matches!(kc, VK::Up) {
+                            view.resize((len - len / 9) as usize);
+                        } else if matches!(kc, VK::Down) {
+                            view.resize((len + len / 10) as usize);
+                        } else if matches!(kc, VK::Escape) {
+                            view.reset();
+                        } else if matches!(kc, VK::PageUp) {
+                            self.path_viewer.scroll_up();
+                        } else if matches!(kc, VK::PageDown) {
+                            self.path_viewer.scroll_down();
+                        }
+                    }
+                }
+                //
+            }
+            _ => (),
+        }
+    }
+
     fn update_labels_impl(
         config: &ConfigMap,
         labels: &LabelStorage,

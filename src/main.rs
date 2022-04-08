@@ -53,20 +53,6 @@ fn main() -> Result<()> {
 
     let waragraph = Arc::new(Waragraph::from_gfa(&gfa)?);
 
-    let mut slot_renderers = SlotRenderers::default();
-
-    let graph = waragraph.clone();
-    slot_renderers.register_data_source("loop_count", move |path, node| {
-        let path = &graph.paths[path];
-        path.get(node.into()).copied()
-    });
-
-    let graph = waragraph.clone();
-    slot_renderers.register_data_source("has_node", move |path, node| {
-        let path = &graph.paths[path];
-        path.get(node.into()).map(|_| 1)
-    });
-
     let event_loop: EventLoop<()>;
 
     #[cfg(target_os = "linux")]
@@ -157,6 +143,8 @@ fn main() -> Result<()> {
                 buffers.allocate_queued(&mut engine).unwrap();
                 buffers.fill_updated_buffers(&mut engine.resources).unwrap();
 
+                // path-viewer specific, dependent on previous view
+
                 let view = viewer.view;
 
                 if Some(view) != prev_view || viewer.path_viewer.should_update()
@@ -180,6 +168,7 @@ fn main() -> Result<()> {
                     viewer.path_viewer.sample(&waragraph, &view);
                 }
 
+                // should only be called when the view has scrolled
                 viewer.update_labels(&waragraph);
 
                 if viewer.path_viewer.has_new_samples() {
@@ -216,9 +205,7 @@ fn main() -> Result<()> {
                         sled::Event::Insert { key, value } => {
                             updates.insert(key, value);
                         }
-                        sled::Event::Remove { key } => {
-                            // do nothing yet
-                        }
+                        _ => (),
                     }
                 }
 
@@ -298,85 +285,62 @@ fn main() -> Result<()> {
                 }
             }
 
-            Event::WindowEvent { event, .. } => match event {
-                WindowEvent::ReceivedCharacter(c) => {
-                    if !c.is_ascii_control() {
-                        console
-                            .handle_input(
-                                &db,
-                                &buffers,
-                                &viewer.labels,
-                                ConsoleInput::AppendChar(c),
-                            )
-                            .unwrap();
+            Event::WindowEvent { event, .. } => {
+                viewer.handle_input(&event);
+
+                match event {
+                    WindowEvent::ReceivedCharacter(c) => {
+                        if !c.is_ascii_control() {
+                            console
+                                .handle_input(
+                                    &db,
+                                    &buffers,
+                                    &viewer.labels,
+                                    ConsoleInput::AppendChar(c),
+                                )
+                                .unwrap();
+                        }
                     }
-                }
-                WindowEvent::KeyboardInput { input, .. } => {
-                    if let Some(kc) = input.virtual_keycode {
-                        use VirtualKeyCode as VK;
+                    WindowEvent::KeyboardInput { input, .. } => {
+                        if let Some(kc) = input.virtual_keycode {
+                            use VirtualKeyCode as VK;
 
-                        let mut view = viewer.view;
-
-                        let pre_len = view.len();
-                        let len = view.len() as isize;
-
-                        let mut update = true;
-
-                        if input.state == winit::event::ElementState::Pressed {
-                            if matches!(kc, VK::Left) {
-                                view.translate(-len / 10);
-                                assert_eq!(pre_len, view.len());
-                            } else if matches!(kc, VK::Right) {
-                                view.translate(len / 10);
-                                assert_eq!(pre_len, view.len());
-                            } else if matches!(kc, VK::Up) {
-                                view.resize((len - len / 9) as usize);
-                            } else if matches!(kc, VK::Down) {
-                                view.resize((len + len / 10) as usize);
-                            } else if matches!(kc, VK::Escape) {
-                                view.reset();
-                            } else if matches!(kc, VK::PageUp) {
-                                viewer.path_viewer.scroll_up();
-                            } else if matches!(kc, VK::PageDown) {
-                                viewer.path_viewer.scroll_down();
-                            } else if matches!(kc, VK::Return) {
-                                update = false;
-                                console
-                                    .handle_input(
-                                        &db,
-                                        &buffers,
-                                        &viewer.labels,
-                                        ConsoleInput::Submit,
-                                    )
-                                    .unwrap();
-                            } else if matches!(kc, VK::Back) {
-                                update = false;
-                                console
-                                    .handle_input(
-                                        &db,
-                                        &buffers,
-                                        &viewer.labels,
-                                        ConsoleInput::Backspace,
-                                    )
-                                    .unwrap();
+                            if input.state
+                                == winit::event::ElementState::Pressed
+                            {
+                                if matches!(kc, VK::Return) {
+                                    console
+                                        .handle_input(
+                                            &db,
+                                            &buffers,
+                                            &viewer.labels,
+                                            ConsoleInput::Submit,
+                                        )
+                                        .unwrap();
+                                } else if matches!(kc, VK::Back) {
+                                    console
+                                        .handle_input(
+                                            &db,
+                                            &buffers,
+                                            &viewer.labels,
+                                            ConsoleInput::Backspace,
+                                        )
+                                        .unwrap();
+                                }
                             }
                         }
-
-                        if update {
-                            viewer.view = view;
-                        }
                     }
-                    //
+                    WindowEvent::CloseRequested => {
+                        log::debug!("WindowEvent::CloseRequested");
+                        *control_flow = winit::event_loop::ControlFlow::Exit;
+                    }
+                    WindowEvent::Resized { .. } => {
+                        recreate_swapchain_timer =
+                            Some(std::time::Instant::now());
+                    }
+                    _ => (),
                 }
-                WindowEvent::CloseRequested => {
-                    log::debug!("WindowEvent::CloseRequested");
-                    *control_flow = winit::event_loop::ControlFlow::Exit;
-                }
-                WindowEvent::Resized { .. } => {
-                    recreate_swapchain_timer = Some(std::time::Instant::now());
-                }
-                _ => (),
-            },
+            }
             Event::LoopDestroyed => {
                 log::debug!("Event::LoopDestroyed");
 
