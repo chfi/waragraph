@@ -46,13 +46,13 @@ impl SlotRenderers {
 
     pub fn create_sampler_mean_with<F>(
         &self,
-        id: &str,
+        data_source: &str,
         f: F,
     ) -> Option<SlotUpdateFn<u32>>
     where
         F: Fn(f32) -> u32 + Send + Sync + 'static,
     {
-        let data_source = self.get_data_source(id)?.clone();
+        let data_source = self.get_data_source(data_source)?.clone();
 
         let f = move |samples: &[(Node, usize)], path, ix: usize| {
             let left_ix = ix.min(samples.len() - 1);
@@ -88,20 +88,20 @@ impl SlotRenderers {
 
     pub fn create_sampler_mean_round(
         &self,
-        id: &str,
+        data_source: &str,
     ) -> Option<SlotUpdateFn<u32>> {
-        self.create_sampler_mean_with(id, |v| v as u32)
+        self.create_sampler_mean_with(data_source, |v| v as u32)
     }
 
     pub fn create_sampler_mid_with<F>(
         &self,
-        id: &str,
+        data_source: &str,
         f: F,
     ) -> Option<SlotUpdateFn<u32>>
     where
         F: Fn(u32) -> u32 + Send + Sync + 'static,
     {
-        let data_source = self.get_data_source(id)?.clone();
+        let data_source = self.get_data_source(data_source)?.clone();
 
         let f = move |samples: &[(Node, usize)], path, ix: usize| {
             let left_ix = ix.min(samples.len() - 1);
@@ -121,8 +121,11 @@ impl SlotRenderers {
         Some(Arc::new(f) as SlotUpdateFn<u32>)
     }
 
-    pub fn create_sampler_mid(&self, id: &str) -> Option<SlotUpdateFn<u32>> {
-        self.create_sampler_mid_with(id, |v| v)
+    pub fn create_sampler_mid(
+        &self,
+        data_source: &str,
+    ) -> Option<SlotUpdateFn<u32>> {
+        self.create_sampler_mid_with(data_source, |v| v)
     }
 }
 

@@ -107,8 +107,8 @@ pub struct Waragraph {
     node_count: usize,
     total_len: usize,
 
-    node_sum_lens: Vec<usize>,
-    node_lens: Vec<u32>,
+    pub node_sum_lens: Vec<usize>,
+    pub node_lens: Vec<u32>,
 
     edges: FxHashMap<(Node, Node), u32>,
 

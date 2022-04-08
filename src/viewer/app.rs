@@ -13,15 +13,17 @@ use winit::window::Window;
 
 use crate::config::ConfigMap;
 use crate::console::{RhaiBatchFn2, RhaiBatchFn4, RhaiBatchFn5};
-use crate::graph::Waragraph;
+use crate::graph::{Node, Waragraph};
 use crate::util::{BufFmt, BufferStorage, LabelStorage};
 use crate::viewer::{SlotRenderers, ViewDiscrete1D};
 
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 
 use std::sync::Arc;
 
 use anyhow::{anyhow, bail, Result};
+
+use zerocopy::{AsBytes, FromBytes};
 
 use super::{PathViewer, SlotUpdateFn};
 
@@ -95,6 +97,53 @@ impl ViewerSys {
         txt.set_label_pos(b"view:end", 600, 16)?;
 
         let mut slot_renderers = SlotRenderers::default();
+        // prefix sum loop count
+
+        {
+            let graph = waragraph.clone();
+
+            let mut cache_vec: Vec<BTreeMap<usize, usize>> = Vec::new();
+
+            let t0 = std::time::Instant::now();
+            for path in graph.paths.iter() {
+                let mut sum = 0usize;
+                let mut cache = BTreeMap::default();
+
+                for (node_ix, val) in path.iter() {
+                    let val = *val as usize;
+                    let pos_start = graph.node_sum_lens[node_ix];
+                    cache.insert(pos_start, sum);
+                    sum += val;
+                }
+
+                cache_vec.push(cache);
+            }
+            log::warn!(
+                "generated prefix sum data in {}s",
+                t0.elapsed().as_secs_f64()
+            );
+
+            // let caches = Arc::new(cache_vec);
+
+            /*
+            let t0 = std::time::Instant::now();
+            // tree.apply_batch(batch)?;
+            log::warn!(
+                "applied prefix sum batch in {}s",
+                t0.elapsed().as_secs_f64()
+            );
+            */
+
+            slot_renderers.register_data_source(
+                "prefix-sum:loop_count",
+                move |path, node| {
+                    let path = &graph.paths[path];
+                    path.get(node.into()).copied()
+                },
+            );
+        }
+
+        //
 
         let graph = waragraph.clone();
         slot_renderers.register_data_source("loop_count", move |path, node| {
