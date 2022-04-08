@@ -1,3 +1,4 @@
+use bstr::ByteSlice;
 use raving::script::console::frame::FrameBuilder;
 use raving::script::console::BatchBuilder;
 use raving::vk::{
@@ -32,7 +33,7 @@ pub struct ViewerSys {
     pub path_viewer: PathViewer,
     pub slot_renderers: SlotRenderers,
 
-    pub slot_renderer_cache: HashMap<String, SlotUpdateFn<u32>>,
+    pub slot_renderer_cache: HashMap<sled::IVec, SlotUpdateFn<u32>>,
 
     pub labels: LabelStorage,
     pub label_updates: sled::Subscriber,
@@ -107,7 +108,7 @@ impl ViewerSys {
             path.get(node.into()).map(|_| 1)
         });
 
-        let mut slot_renderer_cache: HashMap<String, SlotUpdateFn<u32>> =
+        let mut slot_renderer_cache: HashMap<sled::IVec, SlotUpdateFn<u32>> =
             HashMap::default();
 
         // using a Rhai function for the final step in mapping values to color indices
@@ -131,11 +132,11 @@ impl ViewerSys {
             .unwrap();
 
         slot_renderer_cache
-            .insert("loop_count_mean".to_string(), updater_loop_count_mean);
+            .insert("loop_count_mean".into(), updater_loop_count_mean);
 
         let cmap = color_map.clone();
         slot_renderer_cache.insert(
-            "loop_count_mid".to_string(),
+            "loop_count_mid".into(),
             slot_renderers
                 .create_sampler_mid_with("loop_count", move |v| {
                     (&cmap)(v as f32)
@@ -153,7 +154,7 @@ impl ViewerSys {
                     }
                 })
                 .unwrap();
-        slot_renderer_cache.insert("has_node_mid".to_string(), has_node_mid);
+        slot_renderer_cache.insert("has_node_mid".into(), has_node_mid);
 
         let slot_function = builder
             .module
@@ -337,6 +338,32 @@ impl ViewerSys {
         })
     }
 
+    pub fn update_slots<K: AsRef<[u8]>>(
+        &mut self,
+        resources: &mut GpuResources,
+        update_key: K,
+    ) -> Result<()> {
+        let def = self
+            .slot_renderer_cache
+            .get(b"loop_count_mean".as_ref())
+            .ok_or(anyhow!("default slot renderer not found"))?;
+
+        let updater = self
+            .slot_renderer_cache
+            .get(update_key.as_ref())
+            .unwrap_or_else(|| {
+                log::warn!(
+                    "slot renderer `{}` not found",
+                    update_key.as_ref().as_bstr()
+                );
+                def
+            });
+
+        self.path_viewer.update_from(resources, updater);
+
+        Ok(())
+    }
+
     pub fn handle_input(&mut self, event: &winit::event::WindowEvent<'_>) {
         use winit::event::{VirtualKeyCode, WindowEvent};
 
@@ -381,7 +408,6 @@ impl ViewerSys {
 
                     self.path_viewer.update.fetch_or(update);
                 }
-                //
             }
             _ => (),
         }
@@ -394,9 +420,7 @@ impl ViewerSys {
         path_viewer: &PathViewer,
     ) {
         let map = config.map.read();
-        // let layout = map.get("layout").unwrap();
 
-        // let layout = layout.clone_cast::<rhai::Map>();
         let padding = map.get("layout.padding").unwrap().clone_cast::<i64>();
         let slot = map.get("layout.slot").unwrap().clone_cast::<rhai::Map>();
         let label = map.get("layout.label").unwrap().clone_cast::<rhai::Map>();
@@ -412,7 +436,6 @@ impl ViewerSys {
         let y_delta = (padding as u32) + h;
 
         let max_len = get_cast(&map, "layout.max_label_len");
-        // let max_len = get_cast(&label, "max_len");
 
         path_viewer
             .update_labels(waragraph, labels, [x, y], y_delta, max_len as u8)

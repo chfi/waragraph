@@ -167,27 +167,13 @@ fn main() -> Result<()> {
                 }
 
                 if viewer.path_viewer.has_new_samples() {
-                    let update_key = db.get(b"slot_function").ok().flatten();
-
-                    let def = viewer
-                        .slot_renderer_cache
-                        .get("loop_count_mean")
-                        .unwrap();
-                    let updater = update_key
-                        .and_then(|k| {
-                            let k = std::str::from_utf8(k.as_ref()).ok()?;
-                            viewer.slot_renderer_cache.get(k)
-                        })
-                        .unwrap_or(def);
-
-                    // let t0 = std::time::Instant::now();
-                    viewer
-                        .path_viewer
-                        .update_from(&mut engine.resources, updater);
-                    // log::warn!(
-                    //     "path_viewer.update_from took {} us",
-                    //     t0.elapsed().as_micros()
-                    // );
+                    let update_key =
+                        db.get(b"slot_function").ok().flatten().unwrap();
+                    if let Err(e) =
+                        viewer.update_slots(&mut engine.resources, update_key)
+                    {
+                        log::error!("PathViewer slot update error: {:?}", e);
+                    }
                 }
 
                 // handle sled-based label updates
