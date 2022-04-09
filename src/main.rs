@@ -81,10 +81,17 @@ fn main() -> Result<()> {
 
     let swapchain_dims = Arc::new(AtomicCell::new([width, height]));
 
-    let window = WindowBuilder::new()
-        .with_title("Waragraph Viewer")
-        .with_inner_size(winit::dpi::PhysicalSize::new(width, height))
-        .build(&event_loop)?;
+    let window = {
+        let gfa_path = std::path::PathBuf::from(gfa_path);
+
+        let gfa_name =
+            gfa_path.file_name().and_then(|s| s.to_str()).unwrap_or("-");
+
+        WindowBuilder::new()
+            .with_title(&format!("Waragraph Viewer - {}", gfa_name))
+            .with_inner_size(winit::dpi::PhysicalSize::new(width, height))
+            .build(&event_loop)?
+    };
 
     let mut engine = VkEngine::new(&window)?;
 

@@ -468,20 +468,31 @@ impl ViewerSys {
         let slot = map.get("layout.slot").unwrap().clone_cast::<rhai::Map>();
         let label = map.get("layout.label").unwrap().clone_cast::<rhai::Map>();
 
-        let get_cast =
-            |m: &rhai::Map, k| m.get(k).unwrap().clone_cast::<i64>() as u32;
+        let get_cast = |m: &rhai::Map, k| m.get(k).unwrap().clone_cast::<i64>();
 
-        let x = get_cast(&label, "x");
-        let y = get_cast(&label, "y");
+        let label_x = get_cast(&label, "x");
+        let label_y = get_cast(&label, "y");
+
+        let name_len = get_cast(&map, "layout.max_path_name_len");
+
+        let slot_x = get_cast(&slot, "x") + label_x + padding + name_len * 8;
+
+        labels
+            .set_label_pos(b"view:start", slot_x as u32, 16)
+            .unwrap();
 
         let h = get_cast(&slot, "h");
 
-        let y_delta = (padding as u32) + h;
-
-        let max_len = get_cast(&map, "layout.max_path_name_len");
+        let y_delta = padding + h;
 
         path_viewer
-            .update_labels(waragraph, labels, [x, y], y_delta, max_len as u8)
+            .update_labels(
+                waragraph,
+                labels,
+                [label_x as u32, label_y as u32],
+                y_delta as u32,
+                name_len as u8,
+            )
             .unwrap();
     }
 
