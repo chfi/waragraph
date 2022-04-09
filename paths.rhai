@@ -23,7 +23,7 @@ export let cfg = config::new_config_map();
 // TODO: the slot offset should be derived from the label length, but
 // i'm not sure where to put the logic
 // for now it's best to just change these values as needed
-cfg.set("layout.slot", #{ x: 130, y: 36, w: -40, h: 16 });
+cfg.set("layout.slot", #{ x: 130, y: 36, w: -10, h: 16 });
 cfg.set("layout.label", #{ x: 14, y: 40 });
 cfg.set("layout.max_label_len", 14);
 cfg.set("layout.padding", 4);
@@ -36,7 +36,6 @@ export let slot_function = "loop_count_mean";
 // this function can be edited to change the mapping from values to colors;
 // the output is used an index into a 256-long gradient buffer
 fn value_color_index_map(v) {
-  // if v < 0.2 {
   if v == 0.0 {
     0
   } else {
@@ -184,7 +183,7 @@ fn resize(width, height) {
 }
 
 
-fn foreground(batch, desc_sets, slot_w, w, h) {
+fn foreground(batch, desc_sets, w, h) {
 
   let img = viewer::out_image.get();
 
@@ -222,7 +221,7 @@ fn foreground(batch, desc_sets, slot_w, w, h) {
   // draw paths
   let dims = #{ width: w, height: h };
   let batch = draw_slots(batch,
-                         dims, #{ width: slot_w, height: 50 },
+                         dims,
                          desc_sets,
                          viewer::slot_gradient);
   batch.transition_image(img,
@@ -402,19 +401,18 @@ fn visible_slots(win_height) {
   ((win_height - slot.y) / (slot.h + padding)).to_int()
 }
 
-fn slot_push_constant(win_dims, slot_ix) {
+fn slot_push_constant(win_dims, slot_w, slot_ix) {
   let pc = blob();
 
   let cfg = viewer::cfg;
   let slot = cfg.get("layout.slot");
   let padding = cfg.get("layout.padding");
-  // let layout = cfg.get("layout");
 
   let yd = slot.h + padding;
   let r = slot;
 
   r.y = r.y + yd * slot_ix;
-  r.w = r.w + win_dims.width;
+  r.w = slot_w;
 
   pc.append_int(r.x.to_int());
   pc.append_int(r.y.to_int());
@@ -423,12 +421,19 @@ fn slot_push_constant(win_dims, slot_ix) {
   pc
 }
 
-fn draw_slots(batch, win_dims, slot_dims, slot_desc_sets, color_buffer) {
+fn draw_slots(batch, win_dims, slot_desc_sets, color_buffer) {
   let x_size = 8;
   let y_size = 8;
 
-  let slot_w = slot_dims.width;
-  let slot_h = slot_dims.height;
+  let cfg = viewer::cfg;
+  let slot = cfg.get("layout.slot");
+
+  let slot_w = if slot.w < 0 {
+    win_dims.width + slot.w - slot.x
+  } else {
+    slot.w
+  };
+  let slot_h = slot.h;
 
   let workgroups = #{ x_groups: (slot_w / x_size) + slot_w % x_size,
                       y_groups: (slot_h / y_size) + slot_h % y_size,
@@ -447,7 +452,7 @@ fn draw_slots(batch, win_dims, slot_dims, slot_desc_sets, color_buffer) {
 
       let slot_set = desc_sets.slot;
 
-      let pc = slot_push_constant(win_dims, ix);
+      let pc = slot_push_constant(win_dims, slot_w, ix);
 
       batch.dispatch_compute(viewer::path_pipeline.get(),
                              [slot_set,

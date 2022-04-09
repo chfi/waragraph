@@ -215,7 +215,7 @@ impl PathViewer {
             row_max,
 
             sample_buf: Vec::new(),
-            update: false.into(),
+            update: true.into(),
             new_samples: false.into(),
         };
 
