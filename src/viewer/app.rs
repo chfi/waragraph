@@ -112,7 +112,6 @@ impl ViewerSys {
                 for (node_ix, val) in path.iter() {
                     let len = graph.node_lens[node_ix] as usize;
                     let val = len * (*val as usize);
-                    // let val = *val as usize;
                     cache.push(((node_ix as u32).into(), sum));
                     sum += val;
                 }
@@ -139,13 +138,13 @@ impl ViewerSys {
 
         let graph = waragraph.clone();
         slot_renderers.register_data_source("loop_count", move |path, node| {
-            let path = &graph.paths[path];
+            let path = graph.paths.get(path)?;
             path.get(node.into()).copied()
         });
 
         let graph = waragraph.clone();
         slot_renderers.register_data_source("has_node", move |path, node| {
-            let path = &graph.paths[path];
+            let path = graph.paths.get(path)?;
             path.get(node.into()).map(|_| 1)
         });
 
@@ -167,22 +166,13 @@ impl ViewerSys {
         })
             as Arc<dyn Fn(f32) -> u32 + Send + Sync + 'static>;
 
-        /*
-        let cmap = color_map.clone();
-        let updater_loop_count_mean = slot_renderers
-            .create_sampler_mean_with("loop_count", move |v| (&cmap)(v))
-            .unwrap();
-        */
-
         let cmap = color_map.clone();
         let updater_loop_count_mean = slot_renderers
             .create_sampler_prefix_sum_mean_with(
                 waragraph,
+                "loop_count",
                 "prefix-sum:loop_count",
-                move |v| {
-                    // .create_sampler_mean_with("prefix-sum:loop_count", move |v| {
-                    (&cmap)(v)
-                },
+                move |v| (&cmap)(v),
             )
             .unwrap();
 

@@ -48,13 +48,15 @@ impl SlotRenderers {
     pub fn create_sampler_prefix_sum_mean_with<F>(
         &self,
         graph: &Arc<Waragraph>,
-        data_source: &str,
+        val_data_source: &str,
+        sum_data_source: &str,
         f: F,
     ) -> Option<SlotUpdateFn<u32>>
     where
         F: Fn(f32) -> u32 + Send + Sync + 'static,
     {
-        let data_source = self.get_data_source(data_source)?.clone();
+        let val_data_source = self.get_data_source(val_data_source)?.clone();
+        let sum_data_source = self.get_data_source(sum_data_source)?.clone();
         let graph = graph.clone();
 
         let f = move |samples: &[(Node, usize)], path, ix: usize| {
@@ -70,24 +72,18 @@ impl SlotRenderers {
             let left_start = graph.node_sum_lens[li];
             let right_start = graph.node_sum_lens[ri];
 
-            let node_vals: Option<&CsVecI<u32, u32>> = graph.paths.get(path);
-
-            let l_node_val = node_vals
-                .and_then(|v| v.get(li))
-                .copied()
-                .unwrap_or_default() as usize;
-            let r_node_val = node_vals
-                .and_then(|v| v.get(ri))
-                .copied()
-                .unwrap_or_default() as usize;
+            let l_node_val =
+                val_data_source(path, left).unwrap_or_default() as usize;
+            let r_node_val =
+                val_data_source(path, right).unwrap_or_default() as usize;
 
             let mut len = right_start - left_start;
 
-            let l_val = data_source(path, left).unwrap_or_default();
-            let r_val = data_source(path, right).unwrap_or_else(|| {
+            let l_val = sum_data_source(path, left).unwrap_or_default();
+            let r_val = sum_data_source(path, right).unwrap_or_else(|| {
                 let i = ri - 1;
                 let node = Node::from(i as u32);
-                data_source(path, node).unwrap_or(l_val + 1)
+                sum_data_source(path, node).unwrap_or(l_val + 1)
             });
 
             let l_val = l_val as usize;
