@@ -9,6 +9,7 @@ use raving::vk::{
 };
 use rspirv_reflect::DescriptorInfo;
 
+use sprs::CsVecI;
 use zerocopy::{AsBytes, FromBytes};
 
 use anyhow::{anyhow, Result};
@@ -60,8 +61,8 @@ impl SlotRenderers {
             let left_ix = ix.min(samples.len() - 1);
             let right_ix = (ix + 1).min(samples.len() - 1);
 
-            let (left, _offset) = samples[left_ix];
-            let (right, _offset) = samples[right_ix];
+            let (left, l_offset) = samples[left_ix];
+            let (right, r_offset) = samples[right_ix];
 
             let li: usize = left.into();
             let ri: usize = right.into();
@@ -69,7 +70,14 @@ impl SlotRenderers {
             let left_start = graph.node_sum_lens[li];
             let right_start = graph.node_sum_lens[ri];
 
-            let len = right_start - left_start;
+            let node_vals: &CsVecI<u32, u32> = &graph.paths[path];
+
+            let l_node_val =
+                node_vals.get(li).copied().unwrap_or_default() as usize;
+            let r_node_val =
+                node_vals.get(ri).copied().unwrap_or_default() as usize;
+
+            let mut len = right_start - left_start;
 
             let l_val = data_source(path, left).unwrap_or_default();
             let r_val = data_source(path, right).unwrap_or_else(|| {
@@ -78,7 +86,20 @@ impl SlotRenderers {
                 data_source(path, node).unwrap_or(l_val + 1)
             });
 
-            let avg = (r_val - l_val) as f32 / len as f32;
+            let l_val = l_val as usize;
+            let r_val = r_val as usize;
+
+            let mut val = r_val - l_val;
+
+            // add the left chunk of the right node
+            val += r_offset * r_node_val;
+            // remove the left chunk of the left node
+            val = val.checked_sub(l_offset * l_node_val).unwrap_or_default();
+
+            len -= l_offset;
+            len += r_offset;
+
+            let avg = val as f32 / len as f32;
 
             f(avg)
         };
