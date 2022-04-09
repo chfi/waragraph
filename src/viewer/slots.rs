@@ -44,6 +44,47 @@ impl SlotRenderers {
         self.data_sources.get(id)
     }
 
+    pub fn create_sampler_prefix_sum_mean_with<F>(
+        &self,
+        graph: &Arc<Waragraph>,
+        data_source: &str,
+        f: F,
+    ) -> Option<SlotUpdateFn<u32>>
+    where
+        F: Fn(f32) -> u32 + Send + Sync + 'static,
+    {
+        let data_source = self.get_data_source(data_source)?.clone();
+        let graph = graph.clone();
+
+        let f = move |samples: &[(Node, usize)], path, ix: usize| {
+            let left_ix = ix.min(samples.len() - 1);
+            let right_ix = (ix + 1).min(samples.len() - 1);
+
+            let (left, _offset) = samples[left_ix];
+            let (right, _offset) = samples[right_ix];
+
+            let li: usize = left.into();
+            let ri: usize = right.into();
+
+            let left_start = graph.node_sum_lens[li];
+            let right_start = graph.node_sum_lens[ri];
+
+            let len = right_start - left_start;
+
+            let l_val = data_source(path, left).unwrap_or_default();
+            let r_val = data_source(path, right).unwrap_or_else(|| {
+                let i = ri - 1;
+                let node = Node::from(i as u32);
+                data_source(path, node).unwrap_or(l_val + 1)
+            });
+
+            let avg = (r_val - l_val) as f32 / len as f32;
+
+            f(avg)
+        };
+        Some(Arc::new(f) as SlotUpdateFn<u32>)
+    }
+
     pub fn create_sampler_mean_with<F>(
         &self,
         data_source: &str,

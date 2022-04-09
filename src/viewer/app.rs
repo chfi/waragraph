@@ -102,43 +102,40 @@ impl ViewerSys {
         {
             let graph = waragraph.clone();
 
-            let mut cache_vec: Vec<BTreeMap<usize, usize>> = Vec::new();
+            // let mut cache_vec: Vec<BTreeMap<Node, usize>> = Vec::new();
+            let mut cache_vec: Vec<Vec<(Node, usize)>> = Vec::new();
 
-            let t0 = std::time::Instant::now();
             for path in graph.paths.iter() {
                 let mut sum = 0usize;
-                let mut cache = BTreeMap::default();
+                let mut cache = Vec::new();
 
                 for (node_ix, val) in path.iter() {
-                    let val = *val as usize;
-                    let pos_start = graph.node_sum_lens[node_ix];
-                    cache.insert(pos_start, sum);
+                    let len = graph.node_lens[node_ix] as usize;
+                    let val = len * (*val as usize);
+                    // let val = *val as usize;
+                    cache.push(((node_ix as u32).into(), sum));
                     sum += val;
                 }
 
                 cache_vec.push(cache);
             }
-            log::warn!(
-                "generated prefix sum data in {}s",
-                t0.elapsed().as_secs_f64()
-            );
-
-            // let caches = Arc::new(cache_vec);
-
-            /*
-            let t0 = std::time::Instant::now();
-            // tree.apply_batch(batch)?;
-            log::warn!(
-                "applied prefix sum batch in {}s",
-                t0.elapsed().as_secs_f64()
-            );
-            */
 
             slot_renderers.register_data_source(
                 "prefix-sum:loop_count",
                 move |path, node| {
-                    let path = &graph.paths[path];
-                    path.get(node.into()).copied()
+                    let cache = &cache_vec[path];
+
+                    let ix = cache
+                        .binary_search_by_key(&node, |(n, _)| *n)
+                        .unwrap_or_else(|x| x);
+
+                    let (_, v) = *cache.get(ix)?;
+                    Some(v as u32)
+
+                    // let v = cache.
+
+                    // cache_vec[path].get(&node).copied().map(|i| i as u32)
+                    // path.get(node.into()).copied()
                 },
             );
         }
@@ -175,9 +172,23 @@ impl ViewerSys {
         })
             as Arc<dyn Fn(f32) -> u32 + Send + Sync + 'static>;
 
+        /*
         let cmap = color_map.clone();
         let updater_loop_count_mean = slot_renderers
             .create_sampler_mean_with("loop_count", move |v| (&cmap)(v))
+            .unwrap();
+        */
+
+        let cmap = color_map.clone();
+        let updater_loop_count_mean = slot_renderers
+            .create_sampler_prefix_sum_mean_with(
+                waragraph,
+                "prefix-sum:loop_count",
+                move |v| {
+                    // .create_sampler_mean_with("prefix-sum:loop_count", move |v| {
+                    (&cmap)(v)
+                },
+            )
             .unwrap();
 
         slot_renderer_cache

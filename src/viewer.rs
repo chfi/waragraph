@@ -288,20 +288,22 @@ impl PathViewer {
         let max_len = max_len as usize;
 
         for (ix, path_i) in self.visible_indices().enumerate() {
-            let path_name = &graph.path_names[path_i];
+            if let Some(path_name) = graph.path_names.get(path_i) {
+                // let path_name = &graph.path_names[path_i];
 
-            let txt_key = format!("path-name-{}", ix);
+                let txt_key = format!("path-name-{}", ix);
 
-            if path_name.len() < max_len {
-                let name = format!("{}", path_name.as_bstr());
-                txt.set_text_for(txt_key.as_bytes(), &name)?;
-            } else {
-                let prefix = path_name[..max_len - 3].as_bstr();
-                let name = format!("{}...", prefix);
-                txt.set_text_for(txt_key.as_bytes(), &name)?;
+                if path_name.len() < max_len {
+                    let name = format!("{}", path_name.as_bstr());
+                    txt.set_text_for(txt_key.as_bytes(), &name)?;
+                } else {
+                    let prefix = path_name[..max_len - 3].as_bstr();
+                    let name = format!("{}...", prefix);
+                    txt.set_text_for(txt_key.as_bytes(), &name)?;
+                }
+
+                txt.set_label_pos(txt_key.as_bytes(), x, y + yd * ix as u32)?;
             }
-
-            txt.set_label_pos(txt_key.as_bytes(), x, y + yd * ix as u32)?;
         }
         Ok(())
     }

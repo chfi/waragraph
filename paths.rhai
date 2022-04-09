@@ -41,7 +41,12 @@ fn value_color_index_map(v) {
     0
   } else {
     v += 0.5;
-    v.to_int() + 1
+
+    if v > 255.0 {
+      255
+    } else {
+      v.to_int() + 1
+    }
   }
 }
 
