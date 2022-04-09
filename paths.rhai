@@ -20,23 +20,13 @@ export let label_color = #{ r: 0.0, g: 0.0, b: 0.0 };
 export let cfg = config::new_config_map();
 
 // controls the slot offset and size, and the relative label offset
-let layout = {
-  let padding = 4;
-  let slot = #{ x: 130, y: 36, w: -40, h: 16 };
-  let label = #{ x: 14, y: 40, max_len: 6 };
-  #{ slot: slot, label: label, padding: padding }
-};
-
 // TODO: the slot offset should be derived from the label length, but
 // i'm not sure where to put the logic
 // for now it's best to just change these values as needed
 cfg.set("layout.slot", #{ x: 130, y: 36, w: -40, h: 16 });
 cfg.set("layout.label", #{ x: 14, y: 40 });
-cfg.set("layout.max_label_len", 32);
+cfg.set("layout.max_label_len", 14);
 cfg.set("layout.padding", 4);
-
-
-// cfg.set("layout", layout);
 
 // other options
 export let slot_function = "loop_count_mean";

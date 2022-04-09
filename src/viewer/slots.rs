@@ -143,37 +143,14 @@ pub struct PathViewSlot {
 }
 
 impl PathViewSlot {
-    // pub fn new<F>(
     pub fn new(
         ctx: &VkContext,
         res: &mut GpuResources,
         alloc: &mut Allocator,
         width: usize,
         name: Option<&str>,
-        // mut fill: F,
-    ) -> Result<Self>
-// where
-    //     F: FnMut(usize) -> u32,
-    {
+    ) -> Result<Self> {
         let buffer = Self::allocate_buffer(ctx, res, alloc, width, name)?;
-
-        // let buf_size = buffer.alloc.size() as usize;
-
-        // let slice = buffer
-        //     .mapped_slice_mut()
-        //     .ok_or(anyhow!("Path slot buffer could not be memory mapped"))?;
-
-        // for (i, win) in slice.chunks_exact_mut(4).enumerate() {
-        //     let bytes = fill(i).to_ne_bytes();
-        //     bytes.into_iter().zip(win).for_each(|(b, w)| *w = b);
-        // }
-
-        // let data = (0..width)
-        //     .flat_map(|i| fill(i).to_ne_bytes())
-        //     .collect::<Vec<u8>>();
-
-        // slice[..buf_size].clone_from_slice(&data[..buf_size]);
-
         let name = name.map(String::from);
 
         let buffer = res.insert_buffer(buffer);

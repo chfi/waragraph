@@ -214,7 +214,6 @@ impl ViewerSys {
         //
         let view = ViewDiscrete1D::new(waragraph.total_len());
 
-        // let slot_count = 64;
         let slot_count = 32;
 
         let mut path_viewer = engine.with_allocators(|ctx, res, alloc| {
@@ -225,7 +224,6 @@ impl ViewerSys {
                 alloc,
                 width as usize,
                 slot_count,
-                "path_slot_",
                 waragraph.paths.len(),
             )
         })?;

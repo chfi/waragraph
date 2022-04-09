@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 
 use ash::vk;
 use bstr::ByteSlice;
@@ -9,6 +9,7 @@ use raving::vk::{
 };
 use rspirv_reflect::DescriptorInfo;
 
+use sled::IVec;
 use zerocopy::{AsBytes, FromBytes};
 
 use anyhow::{anyhow, Result};
@@ -153,14 +154,16 @@ impl ViewDiscrete1D {
 pub struct PathViewer {
     pub tree: sled::Tree,
 
-    view_max: usize,
-    view: Arc<AtomicCell<(usize, usize)>>,
+    row_max: usize,
+    row_view: Arc<AtomicCell<(usize, usize)>>,
 
     update: AtomicCell<bool>,
 
     pub width: usize,
+
     pub slots: Vec<PathViewSlot>,
-    // slot_path_map: Vec<usize>,
+    slot_cache: HashMap<(usize, (usize, usize), IVec), usize>,
+
     sample_buf: Vec<(Node, usize)>,
 
     new_samples: AtomicCell<bool>,
@@ -169,6 +172,22 @@ pub struct PathViewer {
 impl PathViewer {
     const SLOT_MASK: [u8; 7] = *b"slot:02";
 
+    fn allocate_slot(
+        &mut self,
+        ctx: &VkContext,
+        res: &mut GpuResources,
+        alloc: &mut Allocator,
+    ) -> Result<()> {
+        let width = self.width;
+
+        let i = self.slots.len();
+        let name = format!("path-viewer-slot-{}", i);
+        let slot = PathViewSlot::new(ctx, res, alloc, width, Some(&name))?;
+        self.slots.push(slot);
+
+        Ok(())
+    }
+
     pub fn new(
         db: &sled::Db,
         ctx: &VkContext,
@@ -176,37 +195,35 @@ impl PathViewer {
         alloc: &mut Allocator,
         width: usize,
         slot_count: usize,
-        name_prefix: &str,
         path_count: usize,
     ) -> Result<Self> {
-        // db.drop_tree(b"path_viewer")?;
         let tree = db.open_tree(b"path_viewer")?;
 
-        let mut slots = Vec::with_capacity(slot_count);
+        let slots = Vec::with_capacity(slot_count);
 
-        let slot_count = slot_count.min(path_count);
+        let row_view = Arc::new(AtomicCell::new((0, slot_count)));
+        let row_max = path_count;
 
-        for i in 0..slot_count {
-            let name = format!("{}_slot_{}", name_prefix, i);
-            let slot = PathViewSlot::new(ctx, res, alloc, width, Some(&name))?;
-
-            slots.push(slot);
-        }
-
-        let view = Arc::new(AtomicCell::new((0, slot_count)));
-        let view_max = path_count;
-
-        Ok(Self {
+        let mut result = Self {
             tree,
             width,
+
             slots,
-            view,
-            view_max,
+            slot_cache: Default::default(),
+
+            row_view,
+            row_max,
 
             sample_buf: Vec::new(),
             update: false.into(),
             new_samples: false.into(),
-        })
+        };
+
+        for _ in 0..slot_count {
+            result.allocate_slot(ctx, res, alloc)?;
+        }
+
+        Ok(result)
     }
 
     pub fn should_update(&self) -> bool {
@@ -225,18 +242,18 @@ impl PathViewer {
     }
 
     pub fn scroll_up(&self) {
-        let (o, l) = self.view.load();
+        let (o, l) = self.row_view.load();
         if o > 0 {
-            let no = (o - 1).clamp(0, self.view_max - l);
-            self.view.store((no, l));
+            let no = (o - 1).clamp(0, self.row_max - l);
+            self.row_view.store((no, l));
             self.update.store(true);
         }
     }
 
     pub fn scroll_down(&self) {
-        let (o, l) = self.view.load();
-        let no = (o + 1).clamp(0, self.view_max - l);
-        self.view.store((no, l));
+        let (o, l) = self.row_view.load();
+        let no = (o + 1).clamp(0, self.row_max - l);
+        self.row_view.store((no, l));
         self.update.store(true);
     }
 
@@ -266,17 +283,8 @@ impl PathViewer {
         y_delta: u32,
         max_len: u8,
     ) -> Result<()> {
-        // let x = 34u32;
-        // let y = 40u32;
-        // let yd = 66u32;
-
-        // let x = 14u32;
-        // let y = 40u32;
-        // let yd = 20u32;
         let [x, y] = offset;
         let yd = y_delta;
-
-        // let max_len = 16;
         let max_len = max_len as usize;
 
         for (ix, path_i) in self.visible_indices().enumerate() {
@@ -299,25 +307,8 @@ impl PathViewer {
     }
 
     pub fn visible_indices(&self) -> std::ops::Range<usize> {
-        let (offset, len) = self.view.load();
+        let (offset, len) = self.row_view.load();
         offset..offset + len
-    }
-
-    pub fn list_offset(&self) -> Result<usize> {
-        let o_bs = self.tree.get("list_offset")?.unwrap();
-        let offset = usize::read_from(o_bs.as_ref()).unwrap();
-        Ok(offset)
-    }
-
-    pub fn list_view_len(&self) -> Result<usize> {
-        let o_bs = self.tree.get("list_view_len")?.unwrap();
-        let view_len = usize::read_from(o_bs.as_ref()).unwrap();
-        Ok(view_len)
-    }
-    pub fn list_max(&self) -> Result<usize> {
-        let o_bs = self.tree.get("list_max")?.unwrap();
-        let max = usize::read_from(o_bs.as_ref()).unwrap();
-        Ok(max)
     }
 
     pub fn resize(
