@@ -493,7 +493,7 @@ impl ViewerSys {
 
         let y_delta = (padding as u32) + h;
 
-        let max_len = get_cast(&map, "layout.max_label_len");
+        let max_len = get_cast(&map, "layout.max_path_name_len");
 
         path_viewer
             .update_labels(waragraph, labels, [x, y], y_delta, max_len as u8)

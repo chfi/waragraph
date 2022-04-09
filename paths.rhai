@@ -23,9 +23,9 @@ export let cfg = config::new_config_map();
 // TODO: the slot offset should be derived from the label length, but
 // i'm not sure where to put the logic
 // for now it's best to just change these values as needed
-cfg.set("layout.slot", #{ x: 130, y: 36, w: -10, h: 16 });
+cfg.set("layout.slot", #{ x: 0, y: 36, w: -10, h: 16 });
 cfg.set("layout.label", #{ x: 14, y: 40 });
-cfg.set("layout.max_label_len", 14);
+cfg.set("layout.max_path_name_len", 14);
 cfg.set("layout.padding", 4);
 
 // other options
@@ -36,7 +36,7 @@ export let slot_function = "loop_count_mean";
 // this function can be edited to change the mapping from values to colors;
 // the output is used an index into a 256-long gradient buffer
 fn value_color_index_map(v) {
-  if v == 0.0 {
+  if v <= 0.0 {
     0
   } else {
     v += 0.5;
@@ -401,16 +401,19 @@ fn visible_slots(win_height) {
   ((win_height - slot.y) / (slot.h + padding)).to_int()
 }
 
-fn slot_push_constant(win_dims, slot_w, slot_ix) {
+fn slot_push_constant(win_dims, slot_x, slot_w, slot_ix) {
   let pc = blob();
 
   let cfg = viewer::cfg;
   let slot = cfg.get("layout.slot");
   let padding = cfg.get("layout.padding");
 
+  let path_name_len = cfg.get("layout.max_path_name_len");
+
   let yd = slot.h + padding;
   let r = slot;
 
+  r.x = slot_x;
   r.y = r.y + yd * slot_ix;
   r.w = slot_w;
 
@@ -428,8 +431,14 @@ fn draw_slots(batch, win_dims, slot_desc_sets, color_buffer) {
   let cfg = viewer::cfg;
   let slot = cfg.get("layout.slot");
 
+  let label = cfg.get("layout.label");
+  let path_name_len = cfg.get("layout.max_path_name_len");
+  let padding = cfg.get("layout.padding");
+
+  let slot_x = slot.x + label.x + padding + path_name_len * 8;
+
   let slot_w = if slot.w < 0 {
-    win_dims.width + slot.w - slot.x
+    win_dims.width + slot.w - slot_x
   } else {
     slot.w
   };
@@ -452,7 +461,7 @@ fn draw_slots(batch, win_dims, slot_desc_sets, color_buffer) {
 
       let slot_set = desc_sets.slot;
 
-      let pc = slot_push_constant(win_dims, slot_w, ix);
+      let pc = slot_push_constant(win_dims, slot_x, slot_w, ix);
 
       batch.dispatch_compute(viewer::path_pipeline.get(),
                              [slot_set,

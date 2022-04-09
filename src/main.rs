@@ -161,10 +161,13 @@ fn main() -> Result<()> {
                     viewer.labels.set_text_for(b"view:end", &end).unwrap();
 
                     viewer.path_viewer.sample(&waragraph, &view);
-
-                    // should only be called when the view has scrolled
-                    viewer.update_labels(&waragraph);
                 }
+
+                // TODO: should only be called when the view has
+                // scrolled, but it should also update whenever the
+                // label layout changes, and there's currently no way
+                // to check just for that
+                viewer.update_labels(&waragraph);
 
                 if viewer.path_viewer.has_new_samples() {
                     let update_key =
