@@ -123,7 +123,7 @@ impl ViewerSys {
             slot_renderers.register_data_source(
                 "prefix-sum:loop_count",
                 move |path, node| {
-                    let cache = &cache_vec[path];
+                    let cache = cache_vec.get(path)?;
 
                     let ix = cache
                         .binary_search_by_key(&node, |(n, _)| *n)
@@ -131,11 +131,6 @@ impl ViewerSys {
 
                     let (_, v) = *cache.get(ix)?;
                     Some(v as u32)
-
-                    // let v = cache.
-
-                    // cache_vec[path].get(&node).copied().map(|i| i as u32)
-                    // path.get(node.into()).copied()
                 },
             );
         }

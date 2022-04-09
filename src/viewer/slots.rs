@@ -70,12 +70,16 @@ impl SlotRenderers {
             let left_start = graph.node_sum_lens[li];
             let right_start = graph.node_sum_lens[ri];
 
-            let node_vals: &CsVecI<u32, u32> = &graph.paths[path];
+            let node_vals: Option<&CsVecI<u32, u32>> = graph.paths.get(path);
 
-            let l_node_val =
-                node_vals.get(li).copied().unwrap_or_default() as usize;
-            let r_node_val =
-                node_vals.get(ri).copied().unwrap_or_default() as usize;
+            let l_node_val = node_vals
+                .and_then(|v| v.get(li))
+                .copied()
+                .unwrap_or_default() as usize;
+            let r_node_val = node_vals
+                .and_then(|v| v.get(ri))
+                .copied()
+                .unwrap_or_default() as usize;
 
             let mut len = right_start - left_start;
 
