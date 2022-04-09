@@ -349,16 +349,6 @@ fn draw_labels(batch, width, height, labels) {
   let w = width;
   let h = height;
 
-  let x_size = 16;
-  let y_size = 16;
-
-  let x_groups = (w / x_size) + w % x_size;
-  let y_groups = (h / y_size) + h % y_size;
-  let workgroups = #{ x_groups: x_groups,
-                      y_groups: y_groups,
-                      z_groups: 1 };
-
-
   for label in labels {
     let pc = blob();
     pc.append_int(label.x);
@@ -370,6 +360,10 @@ fn draw_labels(batch, width, height, labels) {
     pc.append_float(viewer::label_color.g);
     pc.append_float(viewer::label_color.b);
     pc.append_float(1.0);
+
+    let workgroups = #{ x_groups: label.len,
+                        y_groups: 1,
+                        z_groups: 1 };
 
     batch.dispatch_compute(viewer::text_pipeline.get(),
                            [viewer::font_desc_set.get(),

@@ -603,8 +603,8 @@ impl ViewerSys {
         let label_sets = {
             self.labels
                 .label_names
-                .values()
-                .map(|&id| {
+                .iter()
+                .map(|(name, &id)| {
                     use rhai::Dynamic as Dyn;
                     let mut data = rhai::Map::default();
                     let set = self.labels.desc_set_for_id(id).unwrap().unwrap();
@@ -612,6 +612,9 @@ impl ViewerSys {
                     data.insert("x".into(), Dyn::from_int(x as i64));
                     data.insert("y".into(), Dyn::from_int(y as i64));
                     data.insert("desc_set".into(), Dyn::from(set));
+
+                    let len = self.labels.label_len(name).unwrap();
+                    data.insert("len".into(), Dyn::from_int(len as i64));
                     Dyn::from_map(data)
                 })
                 .collect::<Vec<_>>()
