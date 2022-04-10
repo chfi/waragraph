@@ -34,6 +34,28 @@ pub mod config {
         ConfigMap::default()
     }
 
+    #[rhai_fn(global, return_raw)]
+    pub fn update(
+        ctx: NativeCallContext,
+        cfg: &mut ConfigMap,
+        key: &str,
+        f: rhai::FnPtr,
+    ) -> EvalResult<Dyn> {
+        if let Some(val) = cfg.map.write().get_mut(key) {
+            let v = val.to_owned();
+            let result: Dyn = f.call_within_context(&ctx, (v,))?;
+            if val.type_id() == result.type_id() {
+                *val = result.clone();
+                Ok(result)
+            } else {
+                log::error!("function returned value of incorrect type");
+                Ok(Dyn::FALSE)
+            }
+        } else {
+            Ok(Dyn::UNIT)
+        }
+    }
+
     #[rhai_fn(name = "get", global, return_raw)]
     pub fn get_str_key(cfg: &mut ConfigMap, key: &str) -> EvalResult<Dyn> {
         if let Some(val) = cfg.map.read().get(key) {
