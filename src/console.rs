@@ -50,6 +50,8 @@ pub struct Console {
     focus: usize,
 
     pub scope: rhai::Scope<'static>,
+
+    pub modules: HashMap<rhai::ImmutableString, Arc<rhai::Module>>,
 }
 
 impl Console {
@@ -84,6 +86,7 @@ impl Console {
             ConsoleInput::Submit => {
                 match eval_scope::<rhai::Dynamic>(
                     &mut self.scope,
+                    &self.modules,
                     db,
                     buffers,
                     &self.input,
@@ -476,12 +479,17 @@ pub fn eval<T: Clone + Send + Sync + 'static>(
 
 pub fn eval_scope<T: Clone + Send + Sync + 'static>(
     scope: &mut rhai::Scope,
+    modules: &HashMap<rhai::ImmutableString, Arc<rhai::Module>>,
     db: &sled::Db,
     buffers: &BufferStorage,
     script: &str,
 ) -> Result<T> {
     // let mut engine = create_engine(db);
-    let engine = create_engine(db, buffers);
+    let mut engine = create_engine(db, buffers);
+
+    for (name, module) in modules.iter() {
+        engine.register_static_module(name, module.clone());
+    }
     // engine.
     // match engine.run_with_scope(scope, script) {
     match engine.eval_with_scope(scope, script) {

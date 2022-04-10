@@ -43,6 +43,7 @@ pub struct ViewerSys {
     // buffers: BufferStorage,
     pub frame_resources: [FrameResources; 2],
     pub frame: FrameBuilder,
+    pub rhai_module: Arc<rhai::Module>,
 
     pub on_resize: RhaiBatchFn2<i64, i64>,
 
@@ -372,6 +373,7 @@ impl ViewerSys {
             // buffers,
             frame_resources,
             frame: builder,
+            rhai_module: arc_module,
 
             on_resize,
 

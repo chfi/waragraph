@@ -57,6 +57,7 @@ pub mod config {
         f: rhai::FnPtr,
     ) -> EvalResult<Dyn> {
         if let Some(val) = cfg.map.read().get(key) {
+            // doesn't bind `this` since `this` has to be mutable
             let result: Dyn = f.call_within_context(&ctx, (val.to_owned(),))?;
             Ok(result)
         } else {
