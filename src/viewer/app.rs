@@ -1,4 +1,5 @@
 use bstr::ByteSlice;
+use parking_lot::RwLock;
 use raving::script::console::frame::FrameBuilder;
 use raving::script::console::BatchBuilder;
 use raving::vk::{
@@ -9,6 +10,8 @@ use raving::vk::resource::WindowResources;
 
 use ash::{vk, Device};
 
+use rustc_hash::FxHashMap;
+use winit::event::VirtualKeyCode;
 use winit::window::Window;
 
 use crate::config::ConfigMap;
@@ -51,6 +54,9 @@ pub struct ViewerSys {
     pub draw_foreground: RhaiBatchFn4<BatchBuilder, rhai::Array, i64, i64>,
     pub copy_to_swapchain:
         Arc<RhaiBatchFn5<BatchBuilder, DescSetIx, rhai::Map, i64, i64>>,
+
+    key_binds: Arc<RwLock<FxHashMap<VirtualKeyCode, rhai::FnPtr>>>,
+    engine: rhai::Engine,
 }
 
 impl ViewerSys {
@@ -67,10 +73,28 @@ impl ViewerSys {
 
         let label_updates = txt.tree.watch_prefix(b"t:");
 
+        let key_binds: FxHashMap<VirtualKeyCode, rhai::FnPtr> =
+            Default::default();
+        let key_binds = Arc::new(RwLock::new(key_binds));
+
+        let bind_map = key_binds.clone();
+
+        let bind_key_closure = move |val: rhai::FnPtr| {
+            log::error!("in bind_key with {:?}", val);
+            let k = VirtualKeyCode::A;
+            bind_map.write().insert(k, val);
+        };
+
         let mut builder =
             FrameBuilder::from_script_with("paths.rhai", |engine| {
                 crate::console::register_buffer_storage(db, buffers, engine);
                 crate::console::append_to_engine(db, engine);
+
+                engine.register_fn("bind_key", bind_key_closure.clone());
+                // engine.register_fn("bind_key", move |val: rhai::FnPtr| {
+                //     let k = VirtualKeyCode::A;
+                //     bind_map.write().insert(k, val);
+                // });
             })?;
 
         let config = builder.module.get_var_value::<ConfigMap>("cfg").unwrap();
@@ -358,6 +382,8 @@ impl ViewerSys {
             [new_frame(), new_frame()]
         };
 
+        let engine = Self::create_engine(db, buffers, &arc_module);
+
         Ok(Self {
             config,
             view,
@@ -380,6 +406,9 @@ impl ViewerSys {
             draw_labels,
             draw_foreground,
             copy_to_swapchain: Arc::new(copy_to_swapchain),
+
+            key_binds,
+            engine,
         })
     }
 
@@ -425,6 +454,16 @@ impl ViewerSys {
                     let mut update = false;
 
                     if input.state == winit::event::ElementState::Pressed {
+                        if let Some(fn_ptr) = self.key_binds.read().get(&kc) {
+                            let result: rhai::Dynamic = fn_ptr
+                                .call(
+                                    &self.engine,
+                                    &self.frame.ast,
+                                    (rhai::Dynamic::UNIT,),
+                                )
+                                .unwrap();
+                        }
+
                         if matches!(kc, VK::Left) {
                             view.translate(-len / 10);
                             update = true;
