@@ -2,9 +2,7 @@ export let bg_light = #{ r: 0.95, g: 0.95, b: 0.95 };
 export let bg_dark = #{ r: 0.05, g: 0.05, b: 0.05 };
 
 
-let buffer = allocate_vec4_buffer("gradient-test", 256);
-
-
+let buffer = allocate_vec4_buffer("gradient-colorbrewer-spectral", 256);
 fill_vec4_buffer(buffer,
                  [rgba(255, 255, 255),
                   rgba(128, 128, 128),

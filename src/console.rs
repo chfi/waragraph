@@ -231,13 +231,10 @@ pub fn register_buffer_storage(
         "allocate_vec4_buffer",
         move |name: &str, capacity: i64| {
             let fmt = BufFmt::FVec4;
-            // let params = (id, name.to_string(), fmt, capacity as usize);
 
             let id = buffers_
                 .queue_allocate_buffer(&db_, name, fmt, capacity as usize)
                 .map_err(|e| rhai::EvalAltResult::from(e.to_string()))?;
-
-            // alloc_queue.lock().push(params);
 
             Ok(id)
         },
@@ -258,38 +255,8 @@ pub fn register_buffer_storage(
             buffers_.insert_data(id, &vals).unwrap();
 
             Ok(())
-            // let id = db_.generate_id().unwrap();
-            // let id = BufId(id);
-            // let fmt = BufFmt::FVec4;
-            // let params = (id, name.to_string(), fmt, capacity as usize);
-            // alloc_queue.lock().push(params);
-
-            // Ok(id)
         },
     );
-
-    // let buffers_ = buffers.clone();
-
-    // engine.register
-
-    let buffers_ = buffers.clone();
-
-    // TODO check if the name already exists here
-    engine.register_result_fn("fill_vec4_buffer_test", move |id: BufId| {
-        let rgb = |r: f32, g, b| [r, g, b, 1.0];
-        let vals = [rgb(0.0, 0.0, 1.0), rgb(1.0, 1.0, 1.0)];
-
-        buffers_.insert_data(id, &vals).unwrap();
-
-        Ok(())
-        // let id = db_.generate_id().unwrap();
-        // let id = BufId(id);
-        // let fmt = BufFmt::FVec4;
-        // let params = (id, name.to_string(), fmt, capacity as usize);
-        // alloc_queue.lock().push(params);
-
-        // Ok(id)
-    });
 }
 
 pub fn create_engine(db: &sled::Db, buffers: &BufferStorage) -> rhai::Engine {

@@ -6,18 +6,16 @@
 
 import "color" as color;
 
-// export let bg_color = #{ r: 0.95, g: 0.95, b: 0.95 };
 export let bg_color = color::bg_light;
-// export let slot_gradient = "gradient_spectral";
-export let slot_gradient = "gradient-test";
 export let label_color = #{ r: 0.0, g: 0.0, b: 0.0 };
 
 // alternative dark mode example
 // export let bg_color = #{ r: 0.05, g: 0.05, b: 0.05 };
-// export let slot_gradient = "gradient_inferno";
 // export let label_color = #{ r: 0.85, g: 0.85, b: 0.85 };
 
 export let cfg = config::new_config_map();
+
+cfg.set("viz.color_scheme", "gradient-colorbrewer-spectral");
 
 // controls the slot offset and size, and the relative label offset
 // TODO: the slot offset should be derived from the label length, but
@@ -208,6 +206,8 @@ fn resize(width, height) {
 
 fn foreground(batch, desc_sets, w, h) {
 
+  let cfg = viewer::cfg;
+
   let img = viewer::out_image.get();
 
   batch.transition_image(img,
@@ -243,10 +243,12 @@ fn foreground(batch, desc_sets, w, h) {
 
   // draw paths
   let dims = #{ width: w, height: h };
+  let colors = cfg.get("viz.color_scheme");
   let batch = draw_slots(batch,
                          dims,
                          desc_sets,
-                         viewer::slot_gradient);
+                         colors);
+
   batch.transition_image(img,
                          vk::AccessFlags::SHADER_WRITE,
                          vk::PipelineStageFlags::COMPUTE_SHADER,
