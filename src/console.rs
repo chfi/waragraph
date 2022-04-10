@@ -33,10 +33,14 @@ use crate::{
 
 use lazy_static::lazy_static;
 
-// use lazy_static so that the config module only has to be loaded once
+// use lazy_static so that modules only have to be loaded once
 lazy_static! {
     static ref CONFIG_MODULE: Arc<rhai::Module> = {
         let module = rhai::exported_module!(crate::config::config);
+        Arc::new(module)
+    };
+    static ref KEY_MODULE: Arc<rhai::Module> = {
+        let module = crate::input::create_key_module();
         Arc::new(module)
     };
 }
@@ -297,6 +301,7 @@ pub fn create_engine(db: &sled::Db, buffers: &BufferStorage) -> rhai::Engine {
 // pub fn create_engine(db: &sled::Db) -> rhai::Engine {
 pub fn append_to_engine(db: &sled::Db, engine: &mut rhai::Engine) {
     engine.register_static_module("config", CONFIG_MODULE.clone());
+    engine.register_static_module("key", KEY_MODULE.clone());
 
     // example of loading a rhai script as a console module
     /*

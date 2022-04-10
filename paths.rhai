@@ -141,11 +141,11 @@ export let path_shader = load_shader("shaders/path_slot_indexed.comp.spv",
                                      vk::ShaderStageFlags::COMPUTE);
 export let path_pipeline = create_compute_pipeline(path_shader);
 
-let some_val = 0;
+let counter = 0;
 
-bind_key(|event| {
-  print(`does this work? ${some_val}`);
-  some_val += 1;
+bind_key(key::A, |event| {
+  print(`counter: ${counter}`);
+  counter += 1;
 });
 
 

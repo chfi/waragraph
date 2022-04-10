@@ -79,10 +79,9 @@ impl ViewerSys {
 
         let bind_map = key_binds.clone();
 
-        let bind_key_closure = move |val: rhai::FnPtr| {
-            log::error!("in bind_key with {:?}", val);
-            let k = VirtualKeyCode::A;
-            bind_map.write().insert(k, val);
+        let bind_key_closure = move |key: VirtualKeyCode, val: rhai::FnPtr| {
+            log::warn!("binding {:?} -> {:?}", key, val);
+            bind_map.write().insert(key, val);
         };
 
         let mut builder =
