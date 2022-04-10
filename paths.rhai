@@ -64,6 +64,29 @@ fn value_color_index_map(v) {
 // }
 
 //
+// keybinds and commands
+//
+
+let tgl_short_names = false;
+
+const short_name_len = 11;
+const long_name_len = 40;
+
+bind_key(key::Tab, |pressed| {
+  if pressed {
+    cfg.update("layout.max_path_name_len", || {
+      if tgl_short_names {
+        this = short_name_len;
+      } else {
+        this = long_name_len;
+      }
+      tgl_short_names ^= true;
+    });
+  }
+});
+
+
+//
 // engine-related resources
 //
 
@@ -140,17 +163,6 @@ export let font_desc_set =
 export let path_shader = load_shader("shaders/path_slot_indexed.comp.spv",
                                      vk::ShaderStageFlags::COMPUTE);
 export let path_pipeline = create_compute_pipeline(path_shader);
-
-let counter = 0;
-
-bind_key(key::A, |pressed| {
-  if pressed {
-    print("pressed");
-    counter += 1;
-  } else {
-    print(`counter: ${counter}`);
-  }
-});
 
 
 fn init() {
