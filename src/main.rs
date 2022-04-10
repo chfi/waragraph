@@ -306,6 +306,9 @@ fn main() -> Result<()> {
                                 .unwrap();
                         }
                     }
+                    WindowEvent::CursorMoved { position, .. } => {
+                        waragraph::input::set_mouse_pos(position.x, position.y);
+                    }
                     WindowEvent::KeyboardInput { input, .. } => {
                         if let Some(kc) = input.virtual_keycode {
                             use VirtualKeyCode as VK;

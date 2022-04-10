@@ -19,6 +19,32 @@ use anyhow::{anyhow, bail, Result};
 
 use zerocopy::{AsBytes, FromBytes};
 
+use crossbeam::atomic::AtomicCell;
+
+use lazy_static::lazy_static;
+
+lazy_static! {
+    static ref MOUSE_POS: AtomicCell<(f64, f64)> = AtomicCell::new((0.0, 0.0));
+}
+
+pub fn set_mouse_pos(x: f64, y: f64) {
+    MOUSE_POS.store((x, y));
+}
+
+pub fn create_mouse_module() -> rhai::Module {
+    let mut module: rhai::Module = rhai::exported_module!(mouse);
+
+    module.set_native_fn("get_pos", || {
+        let (x, y) = MOUSE_POS.load();
+        let mut pos = rhai::Map::default();
+        pos.insert("x".into(), rhai::Dynamic::from_float(x as f32));
+        pos.insert("y".into(), rhai::Dynamic::from_float(y as f32));
+        Ok(pos)
+    });
+
+    module
+}
+
 pub fn create_key_module() -> rhai::Module {
     let mut module: rhai::Module = rhai::exported_module!(key);
 
@@ -28,13 +54,22 @@ pub fn create_key_module() -> rhai::Module {
 }
 
 #[export_module]
+pub mod mouse {
+    use winit::event;
+
+    pub type Button = event::MouseButton;
+
+    pub const Left: Button = event::MouseButton::Left;
+    pub const Right: Button = event::MouseButton::Right;
+    pub const Middle: Button = event::MouseButton::Middle;
+}
+
+#[export_module]
 pub mod key {
 
     use winit::event;
 
     pub type Key = event::VirtualKeyCode;
-
-    pub const TEST: Key = event::VirtualKeyCode::A;
 }
 
 fn add_keys(module: &mut rhai::Module) {

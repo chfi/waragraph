@@ -43,6 +43,10 @@ lazy_static! {
         let module = crate::input::create_key_module();
         Arc::new(module)
     };
+    static ref MOUSE_MODULE: Arc<rhai::Module> = {
+        let module = crate::input::create_mouse_module();
+        Arc::new(module)
+    };
 }
 
 // pub mod ivec;
@@ -302,6 +306,7 @@ pub fn create_engine(db: &sled::Db, buffers: &BufferStorage) -> rhai::Engine {
 pub fn append_to_engine(db: &sled::Db, engine: &mut rhai::Engine) {
     engine.register_static_module("config", CONFIG_MODULE.clone());
     engine.register_static_module("key", KEY_MODULE.clone());
+    engine.register_static_module("mouse", MOUSE_MODULE.clone());
 
     // example of loading a rhai script as a console module
     /*
