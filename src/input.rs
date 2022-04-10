@@ -22,8 +22,6 @@ use zerocopy::{AsBytes, FromBytes};
 pub fn create_key_module() -> rhai::Module {
     let mut module: rhai::Module = rhai::exported_module!(key);
 
-    // module.set_var(name, value)
-
     add_keys(&mut module);
 
     module

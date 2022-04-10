@@ -143,9 +143,13 @@ export let path_pipeline = create_compute_pipeline(path_shader);
 
 let counter = 0;
 
-bind_key(key::A, |event| {
-  print(`counter: ${counter}`);
-  counter += 1;
+bind_key(key::A, |pressed| {
+  if pressed {
+    print("pressed");
+    counter += 1;
+  } else {
+    print(`counter: ${counter}`);
+  }
 });
 
 

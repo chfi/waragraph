@@ -10,6 +10,7 @@ use raving::vk::resource::WindowResources;
 
 use ash::{vk, Device};
 
+use rhai::plugin::RhaiResult;
 use rustc_hash::FxHashMap;
 use winit::event::VirtualKeyCode;
 use winit::window::Window;
@@ -90,10 +91,6 @@ impl ViewerSys {
                 crate::console::append_to_engine(db, engine);
 
                 engine.register_fn("bind_key", bind_key_closure.clone());
-                // engine.register_fn("bind_key", move |val: rhai::FnPtr| {
-                //     let k = VirtualKeyCode::A;
-                //     bind_map.write().insert(k, val);
-                // });
             })?;
 
         let config = builder.module.get_var_value::<ConfigMap>("cfg").unwrap();
@@ -452,17 +449,24 @@ impl ViewerSys {
 
                     let mut update = false;
 
-                    if input.state == winit::event::ElementState::Pressed {
-                        if let Some(fn_ptr) = self.key_binds.read().get(&kc) {
-                            let result: rhai::Dynamic = fn_ptr
-                                .call(
-                                    &self.engine,
-                                    &self.frame.ast,
-                                    (rhai::Dynamic::UNIT,),
-                                )
-                                .unwrap();
-                        }
+                    let pressed = matches!(
+                        input.state,
+                        winit::event::ElementState::Pressed
+                    );
 
+                    if let Some(fn_ptr) = self.key_binds.read().get(&kc) {
+                        let result: RhaiResult = fn_ptr.call(
+                            &self.engine,
+                            &self.frame.ast,
+                            (rhai::Dynamic::from(pressed),),
+                        );
+
+                        if let Err(e) = result {
+                            log::error!("bound key error: {:?}", e);
+                        }
+                    }
+
+                    if pressed {
                         if matches!(kc, VK::Left) {
                             view.translate(-len / 10);
                             update = true;
