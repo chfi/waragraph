@@ -530,7 +530,7 @@ impl ViewerSys {
         let get_cast = |m: &rhai::Map, k| m.get(k).unwrap().clone_cast::<i64>();
 
         let label_x = get_cast(&label, "x");
-        let label_y = get_cast(&label, "y");
+        let label_y = get_cast(&label, "y") + get_cast(&slot, "y");
 
         let name_len = get_cast(&map, "layout.max_path_name_len");
 

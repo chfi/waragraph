@@ -55,11 +55,22 @@ impl SlotCache {
         &mut self,
         paths: impl IntoIterator<Item = Path>,
     ) -> Result<()> {
-        for slot in self.slots.iter_mut() {
-            slot.path = None;
+        let mut to_insert = paths.into_iter().collect::<FxHashSet<_>>();
+
+        let mut to_remove = Vec::new();
+
+        for path in self.path_map.keys() {
+            if to_insert.remove(path) {
+            } else {
+                to_remove.push(*path);
+            }
         }
 
-        for path in paths.into_iter() {
+        for path in to_remove {
+            self.unbind_path(path);
+        }
+
+        for path in to_insert {
             if let Some(slot) =
                 self.bind_path(path).and_then(|i| self.slots.get_mut(i))
             {

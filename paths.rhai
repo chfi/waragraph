@@ -26,9 +26,9 @@ cfg.set("viz.slot_function", "loop_count_mean");
 // i'm not sure where to put the logic
 // for now it's best to just change these values as needed
 cfg.set("layout.slot", #{ x: 0, y: 36, w: -10, h: 16 });
-cfg.set("layout.label", #{ x: 14, y: 40 });
+cfg.set("layout.label", #{ x: 14, y: 2 });
 cfg.set("layout.max_path_name_len", 14);
-cfg.set("layout.padding", 4);
+cfg.set("layout.padding", 2);
 
 
 // this function can be edited to change the mapping from values to colors;
@@ -489,6 +489,8 @@ fn draw_slots(batch, win_dims, slot_desc_sets, color_buffer) {
                                 viewer::out_desc_set.get()],
                                pc,
                                workgroups);
+      } else {
+        print("got a () in draw_slots!");
       }
 
     }

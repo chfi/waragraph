@@ -44,7 +44,7 @@ crossbeam = "0.8"
 parking_lot = "0.11.1"
 # poll-promise = "0.1"
 
-rhai = { version = "1.4", features = ["sync", "f32_float"] }
+rhai = { version = "1.6", features = ["sync", "f32_float"] }
 bytemuck = { version = "1.7", features = ["derive"] }
 
 # temporary deps while i'm working on this as both the library & viewer
