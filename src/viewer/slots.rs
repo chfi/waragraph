@@ -80,11 +80,7 @@ impl SlotRenderers {
             let mut len = right_start - left_start;
 
             let l_val = sum_data_source(path, left).unwrap_or_default();
-            let r_val = sum_data_source(path, right).unwrap_or_else(|| {
-                let i = ri - 1;
-                let node = Node::from(i as u32);
-                sum_data_source(path, node).unwrap_or(l_val + 1)
-            });
+            let r_val = sum_data_source(path, right).unwrap_or_default();
 
             let l_val = l_val as usize;
             let r_val = r_val as usize;
