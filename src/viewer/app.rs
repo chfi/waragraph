@@ -225,7 +225,7 @@ impl ViewerSys {
         //
         let view = ViewDiscrete1D::new(waragraph.total_len());
 
-        let slot_count = 32;
+        let slot_count = 16;
 
         let mut path_viewer = engine.with_allocators(|ctx, res, alloc| {
             PathViewer::new(
@@ -500,6 +500,27 @@ impl ViewerSys {
             }
             _ => (),
         }
+    }
+
+    pub fn visible_slot_count(
+        &self,
+        graph: &Waragraph,
+        window_height: u32,
+    ) -> usize {
+        let map = self.config.map.read();
+        let get_cast = |m: &rhai::Map, k| m.get(k).unwrap().clone_cast::<i64>();
+        let padding = map.get("layout.padding").unwrap().clone_cast::<i64>();
+        let slot = map.get("layout.slot").unwrap().clone_cast::<rhai::Map>();
+
+        let win_h = window_height as usize;
+        let y = get_cast(&slot, "y") as usize;
+        let slot_h = (get_cast(&slot, "h") + padding) as usize;
+
+        let count = (win_h - y) / slot_h;
+
+        let path_count = graph.path_names.len();
+
+        count.min(path_count)
     }
 
     fn update_labels_impl(

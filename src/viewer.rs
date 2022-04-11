@@ -154,14 +154,14 @@ impl ViewDiscrete1D {
 pub struct PathViewer {
     pub tree: sled::Tree,
 
-    row_max: usize,
-    row_view: Arc<AtomicCell<(usize, usize)>>,
+    pub row_max: usize,
+    pub row_view: Arc<AtomicCell<(usize, usize)>>,
 
     update: AtomicCell<bool>,
 
     pub width: usize,
 
-    slots: SlotCache,
+    pub slots: SlotCache,
 
     // pub slots: Vec<PathViewSlot>,
     // slot_cache: HashMap<(usize, (usize, usize), IVec), usize>,
@@ -210,6 +210,10 @@ impl PathViewer {
         };
 
         Ok(result)
+    }
+
+    pub fn force_update(&self) {
+        self.update.store(true);
     }
 
     pub fn should_update(&self) -> bool {

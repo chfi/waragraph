@@ -158,6 +158,47 @@ fn main() -> Result<()> {
                 buffers.allocate_queued(&mut engine).unwrap();
                 buffers.fill_updated_buffers(&mut engine.resources).unwrap();
 
+                {
+                    let [_, h] = swapchain_dims.load();
+
+                    let vis_count = viewer.visible_slot_count(&waragraph, h);
+
+                    {
+                        let (o, _l) = viewer.path_viewer.row_view.load();
+                        viewer.path_viewer.row_view.store((o, vis_count));
+                    }
+
+                    let cap = viewer.path_viewer.slots.capacity();
+                    let slot_width = viewer.path_viewer.width;
+
+                    let diff = vis_count.checked_sub(cap).unwrap_or_default();
+                    if diff > 0 {
+                        log::warn!("allocating {} slots", diff);
+                        viewer.path_viewer.force_update();
+                    }
+
+                    for _ in 0..diff {
+                        let i = viewer.path_viewer.slots.capacity();
+                        engine
+                            .with_allocators(|ctx, res, alloc| {
+                                viewer.path_viewer.slots.allocate_slot(
+                                    ctx, res, alloc, slot_width,
+                                )?;
+                                Ok(())
+                            })
+                            .unwrap();
+
+                        let name = format!("path-name-{}", i);
+                        viewer
+                            .labels
+                            .allocate_label(&db, &mut engine, &name)
+                            .unwrap();
+                    }
+
+                    let paths = viewer.path_viewer.visible_paths(&waragraph);
+                    viewer.path_viewer.slots.bind_paths(paths).unwrap();
+                }
+
                 // path-viewer specific, dependent on previous view
                 if viewer.path_viewer.should_update() {
                     let view = viewer.view;
@@ -320,14 +361,14 @@ fn main() -> Result<()> {
                                 == winit::event::ElementState::Pressed
                             {
                                 if matches!(kc, VK::Return) {
-                                    console
-                                        .handle_input(
-                                            &db,
-                                            &buffers,
-                                            &viewer.labels,
-                                            ConsoleInput::Submit,
-                                        )
-                                        .unwrap();
+                                    if let Err(e) = console.handle_input(
+                                        &db,
+                                        &buffers,
+                                        &viewer.labels,
+                                        ConsoleInput::Submit,
+                                    ) {
+                                        log::error!("Console error: {:?}", e);
+                                    }
                                 } else if matches!(kc, VK::Back) {
                                     console
                                         .handle_input(
