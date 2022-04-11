@@ -476,7 +476,10 @@ impl ViewerSys {
                             update = true;
                             assert_eq!(pre_len, view.len());
                         } else if matches!(kc, VK::Up) {
-                            view.resize((len - len / 9) as usize);
+                            if view.len() > self.path_viewer.width {
+                                view.resize((len - len / 9) as usize);
+                            }
+                            view.len = view.len.max(self.path_viewer.width);
                             update = true;
                         } else if matches!(kc, VK::Down) {
                             view.resize((len + len / 10) as usize);
@@ -560,6 +563,35 @@ impl ViewerSys {
         let res_builder =
             window_resources.build(engine, width, height).unwrap();
 
+        let slot_width = {
+            let map = self.config.map.read();
+
+            let padding =
+                map.get("layout.padding").unwrap().clone_cast::<i64>();
+            let slot =
+                map.get("layout.slot").unwrap().clone_cast::<rhai::Map>();
+            let label =
+                map.get("layout.label").unwrap().clone_cast::<rhai::Map>();
+
+            let get_cast =
+                |m: &rhai::Map, k| m.get(k).unwrap().clone_cast::<i64>();
+
+            let name_len = get_cast(&map, "layout.max_path_name_len");
+
+            let slot_x = get_cast(&slot, "x")
+                + get_cast(&label, "x")
+                + padding
+                + name_len * 8;
+
+            let w = get_cast(&slot, "w");
+
+            let width = width as i64;
+
+            let slot_w = if w < 0 { width + w - slot_x } else { w };
+
+            slot_w as usize
+        };
+
         engine
             .with_allocators(|ctx, res, alloc| {
                 res_builder.insert(
@@ -569,13 +601,7 @@ impl ViewerSys {
                     alloc,
                 )?;
 
-                self.path_viewer.resize(
-                    ctx,
-                    res,
-                    alloc,
-                    width as usize,
-                    0u32,
-                )?;
+                self.path_viewer.resize(ctx, res, alloc, slot_width, 0u32)?;
 
                 Ok(())
             })
@@ -583,6 +609,10 @@ impl ViewerSys {
 
         {
             let slot_width = self.path_viewer.width;
+
+            if self.view.len < slot_width {
+                self.view.len = slot_width;
+            }
 
             // txt.set_label_pos(b"view:start", 20, 16)?;
             let len_len = self.labels.label_len(b"view:len").unwrap();

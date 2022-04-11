@@ -173,12 +173,6 @@ fn main() -> Result<()> {
                     viewer.path_viewer.sample(&waragraph, &view);
                 }
 
-                // TODO: should only be called when the view has
-                // scrolled, but it should also update whenever the
-                // label layout changes, and there's currently no way
-                // to check just for that
-                viewer.update_labels(&waragraph);
-
                 if viewer.path_viewer.has_new_samples() {
                     let update_key =
                         db.get(b"slot_function").ok().flatten().unwrap();
@@ -188,6 +182,12 @@ fn main() -> Result<()> {
                         log::error!("PathViewer slot update error: {:?}", e);
                     }
                 }
+
+                // TODO: should only be called when the view has
+                // scrolled, but it should also update whenever the
+                // label layout changes, and there's currently no way
+                // to check just for that
+                viewer.update_labels(&waragraph);
 
                 // handle sled-based label updates
                 // TODO: currently console relies on this to render
