@@ -239,14 +239,14 @@ impl ViewerSys {
             )
         })?;
 
-        path_viewer.sample(&waragraph, &view);
+        path_viewer.sample(waragraph, &view);
 
-        for i in path_viewer.visible_indices() {
+        for i in path_viewer.visible_paths(waragraph) {
             let name = format!("path-name-{}", i);
             txt.allocate_label(&db, engine, &name)?;
         }
 
-        Self::update_labels_impl(&config, &txt, &waragraph, &path_viewer);
+        Self::update_labels_impl(&config, &txt, waragraph, &path_viewer);
         // path_viewer.update_labels(&waragraph, &txt)?;
 
         let out_image = *window_resources.indices.images.get("out").unwrap();
@@ -402,7 +402,11 @@ impl ViewerSys {
         })
     }
 
-    pub fn update_slots(&mut self, resources: &mut GpuResources) -> Result<()> {
+    pub fn update_slots(
+        &mut self,
+        resources: &mut GpuResources,
+        graph: &Arc<Waragraph>,
+    ) -> Result<()> {
         let update_key = self
             .config
             .map
@@ -424,7 +428,7 @@ impl ViewerSys {
                 def
             });
 
-        self.path_viewer.update_from(resources, updater);
+        self.path_viewer.update_from(resources, graph, updater);
 
         Ok(())
     }
@@ -656,6 +660,7 @@ impl ViewerSys {
         engine: &mut VkEngine,
         window: &Window,
         window_resources: &WindowResources,
+        graph: &Waragraph,
     ) -> Result<bool> {
         let f_ix = engine.current_frame_number();
 
@@ -686,12 +691,17 @@ impl ViewerSys {
         };
 
         let mut desc_sets = Vec::new();
-        desc_sets.extend(self.path_viewer.slots.iter().map(|slot| {
-            let slot_set_ix = slot.desc_set();
+        desc_sets.extend(self.path_viewer.visible_paths(graph).map(|path| {
             let mut map = rhai::Map::default();
-            map.insert("slot".into(), rhai::Dynamic::from(slot_set_ix));
-            rhai::Dynamic::from_map(map)
-            // desc_sets.push(rhai::Dynamic::from_map(map));
+            if let Some(slot) = self.path_viewer.slots.get_slot_for(path) {
+                if slot.path == Some(path) {
+                    let slot_set = slot.slot.desc_set();
+                    map.insert("slot".into(), rhai::Dynamic::from(slot_set));
+                } else {
+                    map.insert("slot".into(), rhai::Dynamic::UNIT);
+                }
+            }
+            rhai::Dynamic::from(map)
         }));
 
         let batch_builder = BatchBuilder::default();

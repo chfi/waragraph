@@ -480,14 +480,17 @@ fn draw_slots(batch, win_dims, slot_desc_sets, color_buffer) {
 
       let slot_set = desc_sets.slot;
 
-      let pc = slot_push_constant(win_dims, slot_x, slot_w, ix);
+      if slot_set.type_of() != "()" {
+        let pc = slot_push_constant(win_dims, slot_x, slot_w, ix);
 
-      batch.dispatch_compute(viewer::path_pipeline.get(),
-                             [slot_set,
-                              color_data.set,
-                              viewer::out_desc_set.get()],
-                             pc,
-                             workgroups);
+        batch.dispatch_compute(viewer::path_pipeline.get(),
+                               [slot_set,
+                                color_data.set,
+                                viewer::out_desc_set.get()],
+                               pc,
+                               workgroups);
+      }
+
     }
   }
   catch (err)

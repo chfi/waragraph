@@ -9,7 +9,7 @@ use raving::vk::{
 };
 use rspirv_reflect::DescriptorInfo;
 
-use rustc_hash::FxHashMap;
+use rustc_hash::{FxHashMap, FxHashSet};
 use sprs::CsVecI;
 use zerocopy::{AsBytes, FromBytes};
 
@@ -29,20 +29,43 @@ pub type SlotUpdateFn<T> =
     Arc<dyn Fn(&[(Node, usize)], usize, usize) -> T + Send + Sync + 'static>;
 
 pub struct Slot {
-    path: Option<usize>,
-    view: Option<(usize, usize)>,
+    pub path: Option<usize>,
+    pub view: Option<(usize, usize)>,
 
     pub slot: PathViewSlot,
 }
 
 #[derive(Default)]
 pub struct SlotCache {
-    slots: Vec<Slot>,
-    path_map: FxHashMap<Path, usize>, // value is index into `slots`
+    pub(crate) slots: Vec<Slot>,
+    pub(crate) path_map: FxHashMap<Path, usize>, // value is index into `slots`
 }
 
 impl SlotCache {
-    fn allocate_slot(
+    pub fn capacity(&self) -> usize {
+        self.slots.len()
+    }
+
+    pub fn bind_paths(
+        &mut self,
+        paths: impl IntoIterator<Item = Path>,
+    ) -> Result<()> {
+        for slot in self.slots.iter_mut() {
+            slot.path = None;
+        }
+
+        for path in paths.into_iter() {
+            if let Some(slot) =
+                self.bind_path(path).and_then(|i| self.slots.get_mut(i))
+            {
+                slot.path = Some(path);
+            }
+        }
+
+        Ok(())
+    }
+
+    pub fn allocate_slot(
         &mut self,
         ctx: &VkContext,
         res: &mut GpuResources,
@@ -62,11 +85,28 @@ impl SlotCache {
         Ok(i)
     }
 
-    // fn update_slot_impl(&mut self, slot_ix: usize,
-    //                     path: Path,
-    //                     view_offset: usize,
-    //                     view_len: usize,
-    // contents: &[u32]
+    pub fn update_bound_slot(
+        &mut self,
+        res: &mut GpuResources,
+        path: Path,
+        view_offset: usize,
+        view_len: usize,
+        contents: &[u32],
+    ) -> Option<()> {
+        let slot = self
+            .path_map
+            .get(&path)
+            .and_then(|&i| self.slots.get_mut(i))?;
+
+        if slot.path != Some(path) {
+            return None;
+        }
+
+        slot.slot.fill_from(res, contents)?;
+        slot.view = Some((view_offset, view_len));
+
+        Some(())
+    }
 
     pub fn get_slot_for(&self, path: Path) -> Option<&Slot> {
         let slot_ix = *self.path_map.get(&path)?;

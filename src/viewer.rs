@@ -26,7 +26,7 @@ pub use sampler::*;
 pub use slots::*;
 
 use crate::{
-    graph::{Node, Waragraph},
+    graph::{Node, Path, Waragraph},
     util::LabelStorage,
 };
 
@@ -161,9 +161,10 @@ pub struct PathViewer {
 
     pub width: usize,
 
-    pub slots: Vec<PathViewSlot>,
-    slot_cache: HashMap<(usize, (usize, usize), IVec), usize>,
+    slots: SlotCache,
 
+    // pub slots: Vec<PathViewSlot>,
+    // slot_cache: HashMap<(usize, (usize, usize), IVec), usize>,
     sample_buf: Vec<(Node, usize)>,
 
     new_samples: AtomicCell<bool>,
@@ -171,22 +172,6 @@ pub struct PathViewer {
 
 impl PathViewer {
     const SLOT_MASK: [u8; 7] = *b"slot:02";
-
-    fn allocate_slot(
-        &mut self,
-        ctx: &VkContext,
-        res: &mut GpuResources,
-        alloc: &mut Allocator,
-    ) -> Result<()> {
-        let width = self.width;
-
-        let i = self.slots.len();
-        let name = format!("path-viewer-slot-{}", i);
-        let slot = PathViewSlot::new(ctx, res, alloc, width, Some(&name))?;
-        self.slots.push(slot);
-
-        Ok(())
-    }
 
     pub fn new(
         db: &sled::Db,
@@ -199,7 +184,13 @@ impl PathViewer {
     ) -> Result<Self> {
         let tree = db.open_tree(b"path_viewer")?;
 
-        let slots = Vec::with_capacity(slot_count);
+        let slot_count = slot_count.min(path_count);
+
+        let mut slots = SlotCache::default();
+
+        for _ in 0..slot_count {
+            slots.allocate_slot(ctx, res, alloc, width)?;
+        }
 
         let row_view = Arc::new(AtomicCell::new((0, slot_count)));
         let row_max = path_count;
@@ -209,7 +200,6 @@ impl PathViewer {
             width,
 
             slots,
-            slot_cache: Default::default(),
 
             row_view,
             row_max,
@@ -218,10 +208,6 @@ impl PathViewer {
             update: true.into(),
             new_samples: false.into(),
         };
-
-        for _ in 0..slot_count {
-            result.allocate_slot(ctx, res, alloc)?;
-        }
 
         Ok(result)
     }
@@ -257,17 +243,39 @@ impl PathViewer {
         self.update.store(true);
     }
 
+    /*
+    pub fn update_slots(
+        &mut self,
+        ctx: &VkContext,
+        res: &mut GpuResources,
+        alloc: &mut Allocator,
+        updater: &SlotUpdateFn<u32>,
+    ) -> Option<()> {
+
+        // let paths = self.slot_cache.
+
+        Some(())
+    }
+    */
+
     pub fn update_from(
         &mut self,
         res: &mut GpuResources,
+        graph: &Arc<Waragraph>,
         updater: &SlotUpdateFn<u32>,
     ) -> Option<()> {
-        let vis = self.visible_indices();
-
+        let paths = self.visible_paths(graph);
         let samples = &self.sample_buf;
 
-        for (path, slot) in vis.zip(self.slots.iter_mut()) {
-            slot.update_from(res, |ix| updater(samples, path, ix));
+        let mut buffer = Vec::new();
+
+        for path in paths {
+            if let Some(slot) = self.slots.get_slot_mut_for(path) {
+                buffer.clear();
+                buffer
+                    .extend((0..self.width).map(|i| updater(samples, path, i)));
+                slot.slot.fill_from(res, &buffer)?;
+            }
         }
 
         self.new_samples.store(false);
@@ -287,7 +295,7 @@ impl PathViewer {
         let yd = y_delta;
         let max_len = max_len as usize;
 
-        for (ix, path_i) in self.visible_indices().enumerate() {
+        for (ix, path_i) in self.visible_paths(graph).enumerate() {
             if let Some(path_name) = graph.path_names.get(path_i) {
                 // let path_name = &graph.path_names[path_i];
 
@@ -308,10 +316,18 @@ impl PathViewer {
         Ok(())
     }
 
-    pub fn visible_indices(&self) -> std::ops::Range<usize> {
+    pub fn visible_paths(
+        &self,
+        graph: &Waragraph,
+    ) -> impl Iterator<Item = Path> {
         let (offset, len) = self.row_view.load();
         offset..offset + len
     }
+
+    // pub fn visible_indices(&self) -> std::ops::Range<usize> {
+    //     let (offset, len) = self.row_view.load();
+    //     offset..offset + len
+    // }
 
     pub fn resize(
         &mut self,
@@ -321,8 +337,8 @@ impl PathViewer {
         new_width: usize,
         fill: u32,
     ) -> Result<()> {
-        for slot in self.slots.iter_mut() {
-            slot.resize(ctx, res, alloc, new_width, fill)?;
+        for slot in self.slots.slots.iter_mut() {
+            slot.slot.resize(ctx, res, alloc, new_width, fill)?;
         }
         self.width = new_width;
         Ok(())

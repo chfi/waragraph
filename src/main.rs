@@ -174,7 +174,9 @@ fn main() -> Result<()> {
                 }
 
                 if viewer.path_viewer.has_new_samples() {
-                    if let Err(e) = viewer.update_slots(&mut engine.resources) {
+                    if let Err(e) =
+                        viewer.update_slots(&mut engine.resources, &waragraph)
+                    {
                         log::error!("PathViewer slot update error: {:?}", e);
                     }
                 }
@@ -221,7 +223,12 @@ fn main() -> Result<()> {
                 if recreate_swapchain_timer.is_none() && !recreate_swapchain {
                     let render_success = match mode {
                         Modes::PathViewer => viewer
-                            .render(&mut engine, &window, &window_resources)
+                            .render(
+                                &mut engine,
+                                &window,
+                                &window_resources,
+                                &waragraph,
+                            )
                             .unwrap(),
                         Modes::Graph3D => todo!(),
                     };
