@@ -222,12 +222,6 @@ impl ViewerSys {
                 .unwrap();
         slot_renderer_cache.insert("has_node_mid".into(), has_node_mid);
 
-        let slot_function = builder
-            .module
-            .get_var_value::<rhai::ImmutableString>("slot_function")
-            .unwrap_or_else(|| "loop_count_mean".into());
-        db.insert(b"slot_function", slot_function.as_bytes())?;
-
         //
         let view = ViewDiscrete1D::new(waragraph.total_len());
 
@@ -408,11 +402,15 @@ impl ViewerSys {
         })
     }
 
-    pub fn update_slots<K: AsRef<[u8]>>(
-        &mut self,
-        resources: &mut GpuResources,
-        update_key: K,
-    ) -> Result<()> {
+    pub fn update_slots(&mut self, resources: &mut GpuResources) -> Result<()> {
+        let update_key = self
+            .config
+            .map
+            .read()
+            .get("viz.slot_function")
+            .and_then(|v| v.clone().into_immutable_string().ok())
+            .unwrap_or_else(|| "unknown".into());
+
         let def = self
             .slot_renderer_cache
             .get(b"loop_count_mean".as_ref())
@@ -420,12 +418,9 @@ impl ViewerSys {
 
         let updater = self
             .slot_renderer_cache
-            .get(update_key.as_ref())
+            .get(update_key.as_bytes())
             .unwrap_or_else(|| {
-                log::warn!(
-                    "slot renderer `{}` not found",
-                    update_key.as_ref().as_bstr()
-                );
+                log::warn!("slot renderer `{}` not found", update_key);
                 def
             });
 

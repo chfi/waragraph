@@ -300,11 +300,6 @@ pub fn append_to_engine(db: &sled::Db, engine: &mut rhai::Engine) {
         [f(r), f(g), f(b), 1.0]
     });
 
-    let db_ = db.clone();
-    engine.register_fn("set_slot_fn", move |s: &str| {
-        db_.update_and_fetch(b"slot_function", |_| Some(s)).unwrap();
-    });
-
     engine.register_type_with_name::<IVec>("IVec");
 
     engine.register_fn("ivec", |len: i64| {

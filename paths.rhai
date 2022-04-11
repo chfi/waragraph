@@ -15,7 +15,11 @@ export let label_color = #{ r: 0.0, g: 0.0, b: 0.0 };
 
 export let cfg = config::new_config_map();
 
+
 cfg.set("viz.color_scheme", "gradient-colorbrewer-spectral");
+cfg.set("viz.slot_function", "loop_count_mean");
+// cfg.set("viz.slot_function", "loop_count_mid");
+// cfg.set("viz.slot_function", "has_node_mid");
 
 // controls the slot offset and size, and the relative label offset
 // TODO: the slot offset should be derived from the label length, but
@@ -26,10 +30,6 @@ cfg.set("layout.label", #{ x: 14, y: 40 });
 cfg.set("layout.max_path_name_len", 14);
 cfg.set("layout.padding", 4);
 
-// other options
-export let slot_function = "loop_count_mean";
-// export let slot_function = "loop_count_mid";
-// export let slot_function = "has_node_mid";
 
 // this function can be edited to change the mapping from values to colors;
 // the output is used an index into a 256-long gradient buffer

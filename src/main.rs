@@ -174,11 +174,7 @@ fn main() -> Result<()> {
                 }
 
                 if viewer.path_viewer.has_new_samples() {
-                    let update_key =
-                        db.get(b"slot_function").ok().flatten().unwrap();
-                    if let Err(e) =
-                        viewer.update_slots(&mut engine.resources, update_key)
-                    {
+                    if let Err(e) = viewer.update_slots(&mut engine.resources) {
                         log::error!("PathViewer slot update error: {:?}", e);
                     }
                 }
