@@ -9,6 +9,7 @@ use raving::vk::{
 };
 use rspirv_reflect::DescriptorInfo;
 
+use rustc_hash::FxHashMap;
 use sprs::CsVecI;
 use zerocopy::{AsBytes, FromBytes};
 
@@ -17,7 +18,7 @@ use anyhow::{anyhow, Result};
 use crossbeam::atomic::AtomicCell;
 use std::sync::Arc;
 
-use crate::graph::{Node, Waragraph};
+use crate::graph::{Node, Path, Waragraph};
 
 // pub type Path = usize;
 
@@ -26,6 +27,93 @@ pub type DataSource =
 
 pub type SlotUpdateFn<T> =
     Arc<dyn Fn(&[(Node, usize)], usize, usize) -> T + Send + Sync + 'static>;
+
+pub struct Slot {
+    path: Option<usize>,
+    view: Option<(usize, usize)>,
+
+    pub slot: PathViewSlot,
+}
+
+#[derive(Default)]
+pub struct SlotCache {
+    slots: Vec<Slot>,
+    path_map: FxHashMap<Path, usize>, // value is index into `slots`
+}
+
+impl SlotCache {
+    fn allocate_slot(
+        &mut self,
+        ctx: &VkContext,
+        res: &mut GpuResources,
+        alloc: &mut Allocator,
+        width: usize,
+    ) -> Result<usize> {
+        let i = self.slots.len();
+        let name = format!("path-viewer-slot-{}", i);
+        let slot = Slot {
+            path: None,
+            view: None,
+
+            slot: PathViewSlot::new(ctx, res, alloc, width, Some(&name))?,
+        };
+        self.slots.push(slot);
+
+        Ok(i)
+    }
+
+    // fn update_slot_impl(&mut self, slot_ix: usize,
+    //                     path: Path,
+    //                     view_offset: usize,
+    //                     view_len: usize,
+    // contents: &[u32]
+
+    pub fn get_slot_for(&self, path: Path) -> Option<&Slot> {
+        let slot_ix = *self.path_map.get(&path)?;
+        let slot = self.slots.get(slot_ix)?;
+        slot.path.is_some().then(|| slot)
+    }
+
+    pub fn get_slot_mut_for(&mut self, path: Path) -> Option<&mut Slot> {
+        let slot_ix = *self.path_map.get(&path)?;
+        let slot = self.slots.get_mut(slot_ix)?;
+        slot.path.is_some().then(|| slot)
+    }
+
+    /// returns the index for the path if it is (or already was)
+    /// successfully bound to a slot
+    ///
+    /// if not successful, more slots need to be allocated
+    pub fn bind_path(&mut self, path: Path) -> Option<usize> {
+        if let Some(slot_ix) = self.path_map.get(&path) {
+            return Some(*slot_ix);
+        }
+
+        if let Some((slot_ix, slot)) = self
+            .slots
+            .iter_mut()
+            .enumerate()
+            .find(|(_, slot)| slot.path.is_none())
+        {
+            slot.view = None;
+            self.path_map.insert(path, slot_ix);
+            return Some(slot_ix);
+        }
+
+        None
+    }
+
+    pub fn unbind_path(&mut self, path: Path) {
+        if let Some(slot) = self
+            .path_map
+            .remove(&path)
+            .and_then(|i| self.slots.get_mut(i))
+        {
+            slot.path = None;
+            slot.view = None;
+        }
+    }
+}
 
 #[derive(Default)]
 pub struct SlotRenderers {
@@ -290,6 +378,27 @@ impl PathViewSlot {
         Ok(())
     }
 
+    pub fn fill_from(
+        &mut self,
+        res: &mut GpuResources,
+        data: &[u32],
+    ) -> Option<()> {
+        let dst = res[self.buffer].mapped_slice_mut()?;
+
+        dst.chunks_exact_mut(4).take(self.width).zip(data).for_each(
+            |(dst, src)| {
+                let src = &[*src];
+                let src: &[u8] = bytemuck::cast_slice(src);
+                dst[0] = src[0];
+                dst[1] = src[1];
+                dst[2] = src[2];
+                dst[3] = src[3];
+            },
+        );
+
+        Some(())
+    }
+
     pub fn update_from<F>(
         &mut self,
         res: &mut GpuResources,
@@ -298,6 +407,9 @@ impl PathViewSlot {
     where
         F: FnMut(usize) -> u32,
     {
+        // let src = (0..self.width).map(fill).collect::<Vec<_>>();
+        // self.fill_from(res, &src)?;
+
         let slice = res[self.buffer].mapped_slice_mut()?;
 
         slice

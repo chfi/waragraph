@@ -22,6 +22,9 @@ use anyhow::{anyhow, bail, Result};
 
 use crate::viewer::ViewDiscrete1D;
 
+// TODO: make this a newtype
+pub type Path = usize;
+
 #[repr(transparent)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, AsBytes)]
 pub struct Node(u32);

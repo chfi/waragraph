@@ -10,7 +10,8 @@ license = "MIT"
 [dependencies]
 gfa = { version = "0.10" }
 
-raving = { path = "../vkengine" }
+raving = { git = "https://github.com/chfi/raving" }
+# raving = { path = "../vkengine" }
 
 smallvec = "1.8.0"
 nalgebra = "0.30"
