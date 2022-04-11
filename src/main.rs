@@ -179,14 +179,12 @@ fn main() -> Result<()> {
 
                     for _ in 0..diff {
                         let i = viewer.path_viewer.slots.capacity();
-                        engine
-                            .with_allocators(|ctx, res, alloc| {
-                                viewer.path_viewer.slots.allocate_slot(
-                                    ctx, res, alloc, slot_width,
-                                )?;
-                                Ok(())
-                            })
-                            .unwrap();
+                        viewer.path_viewer.slots.allocate_slot(
+                            &mut engine,
+                            &db,
+                            &mut viewer.labels,
+                            slot_width,
+                        );
 
                         let name = format!("path-name-{}", i);
                         viewer

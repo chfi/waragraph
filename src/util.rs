@@ -63,6 +63,17 @@ impl LabelStorage {
         Ok(())
     }
 
+    pub fn set_text_for_id(&self, id: u64, contents: &str) -> Result<()> {
+        let key = self.text_key_for_id(id);
+
+        let bytes = contents.as_bytes();
+        let len = bytes.len().min(Self::TEXT_BUF_LEN - 1);
+        let value = &bytes[..len];
+        self.tree.update_and_fetch(key, |_| Some(value))?;
+
+        Ok(())
+    }
+
     pub fn label_len(&self, name: &[u8]) -> Result<usize> {
         let key = self
             .text_key_for(name)
@@ -173,10 +184,10 @@ impl LabelStorage {
         Some(res)
     }
 
-    fn pos_key_for_id(&self, id: u64) -> Option<[u8; 10]> {
+    fn pos_key_for_id(&self, id: u64) -> [u8; 10] {
         let mut res = Self::POS_MASK;
         res[2..].clone_from_slice(&id.to_le_bytes());
-        Some(res)
+        res
     }
 
     fn buf_key_for(&self, name: &[u8]) -> Option<[u8; 12]> {
@@ -198,6 +209,15 @@ impl LabelStorage {
         let mut res = Self::POS_MASK;
         res[2..].clone_from_slice(&id.to_le_bytes());
         Some(res)
+    }
+
+    pub fn set_pos_for_id(&self, id: u64, x: u32, y: u32) -> Result<()> {
+        let key = self.pos_key_for_id(id);
+        let mut val = [0u8; 8];
+        val[..4].clone_from_slice(&x.to_le_bytes());
+        val[4..].clone_from_slice(&y.to_le_bytes());
+        self.tree.insert(key, &val)?;
+        Ok(())
     }
 
     pub fn set_label_pos(&self, name: &[u8], x: u32, y: u32) -> Result<()> {
@@ -230,17 +250,31 @@ impl LabelStorage {
     }
 
     pub fn get_label_pos_id(&self, id: u64) -> Result<(u32, u32)> {
-        use zerocopy::FromBytes;
-
+        let key = self.pos_key_for_id(id);
         let val = self
-            .pos_key_for_id(id)
-            .and_then(|k| self.tree.get(k).ok().flatten())
+            .tree
+            .get(key)?
             .ok_or(anyhow!("could not find key for label ID {}", id))?;
 
         let x = u32::read_from(&val[0..4]).unwrap();
         let y = u32::read_from(&val[4..8]).unwrap();
 
         Ok((x, y))
+    }
+
+    pub fn get_label_id(&self, name: &[u8]) -> Option<u64> {
+        self.label_names.get(name).copied()
+    }
+
+    pub fn get_label_text_by_id(&self, id: u64) -> Option<sled::IVec> {
+        let key = self.text_key_for_id(id);
+        self.tree.get(key).ok().flatten()
+    }
+
+    fn text_key_for_id(&self, id: u64) -> [u8; 10] {
+        let mut res = Self::TEXT_MASK;
+        res[2..].clone_from_slice(&id.to_le_bytes());
+        res
     }
 
     fn text_key_for(&self, name: &[u8]) -> Option<[u8; 10]> {
@@ -267,7 +301,7 @@ impl LabelStorage {
         db: &sled::Db,
         engine: &mut VkEngine,
         name: &str,
-    ) -> Result<()> {
+    ) -> Result<u64> {
         let id = db.generate_id()?;
 
         let (buf, set) = engine.with_allocators(|ctx, res, alloc| {
@@ -308,42 +342,23 @@ impl LabelStorage {
             let buf_key = self.buf_key_for(nb).unwrap();
             let set_key = self.set_key_for(nb).unwrap();
 
-            // log::warn!("pk: {:?}", pk);
-            // log::warn!("tk: {:?}", tk);
-            // log::warn!("buf_key: {:?}", buf_key);
-            // log::warn!("set_key: {:?}", set_key);
-
             db.insert(&buf_key, &buf_u64.to_le_bytes())?;
             db.insert(&set_key, &set_u64.to_le_bytes())?;
 
             db.insert(&pk, &[0u8; 8])?;
-            // TODO remove test placeholder
-            db.insert(&tk, b"hello world")?;
+            db.insert(&tk, b"")?;
 
             Ok(())
         });
 
         match tx_result {
-            Ok(_) => {
-                // all good
-            }
+            Ok(_) => {}
             Err(err) => {
                 //
             }
         }
 
-        /*
-        let result: TransactionResult<_, TransactionError<()>> =
-            self.db.transaction(|db| {
-                // self.db.transaction(|db| {
-                db.insert(b"k1", b"cats")?;
-                db.insert(b"k2", b"dogs")?;
-                Ok(())
-            });
-        let x = result?;
-        */
-
-        Ok(())
+        Ok(id)
     }
 }
 

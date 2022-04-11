@@ -227,24 +227,16 @@ impl ViewerSys {
 
         let slot_count = 16;
 
-        let mut path_viewer = engine.with_allocators(|ctx, res, alloc| {
-            PathViewer::new(
-                &db,
-                ctx,
-                res,
-                alloc,
-                width as usize,
-                slot_count,
-                waragraph.paths.len(),
-            )
-        })?;
+        let mut path_viewer = PathViewer::new(
+            engine,
+            &db,
+            &mut txt,
+            width as usize,
+            slot_count,
+            waragraph.paths.len(),
+        )?;
 
         path_viewer.sample(waragraph, &view);
-
-        for i in path_viewer.visible_paths(waragraph) {
-            let name = format!("path-name-{}", i);
-            txt.allocate_label(&db, engine, &name)?;
-        }
 
         Self::update_labels_impl(&config, &txt, waragraph, &path_viewer);
         // path_viewer.update_labels(&waragraph, &txt)?;
@@ -689,41 +681,64 @@ impl ViewerSys {
 
         let size = window.inner_size();
 
-        let slot_width = self.path_viewer.width;
+        let mut label_sets = Vec::new();
+        let mut desc_sets = Vec::new();
 
-        let label_sets = {
-            self.labels
-                .label_names
-                .iter()
-                .map(|(name, &id)| {
-                    use rhai::Dynamic as Dyn;
-                    let mut data = rhai::Map::default();
-                    let set = self.labels.desc_set_for_id(id).unwrap().unwrap();
-                    let (x, y) = self.labels.get_label_pos_id(id).unwrap();
-                    data.insert("x".into(), Dyn::from_int(x as i64));
-                    data.insert("y".into(), Dyn::from_int(y as i64));
-                    data.insert("desc_set".into(), Dyn::from(set));
+        let create_label_map = |id: u64| {
+            use rhai::Dynamic as Dyn;
 
-                    let len = self.labels.label_len(name).unwrap();
-                    data.insert("len".into(), Dyn::from_int(len as i64));
-                    Dyn::from_map(data)
-                })
-                .collect::<Vec<_>>()
+            let label_set = self.labels.desc_set_for_id(id).unwrap()?;
+            let mut data = rhai::Map::default();
+            data.insert("desc_set".into(), Dyn::from(label_set));
+            let (x, y) = self.labels.get_label_pos_id(id).unwrap();
+
+            data.insert("x".into(), Dyn::from_int(x as i64));
+            data.insert("y".into(), Dyn::from_int(y as i64));
+
+            let len = self
+                .labels
+                .get_label_text_by_id(id)
+                .map(|v| v.len())
+                .unwrap_or_default();
+            data.insert("len".into(), Dyn::from_int(len as i64));
+            Some(Dyn::from_map(data))
         };
 
-        let mut desc_sets = Vec::new();
-        desc_sets.extend(self.path_viewer.visible_paths(graph).map(|path| {
-            let mut map = rhai::Map::default();
+        label_sets.extend(
+            ["console", "fps", "view:start", "view:len", "view:end"]
+                .into_iter()
+                .filter_map(|name| {
+                    let id = self.labels.get_label_id(name.as_bytes())?;
+                    create_label_map(id)
+                }),
+        );
+
+        for path in self.path_viewer.visible_paths(graph) {
+            use rhai::Dynamic as Dyn;
+
+            {}
+
+            let mut desc_map = rhai::Map::default();
             if let Some(slot) = self.path_viewer.slots.get_slot_for(path) {
                 if slot.path == Some(path) {
+                    {
+                        // let label_name = format!("path-name-{}", slot);
+                        if let Some(map) = create_label_map(slot.label_id) {
+                            label_sets.push(map);
+                        }
+                    }
+
                     let slot_set = slot.slot.desc_set();
-                    map.insert("slot".into(), rhai::Dynamic::from(slot_set));
+                    desc_map.insert("slot".into(), Dyn::from(slot_set));
                 } else {
-                    map.insert("slot".into(), rhai::Dynamic::UNIT);
+                    desc_map.insert("slot".into(), Dyn::UNIT);
                 }
             }
-            rhai::Dynamic::from(map)
-        }));
+            desc_sets.push(rhai::Dynamic::from(desc_map));
+        }
+
+        // desc_sets.extend(self.path_viewer.visible_paths(graph).map(|path| {
+        // }));
 
         let batch_builder = BatchBuilder::default();
         let fg_batch = (&self.draw_foreground)(

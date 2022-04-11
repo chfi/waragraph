@@ -5,7 +5,7 @@ use bstr::ByteSlice;
 use gpu_allocator::vulkan::Allocator;
 use raving::vk::{
     context::VkContext, descriptor::DescriptorLayoutInfo, BufferIx, BufferRes,
-    DescSetIx, GpuResources,
+    DescSetIx, GpuResources, VkEngine,
 };
 use rspirv_reflect::DescriptorInfo;
 
@@ -174,10 +174,9 @@ impl PathViewer {
     const SLOT_MASK: [u8; 7] = *b"slot:02";
 
     pub fn new(
+        engine: &mut VkEngine,
         db: &sled::Db,
-        ctx: &VkContext,
-        res: &mut GpuResources,
-        alloc: &mut Allocator,
+        labels: &mut LabelStorage,
         width: usize,
         slot_count: usize,
         path_count: usize,
@@ -187,9 +186,8 @@ impl PathViewer {
         let slot_count = slot_count.min(path_count);
 
         let mut slots = SlotCache::default();
-
         for _ in 0..slot_count {
-            slots.allocate_slot(ctx, res, alloc, width)?;
+            slots.allocate_slot(engine, db, labels, width)?;
         }
 
         let row_view = Arc::new(AtomicCell::new((0, slot_count)));
@@ -299,22 +297,22 @@ impl PathViewer {
         let yd = y_delta;
         let max_len = max_len as usize;
 
-        for (ix, path_i) in self.visible_paths(graph).enumerate() {
-            if let Some(path_name) = graph.path_names.get(path_i) {
-                // let path_name = &graph.path_names[path_i];
+        for (ix, path) in self.visible_paths(graph).enumerate() {
+            if let Some(path_name) = graph.path_names.get(path) {
+                if let Some(slot) = self.slots.get_slot_for(path) {
+                    let label_id = slot.label_id;
 
-                let txt_key = format!("path-name-{}", ix);
+                    if path_name.len() < max_len {
+                        let name = format!("{}", path_name.as_bstr());
+                        txt.set_text_for_id(label_id, &name)?;
+                    } else {
+                        let prefix = path_name[..max_len - 3].as_bstr();
+                        let name = format!("{}...", prefix);
+                        txt.set_text_for_id(label_id, &name)?;
+                    }
 
-                if path_name.len() < max_len {
-                    let name = format!("{}", path_name.as_bstr());
-                    txt.set_text_for(txt_key.as_bytes(), &name)?;
-                } else {
-                    let prefix = path_name[..max_len - 3].as_bstr();
-                    let name = format!("{}...", prefix);
-                    txt.set_text_for(txt_key.as_bytes(), &name)?;
+                    txt.set_pos_for_id(label_id, x, y + yd * ix as u32)?;
                 }
-
-                txt.set_label_pos(txt_key.as_bytes(), x, y + yd * ix as u32)?;
             }
         }
         Ok(())

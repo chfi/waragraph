@@ -5,7 +5,7 @@ use bstr::ByteSlice;
 use gpu_allocator::vulkan::Allocator;
 use raving::vk::{
     context::VkContext, descriptor::DescriptorLayoutInfo, BufferIx, BufferRes,
-    DescSetIx, GpuResources,
+    DescSetIx, GpuResources, VkEngine,
 };
 use rspirv_reflect::DescriptorInfo;
 
@@ -18,7 +18,10 @@ use anyhow::{anyhow, Result};
 use crossbeam::atomic::AtomicCell;
 use std::sync::Arc;
 
-use crate::graph::{Node, Path, Waragraph};
+use crate::{
+    graph::{Node, Path, Waragraph},
+    util::LabelStorage,
+};
 
 // pub type Path = usize;
 
@@ -33,6 +36,8 @@ pub struct Slot {
     pub view: Option<(usize, usize)>,
 
     pub slot: PathViewSlot,
+
+    pub label_id: u64,
 }
 
 #[derive(Default)]
@@ -67,18 +72,26 @@ impl SlotCache {
 
     pub fn allocate_slot(
         &mut self,
-        ctx: &VkContext,
-        res: &mut GpuResources,
-        alloc: &mut Allocator,
+        engine: &mut VkEngine,
+        db: &sled::Db,
+        txt: &mut LabelStorage,
         width: usize,
     ) -> Result<usize> {
         let i = self.slots.len();
         let name = format!("path-viewer-slot-{}", i);
+
+        let label_id = txt.allocate_label(db, engine, &name)?;
+
+        let slot = engine.with_allocators(|ctx, res, alloc| {
+            PathViewSlot::new(ctx, res, alloc, width, Some(&name))
+        })?;
+
         let slot = Slot {
             path: None,
             view: None,
+            label_id,
 
-            slot: PathViewSlot::new(ctx, res, alloc, width, Some(&name))?,
+            slot,
         };
         self.slots.push(slot);
 
