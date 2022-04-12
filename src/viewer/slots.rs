@@ -44,8 +44,8 @@ pub struct Slot {
 
 #[derive(Default)]
 pub struct SlotCache {
-    pub(crate) slots: Vec<Slot>,
-    pub(crate) path_map: FxHashMap<Path, usize>, // value is index into `slots`
+    pub slots: Vec<Slot>,
+    pub path_map: FxHashMap<Path, usize>, // value is index into `slots`
 }
 
 impl SlotCache {

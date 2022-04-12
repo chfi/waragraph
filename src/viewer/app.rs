@@ -394,7 +394,67 @@ impl ViewerSys {
         })
     }
 
-    pub fn queue_slot_updates(&mut self, graph: &Arc<Waragraph>) -> Result<()> {
+    pub fn queue_slot_updates(
+        &mut self,
+        graph: &Arc<Waragraph>,
+        update_tx: &crossbeam::channel::Sender<(
+            Arc<Vec<(Node, usize)>>,
+            SlotUpdateFn<u32>,
+            usize,
+            (usize, usize),
+            usize,
+        )>,
+    ) -> Result<()> {
+        let samples = Arc::new(self.path_viewer.sample_buf.clone());
+
+        let update_key = self
+            .config
+            .map
+            .read()
+            .get("viz.slot_function")
+            .and_then(|v| v.clone().into_immutable_string().ok())
+            .unwrap_or_else(|| "unknown".into());
+
+        let def = self
+            .slot_renderer_cache
+            .get(b"loop_count_mean".as_ref())
+            .ok_or(anyhow!("default slot renderer not found"))?;
+
+        let slot_fn = self
+            .slot_renderer_cache
+            .get(update_key.as_bytes())
+            .unwrap_or_else(|| {
+                log::warn!("slot renderer `{}` not found", update_key);
+                def
+            });
+
+        let paths = self.path_viewer.visible_paths(graph);
+
+        let view = self.view;
+        let cur_view = Some((view.offset, view.len));
+
+        let view = (view.offset, view.len);
+
+        for path in paths {
+            if let Some(slot) = self.path_viewer.slots.get_slot_mut_for(path) {
+                if slot.view != cur_view
+                    || slot.width != Some(self.path_viewer.width)
+                {
+                    let msg = (
+                        samples.clone(),
+                        slot_fn.to_owned(),
+                        path,
+                        view,
+                        self.path_viewer.width,
+                    );
+
+                    slot.view = Some(view);
+                    slot.width = Some(self.path_viewer.width);
+                    update_tx.send(msg)?;
+                }
+            }
+        }
+
         Ok(())
     }
 

@@ -260,6 +260,23 @@ impl PathViewer {
     }
     */
 
+    pub fn apply_update(
+        &mut self,
+        res: &mut GpuResources,
+        slot_ix: usize,
+        data: &[u32],
+        view: (usize, usize),
+        width: usize,
+    ) -> Option<()> {
+        if let Some(slot) = self.slots.slots.get_mut(slot_ix) {
+            if slot.width == Some(width) {
+                // if slot.view == Some(view) && slot.width == Some(width) {
+                slot.slot.fill_from(res, data)?;
+            }
+        }
+        Some(())
+    }
+
     pub fn update_from(
         &mut self,
         res: &mut GpuResources,

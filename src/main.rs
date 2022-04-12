@@ -1,5 +1,6 @@
 use crossbeam::atomic::AtomicCell;
 use gfa::gfa::GFA;
+use parking_lot::RwLock;
 use raving::vk::{VkEngine, WindowResources};
 use waragraph::console::{Console, ConsoleInput};
 
@@ -8,10 +9,10 @@ use ash::vk;
 use flexi_logger::{Duplicate, FileSpec, Logger};
 
 use sled::IVec;
-use waragraph::graph::Waragraph;
+use waragraph::graph::{Node, Waragraph};
 use waragraph::util::{BufferStorage, LabelStorage};
 use waragraph::viewer::app::ViewerSys;
-use waragraph::viewer::{SlotRenderers, ViewDiscrete1D};
+use waragraph::viewer::{SlotRenderers, SlotUpdateFn, ViewDiscrete1D};
 use winit::event::{Event, VirtualKeyCode, WindowEvent};
 use winit::{event_loop::EventLoop, window::WindowBuilder};
 
@@ -149,6 +150,50 @@ fn main() -> Result<()> {
 
     let mut mode = Modes::PathViewer;
 
+    // (samples, SlotUpdateFn, Path, view, width)
+    type UpdateMsg = (
+        Arc<Vec<(Node, usize)>>,
+        SlotUpdateFn<u32>,
+        usize,
+        (usize, usize),
+        usize,
+    );
+
+    let (update_tx, update_rx) = crossbeam::channel::unbounded::<UpdateMsg>();
+
+    // path, data, view, width
+    type SlotMsg = (usize, Vec<u32>, (usize, usize), usize);
+
+    let (slot_tx, slot_rx) = crossbeam::channel::unbounded::<SlotMsg>();
+
+    //
+    let _update_threads = (0..4)
+        .map(|_| {
+            let input = update_rx.clone();
+            let out = slot_tx.clone();
+
+            std::thread::spawn(move || {
+                let mut buffer = Vec::new();
+
+                loop {
+                    while let Ok((samples, slot_fn, path, view, width)) =
+                        input.recv()
+                    {
+                        buffer.clear();
+                        buffer.extend(
+                            (0..width).map(|i| slot_fn(&samples, path, i)),
+                        );
+
+                        let msg = (path, buffer.clone(), view, width);
+                        if let Err(e) = out.send(msg) {
+                            log::error!("Update thread error: {:?}", e);
+                        }
+                    }
+                }
+            })
+        })
+        .collect::<Vec<_>>();
+
     event_loop.run(move |event, _, control_flow| {
         *control_flow = winit::event_loop::ControlFlow::Poll;
 
@@ -157,6 +202,20 @@ fn main() -> Result<()> {
                 // handle sled-based buffer updates
                 buffers.allocate_queued(&mut engine).unwrap();
                 buffers.fill_updated_buffers(&mut engine.resources).unwrap();
+
+                while let Ok((path, data, view, width)) = slot_rx.try_recv() {
+                    if let Some(slot_ix) =
+                        viewer.path_viewer.slots.path_map.get(&path).copied()
+                    {
+                        viewer.path_viewer.apply_update(
+                            &mut engine.resources,
+                            slot_ix,
+                            &data,
+                            view,
+                            width,
+                        );
+                    }
+                }
 
                 {
                     let [_, h] = swapchain_dims.load();
@@ -214,7 +273,7 @@ fn main() -> Result<()> {
 
                 if viewer.path_viewer.has_new_samples() {
                     if let Err(e) =
-                        viewer.update_slots(&mut engine.resources, &waragraph)
+                        viewer.queue_slot_updates(&waragraph, &update_tx)
                     {
                         log::error!("PathViewer slot update error: {:?}", e);
                     }
