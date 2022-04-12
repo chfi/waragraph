@@ -40,6 +40,8 @@ pub struct Slot {
     pub slot: PathViewSlot,
 
     pub label_id: u64,
+
+    pub updating: AtomicCell<bool>,
 }
 
 #[derive(Default)]
@@ -106,6 +108,8 @@ impl SlotCache {
             label_id,
 
             slot,
+
+            updating: false.into(),
         };
         self.slots.push(slot);
 

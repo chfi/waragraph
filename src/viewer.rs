@@ -272,6 +272,7 @@ impl PathViewer {
             if slot.width == Some(width) {
                 // if slot.view == Some(view) && slot.width == Some(width) {
                 slot.slot.fill_from(res, data)?;
+                slot.updating.store(false);
             }
         }
         Some(())

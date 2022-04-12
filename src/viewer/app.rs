@@ -437,8 +437,9 @@ impl ViewerSys {
 
         for path in paths {
             if let Some(slot) = self.path_viewer.slots.get_slot_mut_for(path) {
-                if slot.view != cur_view
-                    || slot.width != Some(self.path_viewer.width)
+                if !slot.updating.load()
+                    && (slot.view != cur_view
+                        || slot.width != Some(self.path_viewer.width))
                 {
                     let msg = (
                         samples.clone(),
@@ -448,9 +449,10 @@ impl ViewerSys {
                         self.path_viewer.width,
                     );
 
-                    slot.view = Some(view);
                     slot.width = Some(self.path_viewer.width);
+                    slot.view = Some(view);
                     update_tx.send(msg)?;
+                    slot.updating.store(true);
                 }
             }
         }
