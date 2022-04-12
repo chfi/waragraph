@@ -265,18 +265,26 @@ impl PathViewer {
         res: &mut GpuResources,
         graph: &Arc<Waragraph>,
         updater: &SlotUpdateFn<u32>,
+        view: ViewDiscrete1D,
     ) -> Option<()> {
         let paths = self.visible_paths(graph);
         let samples = &self.sample_buf;
 
         let mut buffer = Vec::new();
 
+        let cur_view = Some((view.offset, view.len));
+
         for path in paths {
             if let Some(slot) = self.slots.get_slot_mut_for(path) {
-                buffer.clear();
-                buffer
-                    .extend((0..self.width).map(|i| updater(samples, path, i)));
-                slot.slot.fill_from(res, &buffer)?;
+                if slot.view != cur_view || slot.width != Some(self.width) {
+                    buffer.clear();
+                    buffer.extend(
+                        (0..self.width).map(|i| updater(samples, path, i)),
+                    );
+                    slot.slot.fill_from(res, &buffer)?;
+                    slot.view = cur_view;
+                    slot.width = Some(self.width);
+                }
             }
         }
 

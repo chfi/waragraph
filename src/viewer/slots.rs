@@ -34,6 +34,8 @@ pub type SlotUpdateFn<T> =
 pub struct Slot {
     pub path: Option<usize>,
     pub view: Option<(usize, usize)>,
+    // the updated width, not the allocated
+    pub width: Option<usize>,
 
     pub slot: PathViewSlot,
 
@@ -100,6 +102,7 @@ impl SlotCache {
         let slot = Slot {
             path: None,
             view: None,
+            width: None,
             label_id,
 
             slot,
@@ -160,6 +163,7 @@ impl SlotCache {
             .find(|(_, slot)| slot.path.is_none())
         {
             slot.view = None;
+            slot.width = None;
             self.path_map.insert(path, slot_ix);
             return Some(slot_ix);
         }
@@ -175,6 +179,7 @@ impl SlotCache {
         {
             slot.path = None;
             slot.view = None;
+            slot.width = None;
         }
     }
 }

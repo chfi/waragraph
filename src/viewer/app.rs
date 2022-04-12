@@ -394,6 +394,10 @@ impl ViewerSys {
         })
     }
 
+    pub fn queue_slot_updates(&mut self, graph: &Arc<Waragraph>) -> Result<()> {
+        Ok(())
+    }
+
     pub fn update_slots(
         &mut self,
         resources: &mut GpuResources,
@@ -420,7 +424,8 @@ impl ViewerSys {
                 def
             });
 
-        self.path_viewer.update_from(resources, graph, updater);
+        self.path_viewer
+            .update_from(resources, graph, updater, self.view);
 
         Ok(())
     }
