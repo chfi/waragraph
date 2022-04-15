@@ -50,6 +50,28 @@ impl LabelStorage {
 
     const TEXT_BUF_LEN: usize = 256;
 
+    pub fn update(
+        &mut self,
+        res: &mut GpuResources,
+        key: &[u8],
+        value: &[u8],
+    ) -> Result<()> {
+        let id = u64::read_from(key[2..].as_ref()).unwrap();
+        let buf_ix = self.buffer_for_id(id).unwrap().unwrap();
+        let buffer = &mut res[buf_ix];
+        let slice = buffer.mapped_slice_mut().unwrap();
+        let len = value.len();
+
+        slice[0..4].clone_from_slice(&(len as u32).to_ne_bytes());
+
+        slice[4..]
+            .chunks_mut(4)
+            .zip(value.iter())
+            .for_each(|(chk, &b)| chk.fill(b));
+
+        Ok(())
+    }
+
     pub fn set_text_for(&self, name: &[u8], contents: &str) -> Result<()> {
         let key = self
             .text_key_for(name)

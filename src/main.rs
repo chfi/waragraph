@@ -309,19 +309,10 @@ fn main() -> Result<()> {
                 }
 
                 for (key, value) in updates {
-                    let id = u64::read_from(key[2..].as_ref()).unwrap();
-                    let buf_ix =
-                        viewer.labels.buffer_for_id(id).unwrap().unwrap();
-                    let buffer = &mut engine.resources[buf_ix];
-                    let slice = buffer.mapped_slice_mut().unwrap();
-                    let len = value.len();
-
-                    slice[0..4].clone_from_slice(&(len as u32).to_ne_bytes());
-
-                    slice[4..]
-                        .chunks_mut(4)
-                        .zip(value.iter())
-                        .for_each(|(chk, &b)| chk.fill(b));
+                    viewer
+                        .labels
+                        .update(&mut engine.resources, &key, &value)
+                        .unwrap();
                 }
 
                 let mut updates: HashMap<IVec, IVec> = HashMap::default();
@@ -339,19 +330,10 @@ fn main() -> Result<()> {
                 }
 
                 for (key, value) in updates {
-                    let id = u64::read_from(key[2..].as_ref()).unwrap();
-                    let buf_ix =
-                        gui_sys.labels.buffer_for_id(id).unwrap().unwrap();
-                    let buffer = &mut engine.resources[buf_ix];
-                    let slice = buffer.mapped_slice_mut().unwrap();
-                    let len = value.len();
-
-                    slice[0..4].clone_from_slice(&(len as u32).to_ne_bytes());
-
-                    slice[4..]
-                        .chunks_mut(4)
-                        .zip(value.iter())
-                        .for_each(|(chk, &b)| chk.fill(b));
+                    gui_sys
+                        .labels
+                        .update(&mut engine.resources, &key, &value)
+                        .unwrap();
                 }
 
                 // update end
