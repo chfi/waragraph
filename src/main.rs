@@ -12,6 +12,7 @@ use sled::IVec;
 use waragraph::graph::{Node, Waragraph};
 use waragraph::util::{BufferStorage, LabelStorage};
 use waragraph::viewer::app::ViewerSys;
+use waragraph::viewer::gui::GuiSys;
 use waragraph::viewer::{SlotRenderers, SlotUpdateFn, ViewDiscrete1D};
 use winit::event::{Event, VirtualKeyCode, WindowEvent};
 use winit::{event_loop::EventLoop, window::WindowBuilder};
@@ -98,6 +99,8 @@ fn main() -> Result<()> {
 
     let mut buffers = BufferStorage::new(&db)?;
 
+    let gui_sys = GuiSys::init(&mut engine, &db, &mut buffers, width, height)?;
+
     let mut window_resources = WindowResources::new();
     window_resources.add_image(
         "out",
@@ -110,7 +113,7 @@ fn main() -> Result<()> {
             (vk::ImageUsageFlags::STORAGE, vk::ImageLayout::GENERAL),
             (vk::ImageUsageFlags::SAMPLED, vk::ImageLayout::GENERAL),
         ],
-        None,
+        Some(gui_sys.pass),
     )?;
 
     {
@@ -123,12 +126,16 @@ fn main() -> Result<()> {
         })?;
     }
 
+    let out_framebuffer =
+        *window_resources.indices.framebuffers.get("out").unwrap();
+
     let mut viewer = ViewerSys::init(
         &mut engine,
         &waragraph,
         &db,
         &mut buffers,
         &mut window_resources,
+        &gui_sys,
         width,
     )?;
 

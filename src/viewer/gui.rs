@@ -3,8 +3,8 @@ use parking_lot::RwLock;
 use raving::script::console::frame::FrameBuilder;
 use raving::script::console::BatchBuilder;
 use raving::vk::{
-    BatchInput, BufferIx, DescSetIx, FrameResources, GpuResources, PipelineIx,
-    RenderPassIx, VkEngine,
+    BatchInput, BufferIx, DescSetIx, FrameResources, FramebufferIx,
+    GpuResources, PipelineIx, RenderPassIx, VkEngine,
 };
 
 use raving::vk::resource::WindowResources;
@@ -47,11 +47,11 @@ pub struct GuiSys {
 
     // pub draw_labels: RhaiBatchFn4<BatchBuilder, i64, i64, rhai::Array>,
     // pub draw_shapes: RhaiBatchFn4<BatchBuilder, i64, i64, rhai::Array>,
-    pass: RenderPassIx,
-    pipeline: PipelineIx,
+    pub pass: RenderPassIx,
+    pub pipeline: PipelineIx,
 
     buf_id: BufId,
-    buf_ix: BufferIx,
+    pub buf_ix: BufferIx,
 }
 
 impl GuiSys {
@@ -61,7 +61,6 @@ impl GuiSys {
         engine: &mut VkEngine,
         db: &sled::Db,
         buffers: &mut BufferStorage,
-        window_resources: &mut WindowResources,
         width: u32,
         height: u32,
         // height: u32,
@@ -84,11 +83,11 @@ impl GuiSys {
                 )?;
 
                 let vert = res.load_shader(
-                    "shaders/rect.vert",
+                    "shaders/rect.vert.spv",
                     vk::ShaderStageFlags::VERTEX,
                 )?;
                 let frag = res.load_shader(
-                    "shaders/rect_flat_color.frag",
+                    "shaders/rect_flat_color.frag.spv",
                     vk::ShaderStageFlags::FRAGMENT,
                 )?;
 
@@ -118,6 +117,9 @@ impl GuiSys {
         )?;
         let buf_ix = buffers.get_buffer_ix(buf_id).unwrap();
 
+        buffers
+            .insert_data(buf_id, &[[0f32, 0.0], [100.0, 0.0], [0.0, 100.0]])?;
+
         Ok(Self {
             config,
 
@@ -130,5 +132,70 @@ impl GuiSys {
             buf_id,
             buf_ix,
         })
+    }
+
+    pub fn draw(
+        &self,
+        device: &Device,
+        res: &GpuResources,
+        framebuffer: FramebufferIx,
+        extent: vk::Extent2D,
+        cmd: vk::CommandBuffer,
+    ) {
+        let pass_info = vk::RenderPassBeginInfo::builder()
+            .render_pass(res[self.pass])
+            .framebuffer(res[framebuffer])
+            .render_area(vk::Rect2D {
+                offset: vk::Offset2D { x: 0, y: 0 },
+                extent,
+            })
+            .clear_values(&[])
+            .build();
+
+        unsafe {
+            device.cmd_begin_render_pass(
+                cmd,
+                &pass_info,
+                vk::SubpassContents::INLINE,
+            );
+
+            let vx_buf = res[self.buf_ix].buffer;
+            let (pipeline, _) = res[self.pipeline];
+            let vxs = [vx_buf];
+            // dev.cmd_bind_vertex_buffers(cmd, 0, &vxs, &[2]);
+            device.cmd_bind_vertex_buffers(cmd, 0, &vxs, &[8]);
+            // dev.cmd_bind_vertex_buffers(cmd, 0, &vxs, &[16]);
+
+            device.cmd_bind_pipeline(
+                cmd,
+                vk::PipelineBindPoint::GRAPHICS,
+                pipeline,
+            );
+
+            let viewport = vk::Viewport {
+                x: 0.0,
+                y: 0.0,
+                width: extent.width as f32,
+                height: extent.height as f32,
+                min_depth: 0.0,
+                max_depth: 1.0,
+            };
+
+            let viewports = [viewport];
+
+            device.cmd_set_viewport(cmd, 0, &viewports);
+
+            let scissor = vk::Rect2D {
+                offset: vk::Offset2D { x: 0, y: 0 },
+                extent,
+            };
+            let scissors = [scissor];
+
+            device.cmd_set_scissor(cmd, 0, &scissors);
+
+            device.cmd_draw(cmd, 3, 1, 0, 0);
+
+            device.cmd_end_render_pass(cmd);
+        }
     }
 }

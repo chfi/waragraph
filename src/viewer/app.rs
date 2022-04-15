@@ -29,6 +29,7 @@ use anyhow::{anyhow, bail, Result};
 
 use zerocopy::{AsBytes, FromBytes};
 
+use super::gui::GuiSys;
 use super::{PathViewer, SlotUpdateFn};
 
 pub struct ViewerSys {
@@ -67,6 +68,7 @@ impl ViewerSys {
         db: &sled::Db,
         buffers: &mut BufferStorage,
         window_resources: &mut WindowResources,
+        gui: &GuiSys,
         width: u32,
         // height: u32,
     ) -> Result<Self> {
