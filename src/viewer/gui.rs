@@ -41,6 +41,8 @@ pub struct GuiSys {
 
     pub labels: LabelStorage,
     pub label_updates: sled::Subscriber,
+
+    pub rects: Vec<[f32; 4]>,
     // pub rhai_module: Arc<rhai::Module>,
 
     // pub on_resize: RhaiBatchFn2<i64, i64>,
@@ -56,6 +58,25 @@ pub struct GuiSys {
 
 impl GuiSys {
     const VX_BUF_NAME: &'static str = "waragraph:gui:vertices";
+
+    pub fn update_buffer(&self, buffers: &BufferStorage) -> Result<()> {
+        let vx_count = self.rects.len() * 6;
+        let mut vertices: Vec<[f32; 2]> = Vec::with_capacity(vx_count);
+
+        for &[x, y, w, h] in self.rects.iter() {
+            vertices.push([x, y]);
+            vertices.push([x, y + h]);
+            vertices.push([x + w, y]);
+
+            vertices.push([x, y + h]);
+            vertices.push([x + w, y + h]);
+            vertices.push([x + w, y]);
+        }
+
+        buffers.insert_data(self.buf_id, &vertices);
+
+        Ok(())
+    }
 
     pub fn init(
         engine: &mut VkEngine,
@@ -110,7 +131,7 @@ impl GuiSys {
             &db,
             Self::VX_BUF_NAME,
             BufFmt::FVec2,
-            255,
+            1023,
             vk::BufferUsageFlags::VERTEX_BUFFER
                 | vk::BufferUsageFlags::STORAGE_BUFFER
                 | vk::BufferUsageFlags::TRANSFER_SRC
@@ -119,14 +140,16 @@ impl GuiSys {
         dbg!();
         let buf_ix = buffers.get_buffer_ix(buf_id).unwrap();
 
-        buffers
-            .insert_data(buf_id, &[[0f32, 0.0], [100.0, 0.0], [0.0, 100.0]])?;
+        // buffers
+        //     .insert_data(buf_id, &[[0f32, 0.0], [100.0, 0.0], [0.0, 100.0]])?;
 
         Ok(Self {
             config,
 
             labels,
             label_updates,
+
+            rects: Vec::new(),
 
             pass: pass_ix,
             pipeline: pipeline_ix,
@@ -141,6 +164,7 @@ impl GuiSys {
         pipeline: PipelineIx,
         framebuffer: FramebufferIx,
         vx_buf_ix: BufferIx,
+        vertex_count: usize,
         extent: vk::Extent2D,
         device: &Device,
         res: &GpuResources,
@@ -205,7 +229,7 @@ impl GuiSys {
 
             device.cmd_set_scissor(cmd, 0, &scissors);
 
-            device.cmd_draw(cmd, 3, 1, 0, 0);
+            device.cmd_draw(cmd, vertex_count as u32, 1, 0, 0);
 
             device.cmd_end_render_pass(cmd);
         }
@@ -221,6 +245,7 @@ impl GuiSys {
         let pass = self.pass;
         let pipeline = self.pipeline;
         let buf_ix = self.buf_ix;
+        let vertex_count = self.rects.len() * 6;
 
         Box::new(move |dev, res, cmd| {
             Self::draw_impl(
@@ -228,6 +253,7 @@ impl GuiSys {
                 pipeline,
                 framebuffer,
                 buf_ix,
+                vertex_count,
                 extent,
                 dev,
                 res,

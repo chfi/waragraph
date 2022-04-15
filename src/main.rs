@@ -102,6 +102,11 @@ fn main() -> Result<()> {
     let mut gui_sys =
         GuiSys::init(&mut engine, &db, &mut buffers, width, height)?;
 
+    // gui_sys.rects.push([50.0, 50.0, 50.0, 50.0]);
+    // gui_sys.rects.push([50.0, 450.0, 150.0, 50.0]);
+
+    gui_sys.update_buffer(&buffers)?;
+
     let mut window_resources = WindowResources::new();
     window_resources.add_image(
         "out",
