@@ -670,7 +670,7 @@ impl ViewerSys {
 
             let slot_w = if w < 0 { width + w - slot_x } else { w };
 
-            slot_w as usize
+            slot_w.max(0) as usize
         };
 
         engine

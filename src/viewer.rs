@@ -222,8 +222,10 @@ impl PathViewer {
     }
 
     pub fn sample(&mut self, graph: &Waragraph, view: &ViewDiscrete1D) {
-        graph.sample_node_lengths(self.width, view, &mut self.sample_buf);
-        self.new_samples.store(true);
+        if self.width > 0 {
+            graph.sample_node_lengths(self.width, view, &mut self.sample_buf);
+            self.new_samples.store(true);
+        }
     }
 
     pub fn has_new_samples(&self) -> bool {

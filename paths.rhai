@@ -467,37 +467,39 @@ fn draw_slots(batch, win_dims, slot_desc_sets, color_buffer) {
                       y_groups: (slot_h / y_size) + slot_h % y_size,
                       z_groups: 1 };
 
-  try {
-    let color_data = get_buffer(color_buffer);
+  if slot_w > 0 {
+    try {
+      let color_data = get_buffer(color_buffer);
 
-    let vis_count = visible_slots(win_dims.height);
-    if vis_count >= slot_desc_sets.len() {
-      vis_count = slot_desc_sets.len()
-    }
-
-    for ix in 0..vis_count {
-      let desc_sets = slot_desc_sets[ix];
-
-      let slot_set = desc_sets.slot;
-
-      if slot_set.type_of() != "()" {
-        let pc = slot_push_constant(win_dims, slot_x, slot_w, ix);
-
-        batch.dispatch_compute(viewer::path_pipeline.get(),
-                               [slot_set,
-                                color_data.set,
-                                viewer::out_desc_set.get()],
-                               pc,
-                               workgroups);
-      } else {
-        print("got a () in draw_slots!");
+      let vis_count = visible_slots(win_dims.height);
+      if vis_count >= slot_desc_sets.len() {
+        vis_count = slot_desc_sets.len()
       }
 
+      for ix in 0..vis_count {
+        let desc_sets = slot_desc_sets[ix];
+
+        let slot_set = desc_sets.slot;
+
+        if slot_set.type_of() != "()" {
+          let pc = slot_push_constant(win_dims, slot_x, slot_w, ix);
+
+          batch.dispatch_compute(viewer::path_pipeline.get(),
+                                 [slot_set,
+                                  color_data.set,
+                                  viewer::out_desc_set.get()],
+                                 pc,
+                                 workgroups);
+        } else {
+          print("got a () in draw_slots!");
+        }
+
+      }
     }
-  }
-  catch (err)
-  {
-    print(err);
+    catch (err)
+    {
+      print(err);
+    }
   }
 
   batch
