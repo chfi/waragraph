@@ -505,6 +505,50 @@ where
     Ok(buf_ix)
 }
 
+pub fn write_buffer_desc_set(
+    res: &mut GpuResources,
+    buffer: BufferIx,
+    desc_set: vk::DescriptorSet,
+) -> Result<()> {
+    // TODO also do uniforms if/when i add them, or keep them in a
+    // separate set
+    let layout_info = {
+        let mut info = DescriptorLayoutInfo::default();
+
+        let binding = vk::DescriptorSetLayoutBinding::builder()
+            .binding(0)
+            .descriptor_count(1)
+            .descriptor_type(vk::DescriptorType::STORAGE_BUFFER)
+            .stage_flags(vk::ShaderStageFlags::COMPUTE) // TODO should also be graphics, probably
+            .build();
+
+        info.bindings.push(binding);
+        info
+    };
+
+    let set_info = {
+        let info = DescriptorInfo {
+            ty: rspirv_reflect::DescriptorType::STORAGE_BUFFER,
+            binding_count: rspirv_reflect::BindingCount::One,
+            name: "samples".to_string(),
+        };
+
+        Some((0u32, info)).into_iter().collect::<BTreeMap<_, _>>()
+    };
+
+    res.write_desc_set_raw(&set_info, desc_set, |res, builder| {
+        let buffer = &res[buffer];
+        let info = ash::vk::DescriptorBufferInfo::builder()
+            .buffer(buffer.buffer)
+            .offset(0)
+            .range(ash::vk::WHOLE_SIZE)
+            .build();
+        let buffer_info = [info];
+        builder.bind_buffer(0, &buffer_info);
+        Ok(())
+    })
+}
+
 pub fn allocate_buffer_desc_set(
     buffer: BufferIx,
     res: &mut GpuResources,

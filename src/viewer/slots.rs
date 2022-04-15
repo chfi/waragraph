@@ -445,8 +445,12 @@ impl PathViewSlot {
         self.width = new_width;
         self.capacity = new_width;
 
-        let desc_set = crate::util::allocate_buffer_desc_set(self.buffer, res)?;
-        let _ = res.insert_desc_set_at(self.desc_set, desc_set);
+        let desc_set = res[self.desc_set];
+
+        crate::util::write_buffer_desc_set(res, self.buffer, desc_set)?;
+
+        // let desc_set = crate::util::allocate_buffer_desc_set(self.buffer, res)?;
+        // let _ = res.insert_desc_set_at(self.desc_set, desc_set);
 
         Ok(())
     }
