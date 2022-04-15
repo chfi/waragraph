@@ -743,6 +743,7 @@ impl ViewerSys {
         window: &Window,
         window_resources: &WindowResources,
         graph: &Waragraph,
+        gui: &GuiSys,
     ) -> Result<bool> {
         let f_ix = engine.current_frame_number();
 
@@ -784,8 +785,6 @@ impl ViewerSys {
 
         for path in self.path_viewer.visible_paths(graph) {
             use rhai::Dynamic as Dyn;
-
-            {}
 
             let mut desc_map = rhai::Map::default();
             if let Some(slot) = self.path_viewer.slots.get_slot_for(path) {
@@ -834,6 +833,11 @@ impl ViewerSys {
             height: size.height,
         };
 
+        let out_framebuffer =
+            *window_resources.indices.framebuffers.get("out").unwrap();
+
+        let gui_batch_fn = gui.draw(out_framebuffer, extent);
+
         let fg_batch = Box::new(
             move |dev: &Device,
                   res: &GpuResources,
@@ -841,8 +845,19 @@ impl ViewerSys {
                   cmd: vk::CommandBuffer| {
                 fg_batch_fn(dev, res, cmd);
                 labels_batch_fn(dev, res, cmd);
+                gui_batch_fn(dev, res, cmd);
             },
         ) as Box<_>;
+
+        // let gui_batch = Box::new(
+        //     move |dev: &Device,
+        //           res: &GpuResources,
+        //           _input: &BatchInput,
+        //           cmd: vk::CommandBuffer| {
+        //         // fg_batch_fn(dev, res, cmd);
+        //         // labels_batch_fn(dev, res, cmd);
+        //     },
+        // ) as Box<_>;
 
         // let copy_to_swapchain = self.copy_to_swapchain.clone();
 

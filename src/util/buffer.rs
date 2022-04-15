@@ -688,6 +688,7 @@ impl BufferStorage {
         let id = db.generate_id()?;
         let id = BufId(id);
 
+        self.initialize_buffer_metadata(id, name, fmt, capacity)?;
         self.allocate_buffer_impl(engine, id, name, fmt, capacity, usage)
     }
 }

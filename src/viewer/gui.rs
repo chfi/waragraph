@@ -104,6 +104,7 @@ impl GuiSys {
             })?
         };
 
+        dbg!();
         let buf_id = buffers.allocate_buffer_with_usage(
             engine,
             &db,
@@ -115,6 +116,7 @@ impl GuiSys {
                 | vk::BufferUsageFlags::TRANSFER_SRC
                 | vk::BufferUsageFlags::TRANSFER_DST,
         )?;
+        dbg!();
         let buf_ix = buffers.get_buffer_ix(buf_id).unwrap();
 
         buffers
@@ -134,16 +136,18 @@ impl GuiSys {
         })
     }
 
-    pub fn draw(
-        &self,
+    pub fn draw_impl(
+        pass: RenderPassIx,
+        pipeline: PipelineIx,
+        framebuffer: FramebufferIx,
+        vx_buf_ix: BufferIx,
+        extent: vk::Extent2D,
         device: &Device,
         res: &GpuResources,
-        framebuffer: FramebufferIx,
-        extent: vk::Extent2D,
         cmd: vk::CommandBuffer,
     ) {
         let pass_info = vk::RenderPassBeginInfo::builder()
-            .render_pass(res[self.pass])
+            .render_pass(res[pass])
             .framebuffer(res[framebuffer])
             .render_area(vk::Rect2D {
                 offset: vk::Offset2D { x: 0, y: 0 },
@@ -159,12 +163,20 @@ impl GuiSys {
                 vk::SubpassContents::INLINE,
             );
 
-            let vx_buf = res[self.buf_ix].buffer;
-            let (pipeline, _) = res[self.pipeline];
+            let vx_buf = res[vx_buf_ix].buffer;
+            let (pipeline, layout) = res[pipeline];
             let vxs = [vx_buf];
             // dev.cmd_bind_vertex_buffers(cmd, 0, &vxs, &[2]);
             device.cmd_bind_vertex_buffers(cmd, 0, &vxs, &[8]);
             // dev.cmd_bind_vertex_buffers(cmd, 0, &vxs, &[16]);
+
+            let dims = [extent.width as f32, extent.height as f32];
+
+            let constants = bytemuck::cast_slice(&dims);
+
+            let stages =
+                vk::ShaderStageFlags::VERTEX | vk::ShaderStageFlags::FRAGMENT;
+            device.cmd_push_constants(cmd, layout, stages, 0, constants);
 
             device.cmd_bind_pipeline(
                 cmd,
@@ -197,5 +209,30 @@ impl GuiSys {
 
             device.cmd_end_render_pass(cmd);
         }
+
+        //
+    }
+
+    pub fn draw(
+        &self,
+        framebuffer: FramebufferIx,
+        extent: vk::Extent2D,
+    ) -> Box<dyn Fn(&Device, &GpuResources, vk::CommandBuffer)> {
+        let pass = self.pass;
+        let pipeline = self.pipeline;
+        let buf_ix = self.buf_ix;
+
+        Box::new(move |dev, res, cmd| {
+            Self::draw_impl(
+                pass,
+                pipeline,
+                framebuffer,
+                buf_ix,
+                extent,
+                dev,
+                res,
+                cmd,
+            );
+        })
     }
 }
