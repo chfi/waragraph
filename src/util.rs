@@ -50,6 +50,27 @@ impl LabelStorage {
 
     const TEXT_BUF_LEN: usize = 256;
 
+    pub fn create_label_rhai_map(&self, id: u64) -> Result<rhai::Map> {
+        use rhai::Dynamic as Dyn;
+
+        let label_set = self
+            .desc_set_for_id(id)?
+            .ok_or(anyhow!("Label ID not found: `{}`", id))?;
+        let mut data = rhai::Map::default();
+        data.insert("desc_set".into(), Dyn::from(label_set));
+        let (x, y) = self.get_label_pos_id(id)?;
+
+        data.insert("x".into(), Dyn::from_int(x as i64));
+        data.insert("y".into(), Dyn::from_int(y as i64));
+
+        let len = self
+            .get_label_text_by_id(id)
+            .map(|v| v.len())
+            .unwrap_or_default();
+        data.insert("len".into(), Dyn::from_int(len as i64));
+        Ok(data)
+    }
+
     pub fn update(
         &mut self,
         res: &mut GpuResources,

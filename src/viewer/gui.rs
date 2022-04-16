@@ -73,7 +73,7 @@ impl GuiSys {
             vertices.push([x + w, y]);
         }
 
-        buffers.insert_data(self.buf_id, &vertices);
+        buffers.insert_data(self.buf_id, &vertices)?;
 
         Ok(())
     }

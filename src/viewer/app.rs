@@ -755,23 +755,8 @@ impl ViewerSys {
         let mut desc_sets = Vec::new();
 
         let create_label_map = |id: u64| {
-            use rhai::Dynamic as Dyn;
-
-            let label_set = self.labels.desc_set_for_id(id).unwrap()?;
-            let mut data = rhai::Map::default();
-            data.insert("desc_set".into(), Dyn::from(label_set));
-            let (x, y) = self.labels.get_label_pos_id(id).unwrap();
-
-            data.insert("x".into(), Dyn::from_int(x as i64));
-            data.insert("y".into(), Dyn::from_int(y as i64));
-
-            let len = self
-                .labels
-                .get_label_text_by_id(id)
-                .map(|v| v.len())
-                .unwrap_or_default();
-            data.insert("len".into(), Dyn::from_int(len as i64));
-            Some(Dyn::from_map(data))
+            let map = self.labels.create_label_rhai_map(id).ok()?;
+            Some(rhai::Dynamic::from_map(map))
         };
 
         label_sets.extend(
@@ -838,6 +823,26 @@ impl ViewerSys {
 
         let gui_batch_fn = gui.draw(out_framebuffer, extent);
 
+        let gui_label_sets = gui
+            .labels
+            .label_names
+            .values()
+            .filter_map(|&id| {
+                let map = gui.labels.create_label_rhai_map(id).ok()?;
+                Some(rhai::Dynamic::from(map))
+            })
+            .collect::<Vec<_>>();
+
+        let batch_builder = BatchBuilder::default();
+        let gui_labels_batch_fn = (&self.draw_labels)(
+            batch_builder,
+            size.width as i64,
+            size.height as i64,
+            gui_label_sets,
+        )
+        .unwrap()
+        .build();
+
         let fg_batch = Box::new(
             move |dev: &Device,
                   res: &GpuResources,
@@ -846,6 +851,7 @@ impl ViewerSys {
                 fg_batch_fn(dev, res, cmd);
                 labels_batch_fn(dev, res, cmd);
                 gui_batch_fn(dev, res, cmd);
+                gui_labels_batch_fn(dev, res, cmd);
             },
         ) as Box<_>;
 
