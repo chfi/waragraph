@@ -32,6 +32,70 @@ use zerocopy::{AsBytes, FromBytes};
 
 type LabelId = u64;
 
+#[derive(Clone)]
+pub enum RectVertices {
+    // RGBA {
+    //     vertices: Vec<[f32; 6]>,
+    // },
+    Palette {
+        buffer_set: DescSetIx,
+        vertices: Vec<([f32; 2], u32)>,
+    },
+}
+
+#[derive(Clone)]
+pub struct GuiLayer {
+    // rects: Arc<RwLock<RectVertices>>,
+    name: rhai::ImmutableString,
+    rects: RectVertices,
+
+    // labels: FxHashMap<u64, Arc<AtomicCell<bool>>>,
+    labels: FxHashMap<u64, bool>,
+
+    vertex_buf_id: BufId,
+    pub vertex_buf_ix: BufferIx,
+}
+
+impl GuiLayer {
+    pub fn new(
+        engine: &mut VkEngine,
+        buffers: &mut BufferStorage,
+        db: &sled::Db,
+        name: &str,
+        size: usize,
+        color_buf_set: DescSetIx,
+    ) -> Result<Self> {
+        // let name = name.into();
+        let rects = RectVertices::Palette {
+            buffer_set: color_buf_set,
+            vertices: Vec::new(),
+        };
+
+        let vertex_buf_id = buffers.allocate_buffer_with_usage(
+            engine,
+            &db,
+            name,
+            BufFmt::FVec3,
+            size,
+            vk::BufferUsageFlags::VERTEX_BUFFER
+                | vk::BufferUsageFlags::STORAGE_BUFFER
+                | vk::BufferUsageFlags::TRANSFER_SRC
+                | vk::BufferUsageFlags::TRANSFER_DST,
+        )?;
+        let vertex_buf_ix = buffers.get_buffer_ix(vertex_buf_id).unwrap();
+
+        Ok(Self {
+            name: name.into(),
+
+            rects,
+            labels: FxHashMap::default(),
+
+            vertex_buf_id,
+            vertex_buf_ix,
+        })
+    }
+}
+
 // pub struct GuiLayer {
 //     labels: FxHashSet<LabelId>,
 // }
@@ -39,13 +103,41 @@ type LabelId = u64;
 // pub struct GuiLayer {
 // }
 
+#[derive(Clone)]
+pub enum RectColor {
+    // RGBA { r: f32, g: f32, b: f32, a: f32 },
+    PaletteName {
+        buffer_name: rhai::ImmutableString,
+        ix: u32,
+    },
+    PaletteId {
+        buffer_id: BufId,
+        ix: u32,
+    },
+}
+
+#[derive(Clone)]
+pub enum GuiMsg {
+    CreateLayer {
+        name: rhai::ImmutableString,
+    },
+    ModifyLayer {
+        name: rhai::ImmutableString,
+        fn_ptr: rhai::FnPtr,
+    },
+}
+
 pub struct GuiSys {
     pub config: ConfigMap,
+
+    layers: Arc<RwLock<FxHashMap<rhai::ImmutableString, GuiLayer>>>,
 
     pub labels: LabelStorage,
     pub label_updates: sled::Subscriber,
 
-    pub rects: Arc<RwLock<Vec<[f32; 4]>>>,
+    pub rects: Arc<RwLock<Vec<([f32; 4], u32)>>>,
+    // pub rects: Vec<Arc<RwLock<GuiLayer>>>,
+    // pub rects: Arc<RwLock<Vec<([f32; 4], RectColor)>>>,
     // pub rhai_module: Arc<rhai::Module>,
 
     // pub on_resize: RhaiBatchFn2<i64, i64>,
@@ -57,29 +149,42 @@ pub struct GuiSys {
 
     buf_id: BufId,
     pub buf_ix: BufferIx,
+
+    msg_tx: crossbeam::channel::Sender<GuiMsg>,
+    msg_rx: crossbeam::channel::Receiver<GuiMsg>,
 }
 
 impl GuiSys {
     const VX_BUF_NAME: &'static str = "waragraph:gui:vertices";
 
+    pub fn update_buffers(&self, buffers: &BufferStorage) -> Result<()> {
+        todo!();
+    }
+
     pub fn update_buffer(&self, buffers: &BufferStorage) -> Result<()> {
         let vx_count = self.rects.read().len() * 6;
         let mut vertices: Vec<[f32; 3]> = Vec::with_capacity(vx_count);
 
-        for &[x, y, w, h] in self.rects.read().iter() {
-            vertices.push([x, y, 4.0]);
-            vertices.push([x, y + h, 5.0]);
-            vertices.push([x + w, y, 6.0]);
+        for (rect, color) in self.rects.read().iter() {
+            let &[x, y, w, h] = rect;
 
-            vertices.push([x, y + h, 5.0]);
-            vertices.push([x + w, y + h, 7.0]);
-            vertices.push([x + w, y, 6.0]);
+            let color = *color as f32;
+
+            vertices.push([x, y, color]);
+            vertices.push([x, y + h, color]);
+            vertices.push([x + w, y, color]);
+
+            vertices.push([x, y + h, color]);
+            vertices.push([x + w, y + h, color]);
+            vertices.push([x + w, y, color]);
         }
 
         buffers.insert_data(self.buf_id, &vertices)?;
 
         Ok(())
     }
+
+    // pub fn add_label(&mut self, name: &str)
 
     pub fn init(
         engine: &mut VkEngine,
@@ -149,6 +254,8 @@ impl GuiSys {
         Ok(Self {
             config,
 
+            layers: Arc::new(RwLock::new(Vec::new())),
+
             labels,
             label_updates,
 
@@ -163,11 +270,11 @@ impl GuiSys {
     }
 
     pub fn draw_impl(
+        layers: Arc<RwLock<FxHashMap<rhai::ImmutableString, GuiLayer>>>,
+        layer_names: Vec<rhai::ImmutableString>,
         pass: RenderPassIx,
         pipeline: PipelineIx,
         framebuffer: FramebufferIx,
-        vx_buf_ix: BufferIx,
-        color_buffer_set: DescSetIx,
         vertex_count: usize,
         extent: vk::Extent2D,
         device: &Device,
@@ -191,38 +298,6 @@ impl GuiSys {
                 vk::SubpassContents::INLINE,
             );
 
-            let vx_buf = res[vx_buf_ix].buffer;
-            let (pipeline, layout) = res[pipeline];
-            let vxs = [vx_buf];
-            // dev.cmd_bind_vertex_buffers(cmd, 0, &vxs, &[2]);
-            // device.cmd_bind_vertex_buffers(cmd, 0, &vxs, &[8]);
-            device.cmd_bind_vertex_buffers(cmd, 0, &vxs, &[12]);
-            // dev.cmd_bind_vertex_buffers(cmd, 0, &vxs, &[16]);
-
-            let dims = [extent.width as f32, extent.height as f32];
-
-            let constants = bytemuck::cast_slice(&dims);
-
-            let stages =
-                vk::ShaderStageFlags::VERTEX | vk::ShaderStageFlags::FRAGMENT;
-            device.cmd_push_constants(cmd, layout, stages, 0, constants);
-
-            let descriptor_sets = [res[color_buffer_set]];
-            device.cmd_bind_descriptor_sets(
-                cmd,
-                vk::PipelineBindPoint::GRAPHICS,
-                layout,
-                0,
-                &descriptor_sets,
-                &[],
-            );
-
-            device.cmd_bind_pipeline(
-                cmd,
-                vk::PipelineBindPoint::GRAPHICS,
-                pipeline,
-            );
-
             let viewport = vk::Viewport {
                 x: 0.0,
                 y: 0.0,
@@ -244,7 +319,53 @@ impl GuiSys {
 
             device.cmd_set_scissor(cmd, 0, &scissors);
 
-            device.cmd_draw(cmd, vertex_count as u32, 1, 0, 0);
+            let (pipeline, layout) = res[pipeline];
+
+            device.cmd_bind_pipeline(
+                cmd,
+                vk::PipelineBindPoint::GRAPHICS,
+                pipeline,
+            );
+
+            let layers = layers.read();
+
+            layer_names
+                .iter()
+                .filter_map(|name| {
+                    let layer = layers.get(name)?;
+                    Some((name, layer))
+                })
+                .for_each(|(layer_name, layer)| match layer.rects {
+                    RectVertices::Palette { buffer_set, .. } => {
+                        let vx_buf_ix = layer.vertex_buf_ix;
+
+                        let vx_buf = res[vx_buf_ix].buffer;
+                        let vxs = [vx_buf];
+                        device.cmd_bind_vertex_buffers(cmd, 0, &vxs, &[12]);
+
+                        let dims = [extent.width as f32, extent.height as f32];
+
+                        let constants = bytemuck::cast_slice(&dims);
+
+                        let stages = vk::ShaderStageFlags::VERTEX
+                            | vk::ShaderStageFlags::FRAGMENT;
+                        device.cmd_push_constants(
+                            cmd, layout, stages, 0, constants,
+                        );
+
+                        let descriptor_sets = [res[buffer_set]];
+                        device.cmd_bind_descriptor_sets(
+                            cmd,
+                            vk::PipelineBindPoint::GRAPHICS,
+                            layout,
+                            0,
+                            &descriptor_sets,
+                            &[],
+                        );
+
+                        device.cmd_draw(cmd, vertex_count as u32, 1, 0, 0);
+                    }
+                });
 
             device.cmd_end_render_pass(cmd);
         }
@@ -254,6 +375,7 @@ impl GuiSys {
 
     pub fn draw(
         &self,
+        layers: Vec<rhai::ImmutableString>,
         framebuffer: FramebufferIx,
         extent: vk::Extent2D,
         color_buffer_set: DescSetIx,

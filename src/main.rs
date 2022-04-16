@@ -105,8 +105,8 @@ fn main() -> Result<()> {
     {
         let mut rects = gui_sys.rects.write();
 
-        rects.push([50.0, 50.0, 150.0, 150.0]);
-        rects.push([100.0, 100.0, 100.0, 100.0]);
+        rects.push(([50.0, 50.0, 150.0, 150.0], 2));
+        rects.push(([100.0, 100.0, 100.0, 100.0], 7));
     }
 
     gui_sys.update_buffer(&buffers)?;
