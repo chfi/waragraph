@@ -36,13 +36,16 @@ type LabelId = u64;
 //     labels: FxHashSet<LabelId>,
 // }
 
+// pub struct GuiLayer {
+// }
+
 pub struct GuiSys {
     pub config: ConfigMap,
 
     pub labels: LabelStorage,
     pub label_updates: sled::Subscriber,
 
-    pub rects: Vec<[f32; 4]>,
+    pub rects: Arc<RwLock<Vec<[f32; 4]>>>,
     // pub rhai_module: Arc<rhai::Module>,
 
     // pub on_resize: RhaiBatchFn2<i64, i64>,
@@ -60,10 +63,10 @@ impl GuiSys {
     const VX_BUF_NAME: &'static str = "waragraph:gui:vertices";
 
     pub fn update_buffer(&self, buffers: &BufferStorage) -> Result<()> {
-        let vx_count = self.rects.len() * 6;
+        let vx_count = self.rects.read().len() * 6;
         let mut vertices: Vec<[f32; 2]> = Vec::with_capacity(vx_count);
 
-        for &[x, y, w, h] in self.rects.iter() {
+        for &[x, y, w, h] in self.rects.read().iter() {
             vertices.push([x, y]);
             vertices.push([x, y + h]);
             vertices.push([x + w, y]);
@@ -149,7 +152,7 @@ impl GuiSys {
             labels,
             label_updates,
 
-            rects: Vec::new(),
+            rects: Arc::new(RwLock::new(Vec::new())),
 
             pass: pass_ix,
             pipeline: pipeline_ix,
@@ -164,6 +167,7 @@ impl GuiSys {
         pipeline: PipelineIx,
         framebuffer: FramebufferIx,
         vx_buf_ix: BufferIx,
+        color_buffer_set: DescSetIx,
         vertex_count: usize,
         extent: vk::Extent2D,
         device: &Device,
@@ -201,6 +205,16 @@ impl GuiSys {
             let stages =
                 vk::ShaderStageFlags::VERTEX | vk::ShaderStageFlags::FRAGMENT;
             device.cmd_push_constants(cmd, layout, stages, 0, constants);
+
+            let descriptor_sets = [res[color_buffer_set]];
+            device.cmd_bind_descriptor_sets(
+                cmd,
+                vk::PipelineBindPoint::GRAPHICS,
+                layout,
+                0,
+                &descriptor_sets,
+                &[],
+            );
 
             device.cmd_bind_pipeline(
                 cmd,
@@ -241,11 +255,12 @@ impl GuiSys {
         &self,
         framebuffer: FramebufferIx,
         extent: vk::Extent2D,
+        color_buffer_set: DescSetIx,
     ) -> Box<dyn Fn(&Device, &GpuResources, vk::CommandBuffer)> {
         let pass = self.pass;
         let pipeline = self.pipeline;
         let buf_ix = self.buf_ix;
-        let vertex_count = self.rects.len() * 6;
+        let vertex_count = self.rects.read().len() * 6;
 
         Box::new(move |dev, res, cmd| {
             Self::draw_impl(
@@ -253,6 +268,7 @@ impl GuiSys {
                 pipeline,
                 framebuffer,
                 buf_ix,
+                color_buffer_set,
                 vertex_count,
                 extent,
                 dev,

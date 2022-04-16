@@ -740,6 +740,7 @@ impl ViewerSys {
     pub fn render(
         &mut self,
         engine: &mut VkEngine,
+        buffers: &BufferStorage,
         window: &Window,
         window_resources: &WindowResources,
         graph: &Waragraph,
@@ -821,7 +822,11 @@ impl ViewerSys {
         let out_framebuffer =
             *window_resources.indices.framebuffers.get("out").unwrap();
 
-        let gui_batch_fn = gui.draw(out_framebuffer, extent);
+        let color_buffer_set = {
+            let id = buffers.get_id("gradient-colorbrewer-spectral").unwrap();
+            buffers.get_desc_set_ix(id).unwrap()
+        };
+        let gui_batch_fn = gui.draw(out_framebuffer, extent, color_buffer_set);
 
         let gui_label_sets = gui
             .labels

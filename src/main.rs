@@ -102,8 +102,12 @@ fn main() -> Result<()> {
     let mut gui_sys =
         GuiSys::init(&mut engine, &db, &mut buffers, width, height)?;
 
-    // gui_sys.rects.push([50.0, 50.0, 50.0, 50.0]);
-    // gui_sys.rects.push([50.0, 450.0, 150.0, 50.0]);
+    {
+        let mut rects = gui_sys.rects.write();
+
+        rects.push([50.0, 50.0, 150.0, 150.0]);
+        rects.push([100.0, 100.0, 100.0, 100.0]);
+    }
 
     gui_sys.update_buffer(&buffers)?;
 
@@ -348,6 +352,7 @@ fn main() -> Result<()> {
                         Modes::PathViewer => viewer
                             .render(
                                 &mut engine,
+                                &buffers,
                                 &window,
                                 &window_resources,
                                 &waragraph,

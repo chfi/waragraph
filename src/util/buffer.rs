@@ -362,6 +362,15 @@ impl BufferStorage {
         })
     }
 
+    pub fn get_id(&self, name: &str) -> Option<BufId> {
+        let name_key = BufferStorage::name_key(name);
+        self.tree
+            .get(&name_key)
+            .ok()
+            .flatten()
+            .and_then(|id| BufId::read_from(id.as_ref()))
+    }
+
     pub fn fill_buffer(&self, res: &mut GpuResources, id: BufId) -> Option<()> {
         let (buf_ix, _) = *self.resource_indices.read().get(&id)?;
 

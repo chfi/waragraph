@@ -583,7 +583,11 @@ pub fn allocate_buffer_desc_set(
             .binding(0)
             .descriptor_count(1)
             .descriptor_type(vk::DescriptorType::STORAGE_BUFFER)
-            .stage_flags(vk::ShaderStageFlags::COMPUTE) // TODO should also be graphics, probably
+            .stage_flags(
+                vk::ShaderStageFlags::COMPUTE
+                    | vk::ShaderStageFlags::VERTEX
+                    | vk::ShaderStageFlags::FRAGMENT,
+            ) // TODO should also be graphics, probably
             .build();
 
         info.bindings.push(binding);
