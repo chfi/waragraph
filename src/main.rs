@@ -12,7 +12,7 @@ use sled::IVec;
 use waragraph::graph::{Node, Waragraph};
 use waragraph::util::{BufferStorage, LabelStorage};
 use waragraph::viewer::app::ViewerSys;
-use waragraph::viewer::gui::GuiSys;
+use waragraph::viewer::gui::{GuiLayer, GuiSys};
 use waragraph::viewer::{SlotRenderers, SlotUpdateFn, ViewDiscrete1D};
 use winit::event::{Event, VirtualKeyCode, WindowEvent};
 use winit::{event_loop::EventLoop, window::WindowBuilder};
@@ -102,15 +102,6 @@ fn main() -> Result<()> {
     let mut gui_sys =
         GuiSys::init(&mut engine, &db, &mut buffers, width, height)?;
 
-    {
-        let mut rects = gui_sys.rects.write();
-
-        rects.push(([50.0, 50.0, 150.0, 150.0], 2));
-        rects.push(([100.0, 100.0, 100.0, 100.0], 7));
-    }
-
-    gui_sys.update_buffer(&buffers)?;
-
     let mut window_resources = WindowResources::new();
     window_resources.add_image(
         "out",
@@ -159,6 +150,46 @@ fn main() -> Result<()> {
     viewer.labels.allocate_label(&db, &mut engine, "console")?;
     viewer.labels.set_label_pos(b"console", 4, 4)?;
     viewer.labels.set_text_for(b"console", "")?;
+
+    buffers.allocate_queued(&mut engine)?;
+    buffers.fill_updated_buffers(&mut engine.resources)?;
+
+    let color_buffer_set = {
+        let id = buffers.get_id("gradient-colorbrewer-spectral").unwrap();
+        buffers.get_desc_set_ix(id).unwrap()
+    };
+
+    let gui_layer = GuiLayer::new(
+        &mut engine,
+        &db,
+        &mut buffers,
+        "main_gui",
+        1023,
+        color_buffer_set,
+    )?;
+    gui_sys.layers.write().insert("main_gui".into(), gui_layer);
+
+    {
+        let mut layers = gui_sys.layers.write();
+        let layer = layers.get_mut("main_gui").unwrap();
+
+        match &mut layer.rects {
+            waragraph::viewer::gui::RectVertices::Palette {
+                buffer_set,
+                rects,
+            } => {
+                rects.push(([50.0, 50.0, 150.0, 150.0], 2));
+                rects.push(([100.0, 100.0, 100.0, 100.0], 7));
+            }
+        }
+
+        // let mut rects = gui_sys.rects.write();
+
+        // rects.push(([50.0, 50.0, 150.0, 150.0], 2));
+        // rects.push(([100.0, 100.0, 100.0, 100.0], 7));
+    }
+
+    gui_sys.update_layer_buffers(&buffers)?;
 
     let mut recreate_swapchain = false;
     let mut recreate_swapchain_timer: Option<std::time::Instant> = None;

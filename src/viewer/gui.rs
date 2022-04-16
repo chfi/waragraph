@@ -39,7 +39,7 @@ pub enum RectVertices {
     // },
     Palette {
         buffer_set: DescSetIx,
-        vertices: Vec<([f32; 2], u32)>,
+        rects: Vec<([f32; 4], u32)>,
     },
 }
 
@@ -47,7 +47,7 @@ pub enum RectVertices {
 pub struct GuiLayer {
     // rects: Arc<RwLock<RectVertices>>,
     name: rhai::ImmutableString,
-    rects: RectVertices,
+    pub rects: RectVertices,
 
     // labels: FxHashMap<u64, Arc<AtomicCell<bool>>>,
     labels: FxHashMap<u64, bool>,
@@ -59,8 +59,8 @@ pub struct GuiLayer {
 impl GuiLayer {
     pub fn new(
         engine: &mut VkEngine,
-        buffers: &mut BufferStorage,
         db: &sled::Db,
+        buffers: &mut BufferStorage,
         name: &str,
         size: usize,
         color_buf_set: DescSetIx,
@@ -68,7 +68,7 @@ impl GuiLayer {
         // let name = name.into();
         let rects = RectVertices::Palette {
             buffer_set: color_buf_set,
-            vertices: Vec::new(),
+            rects: Vec::new(),
         };
 
         let vertex_buf_id = buffers.allocate_buffer_with_usage(
@@ -130,7 +130,7 @@ pub enum GuiMsg {
 pub struct GuiSys {
     pub config: ConfigMap,
 
-    layers: Arc<RwLock<FxHashMap<rhai::ImmutableString, GuiLayer>>>,
+    pub layers: Arc<RwLock<FxHashMap<rhai::ImmutableString, GuiLayer>>>,
 
     pub labels: LabelStorage,
     pub label_updates: sled::Subscriber,
@@ -147,9 +147,6 @@ pub struct GuiSys {
     pub pass: RenderPassIx,
     pub pipeline: PipelineIx,
 
-    buf_id: BufId,
-    pub buf_ix: BufferIx,
-
     msg_tx: crossbeam::channel::Sender<GuiMsg>,
     msg_rx: crossbeam::channel::Receiver<GuiMsg>,
 }
@@ -157,29 +154,34 @@ pub struct GuiSys {
 impl GuiSys {
     const VX_BUF_NAME: &'static str = "waragraph:gui:vertices";
 
-    pub fn update_buffers(&self, buffers: &BufferStorage) -> Result<()> {
-        todo!();
-    }
+    pub fn update_layer_buffers(&self, buffers: &BufferStorage) -> Result<()> {
+        let mut vertices: Vec<[f32; 3]> = Vec::new();
 
-    pub fn update_buffer(&self, buffers: &BufferStorage) -> Result<()> {
-        let vx_count = self.rects.read().len() * 6;
-        let mut vertices: Vec<[f32; 3]> = Vec::with_capacity(vx_count);
+        for (name, layer) in self.layers.read().iter() {
+            match &layer.rects {
+                RectVertices::Palette { buffer_set, rects } => {
+                    vertices.clear();
 
-        for (rect, color) in self.rects.read().iter() {
-            let &[x, y, w, h] = rect;
+                    for (rect, color) in rects.iter() {
+                        let &[x, y, w, h] = rect;
 
-            let color = *color as f32;
+                        let color = *color as f32;
 
-            vertices.push([x, y, color]);
-            vertices.push([x, y + h, color]);
-            vertices.push([x + w, y, color]);
+                        vertices.push([x, y, color]);
+                        vertices.push([x, y + h, color]);
+                        vertices.push([x + w, y, color]);
 
-            vertices.push([x, y + h, color]);
-            vertices.push([x + w, y + h, color]);
-            vertices.push([x + w, y, color]);
+                        vertices.push([x, y + h, color]);
+                        vertices.push([x + w, y + h, color]);
+                        vertices.push([x + w, y, color]);
+                    }
+
+                    buffers.insert_data(layer.vertex_buf_id, &vertices)?;
+                }
+            }
+
+            //
         }
-
-        buffers.insert_data(self.buf_id, &vertices)?;
 
         Ok(())
     }
@@ -251,10 +253,12 @@ impl GuiSys {
         // buffers
         //     .insert_data(buf_id, &[[0f32, 0.0], [100.0, 0.0], [0.0, 100.0]])?;
 
+        let (msg_tx, msg_rx) = crossbeam::channel::unbounded();
+
         Ok(Self {
             config,
 
-            layers: Arc::new(RwLock::new(Vec::new())),
+            layers: Arc::new(RwLock::new(FxHashMap::default())),
 
             labels,
             label_updates,
@@ -264,8 +268,8 @@ impl GuiSys {
             pass: pass_ix,
             pipeline: pipeline_ix,
 
-            buf_id,
-            buf_ix,
+            msg_tx,
+            msg_rx,
         })
     }
 
@@ -275,7 +279,7 @@ impl GuiSys {
         pass: RenderPassIx,
         pipeline: PipelineIx,
         framebuffer: FramebufferIx,
-        vertex_count: usize,
+        // vertex_count: usize,
         extent: vk::Extent2D,
         device: &Device,
         res: &GpuResources,
@@ -335,12 +339,15 @@ impl GuiSys {
                     let layer = layers.get(name)?;
                     Some((name, layer))
                 })
-                .for_each(|(layer_name, layer)| match layer.rects {
-                    RectVertices::Palette { buffer_set, .. } => {
+                .for_each(|(layer_name, layer)| match &layer.rects {
+                    RectVertices::Palette { buffer_set, rects } => {
                         let vx_buf_ix = layer.vertex_buf_ix;
 
                         let vx_buf = res[vx_buf_ix].buffer;
                         let vxs = [vx_buf];
+
+                        let vertex_count = rects.len() * 6;
+
                         device.cmd_bind_vertex_buffers(cmd, 0, &vxs, &[12]);
 
                         let dims = [extent.width as f32, extent.height as f32];
@@ -353,7 +360,7 @@ impl GuiSys {
                             cmd, layout, stages, 0, constants,
                         );
 
-                        let descriptor_sets = [res[buffer_set]];
+                        let descriptor_sets = [res[*buffer_set]];
                         device.cmd_bind_descriptor_sets(
                             cmd,
                             vk::PipelineBindPoint::GRAPHICS,
@@ -375,24 +382,26 @@ impl GuiSys {
 
     pub fn draw(
         &self,
-        layers: Vec<rhai::ImmutableString>,
+        layer_names: Vec<rhai::ImmutableString>,
         framebuffer: FramebufferIx,
         extent: vk::Extent2D,
-        color_buffer_set: DescSetIx,
+        // color_buffer_set: DescSetIx,
     ) -> Box<dyn Fn(&Device, &GpuResources, vk::CommandBuffer)> {
         let pass = self.pass;
         let pipeline = self.pipeline;
-        let buf_ix = self.buf_ix;
-        let vertex_count = self.rects.read().len() * 6;
+        // let buf_ix = self.buf_ix;
+        let layers = self.layers.clone();
+        let layer_names = layer_names;
 
         Box::new(move |dev, res, cmd| {
+            let layers = layers.clone();
+            let layer_names = layer_names.clone();
             Self::draw_impl(
+                layers,
+                layer_names,
                 pass,
                 pipeline,
                 framebuffer,
-                buf_ix,
-                color_buffer_set,
-                vertex_count,
                 extent,
                 dev,
                 res,
