@@ -90,6 +90,8 @@ pub enum BufFmt {
     UVec2,
     FVec2,
 
+    FVec3,
+
     UVec4,
     SVec4,
     FVec4,
@@ -138,6 +140,7 @@ impl BufFmt {
             BufFmt::Float => *b"1f4",
             BufFmt::UVec2 => *b"2u4",
             BufFmt::FVec2 => *b"2f4",
+            BufFmt::FVec3 => *b"3f4",
             BufFmt::UVec4 => *b"4u4",
             BufFmt::SVec4 => *b"4i4",
             BufFmt::FVec4 => *b"4f4",
@@ -166,6 +169,9 @@ impl BufFmt {
             // vec2
             b"2f4" => Some(Self::FVec2),
 
+            // vec3
+            b"3f4" => Some(Self::FVec3),
+
             // vec4
             b"4f4" => Some(Self::FVec4),
             // uvec4
@@ -183,6 +189,7 @@ impl BufFmt {
             BufFmt::Float => 4,
             BufFmt::UVec2 => 8,
             BufFmt::FVec2 => 8,
+            BufFmt::FVec3 => 12,
             BufFmt::UVec4 => 16,
             BufFmt::SVec4 => 16,
             BufFmt::FVec4 => 16,
@@ -387,6 +394,7 @@ impl BufferStorage {
             BufFmt::Float => self.fill_slice_from_data::<f32>(id, dst),
             BufFmt::UVec2 => self.fill_slice_from_data::<[u32; 2]>(id, dst),
             BufFmt::FVec2 => self.fill_slice_from_data::<[f32; 2]>(id, dst),
+            BufFmt::FVec3 => self.fill_slice_from_data::<[f32; 3]>(id, dst),
             BufFmt::UVec4 => self.fill_slice_from_data::<[u32; 4]>(id, dst),
             BufFmt::SVec4 => self.fill_slice_from_data::<[i32; 4]>(id, dst),
             BufFmt::FVec4 => self.fill_slice_from_data::<[f32; 4]>(id, dst),

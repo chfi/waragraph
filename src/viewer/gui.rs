@@ -64,16 +64,16 @@ impl GuiSys {
 
     pub fn update_buffer(&self, buffers: &BufferStorage) -> Result<()> {
         let vx_count = self.rects.read().len() * 6;
-        let mut vertices: Vec<[f32; 2]> = Vec::with_capacity(vx_count);
+        let mut vertices: Vec<[f32; 3]> = Vec::with_capacity(vx_count);
 
         for &[x, y, w, h] in self.rects.read().iter() {
-            vertices.push([x, y]);
-            vertices.push([x, y + h]);
-            vertices.push([x + w, y]);
+            vertices.push([x, y, 4.0]);
+            vertices.push([x, y + h, 5.0]);
+            vertices.push([x + w, y, 6.0]);
 
-            vertices.push([x, y + h]);
-            vertices.push([x + w, y + h]);
-            vertices.push([x + w, y]);
+            vertices.push([x, y + h, 5.0]);
+            vertices.push([x + w, y + h, 7.0]);
+            vertices.push([x + w, y, 6.0]);
         }
 
         buffers.insert_data(self.buf_id, &vertices)?;
@@ -133,7 +133,7 @@ impl GuiSys {
             engine,
             &db,
             Self::VX_BUF_NAME,
-            BufFmt::FVec2,
+            BufFmt::FVec3,
             1023,
             vk::BufferUsageFlags::VERTEX_BUFFER
                 | vk::BufferUsageFlags::STORAGE_BUFFER
@@ -195,7 +195,8 @@ impl GuiSys {
             let (pipeline, layout) = res[pipeline];
             let vxs = [vx_buf];
             // dev.cmd_bind_vertex_buffers(cmd, 0, &vxs, &[2]);
-            device.cmd_bind_vertex_buffers(cmd, 0, &vxs, &[8]);
+            // device.cmd_bind_vertex_buffers(cmd, 0, &vxs, &[8]);
+            device.cmd_bind_vertex_buffers(cmd, 0, &vxs, &[12]);
             // dev.cmd_bind_vertex_buffers(cmd, 0, &vxs, &[16]);
 
             let dims = [extent.width as f32, extent.height as f32];
