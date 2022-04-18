@@ -1,4 +1,5 @@
 use bstr::ByteSlice;
+use crossbeam::atomic::AtomicCell;
 use parking_lot::RwLock;
 use raving::script::console::frame::FrameBuilder;
 use raving::script::console::BatchBuilder;
@@ -50,10 +51,28 @@ pub struct GuiLayer {
     pub rects: RectVertices,
 
     // labels: FxHashMap<u64, Arc<AtomicCell<bool>>>,
-    labels: FxHashMap<u64, bool>,
+    // labels: FxHashMap<rhai::ImmutableString, Arc<(u64, AtomicCell<bool>)>>,
+    labels: FxHashMap<rhai::ImmutableString, GuiLabel>,
 
     vertex_buf_id: BufId,
     pub vertex_buf_ix: BufferIx,
+}
+
+#[derive(Clone)]
+pub struct GuiLabel {
+    layer: rhai::ImmutableString,
+    label_id: u64,
+    visible: Arc<AtomicCell<bool>>,
+}
+
+impl GuiLabel {
+    pub fn is_visible(&self) -> bool {
+        self.visible.load()
+    }
+
+    pub fn set_visibility(&self, vis: bool) {
+        self.visible.store(vis);
+    }
 }
 
 impl GuiLayer {
@@ -94,6 +113,61 @@ impl GuiLayer {
             vertex_buf_ix,
         })
     }
+
+    pub fn get_label<'a>(
+        &mut self,
+        engine: &mut VkEngine,
+        db: &sled::Db,
+        labels: &mut LabelStorage,
+        name: &str,
+    ) -> Result<GuiLabel> {
+        {
+            if let Some(label) = self.labels.get(name) {
+                return Ok(label.clone());
+            }
+        }
+
+        let key = self.label_name_sled_key(name);
+        let id = labels.allocate_label(&db, engine, &key)?;
+        let label = GuiLabel {
+            layer: self.name.clone(),
+            label_id: id,
+            visible: Arc::new(true.into()),
+        };
+        self.labels.insert(name.into(), label.clone());
+        Ok(label)
+    }
+
+    fn label_name_sled_key(&self, name: &str) -> String {
+        format!("{}:label:{}", self.name, name)
+    }
+
+    /*
+
+    pub fn get_label(
+        &mut self,
+        engine: &mut VkEngine,
+        db: &sled::Db,
+        labels: &mut LabelStorage,
+        name: &str,
+    ) -> Result<GuiLabel> {
+        if let Some(_visible) = self.labels.get(name) {
+            //
+        } else {
+            let name = format!("{}:label:{}", self.name, name);
+            let id = labels.allocate_label(&db, engine, &name)?;
+            todo!();
+        }
+    }
+    */
+
+    // pub fn get_label(&mut self, name: &str) -> GuiLabel {
+    // if let Some(_vis) = self.labels.get(
+    // }
+    // fn label_key
+
+    // pub fn label_id(&self, name: &str) -> u64 {
+    // }
 }
 
 // pub struct GuiLayer {
@@ -135,7 +209,6 @@ pub struct GuiSys {
     pub labels: LabelStorage,
     pub label_updates: sled::Subscriber,
 
-    pub rects: Arc<RwLock<Vec<([f32; 4], u32)>>>,
     // pub rects: Vec<Arc<RwLock<GuiLayer>>>,
     // pub rects: Arc<RwLock<Vec<([f32; 4], RectColor)>>>,
     // pub rhai_module: Arc<rhai::Module>,
@@ -235,24 +308,6 @@ impl GuiSys {
             })?
         };
 
-        dbg!();
-        let buf_id = buffers.allocate_buffer_with_usage(
-            engine,
-            &db,
-            Self::VX_BUF_NAME,
-            BufFmt::FVec3,
-            1023,
-            vk::BufferUsageFlags::VERTEX_BUFFER
-                | vk::BufferUsageFlags::STORAGE_BUFFER
-                | vk::BufferUsageFlags::TRANSFER_SRC
-                | vk::BufferUsageFlags::TRANSFER_DST,
-        )?;
-        dbg!();
-        let buf_ix = buffers.get_buffer_ix(buf_id).unwrap();
-
-        // buffers
-        //     .insert_data(buf_id, &[[0f32, 0.0], [100.0, 0.0], [0.0, 100.0]])?;
-
         let (msg_tx, msg_rx) = crossbeam::channel::unbounded();
 
         Ok(Self {
@@ -262,8 +317,6 @@ impl GuiSys {
 
             labels,
             label_updates,
-
-            rects: Arc::new(RwLock::new(Vec::new())),
 
             pass: pass_ix,
             pipeline: pipeline_ix,
