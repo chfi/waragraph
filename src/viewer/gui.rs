@@ -77,6 +77,38 @@ impl GuiLabel {
     }
 }
 
+#[derive(Default, Clone)]
+pub struct LabelMsg {
+    pub layer_name: rhai::ImmutableString,
+    pub label_name: rhai::ImmutableString,
+
+    pub set_visibility: Option<bool>,
+    pub set_position: Option<[u32; 2]>,
+    pub set_contents: Option<rhai::ImmutableString>,
+}
+
+impl LabelMsg {
+    pub fn new(layer_name: &str, label_name: &str) -> Self {
+        Self {
+            layer_name: layer_name.into(),
+            label_name: label_name.into(),
+            ..Self::default()
+        }
+    }
+
+    pub fn set_visibility(&mut self, vis: bool) {
+        self.set_visibility = Some(vis);
+    }
+
+    pub fn set_position(&mut self, x: u32, y: u32) {
+        self.set_position = Some([x, y]);
+    }
+
+    pub fn set_contents(&mut self, contents: &str) {
+        self.set_contents = Some(contents.into());
+    }
+}
+
 impl GuiLayer {
     pub fn new(
         engine: &mut VkEngine,
@@ -114,6 +146,49 @@ impl GuiLayer {
             vertex_buf_id,
             vertex_buf_ix,
         })
+    }
+
+    pub fn apply_label_msg(
+        &mut self,
+        engine: &mut VkEngine,
+        db: &sled::Db,
+        labels: &mut LabelStorage,
+        msg: LabelMsg,
+    ) -> Result<()> {
+        if self.name != msg.layer_name {
+            log::error!(
+                "LabelMsg for layer `{}` being applied to layer `{}`",
+                msg.layer_name,
+                self.name
+            );
+        }
+
+        if !self.labels.contains_key(&msg.label_name) {
+            let key = self.label_name_sled_key(&msg.label_name);
+            let id = labels.allocate_label(&db, engine, &key)?;
+            let label = GuiLabel {
+                layer: self.name.clone(),
+                label_id: id,
+                visible: Arc::new(true.into()),
+            };
+            self.labels.insert(msg.label_name.clone(), label.clone());
+        }
+
+        let label = self.labels.get(&msg.label_name).unwrap();
+
+        if let Some(vis) = msg.set_visibility {
+            label.visible.store(vis);
+        }
+
+        if let Some([x, y]) = msg.set_position {
+            labels.set_pos_for_id(label.label_id, x, y)?;
+        }
+
+        if let Some(contents) = msg.set_contents {
+            labels.set_text_for_id(label.label_id, contents.as_str())?;
+        }
+
+        Ok(())
     }
 
     pub fn get_label<'a>(
@@ -243,6 +318,11 @@ pub struct GuiSys {
     pub pass: RenderPassIx,
     pub pipeline: PipelineIx,
 
+    pub rhai_module: Arc<rhai::Module>,
+
+    pub label_msg_tx: crossbeam::channel::Sender<LabelMsg>,
+    pub label_msg_rx: crossbeam::channel::Receiver<LabelMsg>,
+
     msg_tx: crossbeam::channel::Sender<GuiMsg>,
     msg_rx: crossbeam::channel::Receiver<GuiMsg>,
 }
@@ -331,7 +411,50 @@ impl GuiSys {
             })?
         };
 
+        let (label_msg_tx, label_msg_rx) = crossbeam::channel::unbounded();
         let (msg_tx, msg_rx) = crossbeam::channel::unbounded();
+
+        let mut module = rhai::Module::new();
+
+        module.set_native_fn("label_msg", |layer: &str, label: &str| {
+            Ok(LabelMsg::new(layer, label))
+        });
+
+        module.set_native_fn(
+            "set_visibility",
+            |msg: &mut LabelMsg, vis: bool| {
+                msg.set_visibility(vis);
+                Ok(())
+            },
+        );
+
+        module.set_native_fn(
+            "set_position",
+            |msg: &mut LabelMsg, x: i64, y: i64| {
+                msg.set_position(x as u32, y as u32);
+                Ok(())
+            },
+        );
+
+        module.set_native_fn(
+            "set_contents",
+            |msg: &mut LabelMsg, contents: &str| {
+                msg.set_contents(contents);
+                Ok(())
+            },
+        );
+
+        let tx = label_msg_tx.clone();
+        module.set_native_fn("send_label_msg", move |msg: LabelMsg| {
+            if let Err(e) = tx.send(msg) {
+                log::error!("GUI send_label_msg error: {:?}", e);
+                return Ok(rhai::Dynamic::FALSE);
+            }
+
+            Ok(rhai::Dynamic::TRUE)
+        });
+
+        let rhai_module = Arc::new(module);
 
         Ok(Self {
             config,
@@ -343,6 +466,11 @@ impl GuiSys {
 
             pass: pass_ix,
             pipeline: pipeline_ix,
+
+            rhai_module,
+
+            label_msg_tx,
+            label_msg_rx,
 
             msg_tx,
             msg_rx,

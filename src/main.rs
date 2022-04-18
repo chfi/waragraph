@@ -12,7 +12,7 @@ use sled::IVec;
 use waragraph::graph::{Node, Waragraph};
 use waragraph::util::{BufferStorage, LabelStorage};
 use waragraph::viewer::app::ViewerSys;
-use waragraph::viewer::gui::{GuiLayer, GuiSys};
+use waragraph::viewer::gui::{GuiLayer, GuiSys, LabelMsg};
 use waragraph::viewer::{SlotRenderers, SlotUpdateFn, ViewDiscrete1D};
 use winit::event::{Event, VirtualKeyCode, WindowEvent};
 use winit::{event_loop::EventLoop, window::WindowBuilder};
@@ -169,6 +169,16 @@ fn main() -> Result<()> {
     )?;
 
     {
+        gui_sys.label_msg_tx.send(LabelMsg {
+            layer_name: "main_gui".into(),
+            label_name: "test-label".into(),
+
+            set_visibility: Some(true),
+            set_position: Some([80, 130]),
+            set_contents: Some("hello world!!!!".into()),
+        })?;
+
+        /*
         let label = gui_layer.get_label(
             &mut engine,
             &db,
@@ -181,6 +191,7 @@ fn main() -> Result<()> {
             &label,
             "hello world this is a gui!!!!!",
         )?;
+        */
     }
 
     gui_sys.layers.write().insert("main_gui".into(), gui_layer);
@@ -266,6 +277,21 @@ fn main() -> Result<()> {
                 // handle sled-based buffer updates
                 buffers.allocate_queued(&mut engine).unwrap();
                 buffers.fill_updated_buffers(&mut engine.resources).unwrap();
+
+                while let Ok(label_msg) = gui_sys.label_msg_rx.try_recv() {
+                    if let Some(layer) =
+                        gui_sys.layers.write().get_mut(&label_msg.layer_name)
+                    {
+                        layer
+                            .apply_label_msg(
+                                &mut engine,
+                                &db,
+                                &mut gui_sys.labels,
+                                label_msg,
+                            )
+                            .unwrap();
+                    }
+                }
 
                 while let Ok((path, data, view, width)) = slot_rx.try_recv() {
                     if let Some(slot_ix) =
