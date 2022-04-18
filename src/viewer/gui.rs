@@ -138,6 +138,27 @@ impl GuiLayer {
         Ok(label)
     }
 
+    pub fn set_label_pos(
+        &self,
+        labels: &LabelStorage,
+        label: &GuiLabel,
+        pos: [u32; 2],
+    ) -> Result<()> {
+        let [x, y] = pos;
+        labels.set_pos_for_id(label.label_id, x, y)?;
+        Ok(())
+    }
+
+    pub fn set_label_contents(
+        &self,
+        labels: &LabelStorage,
+        label: &GuiLabel,
+        contents: &str,
+    ) -> Result<()> {
+        labels.set_text_for_id(label.label_id, contents)?;
+        Ok(())
+    }
+
     fn label_name_sled_key(&self, name: &str) -> String {
         format!("{}:label:{}", self.name, name)
     }

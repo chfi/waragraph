@@ -159,7 +159,7 @@ fn main() -> Result<()> {
         buffers.get_desc_set_ix(id).unwrap()
     };
 
-    let gui_layer = GuiLayer::new(
+    let mut gui_layer = GuiLayer::new(
         &mut engine,
         &db,
         &mut buffers,
@@ -167,6 +167,22 @@ fn main() -> Result<()> {
         1023,
         color_buffer_set,
     )?;
+
+    {
+        let label = gui_layer.get_label(
+            &mut engine,
+            &db,
+            &mut gui_sys.labels,
+            "test-label",
+        )?;
+        gui_layer.set_label_pos(&gui_sys.labels, &label, [80, 130])?;
+        gui_layer.set_label_contents(
+            &gui_sys.labels,
+            &label,
+            "hello world this is a gui!!!!!",
+        )?;
+    }
+
     gui_sys.layers.write().insert("main_gui".into(), gui_layer);
 
     {
