@@ -31,6 +31,8 @@ use anyhow::{anyhow, bail, Result};
 
 use zerocopy::{AsBytes, FromBytes};
 
+use rhai::plugin::*;
+
 type LabelId = u64;
 
 #[derive(Clone)]
@@ -482,5 +484,58 @@ impl GuiSys {
                 cmd,
             );
         })
+    }
+}
+
+#[export_module]
+pub mod script {
+
+    use crate::console::EvalResult;
+
+    use super::*;
+
+    use parking_lot::RwLock;
+    use rustc_hash::{FxHashMap, FxHashSet};
+    use std::sync::Arc;
+
+    pub type GuiLayers =
+        Arc<RwLock<FxHashMap<rhai::ImmutableString, GuiLayer>>>;
+
+    pub type GuiLayer = super::GuiLayer;
+
+    pub type GuiLabel = super::GuiLabel;
+
+    pub fn is_visible(label: &mut GuiLabel) -> bool {
+        label.is_visible()
+    }
+
+    pub fn set_visibility(label: &mut GuiLabel, vis: bool) {
+        label.set_visibility(vis);
+    }
+
+    #[rhai_fn(return_raw)]
+    pub fn with_layer(
+        ctx: NativeCallContext,
+        layers: &mut GuiLayers,
+        layer_name: &str,
+        f: rhai::FnPtr,
+    ) -> EvalResult<rhai::Dynamic> {
+        let mut layers = layers.write();
+
+        if let Some((layer_name, layer)) = layers.remove_entry(layer_name) {
+            let mut layer = rhai::Dynamic::from(layer);
+
+            if let Err(e) = f.call_raw(&ctx, Some(&mut layer), []) {
+                log::error!("GUI with_layer error: {:?}", e);
+            }
+
+            let layer = layer.cast::<GuiLayer>();
+
+            layers.insert(layer_name, layer);
+
+            Ok(rhai::Dynamic::TRUE)
+        } else {
+            Ok(rhai::Dynamic::FALSE)
+        }
     }
 }

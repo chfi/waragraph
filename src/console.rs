@@ -52,6 +52,8 @@ lazy_static! {
 // pub mod ivec;
 // pub mod labels;
 
+pub type EvalResult<T> = Result<T, Box<rhai::EvalAltResult>>;
+
 #[derive(Default, Clone)]
 pub struct Console {
     pub input: String,

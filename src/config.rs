@@ -8,8 +8,6 @@ use rhai::plugin::*;
 
 use rhai::ImmutableString;
 
-pub type EvalResult<T> = Result<T, Box<rhai::EvalAltResult>>;
-
 #[derive(Debug, Default, Clone)]
 pub struct ConfigMap {
     pub map: Arc<RwLock<rhai::Map>>,
@@ -25,6 +23,8 @@ impl ConfigMap {
 pub mod config {
 
     use rhai::Dynamic as Dyn;
+
+    use crate::console::EvalResult;
 
     use super::*;
 
