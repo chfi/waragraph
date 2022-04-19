@@ -326,6 +326,8 @@ pub struct GuiSys {
 
     msg_tx: crossbeam::channel::Sender<GuiMsg>,
     msg_rx: crossbeam::channel::Receiver<GuiMsg>,
+
+    window_dims: Arc<AtomicCell<[u32; 2]>>,
 }
 
 impl GuiSys {
@@ -368,14 +370,13 @@ impl GuiSys {
     pub fn init(
         engine: &mut VkEngine,
         db: &sled::Db,
-        buffers: &mut BufferStorage,
-        width: u32,
-        height: u32,
-        // height: u32,
+        window_dims: &Arc<AtomicCell<[u32; 2]>>,
     ) -> Result<Self> {
+        let window_dims = window_dims.clone();
+
         let mut config = ConfigMap::default();
 
-        let mut labels = LabelStorage::new(&db)?;
+        let labels = LabelStorage::new(&db)?;
         let label_updates = labels.tree.watch_prefix(b"t:");
 
         let (pass_ix, pipeline_ix) = {
@@ -418,6 +419,18 @@ impl GuiSys {
         let layer_order = Arc::new(RwLock::new(Vec::new()));
 
         let mut module: rhai::Module = rhai::exported_module!(script);
+
+        // TODO: this implementation might lead to issues if the
+        // swapchain is resized before/while the script is running,
+        // if/when scripts are being run asynchronously
+        let dims = window_dims.clone();
+        module.set_native_fn("get_window_size", move || {
+            let [width, height] = dims.load();
+            let mut map = rhai::Map::default();
+            map.insert("width".into(), (width as i64).into());
+            map.insert("height".into(), (height as i64).into());
+            Ok(map)
+        });
 
         let layers = Arc::new(RwLock::new(FxHashMap::default()));
 
@@ -611,6 +624,8 @@ impl GuiSys {
 
             msg_tx,
             msg_rx,
+
+            window_dims,
         })
     }
 

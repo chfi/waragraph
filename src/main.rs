@@ -99,8 +99,7 @@ fn main() -> Result<()> {
 
     let mut buffers = BufferStorage::new(&db)?;
 
-    let mut gui_sys =
-        GuiSys::init(&mut engine, &db, &mut buffers, width, height)?;
+    let mut gui_sys = GuiSys::init(&mut engine, &db, &swapchain_dims)?;
 
     let mut window_resources = WindowResources::new();
     window_resources.add_image(
