@@ -163,62 +163,34 @@ fn main() -> Result<()> {
         buffers.get_desc_set_ix(id).unwrap()
     };
 
+    let gui_palette_set = {
+        let id = buffers.get_id("gui-palette").unwrap();
+        buffers.get_desc_set_ix(id).unwrap()
+    };
+
     let mut gui_layer = GuiLayer::new(
         &mut engine,
         &db,
         &mut buffers,
         "main_gui",
         1023,
+        gui_palette_set,
+    )?;
+
+    let mut gui_legend_layer = GuiLayer::new(
+        &mut engine,
+        &db,
+        &mut buffers,
+        "main_gui-legend",
+        1023,
         color_buffer_set,
     )?;
 
-    {
-        gui_sys.label_msg_tx.send(LabelMsg {
-            layer_name: "main_gui".into(),
-            label_name: "test-label".into(),
-
-            set_visibility: Some(true),
-            set_position: Some([80, 130]),
-            set_contents: Some("hello world!!!!".into()),
-        })?;
-
-        /*
-        let label = gui_layer.get_label(
-            &mut engine,
-            &db,
-            &mut gui_sys.labels,
-            "test-label",
-        )?;
-        gui_layer.set_label_pos(&gui_sys.labels, &label, [80, 130])?;
-        gui_layer.set_label_contents(
-            &gui_sys.labels,
-            &label,
-            "hello world this is a gui!!!!!",
-        )?;
-        */
-    }
-
     gui_sys.layers.write().insert("main_gui".into(), gui_layer);
-
-    {
-        let mut layers = gui_sys.layers.write();
-        let layer = layers.get_mut("main_gui").unwrap();
-
-        match &mut layer.rects {
-            waragraph::viewer::gui::RectVertices::Palette {
-                buffer_set,
-                rects,
-            } => {
-                rects.push(([50.0, 50.0, 150.0, 150.0], 2));
-                rects.push(([100.0, 100.0, 100.0, 100.0], 7));
-            }
-        }
-
-        // let mut rects = gui_sys.rects.write();
-
-        // rects.push(([50.0, 50.0, 150.0, 150.0], 2));
-        // rects.push(([100.0, 100.0, 100.0, 100.0], 7));
-    }
+    gui_sys
+        .layers
+        .write()
+        .insert("main_gui-legend".into(), gui_legend_layer);
 
     gui_sys.update_layer_buffers(&buffers)?;
 
@@ -244,6 +216,17 @@ fn main() -> Result<()> {
     type SlotMsg = (usize, Vec<u32>, (usize, usize), usize);
 
     let (slot_tx, slot_rx) = crossbeam::channel::unbounded::<SlotMsg>();
+
+    /*
+    match console.eval(&db, &buffers, "viewer::gui_init()") {
+        Ok(v) => {
+            log::warn!("success: {:?}", v);
+        }
+        Err(e) => {
+            log::error!("gui on init eval error!! {:?}", e);
+        }
+    }
+    */
 
     //
     let _update_threads = (0..4)

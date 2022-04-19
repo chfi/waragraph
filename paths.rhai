@@ -83,6 +83,23 @@ bind_key(key::Tab, |pressed| {
   }
 });
 
+//
+// GUI definition
+//
+
+fn gui_init() {
+  let rects = gui::mk_rects();
+  gui::with_layer("main_gui", || {
+    gui::set_rects(this, rects);
+  });
+
+  let msg = gui::label_msg("main_gui", "test");
+  msg.position = #{ x: 400, y: 400 };
+  msg.contents = "hah ahahahah ahaha!!!";
+  gui::send_label_msg(msg);
+}
+
+
 
 //
 // engine-related resources

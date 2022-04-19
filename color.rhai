@@ -18,3 +18,23 @@ fill_vec4_buffer(buffer,
                   rgba(102,194,165),
                   rgba(50,136,189),
                   rgba(94,79,162)]);
+
+
+
+let buffer = allocate_vec4_buffer("gui-palette", 32);
+fill_vec4_buffer(buffer,
+                 [rgba(0, 0, 0),
+                  rgba(64, 64, 64),
+                  rgba(128, 128, 128),
+                  rgba(192, 192, 192),
+                  rgba(255, 255, 255),
+                  rgba(64, 0, 0),
+                  rgba(128, 0, 0),
+                  rgba(192, 0, 0),
+                  rgba(0, 64, 0),
+                  rgba(0, 128, 0),
+                  rgba(0, 192, 0),
+                  rgba(0, 0, 64),
+                  rgba(0, 0, 128),
+                  rgba(0, 0, 192),
+                 ]);

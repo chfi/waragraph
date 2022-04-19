@@ -81,6 +81,21 @@ impl Console {
     }
     */
 
+    pub fn eval(
+        &mut self,
+        db: &sled::Db,
+        buffers: &BufferStorage,
+        input: &str,
+    ) -> Result<rhai::Dynamic> {
+        eval_scope::<rhai::Dynamic>(
+            &mut self.scope,
+            &self.modules,
+            db,
+            buffers,
+            input,
+        )
+    }
+
     pub fn handle_input(
         &mut self,
         db: &sled::Db,
