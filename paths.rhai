@@ -88,14 +88,16 @@ bind_key(key::Tab, |pressed| {
 //
 
 fn gui_init() {
-  let rects = gui::mk_rects();
-  gui::with_layer("main_gui", || {
-    gui::set_rects(this, rects);
-  });
-
   let msg = gui::label_msg("main_gui", "test");
   msg.position = #{ x: 400, y: 400 };
-  msg.contents = "hah ahahahah ahaha!!!";
+  msg.contents = "hello world";
+  gui::send_label_msg(msg);
+}
+
+fn gui_update() {
+  let msg = gui::label_msg("main_gui", "test");
+  let pos = mouse::get_pos();
+  msg.position = #{ x: pos.x.to_int(), y: pos.y.to_int() };
   gui::send_label_msg(msg);
 }
 

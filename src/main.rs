@@ -217,7 +217,6 @@ fn main() -> Result<()> {
 
     let (slot_tx, slot_rx) = crossbeam::channel::unbounded::<SlotMsg>();
 
-    /*
     match console.eval(&db, &buffers, "viewer::gui_init()") {
         Ok(v) => {
             log::warn!("success: {:?}", v);
@@ -226,7 +225,6 @@ fn main() -> Result<()> {
             log::error!("gui on init eval error!! {:?}", e);
         }
     }
-    */
 
     //
     let _update_threads = (0..4)
@@ -261,6 +259,15 @@ fn main() -> Result<()> {
 
         match event {
             Event::MainEventsCleared => {
+                match console.eval(&db, &buffers, "viewer::gui_update()") {
+                    Ok(v) => {
+                        // log::warn!("success: {:?}", v);
+                    }
+                    Err(e) => {
+                        log::error!("gui on update eval error!! {:?}", e);
+                    }
+                }
+
                 // handle sled-based buffer updates
                 buffers.allocate_queued(&mut engine).unwrap();
                 buffers.fill_updated_buffers(&mut engine.resources).unwrap();
