@@ -414,7 +414,9 @@ impl GuiSys {
         let (label_msg_tx, label_msg_rx) = crossbeam::channel::unbounded();
         let (msg_tx, msg_rx) = crossbeam::channel::unbounded();
 
-        let mut module = rhai::Module::new();
+        // let mut module = rhai::Module::new();
+
+        let mut module: rhai::Module = rhai::exported_module!(script);
 
         module.set_native_fn("label_msg", |layer: &str, label: &str| {
             Ok(LabelMsg::new(layer, label))
@@ -639,6 +641,30 @@ pub mod script {
 
     pub fn set_visibility(label: &mut GuiLabel, vis: bool) {
         label.set_visibility(vis);
+    }
+
+    pub fn set_rects(layer: &mut GuiLayer, new_rects: rhai::Array) {
+        match &mut layer.rects {
+            RectVertices::Palette { rects, .. } => {
+                rects.clear();
+                rects.extend(new_rects.into_iter().filter_map(|rect| {
+                    let rect = rect.try_cast::<rhai::Map>()?;
+
+                    let get_cast = |k: &str| {
+                        let field = rect.get(k)?;
+                        field.as_int().ok()
+                    };
+
+                    let x = get_cast("x")?;
+                    let y = get_cast("y")?;
+                    let w = get_cast("w")?;
+                    let h = get_cast("h")?;
+                    let c = get_cast("c")?;
+
+                    Some(([x as f32, y as f32, w as f32, h as f32], c as u32))
+                }));
+            }
+        }
     }
 
     #[rhai_fn(return_raw)]

@@ -147,6 +147,10 @@ fn main() -> Result<()> {
         .modules
         .insert("viewer".into(), viewer.rhai_module.clone());
 
+    console
+        .modules
+        .insert("gui".into(), gui_sys.rhai_module.clone());
+
     viewer.labels.allocate_label(&db, &mut engine, "console")?;
     viewer.labels.set_label_pos(b"console", 4, 4)?;
     viewer.labels.set_text_for(b"console", "")?;
