@@ -282,6 +282,10 @@ fn main() -> Result<()> {
                 buffers.allocate_queued(&mut engine).unwrap();
                 buffers.fill_updated_buffers(&mut engine.resources).unwrap();
 
+                if let Err(e) = gui_sys.update_layer_buffers(&buffers) {
+                    log::error!("GUI layer update error: {:?}", e);
+                }
+
                 while let Ok(label_msg) = gui_sys.label_msg_rx.try_recv() {
                     if let Some(layer) =
                         gui_sys.layers.write().get_mut(&label_msg.layer_name)

@@ -414,9 +414,71 @@ impl GuiSys {
         let (label_msg_tx, label_msg_rx) = crossbeam::channel::unbounded();
         let (msg_tx, msg_rx) = crossbeam::channel::unbounded();
 
-        // let mut module = rhai::Module::new();
-
         let mut module: rhai::Module = rhai::exported_module!(script);
+
+        let layers = Arc::new(RwLock::new(FxHashMap::default()));
+
+        let layers_ = layers.clone();
+
+        module.set_raw_fn(
+            "with_layer",
+            rhai::FnNamespace::Global,
+            rhai::FnAccess::Public,
+            [
+                TypeId::of::<rhai::ImmutableString>(),
+                TypeId::of::<rhai::FnPtr>(),
+            ],
+            move |ctx, args| {
+                let layer_name: rhai::ImmutableString =
+                    args.get(0).unwrap().clone_cast();
+                let fn_ptr: rhai::FnPtr = std::mem::take(args[1]).cast();
+
+                {
+                    let mut layers = layers_.write();
+
+                    if let Some((layer_name, layer)) =
+                        layers.remove_entry(&layer_name)
+                    {
+                        let mut layer = rhai::Dynamic::from(layer);
+
+                        if let Err(e) =
+                            fn_ptr.call_raw(&ctx, Some(&mut layer), [])
+                        {
+                            log::error!("GUI with_layer error: {:?}", e);
+                        }
+
+                        let layer = layer.cast::<GuiLayer>();
+
+                        layers.insert(layer_name, layer);
+
+                        Ok(rhai::Dynamic::TRUE)
+                    } else {
+                        Ok(rhai::Dynamic::FALSE)
+                    }
+                }
+            },
+        );
+
+        module.set_native_fn("mk_rects", || {
+            let mut rects = Vec::new();
+
+            let int = |v: u32| rhai::Dynamic::from_int(v as i64);
+
+            let mut push = |([x, y, w, h], c): ([u32; 4], u32)| {
+                let mut map = rhai::Map::default();
+
+                map.extend(
+                    [("x", x), ("y", y), ("w", w), ("h", h), ("c", c)]
+                        .into_iter()
+                        .map(|(n, v)| (n.into(), int(v))),
+                );
+                rects.push(rhai::Dynamic::from_map(map));
+            };
+            push(([50, 50, 150, 150], 2));
+            push(([100, 100, 100, 100], 7));
+            push(([300, 300, 100, 100], 5));
+            Ok(rects)
+        });
 
         module.set_native_fn("label_msg", |layer: &str, label: &str| {
             Ok(LabelMsg::new(layer, label))
@@ -461,7 +523,7 @@ impl GuiSys {
         Ok(Self {
             config,
 
-            layers: Arc::new(RwLock::new(FxHashMap::default())),
+            layers,
 
             labels,
             label_updates,
@@ -635,6 +697,34 @@ pub mod script {
 
     pub type GuiLabel = super::GuiLabel;
 
+    pub type LabelMsg = super::LabelMsg;
+
+    #[rhai_fn(name = "set_visibility", global, set = "visibility")]
+    pub fn msg_set_visibility(msg: &mut LabelMsg, vis: bool) {
+        msg.set_visibility(vis);
+    }
+
+    #[rhai_fn(name = "set_position", global, set = "position")]
+    pub fn msg_set_position(msg: &mut LabelMsg, pos: rhai::Map) {
+        let x = pos
+            .get("x")
+            .and_then(|v| v.as_int().ok())
+            .unwrap_or_default();
+        let y = pos
+            .get("y")
+            .and_then(|v| v.as_int().ok())
+            .unwrap_or_default();
+        msg.set_position(x as u32, y as u32);
+    }
+
+    #[rhai_fn(name = "set_contents", global, set = "contents")]
+    pub fn msg_set_contents(
+        msg: &mut LabelMsg,
+        contents: rhai::ImmutableString,
+    ) {
+        msg.set_contents = Some(contents);
+    }
+
     pub fn is_visible(label: &mut GuiLabel) -> bool {
         label.is_visible()
     }
@@ -643,6 +733,7 @@ pub mod script {
         label.set_visibility(vis);
     }
 
+    #[rhai_fn(global)]
     pub fn set_rects(layer: &mut GuiLayer, new_rects: rhai::Array) {
         match &mut layer.rects {
             RectVertices::Palette { rects, .. } => {
@@ -652,7 +743,11 @@ pub mod script {
 
                     let get_cast = |k: &str| {
                         let field = rect.get(k)?;
-                        field.as_int().ok()
+
+                        field
+                            .as_int()
+                            .ok()
+                            .or(field.as_float().ok().map(|v| v as i64))
                     };
 
                     let x = get_cast("x")?;
@@ -664,32 +759,6 @@ pub mod script {
                     Some(([x as f32, y as f32, w as f32, h as f32], c as u32))
                 }));
             }
-        }
-    }
-
-    #[rhai_fn(return_raw)]
-    pub fn with_layer(
-        ctx: NativeCallContext,
-        layers: &mut GuiLayers,
-        layer_name: &str,
-        f: rhai::FnPtr,
-    ) -> EvalResult<rhai::Dynamic> {
-        let mut layers = layers.write();
-
-        if let Some((layer_name, layer)) = layers.remove_entry(layer_name) {
-            let mut layer = rhai::Dynamic::from(layer);
-
-            if let Err(e) = f.call_raw(&ctx, Some(&mut layer), []) {
-                log::error!("GUI with_layer error: {:?}", e);
-            }
-
-            let layer = layer.cast::<GuiLayer>();
-
-            layers.insert(layer_name, layer);
-
-            Ok(rhai::Dynamic::TRUE)
-        } else {
-            Ok(rhai::Dynamic::FALSE)
         }
     }
 }
