@@ -485,6 +485,52 @@ impl GuiSys {
             },
         );
 
+        let order = layer_order.clone();
+        module.set_native_fn("get_top_layer", move || {
+            if let Some(layer) = order.read().last() {
+                Ok(layer.into())
+            } else {
+                Ok(rhai::Dynamic::UNIT)
+            }
+        });
+
+        let order = layer_order.clone();
+        module.set_native_fn(
+            "push_layer",
+            move |layer: rhai::ImmutableString| {
+                let mut layers = order.write();
+                if layers.last() == Some(&layer) {
+                    Ok(rhai::Dynamic::FALSE)
+                } else {
+                    layers.push(layer);
+                    Ok(rhai::Dynamic::TRUE)
+                }
+            },
+        );
+
+        let order = layer_order.clone();
+        module.set_native_fn("pop_layer", move || {
+            let mut layers = order.write();
+            match layers.pop() {
+                Some(layer) => Ok(layer.into()),
+                None => Ok(rhai::Dynamic::FALSE),
+            }
+        });
+
+        let order = layer_order.clone();
+        module.set_native_fn(
+            "pop_layer",
+            move |layer: rhai::ImmutableString| {
+                let mut layers = order.write();
+                if layers.last() == Some(&layer) {
+                    layers.pop();
+                    Ok(rhai::Dynamic::TRUE)
+                } else {
+                    Ok(rhai::Dynamic::FALSE)
+                }
+            },
+        );
+
         module.set_native_fn("mk_rects", || {
             let mut rects = Vec::new();
 

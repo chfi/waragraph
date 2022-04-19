@@ -98,7 +98,9 @@ fn gui_init() {
 fn gui_update() {
   let msg = gui::label("main_gui", "test");
   let pos = mouse::get_pos();
+
   msg.position = #{ x: pos.x.to_int(), y: pos.y.to_int() };
+
   gui::update_label(msg);
 }
 
