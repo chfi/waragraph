@@ -5,8 +5,8 @@ export let bg_dark = #{ r: 0.05, g: 0.05, b: 0.05 };
 let buffer = allocate_vec4_buffer("gradient-colorbrewer-spectral", 256);
 fill_vec4_buffer(buffer,
                  [rgba(255, 255, 255),
-                  rgba(128, 128, 128),
                   rgba(196, 196, 196),
+                  rgba(128, 128, 128),
                   rgba(158,1,66),
                   rgba(213,62,79),
                   rgba(244,109,67),

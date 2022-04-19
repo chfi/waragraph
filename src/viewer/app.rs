@@ -822,21 +822,23 @@ impl ViewerSys {
         let out_framebuffer =
             *window_resources.indices.framebuffers.get("out").unwrap();
 
-        let color_buffer_set = {
-            let id = buffers.get_id("gradient-colorbrewer-spectral").unwrap();
-            buffers.get_desc_set_ix(id).unwrap()
-        };
         let gui_batch_fn = gui.draw(out_framebuffer, extent);
 
-        let gui_label_sets = gui
-            .labels
-            .label_names
-            .values()
-            .filter_map(|&id| {
-                let map = gui.labels.create_label_rhai_map(id).ok()?;
-                Some(rhai::Dynamic::from(map))
-            })
-            .collect::<Vec<_>>();
+        let mut gui_label_sets = Vec::new();
+
+        for layer_name in gui.layer_order.read().iter() {
+            if let Some(layer) = gui.layers.read().get(layer_name) {
+                layer
+                    .labels
+                    .values()
+                    .filter_map(|label| {
+                        let id = label.is_visible().then(|| label.label_id)?;
+                        let map = gui.labels.create_label_rhai_map(id).ok()?;
+                        Some(rhai::Dynamic::from_map(map))
+                    })
+                    .for_each(|map| gui_label_sets.push(map));
+            }
+        }
 
         let batch_builder = BatchBuilder::default();
         let gui_labels_batch_fn = (&self.draw_labels)(

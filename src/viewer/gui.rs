@@ -54,7 +54,7 @@ pub struct GuiLayer {
 
     // labels: FxHashMap<u64, Arc<AtomicCell<bool>>>,
     // labels: FxHashMap<rhai::ImmutableString, Arc<(u64, AtomicCell<bool>)>>,
-    labels: FxHashMap<rhai::ImmutableString, GuiLabel>,
+    pub labels: FxHashMap<rhai::ImmutableString, GuiLabel>,
 
     vertex_buf_id: BufId,
     pub vertex_buf_ix: BufferIx,
@@ -62,8 +62,8 @@ pub struct GuiLayer {
 
 #[derive(Clone)]
 pub struct GuiLabel {
-    layer: rhai::ImmutableString,
-    label_id: u64,
+    pub layer: rhai::ImmutableString,
+    pub label_id: u64,
     visible: Arc<AtomicCell<bool>>,
 }
 
