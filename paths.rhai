@@ -88,7 +88,8 @@ bind_key(key::Tab, |pressed| {
 //
 
 fn set_tooltip(text, pos) {
-  gui::set_layer_order(["main_gui", "tooltip"]);
+  gui::set_layer_order(["main_gui", "main_gui-legend", "tooltip"]);
+  // gui::set_layer_order(["main_gui", "tooltip"]);
 
   let width = text.len() * 8 + 4;
 
@@ -116,32 +117,107 @@ fn set_tooltip(text, pos) {
   gui::update_label(msg);
 }
 
-fn remove_tooltip(text) {
-  gui::set_layer_order(["main_gui"]);
-}
+// fn remove_tooltip(text) {
+//   gui::set_layer_order(["main_gui"]);
+// }
 
 
+/*
 fn gui_init() {
-  gui::set_layer_order(["main_gui"]);
 }
 
 fn gui_update() {
+}
+*/
 
-  let msg = gui::label("tooltip", "test");
+
+
+fn gui_init() {
+  gui::set_layer_order(["main_gui", "main_gui-legend"]);
+}
+
+fn gui_update() {
   let pos = mouse::get_pos();
-
-  let cfg = viewer::cfg;
-  let slot = cfg.get("layout.slot");
-
-  let label = cfg.get("layout.label");
-  let path_name_len = cfg.get("layout.max_path_name_len");
-  let padding = cfg.get("layout.padding");
-
   let position = #{ x: pos.x, y: pos.y };
 
-  // set_tooltip(`(${pos.x.to_int()}, ${pos.y.to_int()})`, position);
+  set_tooltip(`(${pos.x.to_int()}, ${pos.y.to_int()})`, position);
+  gui::with_layer("main_gui", Fn("prepare_legend_window"));
+  gui::with_layer("main_gui-legend", Fn("prepare_legend_icons"));
+}
 
-  gui::update_label(msg);
+fn prepare_legend_icons() {
+  let screen = gui::get_window_size();
+
+  let values = [0.0, 0.5, 1.0, 1.5, 2.0, 3.0, 4.0, 5.0];
+
+  let y_delta = 40;
+
+  let origin = #{ x: 40, y: 80 };
+
+  let rect = origin;
+  rect.w = 16;
+  rect.h = 16;
+
+  let label_origin = origin;
+  label_origin.x += 20;
+  label_origin.y += 4;
+
+  let rects = values.map(|val, ix| {
+    let label = gui::label("main_gui-legend", `legend-slot-${ix}`);
+    let pos = label_origin;
+    pos.y += ix * y_delta;
+    label.position = pos;
+    label.contents = `${val}`;
+    gui::update_label(label);
+
+    let color = value_color_index_map(val);
+
+    let r = rect;
+
+    r.y += ix * y_delta;
+
+    r.c = color;
+
+    r
+  });
+
+  gui::set_rects(this, rects);
+}
+
+fn prepare_legend_window() {
+  let screen = gui::get_window_size();
+
+  let top_left = #{ x: 20, y: 40 };
+
+  // print(screen);
+  let outer = top_left;
+  outer.h = screen.height - 2 * top_left.y;
+  outer.w = screen.width - 2 * top_left.x;
+
+  outer.c = 6;
+  // gui::set_rects(this, [window_outer]);
+
+  let title_bar = outer;
+  title_bar.y += 14;
+  title_bar.h = 2;
+  title_bar.x += 2;
+  title_bar.w -= 4;
+  title_bar.c = 4;
+
+  let main = outer;
+
+  main.y += 2;
+  main.h -= 4;
+  main.x += 2;
+  main.w -= 4;
+  main.c = 6;
+
+  gui::set_rects(this, [outer, main, title_bar]);
+
+  let title = gui::label("main_gui", "title");
+  title.contents = "Help";
+  title.position = #{ x: 24, y: 44 };
+  gui::update_label(title);
 }
 
 
@@ -274,8 +350,8 @@ fn foreground(batch, desc_sets, w, h) {
 
   batch.transition_image(img,
                          vk::AccessFlags::SHADER_WRITE,
-                         vk::PipelineStageFlags::COMPUTE_SHADER,
-                         vk::AccessFlags::SHADER_WRITE,
+                         vk::PipelineStageFlags::COMPUTE_SHADER | vk::PipelineStageFlags::FRAGMENT_SHADER,
+                         vk::AccessFlags::SHADER_READ,
                          vk::PipelineStageFlags::COMPUTE_SHADER,
                          vk::ImageLayout::UNDEFINED,
                          vk::ImageLayout::GENERAL);
@@ -315,7 +391,7 @@ fn foreground(batch, desc_sets, w, h) {
                          vk::AccessFlags::SHADER_WRITE,
                          vk::PipelineStageFlags::COMPUTE_SHADER,
                          vk::AccessFlags::SHADER_READ,
-                         vk::PipelineStageFlags::COMPUTE_SHADER,
+                         vk::PipelineStageFlags::COMPUTE_SHADER | vk::PipelineStageFlags::FRAGMENT_SHADER,
                          vk::ImageLayout::GENERAL,
                          vk::ImageLayout::GENERAL);
 
@@ -436,6 +512,15 @@ fn draw_labels(batch, width, height, labels) {
   let w = width;
   let h = height;
 
+  let img = viewer::out_image.get();
+  batch.transition_image(img,
+                         vk::AccessFlags::SHADER_WRITE,
+                         vk::PipelineStageFlags::COMPUTE_SHADER | vk::PipelineStageFlags::FRAGMENT_SHADER,
+                         vk::AccessFlags::SHADER_READ,
+                         vk::PipelineStageFlags::COMPUTE_SHADER,
+                         vk::ImageLayout::GENERAL,
+                         vk::ImageLayout::GENERAL);
+
   for label in labels {
     let pc = blob();
     pc.append_int(label.x);
@@ -462,12 +547,12 @@ fn draw_labels(batch, width, height, labels) {
 
   }
 
-  let img = viewer::out_image.get();
+
   batch.transition_image(img,
                          vk::AccessFlags::SHADER_WRITE,
                          vk::PipelineStageFlags::COMPUTE_SHADER,
-                         vk::AccessFlags::SHADER_READ,
-                         vk::PipelineStageFlags::COMPUTE_SHADER,
+                         vk::AccessFlags::SHADER_READ | vk::AccessFlags::SHADER_WRITE,
+                         vk::PipelineStageFlags::COMPUTE_SHADER | vk::PipelineStageFlags::FRAGMENT_SHADER,
                          vk::ImageLayout::GENERAL,
                          vk::ImageLayout::GENERAL);
 
