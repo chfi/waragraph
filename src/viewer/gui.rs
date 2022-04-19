@@ -781,14 +781,17 @@ pub mod script {
 
     #[rhai_fn(name = "set_position", global, set = "position")]
     pub fn msg_set_position(msg: &mut LabelMsg, pos: rhai::Map) {
-        let x = pos
-            .get("x")
-            .and_then(|v| v.as_int().ok())
-            .unwrap_or_default();
-        let y = pos
-            .get("y")
-            .and_then(|v| v.as_int().ok())
-            .unwrap_or_default();
+        let get = |k: &str| {
+            pos.get(k)
+                .and_then(|v| {
+                    v.as_int().ok().or(v.as_float().ok().map(|v| v as i64))
+                })
+                .unwrap_or_default()
+        };
+
+        let x = get("x");
+        let y = get("y");
+
         msg.set_position(x as u32, y as u32);
     }
 

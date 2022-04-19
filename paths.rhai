@@ -87,19 +87,59 @@ bind_key(key::Tab, |pressed| {
 // GUI definition
 //
 
-fn gui_init() {
-  gui::set_layer_order(["main_gui"]);
-  let msg = gui::label("main_gui", "test");
-  msg.position = #{ x: 400, y: 400 };
-  msg.contents = "hello world";
+fn set_tooltip(text, pos) {
+  gui::set_layer_order(["main_gui", "tooltip"]);
+
+  let width = text.len() * 8 + 4;
+
+  // this makes the label centered above the given point (good for e.g. mouse pos)
+  pos.x -= width / 2;
+  pos.y -= 8;
+
+  let inner = #{ x: pos.x - 2, y: pos.y - 2, w: width, h: 12, c: 3 };
+  let outer = inner;
+
+  outer.x -= 1;
+  outer.w += 2;
+  outer.y -= 1;
+  outer.h += 2;
+  outer.c = 2;
+
+  gui::with_layer("tooltip", || {
+    gui::set_rects(this, [outer, inner]);
+  });
+
+  let msg = gui::label("tooltip", "label");
+  msg.contents = text;
+  msg.position = pos;
+
   gui::update_label(msg);
 }
 
+fn remove_tooltip(text) {
+  gui::set_layer_order(["main_gui"]);
+}
+
+
+fn gui_init() {
+  gui::set_layer_order(["main_gui"]);
+}
+
 fn gui_update() {
-  let msg = gui::label("main_gui", "test");
+
+  let msg = gui::label("tooltip", "test");
   let pos = mouse::get_pos();
 
-  msg.position = #{ x: pos.x.to_int(), y: pos.y.to_int() };
+  let cfg = viewer::cfg;
+  let slot = cfg.get("layout.slot");
+
+  let label = cfg.get("layout.label");
+  let path_name_len = cfg.get("layout.max_path_name_len");
+  let padding = cfg.get("layout.padding");
+
+  let position = #{ x: pos.x, y: pos.y };
+
+  // set_tooltip(`(${pos.x.to_int()}, ${pos.y.to_int()})`, position);
 
   gui::update_label(msg);
 }

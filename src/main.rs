@@ -177,6 +177,15 @@ fn main() -> Result<()> {
         gui_palette_set,
     )?;
 
+    let mut gui_tooltip_layer = GuiLayer::new(
+        &mut engine,
+        &db,
+        &mut buffers,
+        "tooltip",
+        1023,
+        gui_palette_set,
+    )?;
+
     let mut gui_legend_layer = GuiLayer::new(
         &mut engine,
         &db,
@@ -187,6 +196,10 @@ fn main() -> Result<()> {
     )?;
 
     gui_sys.layers.write().insert("main_gui".into(), gui_layer);
+    gui_sys
+        .layers
+        .write()
+        .insert("tooltip".into(), gui_tooltip_layer);
     gui_sys
         .layers
         .write()
