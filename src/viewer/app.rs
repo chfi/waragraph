@@ -826,8 +826,7 @@ impl ViewerSys {
             let id = buffers.get_id("gradient-colorbrewer-spectral").unwrap();
             buffers.get_desc_set_ix(id).unwrap()
         };
-        let layer_names = vec![rhai::ImmutableString::from("main_gui")];
-        let gui_batch_fn = gui.draw(layer_names, out_framebuffer, extent);
+        let gui_batch_fn = gui.draw(out_framebuffer, extent);
 
         let gui_label_sets = gui
             .labels

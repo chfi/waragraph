@@ -303,6 +303,7 @@ pub struct GuiSys {
     pub config: ConfigMap,
 
     pub layers: Arc<RwLock<FxHashMap<rhai::ImmutableString, GuiLayer>>>,
+    pub layer_order: Arc<RwLock<Vec<rhai::ImmutableString>>>,
 
     pub labels: LabelStorage,
     pub label_updates: sled::Subscriber,
@@ -414,6 +415,8 @@ impl GuiSys {
         let (label_msg_tx, label_msg_rx) = crossbeam::channel::unbounded();
         let (msg_tx, msg_rx) = crossbeam::channel::unbounded();
 
+        let layer_order = Arc::new(RwLock::new(Vec::new()));
+
         let mut module: rhai::Module = rhai::exported_module!(script);
 
         let layers = Arc::new(RwLock::new(FxHashMap::default()));
@@ -459,6 +462,29 @@ impl GuiSys {
             },
         );
 
+        let order = layer_order.clone();
+        module.set_native_fn("get_layer_order", move || {
+            let order = order.read();
+            let result: rhai::Array = order
+                .iter()
+                .map(|name: &rhai::ImmutableString| name.into())
+                .collect();
+            Ok(result)
+        });
+
+        let order = layer_order.clone();
+        module.set_native_fn(
+            "set_layer_order",
+            move |new_order: rhai::Array| {
+                let mut order = order.write();
+                order.clear();
+                order.extend(new_order.into_iter().filter_map(
+                    |name: rhai::Dynamic| name.into_immutable_string().ok(),
+                ));
+                Ok(())
+            },
+        );
+
         module.set_native_fn("mk_rects", || {
             let mut rects = Vec::new();
 
@@ -480,7 +506,7 @@ impl GuiSys {
             Ok(rects)
         });
 
-        module.set_native_fn("label_msg", |layer: &str, label: &str| {
+        module.set_native_fn("label", |layer: &str, label: &str| {
             Ok(LabelMsg::new(layer, label))
         });
 
@@ -509,7 +535,7 @@ impl GuiSys {
         );
 
         let tx = label_msg_tx.clone();
-        module.set_native_fn("send_label_msg", move |msg: LabelMsg| {
+        module.set_native_fn("update_label", move |msg: LabelMsg| {
             if let Err(e) = tx.send(msg) {
                 log::error!("GUI send_label_msg error: {:?}", e);
                 return Ok(rhai::Dynamic::FALSE);
@@ -524,6 +550,7 @@ impl GuiSys {
             config,
 
             layers,
+            layer_order,
 
             labels,
             label_updates,
@@ -650,7 +677,7 @@ impl GuiSys {
 
     pub fn draw(
         &self,
-        layer_names: Vec<rhai::ImmutableString>,
+        // layer_names: Vec<rhai::ImmutableString>,
         framebuffer: FramebufferIx,
         extent: vk::Extent2D,
         // color_buffer_set: DescSetIx,
@@ -659,7 +686,9 @@ impl GuiSys {
         let pipeline = self.pipeline;
         // let buf_ix = self.buf_ix;
         let layers = self.layers.clone();
-        let layer_names = layer_names;
+        let layer_names: Vec<rhai::ImmutableString> =
+            self.layer_order.read().iter().cloned().collect();
+        // let layer_names = layer_names;
 
         Box::new(move |dev, res, cmd| {
             let layers = layers.clone();
