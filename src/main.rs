@@ -266,11 +266,19 @@ fn main() -> Result<()> {
         })
         .collect::<Vec<_>>();
 
+    let mut prev_frame = std::time::Instant::now();
+
     event_loop.run(move |event, _, control_flow| {
         *control_flow = winit::event_loop::ControlFlow::Poll;
 
         match event {
             Event::MainEventsCleared => {
+                let delta_time = prev_frame.elapsed().as_secs_f32();
+                prev_frame = std::time::Instant::now();
+                console
+                    .scope
+                    .set_value("dt", rhai::Dynamic::from_float(delta_time));
+
                 match console.eval(&db, &buffers, "viewer::gui_update()") {
                     Ok(v) => {
                         // log::warn!("success: {:?}", v);
