@@ -508,12 +508,12 @@ fn copy_to_swapchain(batch, source_set, swapchain, w, h) {
 }
 
 
-fn draw_labels(batch, width, height, labels) {
+fn draw_labels(width, height, labels) {
   let w = width;
   let h = height;
 
   let img = viewer::out_image.get();
-  batch.transition_image(img,
+  this.transition_image(img,
                          vk::AccessFlags::SHADER_WRITE,
                          vk::PipelineStageFlags::COMPUTE_SHADER | vk::PipelineStageFlags::FRAGMENT_SHADER,
                          vk::AccessFlags::SHADER_READ,
@@ -537,7 +537,7 @@ fn draw_labels(batch, width, height, labels) {
                         y_groups: 1,
                         z_groups: 1 };
 
-    batch.dispatch_compute(viewer::text_pipeline.get(),
+    this.dispatch_compute(viewer::text_pipeline.get(),
                            [viewer::font_desc_set.get(),
                             label.desc_set,
                             viewer::out_desc_set.get()],
@@ -548,7 +548,7 @@ fn draw_labels(batch, width, height, labels) {
   }
 
 
-  batch.transition_image(img,
+  this.transition_image(img,
                          vk::AccessFlags::SHADER_WRITE,
                          vk::PipelineStageFlags::COMPUTE_SHADER,
                          vk::AccessFlags::SHADER_READ | vk::AccessFlags::SHADER_WRITE,
@@ -556,7 +556,6 @@ fn draw_labels(batch, width, height, labels) {
                          vk::ImageLayout::GENERAL,
                          vk::ImageLayout::GENERAL);
 
-  batch
 }
 
 fn visible_slots(win_height) {

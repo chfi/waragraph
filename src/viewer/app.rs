@@ -52,7 +52,6 @@ pub struct ViewerSys {
 
     pub on_resize: RhaiBatchFn2<i64, i64>,
 
-    pub draw_labels: RhaiBatchFn4<BatchBuilder, i64, i64, rhai::Array>,
     pub draw_foreground: RhaiBatchFn4<BatchBuilder, rhai::Array, i64, i64>,
     pub copy_to_swapchain:
         Arc<RhaiBatchFn5<BatchBuilder, DescSetIx, rhai::Map, i64, i64>>,
@@ -282,16 +281,6 @@ impl ViewerSys {
                 .expect("error creating gradient buffers");
         });
 
-        // draw_labels
-        let draw_labels = rhai::Func::<
-            (BatchBuilder, i64, i64, rhai::Array),
-            BatchBuilder,
-        >::create_from_ast(
-            Self::create_engine(db, buffers, &arc_module),
-            builder.ast.clone_functions_only(),
-            "draw_labels",
-        );
-
         // main draw function
         let draw_foreground = rhai::Func::<
             (BatchBuilder, rhai::Array, i64, i64),
@@ -387,7 +376,6 @@ impl ViewerSys {
 
             on_resize,
 
-            draw_labels,
             draw_foreground,
             copy_to_swapchain: Arc::new(copy_to_swapchain),
 
@@ -805,14 +793,37 @@ impl ViewerSys {
         let fg_batch_fn = fg_batch.build();
 
         let batch_builder = BatchBuilder::default();
-        let labels_batch = (&self.draw_labels)(
-            batch_builder,
-            size.width as i64,
-            size.height as i64,
-            label_sets,
-        )
-        .unwrap();
-        let labels_batch_fn = labels_batch.build();
+        let mut builder = rhai::Dynamic::from(batch_builder);
+        // let labels_batch = self.draw_labels_.call
+
+        // self.draw_labels_.call_raw(context, this_ptr, arg_values)
+
+        self.engine
+            .call_fn_raw(
+                &mut rhai::Scope::default(),
+                &self.frame.ast,
+                false,
+                true,
+                "draw_labels",
+                Some(&mut builder),
+                [
+                    rhai::Dynamic::from_int(size.width as i64),
+                    rhai::Dynamic::from_int(size.height as i64),
+                    rhai::Dynamic::from_array(label_sets),
+                ],
+            )
+            .unwrap();
+        // let batch = self.draw_labels_.call_raw(engine, ast, args)
+
+        // let labels_batch = (&self.draw_labels)(
+        //     batch_builder,
+        //     size.width as i64,
+        //     size.height as i64,
+        //     label_sets,
+        // )
+        // .unwrap();
+        let labels_batch_fn = builder.cast::<BatchBuilder>().build();
+        // let labels_batch_fn = labels_batch.build();
 
         let extent = vk::Extent2D {
             width: size.width,
@@ -841,14 +852,33 @@ impl ViewerSys {
         }
 
         let batch_builder = BatchBuilder::default();
-        let gui_labels_batch_fn = (&self.draw_labels)(
-            batch_builder,
-            size.width as i64,
-            size.height as i64,
-            gui_label_sets,
-        )
-        .unwrap()
-        .build();
+        let mut builder = rhai::Dynamic::from(batch_builder);
+
+        self.engine
+            .call_fn_raw(
+                &mut rhai::Scope::default(),
+                &self.frame.ast,
+                false,
+                true,
+                "draw_labels",
+                Some(&mut builder),
+                [
+                    rhai::Dynamic::from_int(size.width as i64),
+                    rhai::Dynamic::from_int(size.height as i64),
+                    rhai::Dynamic::from_array(gui_label_sets),
+                ],
+            )
+            .unwrap();
+
+        let gui_labels_batch_fn = builder.cast::<BatchBuilder>().build();
+        // let gui_labels_batch_fn = (&self.draw_labels)(
+        //     batch_builder,
+        //     size.width as i64,
+        //     size.height as i64,
+        //     gui_label_sets,
+        // )
+        // .unwrap()
+        // .build();
 
         let fg_batch = Box::new(
             move |dev: &Device,
@@ -929,8 +959,11 @@ impl ViewerSys {
 
         let deps = vec![
             None,
-            Some(vec![(0, vk::PipelineStageFlags::COMPUTE_SHADER)]),
-            // Some(vec![(1, vk::PipelineStageFlags::COMPUTE_SHADER)]),
+            Some(vec![(
+                0,
+                vk::PipelineStageFlags::COMPUTE_SHADER
+                    | vk::PipelineStageFlags::ALL_GRAPHICS,
+            )]),
         ];
 
         let result =
