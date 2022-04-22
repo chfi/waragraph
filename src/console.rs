@@ -33,6 +33,7 @@ use crate::{
 
 use lazy_static::lazy_static;
 
+pub mod data;
 pub mod math;
 
 // use lazy_static so that modules only have to be loaded once

@@ -20,6 +20,8 @@ use ndarray::prelude::*;
 
 use anyhow::{anyhow, bail, Result};
 
+use rhai::plugin::*;
+
 use crate::viewer::ViewDiscrete1D;
 
 // TODO: make this a newtype
@@ -440,5 +442,22 @@ impl Waragraph {
         }
 
         Ok(buf_ix)
+    }
+}
+
+#[export_module]
+pub mod rhai_module {
+
+    use super::*;
+
+    pub type Node = super::Node;
+
+    pub fn node(i: i64) -> Node {
+        Node(i as u32)
+    }
+
+    #[rhai_fn(name = "to_int")]
+    pub fn node_to_int(node: Node) -> i64 {
+        node.0 as i64
     }
 }
