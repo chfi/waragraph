@@ -2,8 +2,8 @@ export let bg_light = #{ r: 0.95, g: 0.95, b: 0.95 };
 export let bg_dark = #{ r: 0.05, g: 0.05, b: 0.05 };
 
 
-let buffer = allocate_vec4_buffer("gradient-colorbrewer-spectral", 256);
-fill_vec4_buffer(buffer,
+let spectral = allocate_vec4_buffer("gradient-colorbrewer-spectral", 256);
+fill_vec4_buffer(spectral,
                  [rgba(255, 255, 255),
                   rgba(196, 196, 196),
                   rgba(128, 128, 128),
@@ -20,9 +20,23 @@ fill_vec4_buffer(buffer,
                   rgba(94,79,162)]);
 
 
+let grayscale = allocate_vec4_buffer("gradient-grayscale", 256);
+let grayscale_inv = allocate_vec4_buffer("gradient-grayscale-invert", 256);
+{
+  let colors = [];
+  for i in 0..256 {
+    colors.push(rgba(i, i, i));
+  }
+  fill_vec4_buffer(grayscale, colors);
 
-let buffer = allocate_vec4_buffer("gui-palette", 32);
-fill_vec4_buffer(buffer,
+  colors.reverse();
+  fill_vec4_buffer(grayscale_inv, colors);
+}
+
+
+
+let gui_palette = allocate_vec4_buffer("gui-palette", 32);
+fill_vec4_buffer(gui_palette,
                  [rgba(0, 0, 0),
                   rgba(32, 32, 32),
                   rgba(64, 64, 64),
