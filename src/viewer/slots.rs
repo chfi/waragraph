@@ -25,8 +25,30 @@ use crate::{
 
 // pub type Path = usize;
 
-pub type DataSource =
-    Arc<dyn Fn(usize, Node) -> Option<u32> + Send + Sync + 'static>;
+pub enum ColorSchemeKind {
+    SequentialInt,
+    SequentialFloat,
+    Categorical,
+}
+
+// pub struct ColorSchemes {}
+
+pub struct SlotFnCache {
+    data_sources_f32: HashMap<rhai::ImmutableString, DataSource<f32>>,
+    data_sources_u32: HashMap<rhai::ImmutableString, DataSource<u32>>,
+    data_sources_i64: HashMap<rhai::ImmutableString, DataSource<i64>>,
+
+    data_sources_dyn: HashMap<rhai::ImmutableString, DataSource<rhai::Dynamic>>,
+
+    slot_fn_u32: HashMap<rhai::ImmutableString, SlotUpdateFn<u32>>,
+    slot_fn_f32: HashMap<rhai::ImmutableString, SlotUpdateFn<f32>>,
+}
+
+pub type DataSource<T> =
+    Arc<dyn Fn(usize, Node) -> Option<T> + Send + Sync + 'static>;
+
+// pub type DataSource =
+//     Arc<dyn Fn(usize, Node) -> Option<u32> + Send + Sync + 'static>;
 
 pub type SlotUpdateFn<T> =
     Arc<dyn Fn(&[(Node, usize)], usize, usize) -> T + Send + Sync + 'static>;
@@ -190,7 +212,7 @@ impl SlotCache {
 
 #[derive(Default)]
 pub struct SlotRenderers {
-    data_sources: HashMap<String, DataSource>,
+    data_sources: HashMap<String, DataSource<u32>>,
 }
 
 impl SlotRenderers {
@@ -198,11 +220,11 @@ impl SlotRenderers {
     where
         F: Fn(usize, Node) -> Option<u32> + Send + Sync + 'static,
     {
-        let data_source = Arc::new(f) as DataSource;
+        let data_source = Arc::new(f) as DataSource<u32>;
         self.data_sources.insert(id.to_string(), data_source);
     }
 
-    pub fn get_data_source(&self, id: &str) -> Option<&DataSource> {
+    pub fn get_data_source(&self, id: &str) -> Option<&DataSource<u32>> {
         self.data_sources.get(id)
     }
 

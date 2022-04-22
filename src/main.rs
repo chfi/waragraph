@@ -275,9 +275,15 @@ fn main() -> Result<()> {
             Event::MainEventsCleared => {
                 let delta_time = prev_frame.elapsed().as_secs_f32();
                 prev_frame = std::time::Instant::now();
-                console
-                    .scope
-                    .set_value("dt", rhai::Dynamic::from_float(delta_time));
+
+                // console scope updates
+                {
+                    console
+                        .scope
+                        .set_value("dt", rhai::Dynamic::from_float(delta_time));
+
+                    // console.scope.set_value("window_dimensions", rhai::Dynamic::
+                }
 
                 match console.eval(&db, &buffers, "viewer::gui_update()") {
                     Ok(v) => {
