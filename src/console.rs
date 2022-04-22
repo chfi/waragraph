@@ -99,6 +99,40 @@ impl Console {
         )
     }
 
+    pub fn create_engine(
+        &self,
+        db: &sled::Db,
+        buffers: &BufferStorage,
+    ) -> rhai::Engine {
+        let mut engine = create_engine(db, buffers);
+
+        for (name, module) in self.modules.iter() {
+            engine.register_static_module(name, module.clone());
+        }
+
+        engine
+    }
+
+    pub fn create_engine_fn(
+        &self,
+        db: &sled::Db,
+        buffers: &BufferStorage,
+    ) -> Arc<dyn Fn() -> rhai::Engine + Send + Sync + 'static> {
+        let db = db.clone();
+        let buffers = buffers.clone();
+        let modules = self.modules.clone();
+
+        Arc::new(move || {
+            let mut engine = create_engine(&db, &buffers);
+
+            for (name, module) in modules.iter() {
+                engine.register_static_module(name, module.clone());
+            }
+
+            engine
+        })
+    }
+
     pub fn handle_input(
         &mut self,
         db: &sled::Db,

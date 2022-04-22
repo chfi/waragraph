@@ -30,7 +30,7 @@ use anyhow::{anyhow, bail, Result};
 use zerocopy::{AsBytes, FromBytes};
 
 use super::gui::GuiSys;
-use super::{PathViewer, SlotUpdateFn};
+use super::{PathViewer, SlotFnCache, SlotUpdateFn};
 
 pub struct ViewerSys {
     pub config: ConfigMap,
@@ -38,9 +38,8 @@ pub struct ViewerSys {
     pub view: ViewDiscrete1D,
 
     pub path_viewer: PathViewer,
-    pub slot_renderers: SlotRenderers,
 
-    pub slot_renderer_cache: HashMap<sled::IVec, SlotUpdateFn<u32>>,
+    pub slot_functions: Arc<RwLock<SlotFnCache>>,
 
     pub labels: LabelStorage,
     pub label_updates: sled::Subscriber,
@@ -118,7 +117,8 @@ impl ViewerSys {
         txt.set_label_pos(b"view:len", 300, 16)?;
         txt.set_label_pos(b"view:end", 600, 16)?;
 
-        let mut slot_renderers = SlotRenderers::default();
+        let mut slot_fns = Arc::new(RwLock::new(SlotFnCache::default()));
+
         // prefix sum loop count
 
         {
@@ -141,8 +141,8 @@ impl ViewerSys {
                 cache_vec.push(cache);
             }
 
-            slot_renderers.register_data_source(
-                "prefix-sum:loop_count",
+            slot_fns.write().register_data_source_u32(
+                "prefix-sum:loop-count",
                 move |path, node| {
                     let cache = cache_vec.get(path)?;
 
@@ -159,19 +159,22 @@ impl ViewerSys {
         //
 
         let graph = waragraph.clone();
-        slot_renderers.register_data_source("loop_count", move |path, node| {
-            let path = graph.paths.get(path)?;
-            path.get(node.into()).copied()
-        });
+        slot_fns.write().register_data_source_u32(
+            "loop_count",
+            move |path, node| {
+                let path = graph.paths.get(path)?;
+                path.get(node.into()).copied()
+            },
+        );
 
         let graph = waragraph.clone();
-        slot_renderers.register_data_source("has_node", move |path, node| {
-            let path = graph.paths.get(path)?;
-            path.get(node.into()).map(|_| 1)
-        });
-
-        let mut slot_renderer_cache: HashMap<sled::IVec, SlotUpdateFn<u32>> =
-            HashMap::default();
+        slot_fns.write().register_data_source_u32(
+            "has_node",
+            move |path, node| {
+                let path = graph.paths.get(path)?;
+                path.get(node.into()).map(|_| 1)
+            },
+        );
 
         // using a Rhai function for the final step in mapping values to color indices
         let mut rhai_engine = Self::create_engine(db, buffers, &arc_module);
@@ -189,39 +192,34 @@ impl ViewerSys {
             as Arc<dyn Fn(f32) -> u32 + Send + Sync + 'static>;
 
         let cmap = color_map.clone();
-        let updater_loop_count_mean = slot_renderers
-            .create_sampler_prefix_sum_mean_with(
+
+        let slot_fn_loop = slot_fns
+            .write()
+            .slot_fn_prefix_sum_mean_u32(
                 waragraph,
                 "loop_count",
-                "prefix-sum:loop_count",
+                "prefix-sum:loop-count",
                 move |v| (&cmap)(v),
             )
             .unwrap();
 
-        slot_renderer_cache
-            .insert("loop_count_mean".into(), updater_loop_count_mean);
+        slot_fns
+            .write()
+            .slot_fn_u32
+            .insert("loop_count_mean".into(), slot_fn_loop);
 
         let cmap = color_map.clone();
-        slot_renderer_cache.insert(
-            "loop_count_mid".into(),
-            slot_renderers
-                .create_sampler_mid_with("loop_count", move |v| {
-                    (&cmap)(v as f32)
-                })
-                .unwrap(),
-        );
+        let slot_fn_loop_mid = slot_fns
+            .read()
+            .slot_fn_mid_u32("loop_count", move |v| (&cmap)(v as f32))
+            .unwrap();
 
-        let has_node_mid =
-            slot_renderers
-                .create_sampler_mid_with("has_node", |v| {
-                    if v == 0 {
-                        0
-                    } else {
-                        255
-                    }
-                })
-                .unwrap();
-        slot_renderer_cache.insert("has_node_mid".into(), has_node_mid);
+        slot_fns
+            .write()
+            .slot_fn_u32
+            .insert("loop_count_mid".into(), slot_fn_loop_mid);
+
+        ////
 
         //
         let view = ViewDiscrete1D::new(waragraph.total_len());
@@ -362,9 +360,8 @@ impl ViewerSys {
             view,
 
             path_viewer,
-            slot_renderers,
 
-            slot_renderer_cache,
+            slot_functions: slot_fns,
 
             labels: txt,
             label_updates,
@@ -395,6 +392,8 @@ impl ViewerSys {
             usize,
         )>,
     ) -> Result<()> {
+        let slot_fns = self.slot_functions.read();
+
         let samples = Arc::new(self.path_viewer.sample_buf.clone());
 
         let update_key = self
@@ -405,15 +404,13 @@ impl ViewerSys {
             .and_then(|v| v.clone().into_immutable_string().ok())
             .unwrap_or_else(|| "unknown".into());
 
-        let def = self
-            .slot_renderer_cache
-            .get(b"loop_count_mean".as_ref())
+        let def = slot_fns
+            .slot_fn_u32
+            .get("loop_count_mean")
             .ok_or(anyhow!("default slot renderer not found"))?;
 
-        let slot_fn = self
-            .slot_renderer_cache
-            .get(update_key.as_bytes())
-            .unwrap_or_else(|| {
+        let slot_fn =
+            slot_fns.slot_fn_u32.get(&update_key).unwrap_or_else(|| {
                 log::warn!("slot renderer `{}` not found", update_key);
                 def
             });
@@ -446,38 +443,6 @@ impl ViewerSys {
                 }
             }
         }
-
-        Ok(())
-    }
-
-    pub fn update_slots(
-        &mut self,
-        resources: &mut GpuResources,
-        graph: &Arc<Waragraph>,
-    ) -> Result<()> {
-        let update_key = self
-            .config
-            .map
-            .read()
-            .get("viz.slot_function")
-            .and_then(|v| v.clone().into_immutable_string().ok())
-            .unwrap_or_else(|| "unknown".into());
-
-        let def = self
-            .slot_renderer_cache
-            .get(b"loop_count_mean".as_ref())
-            .ok_or(anyhow!("default slot renderer not found"))?;
-
-        let updater = self
-            .slot_renderer_cache
-            .get(update_key.as_bytes())
-            .unwrap_or_else(|| {
-                log::warn!("slot renderer `{}` not found", update_key);
-                def
-            });
-
-        self.path_viewer
-            .update_from(resources, graph, updater, self.view);
 
         Ok(())
     }

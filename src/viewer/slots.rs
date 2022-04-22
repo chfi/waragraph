@@ -35,14 +35,15 @@ pub enum ColorSchemeKind {
 
 #[derive(Default)]
 pub struct SlotFnCache {
-    data_sources_f32: HashMap<rhai::ImmutableString, DataSource<f32>>,
-    data_sources_u32: HashMap<rhai::ImmutableString, DataSource<u32>>,
-    data_sources_i64: HashMap<rhai::ImmutableString, DataSource<i64>>,
+    pub data_sources_f32: HashMap<rhai::ImmutableString, DataSource<f32>>,
+    pub data_sources_u32: HashMap<rhai::ImmutableString, DataSource<u32>>,
+    pub data_sources_i64: HashMap<rhai::ImmutableString, DataSource<i64>>,
 
-    data_sources_dyn: HashMap<rhai::ImmutableString, DataSource<rhai::Dynamic>>,
+    pub data_sources_dyn:
+        HashMap<rhai::ImmutableString, DataSource<rhai::Dynamic>>,
 
-    slot_fn_u32: HashMap<rhai::ImmutableString, SlotUpdateFn<u32>>,
-    slot_fn_f32: HashMap<rhai::ImmutableString, SlotUpdateFn<f32>>,
+    pub slot_fn_u32: HashMap<rhai::ImmutableString, SlotUpdateFn<u32>>,
+    pub slot_fn_f32: HashMap<rhai::ImmutableString, SlotUpdateFn<f32>>,
 }
 
 impl SlotFnCache {
@@ -163,7 +164,7 @@ impl SlotFnCache {
         &self,
         data_source: &str,
     ) -> Option<SlotUpdateFn<u32>> {
-        self.slot_fn_prefix_sum_mean_u32(data_source, |v| v as u32)
+        self.slot_fn_mean_u32(data_source, |v| v as u32)
     }
 
     pub fn slot_fn_mid_u32<F>(
