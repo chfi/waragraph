@@ -33,6 +33,7 @@ pub enum ColorSchemeKind {
 
 // pub struct ColorSchemes {}
 
+#[derive(Default)]
 pub struct SlotFnCache {
     data_sources_f32: HashMap<rhai::ImmutableString, DataSource<f32>>,
     data_sources_u32: HashMap<rhai::ImmutableString, DataSource<u32>>,
@@ -42,6 +43,156 @@ pub struct SlotFnCache {
 
     slot_fn_u32: HashMap<rhai::ImmutableString, SlotUpdateFn<u32>>,
     slot_fn_f32: HashMap<rhai::ImmutableString, SlotUpdateFn<f32>>,
+}
+
+impl SlotFnCache {
+    pub fn register_data_source_u32<F>(&mut self, id: &str, f: F)
+    where
+        F: Fn(usize, Node) -> Option<u32> + Send + Sync + 'static,
+    {
+        let data_source = Arc::new(f) as DataSource<u32>;
+        self.data_sources_u32.insert(id.into(), data_source);
+    }
+
+    pub fn get_data_source_u32(&self, id: &str) -> Option<&DataSource<u32>> {
+        self.data_sources_u32.get(id)
+    }
+
+    pub fn slot_fn_prefix_sum_mean_u32<F>(
+        &self,
+        graph: &Arc<Waragraph>,
+        val_data_source: &str,
+        sum_data_source: &str,
+        f: F,
+    ) -> Option<SlotUpdateFn<u32>>
+    where
+        F: Fn(f32) -> u32 + Send + Sync + 'static,
+    {
+        let val_data_source =
+            self.get_data_source_u32(val_data_source)?.clone();
+        let sum_data_source =
+            self.get_data_source_u32(sum_data_source)?.clone();
+        let graph = graph.clone();
+
+        let f = move |samples: &[(Node, usize)], path, ix: usize| {
+            let left_ix = ix.min(samples.len() - 1);
+            let right_ix = (ix + 1).min(samples.len() - 1);
+
+            let (left, l_offset) = samples[left_ix];
+            let (right, r_offset) = samples[right_ix];
+
+            let li: usize = left.into();
+            let ri: usize = right.into();
+
+            let left_start = graph.node_sum_lens[li];
+            let right_start = graph.node_sum_lens[ri];
+
+            let l_node_val =
+                val_data_source(path, left).unwrap_or_default() as usize;
+            let r_node_val =
+                val_data_source(path, right).unwrap_or_default() as usize;
+
+            let mut len = right_start - left_start;
+
+            let l_val = sum_data_source(path, left).unwrap_or_default();
+            let r_val = sum_data_source(path, right).unwrap_or_default();
+
+            let l_val = l_val as usize;
+            let r_val = r_val as usize;
+
+            let mut val = r_val - l_val;
+
+            // add the left chunk of the right node
+            val += r_offset * r_node_val;
+            // remove the left chunk of the left node
+            val = val.checked_sub(l_offset * l_node_val).unwrap_or_default();
+
+            len -= l_offset;
+            len += r_offset;
+
+            let avg = val as f32 / len as f32;
+
+            f(avg)
+        };
+        Some(Arc::new(f) as SlotUpdateFn<u32>)
+    }
+
+    pub fn slot_fn_mean_u32<F>(
+        &self,
+        data_source: &str,
+        f: F,
+    ) -> Option<SlotUpdateFn<u32>>
+    where
+        F: Fn(f32) -> u32 + Send + Sync + 'static,
+    {
+        let data_source = self.get_data_source_u32(data_source)?.clone();
+
+        let f = move |samples: &[(Node, usize)], path, ix: usize| {
+            let left_ix = ix.min(samples.len() - 1);
+            let right_ix = (ix + 1).min(samples.len() - 1);
+
+            let (left, _offset) = samples[left_ix];
+            let (right, _offset) = samples[right_ix];
+
+            let mut total = 0;
+            let mut count = 0;
+
+            let l: u32 = left.into();
+            let r: u32 = right.into();
+
+            for n in l..r {
+                let node = Node::from(n);
+                if let Some(v) = data_source(path, node) {
+                    total += v;
+                    count += 1;
+                }
+            }
+
+            let avg = if count == 0 {
+                0.0
+            } else {
+                (total as f32) / (count as f32)
+            };
+
+            f(avg)
+        };
+        Some(Arc::new(f) as SlotUpdateFn<u32>)
+    }
+
+    pub fn slot_fn_mean_round_u32<F>(
+        &self,
+        data_source: &str,
+    ) -> Option<SlotUpdateFn<u32>> {
+        self.slot_fn_prefix_sum_mean_u32(data_source, |v| v as u32)
+    }
+
+    pub fn slot_fn_mid_u32<F>(
+        &self,
+        data_source: &str,
+        f: F,
+    ) -> Option<SlotUpdateFn<u32>>
+    where
+        F: Fn(u32) -> u32 + Send + Sync + 'static,
+    {
+        let data_source = self.get_data_source_u32(data_source)?.clone();
+
+        let f = move |samples: &[(Node, usize)], path, ix: usize| {
+            let left_ix = ix.min(samples.len() - 1);
+            let right_ix = (ix + 1).min(samples.len() - 1);
+
+            let (left, _offset) = samples[left_ix];
+            let (right, _offset) = samples[right_ix];
+
+            let l: u32 = left.into();
+            let r: u32 = right.into();
+
+            let node = l + (r - l) / 2;
+            let v = data_source(path, node.into()).unwrap_or_default();
+
+            f(v)
+        };
+        Some(Arc::new(f) as SlotUpdateFn<u32>)
+    }
 }
 
 pub type DataSource<T> =

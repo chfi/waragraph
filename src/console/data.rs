@@ -45,7 +45,13 @@ pub fn create_rhai_module() -> rhai::Module {
 pub mod rhai_module {
     use rhai::plugin::RhaiResult;
 
-    use crate::{console::EvalResult, graph::Node, viewer::DataSource};
+    use std::sync::Arc;
+
+    use crate::{
+        console::EvalResult,
+        graph::{Node, Waragraph},
+        viewer::{DataSource, SlotUpdateFn},
+    };
 
     pub type ArcBytestring = Arc<Vec<u8>>;
 
@@ -55,6 +61,9 @@ pub mod rhai_module {
     pub type DataSourceU32 = DataSource<u32>;
     pub type DataSourceI32 = DataSource<i32>;
     pub type DataSourceI64 = DataSource<i64>;
+
+    pub type SlotUpdateFnU32 = SlotUpdateFn<u32>;
+    pub type SlotUpdateFnF32 = SlotUpdateFn<f32>;
 
     #[rhai_fn(global, name = "call")]
     pub fn call_data_source_dyn(
