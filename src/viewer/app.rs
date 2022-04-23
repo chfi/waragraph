@@ -57,6 +57,8 @@ pub struct ViewerSys {
 
     key_binds: Arc<RwLock<FxHashMap<VirtualKeyCode, rhai::FnPtr>>>,
     engine: rhai::Engine,
+
+    pub slot_rhai_module: Arc<rhai::Module>,
 }
 
 impl ViewerSys {
@@ -85,10 +87,20 @@ impl ViewerSys {
             bind_map.write().insert(key, val);
         };
 
+        let slot_fns = Arc::new(RwLock::new(SlotFnCache::default()));
+
+        let slot_module = {
+            let mut module = crate::console::data::create_rhai_module();
+            crate::console::data::add_cache_fns(&mut module, &slot_fns);
+            Arc::new(module)
+        };
+
         let mut builder =
             FrameBuilder::from_script_with("paths.rhai", |engine| {
                 crate::console::register_buffer_storage(db, buffers, engine);
                 crate::console::append_to_engine(db, engine);
+
+                engine.register_static_module("slot", slot_module.clone());
 
                 engine.register_fn("bind_key", bind_key_closure.clone());
             })?;
@@ -117,12 +129,10 @@ impl ViewerSys {
         txt.set_label_pos(b"view:len", 300, 16)?;
         txt.set_label_pos(b"view:end", 600, 16)?;
 
-        let mut slot_fns = Arc::new(RwLock::new(SlotFnCache::default()));
-
         // prefix sum loop count
 
         {
-            let graph = waragraph.clone();
+            let graph = &waragraph;
 
             // let mut cache_vec: Vec<BTreeMap<Node, usize>> = Vec::new();
             let mut cache_vec: Vec<Vec<(Node, usize)>> = Vec::new();
@@ -152,6 +162,42 @@ impl ViewerSys {
 
                     let (_, v) = *cache.get(ix)?;
                     Some(v as u32)
+                },
+            );
+
+            let mut cache_vec: Vec<Vec<(Node, usize)>> = Vec::new();
+
+            for path in graph.paths.iter() {
+                let mut sum = 0usize;
+                let mut cache = Vec::new();
+
+                for (node_ix, _val) in path.iter() {
+                    let len = graph.node_lens[node_ix] as usize;
+                    let val = len;
+                    cache.push(((node_ix as u32).into(), sum));
+                    sum += val;
+                }
+
+                cache_vec.push(cache);
+            }
+
+            let graph = waragraph.clone();
+            slot_fns.write().register_data_source_u32(
+                "prefix-sum:node-len",
+                move |path, node| {
+                    let path_len = graph.path_lens[path];
+
+                    let cache = cache_vec.get(path)?;
+
+                    let ix = cache
+                        .binary_search_by_key(&node, |(n, _)| *n)
+                        .unwrap_or_else(|x| x);
+
+                    let (_, v) = *cache.get(ix)?;
+
+                    let val = (v as f32) / (path_len as f32);
+
+                    Some((val * 255.0) as u32)
                 },
             );
         }
@@ -207,6 +253,17 @@ impl ViewerSys {
             .write()
             .slot_fn_u32
             .insert("loop_count_mean".into(), slot_fn_loop);
+
+        // let graph = waragraph.clone();
+        let slot_fn_loop = slot_fns
+            .write()
+            .slot_fn_mid_u32("prefix-sum:node-len", |v| v)
+            .unwrap();
+
+        slot_fns
+            .write()
+            .slot_fn_u32
+            .insert("node_length".into(), slot_fn_loop);
 
         let cmap = color_map.clone();
         let slot_fn_loop_mid = slot_fns
@@ -378,6 +435,8 @@ impl ViewerSys {
 
             key_binds,
             engine,
+
+            slot_rhai_module: slot_module,
         })
     }
 

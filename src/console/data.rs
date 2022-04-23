@@ -41,7 +41,6 @@ use self::rhai_module::DataSourceF32;
 pub fn create_rhai_module() -> rhai::Module {
     let mut module: rhai::Module = rhai::exported_module!(rhai_module);
 
-
     module
 }
 
@@ -49,6 +48,25 @@ pub fn add_cache_fns(
     module: &mut rhai::Module,
     slot_fns: &Arc<RwLock<SlotFnCache>>,
 ) {
+    let cache = slot_fns.clone();
+    module.set_native_fn(
+        "set_slot_color_scheme",
+        move |slot_fn: rhai::ImmutableString,
+              color_buffer: rhai::ImmutableString| {
+            cache.write().slot_color.insert(slot_fn, color_buffer);
+            Ok(true)
+        },
+    );
+
+    let cache = slot_fns.clone();
+    module.set_native_fn("get_slot_color_scheme", move |slot_fn: &str| {
+        if let Some(color) = cache.read().slot_color.get(slot_fn) {
+            Ok(rhai::Dynamic::from(color.to_owned()))
+        } else {
+            Ok(rhai::Dynamic::FALSE)
+        }
+    });
+
     let cache = slot_fns.clone();
     module.set_native_fn(
         "register_data_source",

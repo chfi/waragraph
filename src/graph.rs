@@ -123,6 +123,7 @@ pub struct Waragraph {
     pub d0: CsMatI<i8, u32>,
 
     // pub paths: Vec<CsVecI<Strand, u32>>,
+    pub path_lens: Vec<usize>,
     pub paths: Vec<CsVecI<u32, u32>>,
     pub path_indices: HashMap<Vec<u8>, usize>,
 
@@ -178,6 +179,7 @@ impl Waragraph {
         let mut path_indices = HashMap::default();
 
         let mut path_names = Vec::new();
+        let mut path_lens = Vec::new();
 
         let mut path_nodes = Vec::new();
 
@@ -197,6 +199,8 @@ impl Waragraph {
 
                 let mut nodeset = roaring::RoaringBitmap::default();
 
+                let mut len = 0;
+
                 for (seg, orient) in path.iter() {
                     // let node = Node::from((seg - 1) as u32);
                     // let strand = Strand::new(node, orient.is_reverse());
@@ -204,12 +208,15 @@ impl Waragraph {
                     let i = (seg - 1) as u32;
                     // let v = if orient.is_reverse() { -1 } else { 1 };
 
+                    len += node_lens[i as usize] as usize;
+
                     nodeset.insert(i);
 
                     *loop_count.entry(i).or_default() += 1u32;
                 }
 
                 path_nodes.push(nodeset);
+                path_lens.push(len);
 
                 let mut ids: Vec<(u32, u32)> = loop_count.into_iter().collect();
 
@@ -234,6 +241,7 @@ impl Waragraph {
             d0,
 
             path_names,
+            path_lens,
             paths,
             path_indices,
 
