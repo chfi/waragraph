@@ -4,6 +4,7 @@ use ash::vk;
 use bstr::ByteSlice;
 use gfa::gfa::GFA;
 use gpu_allocator::vulkan::Allocator;
+use parking_lot::RwLock;
 use raving::{
     script::console::BatchBuilder,
     vk::{context::VkContext, BufferIx, GpuResources, VkEngine},
@@ -28,18 +29,75 @@ use bstr::ByteSlice as BstrByteSlice;
 
 use crate::{
     util::{BufFmt, BufId, BufMeta, BufferStorage, LabelStorage},
-    viewer::ViewDiscrete1D,
+    viewer::{DataSource, SlotFnCache, ViewDiscrete1D},
 };
 
 use rhai::plugin::*;
 
 use lazy_static::lazy_static;
 
+use self::rhai_module::DataSourceF32;
+
 pub fn create_rhai_module() -> rhai::Module {
     let mut module: rhai::Module = rhai::exported_module!(rhai_module);
 
+
     module
 }
+
+pub fn add_cache_fns(
+    module: &mut rhai::Module,
+    slot_fns: &Arc<RwLock<SlotFnCache>>,
+) {
+    let cache = slot_fns.clone();
+    module.set_native_fn(
+        "register_data_source",
+        move |name: rhai::ImmutableString, f: DataSource<u32>| {
+            cache.write().data_sources_u32.insert(name, f);
+            Ok(true)
+        },
+    );
+
+    let cache = slot_fns.clone();
+    module.set_native_fn(
+        "register_data_source",
+        move |name: rhai::ImmutableString, f: DataSource<f32>| {
+            cache.write().data_sources_f32.insert(name, f);
+            Ok(true)
+        },
+    );
+
+    let cache = slot_fns.clone();
+    module.set_native_fn(
+        "register_data_source",
+        move |name: rhai::ImmutableString, f: DataSource<rhai::Dynamic>| {
+            cache.write().data_sources_dyn.insert(name, f);
+            Ok(true)
+        },
+    );
+
+    let cache = slot_fns.clone();
+    module.set_native_fn(
+        "get_data_source",
+        move |name: rhai::ImmutableString| {
+            let cache = cache.read();
+            if let Some(data) = cache.data_sources_u32.get(&name) {
+                Ok(rhai::Dynamic::from(data.clone()))
+            } else if let Some(data) = cache.data_sources_f32.get(&name) {
+                Ok(rhai::Dynamic::from(data.clone()))
+            } else if let Some(data) = cache.data_sources_dyn.get(&name) {
+                Ok(rhai::Dynamic::from(data.clone()))
+            } else {
+                Ok(rhai::Dynamic::FALSE)
+            }
+        },
+    );
+    //
+}
+
+// pub fn add_channel_fns(module: &mut rhai::Module,
+
+// pub fn add_channel_fns_engine(engine: &mut rhai::Engine,
 
 #[export_module]
 pub mod rhai_module {
@@ -52,6 +110,8 @@ pub mod rhai_module {
         graph::{Node, Waragraph},
         viewer::{DataSource, SlotUpdateFn},
     };
+
+    pub type SlotFnCache = Arc<RwLock<crate::viewer::SlotFnCache>>;
 
     pub type ArcBytestring = Arc<Vec<u8>>;
 

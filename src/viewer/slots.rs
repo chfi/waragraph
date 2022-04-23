@@ -44,6 +44,8 @@ pub struct SlotFnCache {
 
     pub slot_fn_u32: HashMap<rhai::ImmutableString, SlotUpdateFn<u32>>,
     pub slot_fn_f32: HashMap<rhai::ImmutableString, SlotUpdateFn<f32>>,
+
+    pub slot_color: HashMap<rhai::ImmutableString, rhai::ImmutableString>,
 }
 
 impl SlotFnCache {
