@@ -217,6 +217,8 @@ pub struct Slot {
 
     pub label_id: u64,
 
+    pub slot_function: rhai::ImmutableString,
+
     pub updating: AtomicCell<bool>,
 }
 
@@ -277,11 +279,15 @@ impl SlotCache {
             PathViewSlot::new(ctx, res, alloc, width, Some(&name))
         })?;
 
+        let slot_fn = rhai::ImmutableString::from("");
+
         let slot = Slot {
             path: None,
             view: None,
             width: None,
             label_id,
+
+            slot_function: slot_fn.clone(),
 
             slot,
 

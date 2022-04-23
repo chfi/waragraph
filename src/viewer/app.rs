@@ -74,6 +74,16 @@ impl ViewerSys {
     ) -> Result<Self> {
         let mut txt = LabelStorage::new(&db)?;
 
+        let slot_count = 16;
+        let mut path_viewer = PathViewer::new(
+            engine,
+            &db,
+            &mut txt,
+            width as usize,
+            slot_count,
+            waragraph.paths.len(),
+        )?;
+
         let label_updates = txt.tree.watch_prefix(b"t:");
 
         let key_binds: FxHashMap<VirtualKeyCode, rhai::FnPtr> =
@@ -92,6 +102,13 @@ impl ViewerSys {
         let slot_module = {
             let mut module = crate::console::data::create_rhai_module();
             crate::console::data::add_cache_fns(&mut module, &slot_fns);
+
+            let force_update = path_viewer.force_update_fn();
+            module.set_native_fn("force_update", move || {
+                force_update();
+                Ok(())
+            });
+
             Arc::new(module)
         };
 
@@ -282,17 +299,6 @@ impl ViewerSys {
         //
         let view = ViewDiscrete1D::new(waragraph.total_len());
 
-        let slot_count = 16;
-
-        let mut path_viewer = PathViewer::new(
-            engine,
-            &db,
-            &mut txt,
-            width as usize,
-            slot_count,
-            waragraph.paths.len(),
-        )?;
-
         path_viewer.sample(waragraph, &view);
 
         Self::update_labels_impl(&config, &txt, waragraph, &path_viewer);
@@ -447,6 +453,7 @@ impl ViewerSys {
         graph: &Arc<Waragraph>,
         update_tx: &crossbeam::channel::Sender<(
             Arc<Vec<(Node, usize)>>,
+            rhai::ImmutableString,
             SlotUpdateFn<u32>,
             usize,
             (usize, usize),
@@ -487,10 +494,12 @@ impl ViewerSys {
             if let Some(slot) = self.path_viewer.slots.get_slot_mut_for(path) {
                 if !slot.updating.load()
                     && (slot.view != cur_view
+                        || slot.slot_function != &update_key
                         || slot.width != Some(self.path_viewer.width))
                 {
                     let msg = (
                         samples.clone(),
+                        update_key.clone(),
                         slot_fn.to_owned(),
                         path,
                         view,

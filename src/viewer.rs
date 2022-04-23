@@ -158,7 +158,7 @@ pub struct PathViewer {
     pub row_max: usize,
     pub row_view: Arc<AtomicCell<(usize, usize)>>,
 
-    update: AtomicCell<bool>,
+    update: Arc<AtomicCell<bool>>,
 
     pub width: usize,
 
@@ -204,11 +204,16 @@ impl PathViewer {
             row_max,
 
             sample_buf: Vec::new(),
-            update: true.into(),
+            update: Arc::new(true.into()),
             new_samples: false.into(),
         };
 
         Ok(result)
+    }
+
+    pub fn force_update_fn(&self) -> Arc<dyn Fn() + Send + Sync + 'static> {
+        let update = self.update.clone();
+        Arc::new(move || update.store(true))
     }
 
     pub fn force_update(&self) {
@@ -266,6 +271,7 @@ impl PathViewer {
     pub fn apply_update(
         &mut self,
         res: &mut GpuResources,
+        slot_fn: rhai::ImmutableString,
         slot_ix: usize,
         data: &[u32],
         view: (usize, usize),
@@ -276,6 +282,9 @@ impl PathViewer {
                 // if slot.view == Some(view) && slot.width == Some(width) {
                 slot.slot.fill_from(res, data)?;
                 slot.updating.store(false);
+                if slot.slot_function != &slot_fn {
+                    slot.slot_function = slot_fn.to_owned();
+                }
             }
         }
         Some(())

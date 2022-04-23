@@ -86,6 +86,21 @@ bind_key(key::Tab, |pressed| {
   }
 });
 
+
+bind_key(key::F1, |pressed| {
+  if pressed {
+    cfg.update("viz.slot_function", || {
+      if this == "node_length" {
+        this = "loop_count_mean";
+        slot::force_update();
+      } else {
+        this = "node_length";
+        slot::force_update();
+      }
+    });
+  }
+});
+
 //
 // GUI definition
 //

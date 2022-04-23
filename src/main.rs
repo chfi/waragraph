@@ -148,6 +148,10 @@ fn main() -> Result<()> {
 
     console
         .modules
+        .insert("slot".into(), viewer.slot_rhai_module.clone());
+
+    console
+        .modules
         .insert("gui".into(), gui_sys.rhai_module.clone());
 
     viewer.labels.allocate_label(&db, &mut engine, "console")?;
@@ -216,6 +220,7 @@ fn main() -> Result<()> {
     // (samples, SlotUpdateFn, Path, view, width)
     type UpdateMsg = (
         Arc<Vec<(Node, usize)>>,
+        rhai::ImmutableString,
         SlotUpdateFn<u32>,
         usize,
         (usize, usize),
@@ -225,7 +230,13 @@ fn main() -> Result<()> {
     let (update_tx, update_rx) = crossbeam::channel::unbounded::<UpdateMsg>();
 
     // path, data, view, width
-    type SlotMsg = (usize, Vec<u32>, (usize, usize), usize);
+    type SlotMsg = (
+        usize,
+        rhai::ImmutableString,
+        Vec<u32>,
+        (usize, usize),
+        usize,
+    );
 
     let (slot_tx, slot_rx) = crossbeam::channel::unbounded::<SlotMsg>();
 
@@ -248,15 +259,22 @@ fn main() -> Result<()> {
                 let mut buffer = Vec::new();
 
                 loop {
-                    while let Ok((samples, slot_fn, path, view, width)) =
-                        input.recv()
+                    while let Ok((
+                        samples,
+                        slot_fn_name,
+                        slot_fn,
+                        path,
+                        view,
+                        width,
+                    )) = input.recv()
                     {
                         buffer.clear();
                         buffer.extend(
                             (0..width).map(|i| slot_fn(&samples, path, i)),
                         );
 
-                        let msg = (path, buffer.clone(), view, width);
+                        let msg =
+                            (path, slot_fn_name, buffer.clone(), view, width);
                         if let Err(e) = out.send(msg) {
                             log::error!("Update thread error: {:?}", e);
                         }
@@ -317,12 +335,15 @@ fn main() -> Result<()> {
                     }
                 }
 
-                while let Ok((path, data, view, width)) = slot_rx.try_recv() {
+                while let Ok((path, slot_fn_name, data, view, width)) =
+                    slot_rx.try_recv()
+                {
                     if let Some(slot_ix) =
                         viewer.path_viewer.slots.path_map.get(&path).copied()
                     {
                         viewer.path_viewer.apply_update(
                             &mut engine.resources,
+                            slot_fn_name,
                             slot_ix,
                             &data,
                             view,
@@ -370,8 +391,12 @@ fn main() -> Result<()> {
                     viewer.path_viewer.slots.bind_paths(paths).unwrap();
                 }
 
+                let mut should_update = false;
+
                 // path-viewer specific, dependent on previous view
                 if viewer.path_viewer.should_update() {
+                    should_update = true;
+
                     let view = viewer.view;
                     let range = view.range();
                     let start = range.start.to_string();
@@ -385,7 +410,7 @@ fn main() -> Result<()> {
                     viewer.path_viewer.sample(&waragraph, &view);
                 }
 
-                if viewer.path_viewer.has_new_samples() {
+                if viewer.path_viewer.has_new_samples() || should_update {
                     if let Err(e) =
                         viewer.queue_slot_updates(&waragraph, &update_tx)
                     {
