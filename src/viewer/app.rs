@@ -223,7 +223,8 @@ impl ViewerSys {
         );
 
         // using a Rhai function for the final step in mapping values to color indices
-        let mut rhai_engine = Self::create_engine(db, buffers, &arc_module);
+        let mut rhai_engine =
+            Self::create_engine(db, buffers, &arc_module, &slot_module);
         rhai_engine.set_optimization_level(rhai::OptimizationLevel::Full);
 
         let color_map = rhai::Func::<(f32,), i64>::create_from_ast(
@@ -341,7 +342,7 @@ impl ViewerSys {
             (BatchBuilder, rhai::Array, i64, i64),
             BatchBuilder,
         >::create_from_ast(
-            Self::create_engine(db, buffers, &arc_module),
+            Self::create_engine(db, buffers, &arc_module, &slot_module),
             builder.ast.clone_functions_only(),
             "foreground",
         );
@@ -350,14 +351,14 @@ impl ViewerSys {
             (BatchBuilder, DescSetIx, rhai::Map, i64, i64),
             BatchBuilder,
         >::create_from_ast(
-            Self::create_engine(db, buffers, &arc_module),
+            Self::create_engine(db, buffers, &arc_module, &slot_module),
             builder.ast.clone_functions_only(),
             "copy_to_swapchain",
         );
 
         {
             let init = rhai::Func::<(), BatchBuilder>::create_from_ast(
-                Self::create_engine(db, buffers, &arc_module),
+                Self::create_engine(db, buffers, &arc_module, &slot_module),
                 builder.ast.clone_functions_only(),
                 "init",
             );
@@ -380,7 +381,7 @@ impl ViewerSys {
         let on_resize = {
             let resize =
                 rhai::Func::<(i64, i64), BatchBuilder>::create_from_ast(
-                    Self::create_engine(db, buffers, &arc_module),
+                    Self::create_engine(db, buffers, &arc_module, &slot_module),
                     builder.ast.clone_functions_only(),
                     "resize",
                 );
@@ -410,7 +411,8 @@ impl ViewerSys {
             [new_frame(), new_frame()]
         };
 
-        let engine = Self::create_engine(db, buffers, &arc_module);
+        let engine =
+            Self::create_engine(db, buffers, &arc_module, &slot_module);
 
         Ok(Self {
             config,
@@ -999,10 +1001,12 @@ impl ViewerSys {
     fn create_engine(
         db: &sled::Db,
         buffers: &BufferStorage,
-        module: &Arc<rhai::Module>,
+        viewer_module: &Arc<rhai::Module>,
+        slot_module: &Arc<rhai::Module>,
     ) -> rhai::Engine {
         let mut rhai_engine = crate::console::create_engine(db, buffers);
-        rhai_engine.register_static_module("viewer", module.clone());
+        rhai_engine.register_static_module("viewer", viewer_module.clone());
+        rhai_engine.register_static_module("slot", slot_module.clone());
         rhai_engine
     }
 }

@@ -16,7 +16,10 @@ export let label_color = #{ r: 0.0, g: 0.0, b: 0.0 };
 export let cfg = config::new_config_map();
 
 
-cfg.set("viz.color_scheme", "gradient-colorbrewer-spectral");
+slot::set_slot_color_scheme("loop_count_mean", "gradient-colorbrewer-spectral");
+slot::set_slot_color_scheme("node_length", "gradient-grayscale");
+
+// cfg.set("viz.slot_function", "node_length");
 cfg.set("viz.slot_function", "loop_count_mean");
 // cfg.set("viz.slot_function", "loop_count_mid");
 // cfg.set("viz.slot_function", "has_node_mid");
@@ -122,16 +125,14 @@ fn set_tooltip(text, pos) {
 // }
 
 
-/*
+
 fn gui_init() {
 }
 
 fn gui_update() {
 }
-*/
 
-
-
+/*
 fn gui_init() {
   gui::set_layer_order(["main_gui", "main_gui-legend"]);
 }
@@ -144,6 +145,7 @@ fn gui_update() {
   gui::with_layer("main_gui", Fn("prepare_legend_window"));
   gui::with_layer("main_gui-legend", Fn("prepare_legend_icons"));
 }
+*/
 
 fn prepare_legend_icons() {
   let screen = gui::get_window_size();
@@ -377,15 +379,18 @@ fn foreground(batch, desc_sets, w, h) {
                          // viewer::bg_desc_set.get(),
                          pc, x_groups, y_groups, 1);
 
-
-
   // draw paths
   let dims = #{ width: w, height: h };
-  let colors = cfg.get("viz.color_scheme");
-  let batch = draw_slots(batch,
-                         dims,
-                         desc_sets,
-                         colors);
+  let colors = slot::get_slot_color_scheme(cfg.get("viz.slot_function"));
+
+  if colors.type_of() == "string" {
+    batch = draw_slots(batch,
+                           dims,
+                           desc_sets,
+                           colors);
+  } else {
+    print("could not find color scheme");
+  }
 
   batch.transition_image(img,
                          vk::AccessFlags::SHADER_WRITE,
