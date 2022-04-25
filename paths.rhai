@@ -150,7 +150,7 @@ fn gui_init() {
 fn gui_update() {
   let pos = mouse::get_pos();
   let ix = slot_ix_at_pos(pos);
-  print(`${ix} - ${ix.type_of()}`);
+  // print(`${ix} - ${ix.type_of()}`);
 }
 
 // fn empty_rect

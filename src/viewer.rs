@@ -220,6 +220,10 @@ impl PathViewer {
         self.update.store(true);
     }
 
+    pub fn force_update_cell(&self) -> &Arc<AtomicCell<bool>> {
+        &self.update
+    }
+
     pub fn should_update(&self) -> bool {
         let r = self.update.load();
         self.update.store(false);

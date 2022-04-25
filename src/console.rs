@@ -35,6 +35,7 @@ use lazy_static::lazy_static;
 
 pub mod data;
 pub mod math;
+pub mod view;
 
 // use lazy_static so that modules only have to be loaded once
 lazy_static! {
@@ -48,6 +49,10 @@ lazy_static! {
     };
     static ref MOUSE_MODULE: Arc<rhai::Module> = {
         let module = crate::input::create_mouse_module();
+        Arc::new(module)
+    };
+    static ref VIEW_MODULE: Arc<rhai::Module> = {
+        let module = rhai::exported_module!(view::rhai_module);
         Arc::new(module)
     };
 }
@@ -329,7 +334,6 @@ pub fn create_engine(db: &sled::Db, buffers: &BufferStorage) -> rhai::Engine {
     let mut engine = raving::script::console::create_batch_engine();
 
     register_buffer_storage(db, buffers, &mut engine);
-
     append_to_engine(db, &mut engine);
 
     engine
@@ -340,6 +344,7 @@ pub fn append_to_engine(db: &sled::Db, engine: &mut rhai::Engine) {
     engine.register_static_module("config", CONFIG_MODULE.clone());
     engine.register_static_module("key", KEY_MODULE.clone());
     engine.register_static_module("mouse", MOUSE_MODULE.clone());
+    engine.register_static_module("view", VIEW_MODULE.clone());
 
     // example of loading a rhai script as a console module
     /*

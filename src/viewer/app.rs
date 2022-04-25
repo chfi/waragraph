@@ -1,4 +1,5 @@
 use bstr::ByteSlice;
+use crossbeam::atomic::AtomicCell;
 use parking_lot::RwLock;
 use raving::script::console::frame::FrameBuilder;
 use raving::script::console::BatchBuilder;
@@ -35,7 +36,7 @@ use super::{PathViewer, SlotFnCache, SlotUpdateFn};
 pub struct ViewerSys {
     pub config: ConfigMap,
 
-    pub view: ViewDiscrete1D,
+    pub view: Arc<AtomicCell<ViewDiscrete1D>>,
 
     pub path_viewer: PathViewer,
 
@@ -112,6 +113,10 @@ impl ViewerSys {
             Arc::new(module)
         };
 
+        let view = Arc::new(AtomicCell::new(ViewDiscrete1D::new(
+            waragraph.total_len(),
+        )));
+
         let mut builder =
             FrameBuilder::from_script_with("paths.rhai", |engine| {
                 crate::console::register_buffer_storage(db, buffers, engine);
@@ -124,6 +129,60 @@ impl ViewerSys {
             })?;
 
         let config = builder.module.get_var_value::<ConfigMap>("cfg").unwrap();
+
+        {
+            let view_ = view.clone();
+            builder
+                .module
+                .set_native_fn("get_view", move || Ok(view_.load()));
+            // .set_native_fn("get_view", move || Ok(view_.load()));
+
+            let view_ = view.clone();
+            let should_update = path_viewer.force_update_cell().clone();
+            builder.module.set_native_fn(
+                "set_view",
+                move |new: ViewDiscrete1D| {
+                    if new != view_.load() {
+                        should_update.store(true);
+                    }
+                    view_.store(new);
+                    Ok(())
+                },
+            );
+
+            let should_update = path_viewer.force_update_cell().clone();
+            let view_ = view.clone();
+            builder.module.set_raw_fn(
+                "with_view",
+                rhai::FnNamespace::Global,
+                rhai::FnAccess::Public,
+                [std::any::TypeId::of::<rhai::FnPtr>()],
+                move |ctx, args| {
+                    let fn_ptr = std::mem::take(args[0]).cast::<rhai::FnPtr>();
+
+                    let old_view = view_.load();
+                    let mut view = rhai::Dynamic::from(old_view);
+
+                    if let Err(e) = fn_ptr.call_raw(&ctx, Some(&mut view), []) {
+                        return Err(e);
+                    }
+
+                    if let Some(view) = view.try_cast::<ViewDiscrete1D>() {
+                        if old_view != view {
+                            should_update.store(true);
+                            view_.store(view);
+                        }
+                        Ok(())
+                    } else {
+                        return Err(
+                            "Function pointer changed type of view".into()
+                        );
+                    }
+                },
+            );
+        }
+
+        // builder.module.set_native_fn(name, func)
 
         log::warn!("Config: {:?}", config);
 
@@ -282,10 +341,7 @@ impl ViewerSys {
 
         ////
 
-        //
-        let view = ViewDiscrete1D::new(waragraph.total_len());
-
-        path_viewer.sample(waragraph, &view);
+        path_viewer.sample(waragraph, &view.load());
 
         Self::update_labels_impl(&config, &txt, waragraph, &path_viewer);
         // path_viewer.update_labels(&waragraph, &txt)?;
@@ -471,7 +527,7 @@ impl ViewerSys {
 
         let paths = self.path_viewer.visible_paths(graph);
 
-        let view = self.view;
+        let view = self.view.load();
         let cur_view = Some((view.offset, view.len));
 
         let view = (view.offset, view.len);
@@ -511,7 +567,7 @@ impl ViewerSys {
                 if let Some(kc) = input.virtual_keycode {
                     use VirtualKeyCode as VK;
 
-                    let view = &mut self.view;
+                    let mut view = self.view.load();
 
                     let pre_len = view.len();
                     let len = view.len() as isize;
@@ -564,6 +620,8 @@ impl ViewerSys {
                             update = true;
                         }
                     }
+
+                    self.view.store(view);
 
                     self.path_viewer.update.fetch_or(update);
                 }
@@ -699,9 +757,11 @@ impl ViewerSys {
 
         {
             let slot_width = self.path_viewer.width;
+            let mut view = self.view.load();
 
-            if self.view.len < slot_width {
-                self.view.len = slot_width;
+            if view.len < slot_width {
+                view.len = slot_width;
+                self.view.store(view);
             }
 
             // txt.set_label_pos(b"view:start", 20, 16)?;
@@ -720,7 +780,7 @@ impl ViewerSys {
                 .set_label_pos(b"fps", 0, (height - 12) as u32)
                 .unwrap();
 
-            self.path_viewer.sample(waragraph, &self.view);
+            self.path_viewer.sample(waragraph, &view);
         }
 
         {
