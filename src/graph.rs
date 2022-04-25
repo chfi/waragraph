@@ -1,16 +1,20 @@
-use std::{collections::HashMap, num::NonZeroU32};
+use std::{
+    collections::{BTreeMap, HashMap},
+    num::NonZeroU32,
+};
 
 use ash::vk;
+use bimap::BiBTreeMap;
 use bstr::ByteSlice;
 use gfa::gfa::GFA;
 use gpu_allocator::vulkan::Allocator;
 use raving::vk::{context::VkContext, BufferIx, GpuResources, VkEngine};
 use rustc_hash::FxHashMap;
 
+use sled::IVec;
 use thunderdome::{Arena, Index};
 
 use sprs::{CsMatI, CsVecI, TriMatI};
-use zerocopy::AsBytes;
 
 use std::sync::Arc;
 
@@ -24,11 +28,10 @@ use rhai::plugin::*;
 
 use crate::viewer::ViewDiscrete1D;
 
-// TODO: make this a newtype
-pub type Path = usize;
-
 #[repr(transparent)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, AsBytes)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, zerocopy::AsBytes,
+)]
 pub struct Node(u32);
 
 impl From<NonZeroU32> for Node {
@@ -44,25 +47,31 @@ impl From<u32> for Node {
     }
 }
 
-impl Into<NonZeroU32> for Node {
-    fn into(self) -> NonZeroU32 {
-        if let Some(u) = NonZeroU32::new(self.0 + 1) {
+impl From<usize> for Node {
+    fn from(u: usize) -> Node {
+        Node(u as u32)
+    }
+}
+
+impl From<Node> for u32 {
+    fn from(n: Node) -> u32 {
+        n.0
+    }
+}
+
+impl From<Node> for usize {
+    fn from(n: Node) -> usize {
+        n.0 as usize
+    }
+}
+
+impl From<Node> for NonZeroU32 {
+    fn from(n: Node) -> NonZeroU32 {
+        if let Some(u) = NonZeroU32::new(n.0 + 1) {
             u
         } else {
             unreachable!();
         }
-    }
-}
-
-impl Into<u32> for Node {
-    fn into(self) -> u32 {
-        self.0
-    }
-}
-
-impl Into<usize> for Node {
-    fn into(self) -> usize {
-        self.0 as usize
     }
 }
 
@@ -108,6 +117,62 @@ impl std::fmt::Display for Strand {
     }
 }
 
+#[repr(transparent)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, zerocopy::AsBytes,
+)]
+pub struct Path(usize);
+
+impl Path {
+    pub fn ix(&self) -> usize {
+        self.0
+    }
+}
+
+impl From<usize> for Path {
+    fn from(u: usize) -> Path {
+        Path(u)
+    }
+}
+
+impl From<Path> for usize {
+    fn from(p: Path) -> usize {
+        p.0
+    }
+}
+
+impl From<u32> for Path {
+    fn from(u: u32) -> Path {
+        Path(u as usize)
+    }
+}
+
+impl From<Path> for u32 {
+    fn from(p: Path) -> u32 {
+        p.0 as u32
+    }
+}
+
+// this should probably be `TryFrom`, with an Error type that
+// implements `Into` for the rhai error type
+// impl From<i64> for Path {
+//     fn from(u: i64) -> Path {
+//         Path(u as usize)
+//     }
+// }
+
+// impl Into<i64> for Path {
+//     fn into(self) -> i64 {
+//         self.0 as i64
+//     }
+// }
+
+// impl std::fmt::Display for Path {
+//     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+//         write!(f, "{}", self.0)
+//     }
+// }
+
 pub struct Waragraph {
     node_count: usize,
     total_len: usize,
@@ -125,9 +190,13 @@ pub struct Waragraph {
     // pub paths: Vec<CsVecI<Strand, u32>>,
     pub path_lens: Vec<usize>,
     pub paths: Vec<CsVecI<u32, u32>>,
-    pub path_indices: HashMap<Vec<u8>, usize>,
 
-    pub path_names: Vec<Vec<u8>>,
+    // pub path_names: BiBTreeMap<IVec, usize>,
+    pub path_names: BiBTreeMap<Vec<u8>, Path>,
+    pub path_names_prefixes: BTreeMap<Vec<u8>, Path>,
+    // pub path_names: HashMap<usize, Arc<Vec<u8>>>,
+    // pub path_indices: BTreeMap<Arc<Vec<u8>>, usize>,
+    // pub path_names: Vec<Vec<u8>>,
     pub path_nodes: Vec<roaring::RoaringBitmap>,
     pub path_invert: Vec<roaring::RoaringBitmap>,
 
@@ -179,9 +248,10 @@ impl Waragraph {
         let adj_n_n = adj_tris.to_csc();
         let d0 = d0_tris.to_csc();
 
-        let mut path_indices = HashMap::default();
+        let mut path_names = BiBTreeMap::default();
+        let mut path_names_prefixes = BTreeMap::default();
+        // let mut path_names = HashMap::default();
 
-        let mut path_names = Vec::new();
         let mut path_lens = Vec::new();
         let mut path_offsets = Vec::new();
 
@@ -195,10 +265,10 @@ impl Waragraph {
             .enumerate()
             .map(|(ix, path)| {
                 dbg!(ix);
+                let path_ix = Path::from(ix);
                 let name = path.path_name.as_bstr();
 
-                path_names.push(name.to_vec());
-                path_indices.insert(name.to_vec(), ix);
+                path_names.insert(name.as_bytes().into(), path_ix);
 
                 {
                     fn parse_usize(bs: &[u8]) -> Option<usize> {
@@ -216,8 +286,9 @@ impl Waragraph {
                     });
 
                     match (name, range) {
-                        (Some(_name), Some((from, _to))) => {
+                        (Some(name), Some((from, _to))) => {
                             path_offsets.push(from);
+                            path_names_prefixes.insert(name.to_vec(), path_ix);
                         }
                         _ => {
                             path_offsets.push(0);
@@ -275,14 +346,32 @@ impl Waragraph {
             d0,
 
             path_names,
+            path_names_prefixes,
             path_lens,
             paths,
-            path_indices,
+
+            // path_indices,
             path_offsets,
 
             path_nodes,
             path_invert,
         })
+    }
+
+    // pub fn path_name(&self, path: usize) -> Option<&IVec> {
+    pub fn path_name(&self, path: Path) -> Option<&Vec<u8>> {
+        self.path_names.get_by_right(&path)
+    }
+
+    pub fn path_index(&self, name: &[u8]) -> Option<Path> {
+        self.path_names
+            .get_by_left(name)
+            .or_else(|| self.path_names_prefixes.get(name))
+            .copied()
+    }
+
+    pub fn path_offset(&self, path: Path) -> usize {
+        self.path_offsets[usize::from(path)]
     }
 
     pub fn node_count(&self) -> usize {
@@ -495,6 +584,7 @@ pub mod rhai_module {
     use super::*;
 
     pub type Node = super::Node;
+    pub type Path = usize;
 
     pub fn node(i: i64) -> Node {
         Node(i as u32)

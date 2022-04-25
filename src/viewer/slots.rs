@@ -51,7 +51,7 @@ pub struct SlotFnCache {
 impl SlotFnCache {
     pub fn register_data_source_u32<F>(&mut self, id: &str, f: F)
     where
-        F: Fn(usize, Node) -> Option<u32> + Send + Sync + 'static,
+        F: Fn(Path, Node) -> Option<u32> + Send + Sync + 'static,
     {
         let data_source = Arc::new(f) as DataSource<u32>;
         self.data_sources_u32.insert(id.into(), data_source);
@@ -199,16 +199,16 @@ impl SlotFnCache {
 }
 
 pub type DataSource<T> =
-    Arc<dyn Fn(usize, Node) -> Option<T> + Send + Sync + 'static>;
+    Arc<dyn Fn(Path, Node) -> Option<T> + Send + Sync + 'static>;
 
 // pub type DataSource =
 //     Arc<dyn Fn(usize, Node) -> Option<u32> + Send + Sync + 'static>;
 
 pub type SlotUpdateFn<T> =
-    Arc<dyn Fn(&[(Node, usize)], usize, usize) -> T + Send + Sync + 'static>;
+    Arc<dyn Fn(&[(Node, usize)], Path, usize) -> T + Send + Sync + 'static>;
 
 pub struct Slot {
-    pub path: Option<usize>,
+    pub path: Option<Path>,
     pub view: Option<(usize, usize)>,
     // the updated width, not the allocated
     pub width: Option<usize>,
@@ -306,7 +306,7 @@ impl SlotCache {
         view_len: usize,
         contents: &[u32],
     ) -> Option<()> {
-        let slot = self
+        let slot: &mut Slot = self
             .path_map
             .get(&path)
             .and_then(|&i| self.slots.get_mut(i))?;
@@ -378,7 +378,7 @@ pub struct SlotRenderers {
 impl SlotRenderers {
     pub fn register_data_source<F>(&mut self, id: &str, f: F)
     where
-        F: Fn(usize, Node) -> Option<u32> + Send + Sync + 'static,
+        F: Fn(Path, Node) -> Option<u32> + Send + Sync + 'static,
     {
         let data_source = Arc::new(f) as DataSource<u32>;
         self.data_sources.insert(id.to_string(), data_source);

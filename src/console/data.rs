@@ -125,7 +125,7 @@ pub mod rhai_module {
 
     use crate::{
         console::EvalResult,
-        graph::{Node, Waragraph},
+        graph::{Node, Path, Waragraph},
         viewer::{DataSource, SlotUpdateFn},
     };
 
@@ -146,10 +146,10 @@ pub mod rhai_module {
     #[rhai_fn(global, name = "call")]
     pub fn call_data_source_dyn(
         d: &mut DataSource<rhai::Dynamic>,
-        path: i64,
+        path: Path,
         node: i64,
     ) -> rhai::Dynamic {
-        if let Some(v) = d(path as usize, Node::from(node as u32)) {
+        if let Some(v) = d(path, Node::from(node as u32)) {
             v
         } else {
             rhai::Dynamic::UNIT
@@ -159,10 +159,10 @@ pub mod rhai_module {
     #[rhai_fn(global, name = "call")]
     pub fn call_data_source_f32(
         d: &mut DataSource<f32>,
-        path: i64,
+        path: Path,
         node: i64,
     ) -> rhai::Dynamic {
-        if let Some(v) = d(path as usize, Node::from(node as u32)) {
+        if let Some(v) = d(path, Node::from(node as u32)) {
             rhai::Dynamic::from_float(v)
         } else {
             rhai::Dynamic::UNIT
@@ -172,10 +172,10 @@ pub mod rhai_module {
     #[rhai_fn(global, name = "call")]
     pub fn call_data_source_u32(
         d: &mut DataSource<u32>,
-        path: i64,
+        path: Path,
         node: i64,
     ) -> rhai::Dynamic {
-        if let Some(v) = d(path as usize, Node::from(node as u32)) {
+        if let Some(v) = d(path, Node::from(node as u32)) {
             rhai::Dynamic::from_int(v as i64)
         } else {
             rhai::Dynamic::UNIT
@@ -185,10 +185,10 @@ pub mod rhai_module {
     #[rhai_fn(global, name = "call")]
     pub fn call_data_source_i64(
         d: &mut DataSource<i64>,
-        path: i64,
+        path: Path,
         node: i64,
     ) -> rhai::Dynamic {
-        if let Some(v) = d(path as usize, Node::from(node as u32)) {
+        if let Some(v) = d(path, Node::from(node as u32)) {
             rhai::Dynamic::from_int(v)
         } else {
             rhai::Dynamic::UNIT

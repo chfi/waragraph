@@ -336,7 +336,7 @@ impl PathViewer {
         let max_len = max_len as usize;
 
         for (ix, path) in self.visible_paths(graph).enumerate() {
-            if let Some(path_name) = graph.path_names.get(path) {
+            if let Some(path_name) = graph.path_names.get_by_right(&path) {
                 if let Some(slot) = self.slots.get_slot_for(path) {
                     let label_id = slot.label_id;
 
@@ -361,7 +361,7 @@ impl PathViewer {
         graph: &Waragraph,
     ) -> impl Iterator<Item = Path> {
         let (offset, len) = self.row_view.load();
-        offset..offset + len
+        (offset..offset + len).map(|i| Path::from(i))
     }
 
     // pub fn visible_indices(&self) -> std::ops::Range<usize> {

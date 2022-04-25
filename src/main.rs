@@ -9,7 +9,7 @@ use ash::vk;
 use flexi_logger::{Duplicate, FileSpec, Logger};
 
 use sled::IVec;
-use waragraph::graph::{Node, Waragraph};
+use waragraph::graph::{Node, Path, Waragraph};
 use waragraph::util::{BufferStorage, LabelStorage};
 use waragraph::viewer::app::ViewerSys;
 use waragraph::viewer::gui::{GuiLayer, GuiSys, LabelMsg};
@@ -217,12 +217,12 @@ fn main() -> Result<()> {
 
     let mut mode = Modes::PathViewer;
 
-    // (samples, SlotUpdateFn, Path, view, width)
+    // (samples, slot fn name, SlotUpdateFn, Path, view, width)
     type UpdateMsg = (
         Arc<Vec<(Node, usize)>>,
         rhai::ImmutableString,
         SlotUpdateFn<u32>,
-        usize,
+        Path,
         (usize, usize),
         usize,
     );
@@ -230,13 +230,8 @@ fn main() -> Result<()> {
     let (update_tx, update_rx) = crossbeam::channel::unbounded::<UpdateMsg>();
 
     // path, data, view, width
-    type SlotMsg = (
-        usize,
-        rhai::ImmutableString,
-        Vec<u32>,
-        (usize, usize),
-        usize,
-    );
+    type SlotMsg =
+        (Path, rhai::ImmutableString, Vec<u32>, (usize, usize), usize);
 
     let (slot_tx, slot_rx) = crossbeam::channel::unbounded::<SlotMsg>();
 

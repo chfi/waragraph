@@ -17,7 +17,7 @@ use winit::window::Window;
 
 use crate::config::ConfigMap;
 use crate::console::{RhaiBatchFn2, RhaiBatchFn4, RhaiBatchFn5};
-use crate::graph::{Node, Waragraph};
+use crate::graph::{Node, Path, Waragraph};
 use crate::util::{BufFmt, BufferStorage, LabelStorage};
 use crate::viewer::{SlotRenderers, ViewDiscrete1D};
 
@@ -171,7 +171,7 @@ impl ViewerSys {
             slot_fns.write().register_data_source_u32(
                 "prefix-sum:loop-count",
                 move |path, node| {
-                    let cache = cache_vec.get(path)?;
+                    let cache = cache_vec.get(path.ix())?;
 
                     let ix = cache
                         .binary_search_by_key(&node, |(n, _)| *n)
@@ -202,9 +202,10 @@ impl ViewerSys {
             slot_fns.write().register_data_source_u32(
                 "prefix-sum:node-len",
                 move |path, node| {
-                    let path_len = graph.path_lens[path];
+                    let ix = usize::from(path);
+                    let path_len = graph.path_lens[ix];
 
-                    let cache = cache_vec.get(path)?;
+                    let cache = cache_vec.get(ix)?;
 
                     let ix = cache
                         .binary_search_by_key(&node, |(n, _)| *n)
@@ -225,7 +226,7 @@ impl ViewerSys {
         slot_fns.write().register_data_source_u32(
             "loop_count",
             move |path, node| {
-                let path = graph.paths.get(path)?;
+                let path = graph.paths.get(path.ix())?;
                 path.get(node.into()).copied()
             },
         );
@@ -234,7 +235,7 @@ impl ViewerSys {
         slot_fns.write().register_data_source_u32(
             "has_node",
             move |path, node| {
-                let path = graph.paths.get(path)?;
+                let path = graph.paths.get(path.ix())?;
                 path.get(node.into()).map(|_| 1)
             },
         );
@@ -454,7 +455,7 @@ impl ViewerSys {
             Arc<Vec<(Node, usize)>>,
             rhai::ImmutableString,
             SlotUpdateFn<u32>,
-            usize,
+            Path,
             (usize, usize),
             usize,
         )>,
@@ -796,7 +797,7 @@ impl ViewerSys {
 
             let mut desc_map = rhai::Map::default();
             if let Some(slot) = self.path_viewer.slots.get_slot_for(path) {
-                if slot.path == Some(path) {
+                if slot.path == Some(path.into()) {
                     {
                         // let label_name = format!("path-name-{}", slot);
                         if let Some(map) = create_label_map(slot.label_id) {
