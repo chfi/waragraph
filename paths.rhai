@@ -106,8 +106,9 @@ bind_key(key::F1, |pressed| {
 //
 
 fn set_tooltip(text, pos) {
-  gui::set_layer_order(["main_gui", "main_gui-legend", "tooltip"]);
+  // gui::set_layer_order(["main_gui", "main_gui-legend", "tooltip"]);
   // gui::set_layer_order(["main_gui", "tooltip"]);
+  gui::set_layer_order(["tooltip"]);
 
   let width = text.len() * 8 + 4;
 
@@ -135,17 +136,24 @@ fn set_tooltip(text, pos) {
   gui::update_label(msg);
 }
 
-// fn remove_tooltip(text) {
-//   gui::set_layer_order(["main_gui"]);
-// }
+fn remove_tooltip(text) {
+  // gui::set_layer_order(["main_gui"]);
+  gui::set_layer_order([]);
+}
 
 
 
 fn gui_init() {
+  gui::set_layer_order(["main_gui"]);
 }
 
 fn gui_update() {
+  let pos = mouse::get_pos();
+  let ix = slot_ix_at_pos(pos);
+  print(`${ix} - ${ix.type_of()}`);
 }
+
+// fn empty_rect
 
 /*
 fn gui_init() {
@@ -586,33 +594,10 @@ fn visible_slots(win_height) {
   ((win_height - slot.y) / (slot.h + padding)).to_int()
 }
 
-fn slot_push_constant(win_dims, slot_x, slot_w, slot_ix) {
-  let pc = blob();
-
-  let cfg = viewer::cfg;
-  let slot = cfg.get("layout.slot");
-  let padding = cfg.get("layout.padding");
-
-  let path_name_len = cfg.get("layout.max_path_name_len");
-
-  let yd = slot.h + padding;
-  let r = slot;
-
-  r.x = slot_x;
-  r.y = r.y + yd * slot_ix;
-  r.w = slot_w;
-
-  pc.append_int(r.x.to_int());
-  pc.append_int(r.y.to_int());
-  pc.append_int(r.w.to_int());
-  pc.append_int(r.h.to_int());
-  pc
+fn slot_push_constant(rect) {
 }
 
-fn draw_slots(batch, win_dims, slot_desc_sets, color_buffer) {
-  let x_size = 8;
-  let y_size = 8;
-
+fn slot_rect(win_dims, slot_ix) {
   let cfg = viewer::cfg;
   let slot = cfg.get("layout.slot");
 
@@ -627,13 +612,60 @@ fn draw_slots(batch, win_dims, slot_desc_sets, color_buffer) {
   } else {
     slot.w
   };
-  let slot_h = slot.h;
 
-  let workgroups = #{ x_groups: (slot_w / x_size) + slot_w % x_size,
-                      y_groups: (slot_h / y_size) + slot_h % y_size,
+  let yd = slot.h + padding;
+  let r = slot;
+
+  r.x = slot_x;
+  r.y = r.y + yd * slot_ix;
+  r.w = slot_w;
+
+  r
+}
+
+fn slot_rect(win_dims) {
+  slot_rect(win_dims, 0)
+}
+
+fn slot_ix_at_pos(pos) {
+  let cfg = viewer::cfg;
+  let padding = cfg.get("layout.padding");
+
+  let win_dims = gui::get_window_size();
+  let rect = slot_rect(win_dims);
+
+  let yd = rect.h + padding;
+  let y0 = rect.y;
+
+  let x = pos.x.to_int();
+  let y = pos.y.to_int();
+
+  if pos.y < y0 {
+    return false;
+  }
+
+  if pos.y % yd > rect.h {
+    return false;
+  }
+
+  let i = pos.y / yd;
+  i.to_int()
+}
+
+fn draw_slots(batch, win_dims, slot_desc_sets, color_buffer) {
+  let x_size = 8;
+  let y_size = 8;
+
+  let cfg = viewer::cfg;
+  let slot = cfg.get("layout.slot");
+
+  let slot = slot_rect(win_dims, 0);
+
+  let workgroups = #{ x_groups: (slot.w / x_size) + slot.w % x_size,
+                      y_groups: (slot.h / y_size) + slot.h % y_size,
                       z_groups: 1 };
 
-  if slot_w > 0 {
+  if slot.w > 0 && slot.h > 0 {
     try {
       let color_data = get_buffer(color_buffer);
 
@@ -648,7 +680,12 @@ fn draw_slots(batch, win_dims, slot_desc_sets, color_buffer) {
         let slot_set = desc_sets.slot;
 
         if slot_set.type_of() != "()" {
-          let pc = slot_push_constant(win_dims, slot_x, slot_w, ix);
+          let rect = slot_rect(win_dims, ix);
+          let pc = blob();
+          pc.append_int(rect.x.to_int());
+          pc.append_int(rect.y.to_int());
+          pc.append_int(rect.w.to_int());
+          pc.append_int(rect.h.to_int());
 
           batch.dispatch_compute(viewer::path_pipeline.get(),
                                  [slot_set,

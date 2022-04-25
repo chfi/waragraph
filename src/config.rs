@@ -15,10 +15,6 @@ pub struct ConfigMap {
     pub schema: Option<Arc<BTreeMap<ImmutableString, std::any::TypeId>>>,
 }
 
-impl ConfigMap {
-    // pub fn get(&
-}
-
 #[export_module]
 pub mod config {
 

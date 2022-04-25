@@ -396,7 +396,7 @@ fn main() -> Result<()> {
                 if viewer.path_viewer.should_update() {
                     should_update = true;
 
-                    let view = viewer.view;
+                    let view = viewer.view.load();
                     let range = view.range();
                     let start = range.start.to_string();
                     let end = range.end.to_string();
