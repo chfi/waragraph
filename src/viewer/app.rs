@@ -272,7 +272,6 @@ impl ViewerSys {
             .slot_fn_u32
             .insert("loop_count_mean".into(), slot_fn_loop);
 
-        // let graph = waragraph.clone();
         let slot_fn_loop = slot_fns
             .write()
             .slot_fn_mid_u32("prefix-sum:node-len", |v| v)

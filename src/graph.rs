@@ -129,6 +129,9 @@ pub struct Waragraph {
 
     pub path_names: Vec<Vec<u8>>,
     pub path_nodes: Vec<roaring::RoaringBitmap>,
+    pub path_invert: Vec<roaring::RoaringBitmap>,
+
+    pub path_offsets: Vec<usize>,
 }
 
 impl Waragraph {
@@ -180,8 +183,10 @@ impl Waragraph {
 
         let mut path_names = Vec::new();
         let mut path_lens = Vec::new();
+        let mut path_offsets = Vec::new();
 
         let mut path_nodes = Vec::new();
+        let mut path_invert = Vec::new();
 
         dbg!();
         let paths = gfa
@@ -195,9 +200,35 @@ impl Waragraph {
                 path_names.push(name.to_vec());
                 path_indices.insert(name.to_vec(), ix);
 
+                {
+                    fn parse_usize(bs: &[u8]) -> Option<usize> {
+                        let s = bs.to_str().ok()?;
+                        s.parse::<usize>().ok()
+                    }
+
+                    let mut split = name.splitn_str(2, ":");
+                    let name = split.next();
+                    let range = split.next().and_then(|s| {
+                        let mut split = s.splitn_str(2, "-");
+                        let from = split.next().and_then(parse_usize)?;
+                        let to = split.next().and_then(parse_usize)?;
+                        Some((from, to))
+                    });
+
+                    match (name, range) {
+                        (Some(_name), Some((from, _to))) => {
+                            path_offsets.push(from);
+                        }
+                        _ => {
+                            path_offsets.push(0);
+                        }
+                    }
+                }
+
                 let mut loop_count = FxHashMap::default();
 
                 let mut nodeset = roaring::RoaringBitmap::default();
+                let mut inv_set = roaring::RoaringBitmap::default();
 
                 let mut len = 0;
 
@@ -210,6 +241,9 @@ impl Waragraph {
 
                     len += node_lens[i as usize] as usize;
 
+                    if orient.is_reverse() {
+                        inv_set.insert(i);
+                    }
                     nodeset.insert(i);
 
                     *loop_count.entry(i).or_default() += 1u32;
@@ -244,8 +278,10 @@ impl Waragraph {
             path_lens,
             paths,
             path_indices,
+            path_offsets,
 
             path_nodes,
+            path_invert,
         })
     }
 
