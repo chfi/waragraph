@@ -66,17 +66,23 @@ pub fn create_graph_module(waragraph: &Arc<Waragraph>) -> rhai::Module {
     });
 
     let graph = waragraph.to_owned();
-    module.set_native_fn("name", move |path: Path| {
-        graph.path_name(path).and_then(|s| s.to_str().ok()).map_or(
-            Ok(Dyn::FALSE),
-            |s| {
-                let is = rhai::ImmutableString::from(s);
-                Ok(Dyn::from(is))
-            },
-        )
+    module.set_raw_fn(
+        "name",
+        rhai::FnNamespace::Global,
+        rhai::FnAccess::Public,
+        [std::any::TypeId::of::<Path>()],
+        move |_ctx, args| {
+            graph
+                .path_name(args[0].clone_cast())
+                .and_then(|s| s.to_str().ok())
+                .map_or(Ok(Dyn::FALSE), |s| {
+                    let is = rhai::ImmutableString::from(s);
+                    Ok(Dyn::from(is))
+                })
 
-        // some_dyn_or_other!(graph.path_name(path), Dyn::FALSE)
-    });
+            // some_dyn_or_other!(graph.path_name(path), Dyn::FALSE)
+        },
+    );
 
     let graph = waragraph.to_owned();
     module.set_native_fn("path_offset", move |path: Path| {

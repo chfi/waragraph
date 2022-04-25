@@ -510,7 +510,6 @@ pub fn eval_scope<T: Clone + Send + Sync + 'static>(
     buffers: &BufferStorage,
     script: &str,
 ) -> Result<T> {
-    // let mut engine = create_engine(db);
     let mut engine = create_engine(db, buffers);
 
     for (name, module) in modules.iter() {
