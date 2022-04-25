@@ -363,6 +363,10 @@ impl Waragraph {
         })
     }
 
+    pub fn path_count(&self) -> usize {
+        self.path_lens.len()
+    }
+
     // pub fn path_name(&self, path: usize) -> Option<&IVec> {
     pub fn path_name(&self, path: Path) -> Option<&Vec<u8>> {
         self.path_names.get_by_left(&path)

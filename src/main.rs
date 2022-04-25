@@ -337,9 +337,10 @@ fn main() -> Result<()> {
                 while let Ok((path, slot_fn_name, data, view, width)) =
                     slot_rx.try_recv()
                 {
-                    if let Some(slot_ix) =
-                        viewer.path_viewer.slots.path_map.get(&path).copied()
-                    {
+                    let slot_ix =
+                        viewer.path_viewer.slots.read().get_slot_ix(path);
+
+                    if let Some(slot_ix) = slot_ix {
                         viewer.path_viewer.apply_update(
                             &mut engine.resources,
                             slot_fn_name,
@@ -361,7 +362,7 @@ fn main() -> Result<()> {
                         viewer.path_viewer.row_view.store((o, vis_count));
                     }
 
-                    let cap = viewer.path_viewer.slots.capacity();
+                    let cap = viewer.path_viewer.slots.read().capacity();
                     let slot_width = viewer.path_viewer.width;
 
                     let diff = vis_count.checked_sub(cap).unwrap_or_default();
@@ -370,9 +371,10 @@ fn main() -> Result<()> {
                         viewer.path_viewer.force_update();
                     }
 
+                    let mut slots = viewer.path_viewer.slots.write();
                     for _ in 0..diff {
-                        let i = viewer.path_viewer.slots.capacity();
-                        viewer.path_viewer.slots.allocate_slot(
+                        let i = slots.capacity();
+                        slots.allocate_slot(
                             &mut engine,
                             &db,
                             &mut viewer.labels,
@@ -387,7 +389,7 @@ fn main() -> Result<()> {
                     }
 
                     let paths = viewer.path_viewer.visible_paths(&graph);
-                    viewer.path_viewer.slots.bind_paths(paths).unwrap();
+                    slots.bind_paths(paths).unwrap();
                 }
 
                 let mut should_update = false;

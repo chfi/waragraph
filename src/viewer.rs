@@ -3,6 +3,7 @@ use std::collections::{BTreeMap, HashMap};
 use ash::vk;
 use bstr::ByteSlice;
 use gpu_allocator::vulkan::Allocator;
+use parking_lot::RwLock;
 use raving::vk::{
     context::VkContext, descriptor::DescriptorLayoutInfo, BufferIx, BufferRes,
     DescSetIx, GpuResources, VkEngine,
@@ -162,7 +163,7 @@ pub struct PathViewer {
 
     pub width: usize,
 
-    pub slots: SlotCache,
+    pub slots: Arc<RwLock<SlotCache>>,
 
     // pub slots: Vec<PathViewSlot>,
     // slot_cache: HashMap<(usize, (usize, usize), IVec), usize>,
@@ -198,7 +199,7 @@ impl PathViewer {
             tree,
             width,
 
-            slots,
+            slots: Arc::new(RwLock::new(slots)),
 
             row_view,
             row_max,
@@ -281,7 +282,7 @@ impl PathViewer {
         view: (usize, usize),
         width: usize,
     ) -> Option<()> {
-        if let Some(slot) = self.slots.slots.get_mut(slot_ix) {
+        if let Some(slot) = self.slots.write().slots.get_mut(slot_ix) {
             if slot.width == Some(width) {
                 // if slot.view == Some(view) && slot.width == Some(width) {
                 slot.slot.fill_from(res, data)?;
@@ -309,7 +310,7 @@ impl PathViewer {
         let cur_view = Some((view.offset, view.len));
 
         for path in paths {
-            if let Some(slot) = self.slots.get_slot_mut_for(path) {
+            if let Some(slot) = self.slots.write().get_slot_mut_for(path) {
                 if slot.view != cur_view || slot.width != Some(self.width) {
                     buffer.clear();
                     buffer.extend(
@@ -341,7 +342,7 @@ impl PathViewer {
 
         for (ix, path) in self.visible_paths(graph).enumerate() {
             if let Some(path_name) = graph.path_names.get_by_left(&path) {
-                if let Some(slot) = self.slots.get_slot_for(path) {
+                if let Some(slot) = self.slots.read().get_slot_for(path) {
                     let label_id = slot.label_id;
 
                     if path_name.len() < max_len {
@@ -381,7 +382,7 @@ impl PathViewer {
         new_width: usize,
         fill: u32,
     ) -> Result<()> {
-        for slot in self.slots.slots.iter_mut() {
+        for slot in self.slots.write().slots.iter_mut() {
             slot.slot.resize(ctx, res, alloc, new_width, fill)?;
         }
         self.width = new_width;

@@ -110,6 +110,20 @@ impl ViewerSys {
                 Ok(())
             });
 
+            let slot_cache = path_viewer.slots.clone();
+
+            module.set_native_fn("get_path_in_slot", move |slot_ix: i64| {
+                let cache = slot_cache.read();
+
+                if let Some(path) =
+                    cache.slots.get(slot_ix as usize).and_then(|s| s.path)
+                {
+                    Ok(rhai::Dynamic::from(path))
+                } else {
+                    Ok(rhai::Dynamic::FALSE)
+                }
+            });
+
             Arc::new(module)
         };
 
@@ -532,8 +546,10 @@ impl ViewerSys {
 
         let view = (view.offset, view.len);
 
+        let mut slots = self.path_viewer.slots.write();
         for path in paths {
-            if let Some(slot) = self.path_viewer.slots.get_slot_mut_for(path) {
+            // if let Some(slot) = self.path_viewer.slots.get_slot_mut_for(path) {
+            if let Some(slot) = slots.get_slot_mut_for(path) {
                 if !slot.updating.load()
                     && (slot.view != cur_view
                         || slot.slot_function != &update_key
@@ -838,11 +854,12 @@ impl ViewerSys {
                 }),
         );
 
+        let slots = self.path_viewer.slots.read();
         for path in self.path_viewer.visible_paths(graph) {
             use rhai::Dynamic as Dyn;
 
             let mut desc_map = rhai::Map::default();
-            if let Some(slot) = self.path_viewer.slots.get_slot_for(path) {
+            if let Some(slot) = slots.get_slot_for(path) {
                 if slot.path == Some(path.into()) {
                     {
                         // let label_name = format!("path-name-{}", slot);

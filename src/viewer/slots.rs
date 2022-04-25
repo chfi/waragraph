@@ -321,14 +321,18 @@ impl SlotCache {
         Some(())
     }
 
+    pub fn get_slot_ix(&self, path: Path) -> Option<usize> {
+        self.path_map.get(&path).copied()
+    }
+
     pub fn get_slot_for(&self, path: Path) -> Option<&Slot> {
-        let slot_ix = *self.path_map.get(&path)?;
+        let slot_ix = self.path_map.get(&path).copied()?;
         let slot = self.slots.get(slot_ix)?;
         slot.path.is_some().then(|| slot)
     }
 
     pub fn get_slot_mut_for(&mut self, path: Path) -> Option<&mut Slot> {
-        let slot_ix = *self.path_map.get(&path)?;
+        let slot_ix = self.path_map.get(&path).copied()?;
         let slot = self.slots.get_mut(slot_ix)?;
         slot.path.is_some().then(|| slot)
     }

@@ -15,6 +15,8 @@ export let label_color = #{ r: 0.0, g: 0.0, b: 0.0 };
 
 export let cfg = config::new_config_map();
 
+export let props = config::new_config_map();
+
 
 slot::set_slot_color_scheme("loop_count_mean", "gradient-colorbrewer-spectral");
 slot::set_slot_color_scheme("node_length", "gradient-grayscale");
@@ -147,10 +149,37 @@ fn gui_init() {
   gui::set_layer_order(["main_gui"]);
 }
 
+props.set("prev_ix", false);
+
 fn gui_update() {
+  let props = viewer::props;
+
   let pos = mouse::get_pos();
+
+  let prev_ix = props.get("prev_ix");
+
   let ix = slot_ix_at_pos(pos);
-  // print(`${ix} - ${ix.type_of()}`);
+
+  if prev_ix != ix {
+
+    if ix.type_of() != "bool" {
+      let path = slot::get_path_in_slot(ix);
+
+      if path.type_of() == "Path" {
+
+        let path_name = path.name();
+
+        print(`slot: ${ix} -- path: ${path_name}`);
+        // print(`ix: ${ix} - ${ix.type_of()} -- path: ${path} - ${path.type_of()}`);
+      }
+    }
+    // else {
+    //   print(`no path`);
+    // }
+
+    props.set("prev_ix", ix);
+
+  }
 }
 
 // fn empty_rect
@@ -594,8 +623,6 @@ fn visible_slots(win_height) {
   ((win_height - slot.y) / (slot.h + padding)).to_int()
 }
 
-fn slot_push_constant(rect) {
-}
 
 fn slot_rect(win_dims, slot_ix) {
   let cfg = viewer::cfg;
@@ -634,13 +661,15 @@ fn slot_ix_at_pos(pos) {
   let win_dims = gui::get_window_size();
   let rect = slot_rect(win_dims);
 
+  // let vis_count = ((win_dims.height - rect.y) / (rect.h + padding)).to_int();
+
   let yd = rect.h + padding;
   let y0 = rect.y;
 
   let x = pos.x.to_int();
   let y = pos.y.to_int();
 
-  if pos.y < y0 {
+  if pos.y < y0 || pos.x < rect.x || pos.x > rect.x + rect.w {
     return false;
   }
 
@@ -649,6 +678,11 @@ fn slot_ix_at_pos(pos) {
   }
 
   let i = pos.y / yd;
+
+  // if i > vis_count {
+  //   return false;
+  // }
+
   i.to_int()
 }
 

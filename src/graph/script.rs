@@ -30,6 +30,12 @@ macro_rules! some_dyn_or_other {
 pub fn create_graph_module(waragraph: &Arc<Waragraph>) -> rhai::Module {
     let mut module: rhai::Module = rhai::exported_module!(rhai_module);
 
+    let node_count = waragraph.node_count();
+    module.set_native_fn("node_count", move || Ok(node_count as i64));
+
+    let path_count = waragraph.path_count();
+    module.set_native_fn("path_count", move || Ok(path_count as i64));
+
     let graph = waragraph.to_owned();
     module.set_native_fn("node_at_pos", move |pos: i64| {
         let total = graph.total_len();
