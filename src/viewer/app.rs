@@ -110,6 +110,14 @@ impl ViewerSys {
                 Ok(())
             });
 
+            let row_view = path_viewer.row_view.clone();
+            module.set_native_fn("list_range", move || {
+                let (offset, len) = row_view.load();
+                let o = offset as i64;
+                let l = len as i64;
+                Ok(o..l)
+            });
+
             let slot_cache = path_viewer.slots.clone();
 
             module.set_native_fn("get_path_in_slot", move |slot_ix: i64| {

@@ -156,6 +156,8 @@ fn gui_update() {
 
   let pos = mouse::get_pos();
 
+  // set_tooltip(`(${pos.x}, ${pos.y})`, pos);
+
   let prev_ix = props.get("prev_ix");
 
   let ix = slot_ix_at_pos(pos);
@@ -163,26 +165,19 @@ fn gui_update() {
   if prev_ix != ix {
 
     if ix.type_of() != "bool" {
-      let path = slot::get_path_in_slot(ix);
+      let list_range = slot::list_range();
+      let path = graph::path(ix + list_range.start);
 
       if path.type_of() == "Path" {
-
         let path_name = path.name();
-
         print(`slot: ${ix} -- path: ${path_name}`);
-        // print(`ix: ${ix} - ${ix.type_of()} -- path: ${path} - ${path.type_of()}`);
       }
     }
-    // else {
-    //   print(`no path`);
-    // }
 
     props.set("prev_ix", ix);
 
   }
 }
-
-// fn empty_rect
 
 /*
 fn gui_init() {
@@ -673,11 +668,13 @@ fn slot_ix_at_pos(pos) {
     return false;
   }
 
+  let y = pos.y - y0;
+
   if pos.y % yd > rect.h {
     return false;
   }
 
-  let i = pos.y / yd;
+  let i = y / yd;
 
   // if i > vis_count {
   //   return false;

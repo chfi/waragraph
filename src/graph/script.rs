@@ -144,6 +144,10 @@ pub mod rhai_module {
     pub type Node = NodeIx;
     pub type Path = PathIx;
 
+    pub fn path(p: i64) -> Path {
+        PathIx(p as usize)
+    }
+
     pub fn node(i: i64) -> Node {
         NodeIx(i as u32)
     }
