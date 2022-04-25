@@ -1,7 +1,4 @@
-use std::{
-    collections::{BTreeMap, HashMap},
-    num::NonZeroU32,
-};
+use std::collections::{BTreeMap, HashMap};
 
 use ash::vk;
 use bimap::BiBTreeMap;
@@ -26,6 +23,8 @@ use anyhow::{anyhow, bail, Result};
 
 use rhai::plugin::*;
 
+pub mod script;
+
 use crate::viewer::ViewDiscrete1D;
 
 #[repr(transparent)]
@@ -33,13 +32,6 @@ use crate::viewer::ViewDiscrete1D;
     Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, zerocopy::AsBytes,
 )]
 pub struct Node(u32);
-
-impl From<NonZeroU32> for Node {
-    fn from(u: NonZeroU32) -> Node {
-        let v = u.get();
-        Node(v - 1)
-    }
-}
 
 impl From<u32> for Node {
     fn from(u: u32) -> Node {
@@ -62,16 +54,6 @@ impl From<Node> for u32 {
 impl From<Node> for usize {
     fn from(n: Node) -> usize {
         n.0 as usize
-    }
-}
-
-impl From<Node> for NonZeroU32 {
-    fn from(n: Node) -> NonZeroU32 {
-        if let Some(u) = NonZeroU32::new(n.0 + 1) {
-            u
-        } else {
-            unreachable!();
-        }
     }
 }
 
@@ -179,6 +161,7 @@ pub struct Waragraph {
 
     pub node_sum_lens: Vec<usize>,
     pub node_lens: Vec<u32>,
+    pub sequences: Vec<Vec<u8>>,
 
     edges: FxHashMap<(Node, Node), u32>,
 
@@ -192,7 +175,7 @@ pub struct Waragraph {
     pub paths: Vec<CsVecI<u32, u32>>,
 
     // pub path_names: BiBTreeMap<IVec, usize>,
-    pub path_names: BiBTreeMap<Vec<u8>, Path>,
+    pub path_names: BiBTreeMap<Path, Vec<u8>>,
     pub path_names_prefixes: BTreeMap<Vec<u8>, Path>,
     // pub path_names: HashMap<usize, Arc<Vec<u8>>>,
     // pub path_indices: BTreeMap<Arc<Vec<u8>>, usize>,
@@ -210,9 +193,11 @@ impl Waragraph {
 
         let mut node_sum_lens = Vec::with_capacity(node_count);
         let mut node_lens = Vec::with_capacity(node_count);
+        let mut sequences = Vec::with_capacity(node_count);
         let mut sum = 0;
 
         for seg in gfa.segments.iter() {
+            sequences.push(seg.sequence.clone());
             let len = seg.sequence.len();
             node_sum_lens.push(sum);
             node_lens.push(len as u32);
@@ -268,7 +253,7 @@ impl Waragraph {
                 let path_ix = Path::from(ix);
                 let name = path.path_name.as_bstr();
 
-                path_names.insert(name.as_bytes().into(), path_ix);
+                path_names.insert(path_ix, name.as_bytes().into());
 
                 {
                     fn parse_usize(bs: &[u8]) -> Option<usize> {
@@ -336,6 +321,7 @@ impl Waragraph {
 
         Ok(Self {
             node_count,
+            sequences,
             total_len,
             node_sum_lens,
             node_lens,
@@ -360,12 +346,12 @@ impl Waragraph {
 
     // pub fn path_name(&self, path: usize) -> Option<&IVec> {
     pub fn path_name(&self, path: Path) -> Option<&Vec<u8>> {
-        self.path_names.get_by_right(&path)
+        self.path_names.get_by_left(&path)
     }
 
     pub fn path_index(&self, name: &[u8]) -> Option<Path> {
         self.path_names
-            .get_by_left(name)
+            .get_by_right(name)
             .or_else(|| self.path_names_prefixes.get(name))
             .copied()
     }
@@ -575,23 +561,5 @@ impl Waragraph {
         }
 
         Ok(buf_ix)
-    }
-}
-
-#[export_module]
-pub mod rhai_module {
-
-    use super::*;
-
-    pub type Node = super::Node;
-    pub type Path = usize;
-
-    pub fn node(i: i64) -> Node {
-        Node(i as u32)
-    }
-
-    #[rhai_fn(name = "to_int")]
-    pub fn node_to_int(node: Node) -> i64 {
-        node.0 as i64
     }
 }

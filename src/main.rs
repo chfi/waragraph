@@ -59,7 +59,9 @@ fn main() -> Result<()> {
 
     let db = db_cfg.open()?;
 
-    let waragraph = Arc::new(Waragraph::from_gfa(&gfa)?);
+    let graph = Arc::new(Waragraph::from_gfa(&gfa)?);
+    let graph_module =
+        Arc::new(waragraph::graph::script::create_graph_module(&graph));
 
     let event_loop: EventLoop<()>;
 
@@ -131,11 +133,11 @@ fn main() -> Result<()> {
 
     let mut viewer = ViewerSys::init(
         &mut engine,
-        &waragraph,
+        &graph,
+        &graph_module,
         &db,
         &mut buffers,
         &mut window_resources,
-        &gui_sys,
         width,
     )?;
 
@@ -145,6 +147,8 @@ fn main() -> Result<()> {
     console
         .modules
         .insert("viewer".into(), viewer.rhai_module.clone());
+
+    console.modules.insert("graph".into(), graph_module.clone());
 
     console
         .modules
@@ -350,7 +354,7 @@ fn main() -> Result<()> {
                 {
                     let [_, h] = swapchain_dims.load();
 
-                    let vis_count = viewer.visible_slot_count(&waragraph, h);
+                    let vis_count = viewer.visible_slot_count(&graph, h);
 
                     {
                         let (o, _l) = viewer.path_viewer.row_view.load();
@@ -382,7 +386,7 @@ fn main() -> Result<()> {
                             .unwrap();
                     }
 
-                    let paths = viewer.path_viewer.visible_paths(&waragraph);
+                    let paths = viewer.path_viewer.visible_paths(&graph);
                     viewer.path_viewer.slots.bind_paths(paths).unwrap();
                 }
 
@@ -402,12 +406,12 @@ fn main() -> Result<()> {
                     viewer.labels.set_text_for(b"view:len", &len).unwrap();
                     viewer.labels.set_text_for(b"view:end", &end).unwrap();
 
-                    viewer.path_viewer.sample(&waragraph, &view);
+                    viewer.path_viewer.sample(&graph, &view);
                 }
 
                 if viewer.path_viewer.has_new_samples() || should_update {
                     if let Err(e) =
-                        viewer.queue_slot_updates(&waragraph, &update_tx)
+                        viewer.queue_slot_updates(&graph, &update_tx)
                     {
                         log::error!("PathViewer slot update error: {:?}", e);
                     }
@@ -417,7 +421,7 @@ fn main() -> Result<()> {
                 // scrolled, but it should also update whenever the
                 // label layout changes, and there's currently no way
                 // to check just for that
-                viewer.update_labels(&waragraph);
+                viewer.update_labels(&graph);
 
                 // handle sled-based label updates
                 // TODO: currently console relies on this to render
@@ -472,7 +476,7 @@ fn main() -> Result<()> {
                                 &buffers,
                                 &window,
                                 &window_resources,
-                                &waragraph,
+                                &graph,
                                 &gui_sys,
                             )
                             .unwrap(),
@@ -520,7 +524,7 @@ fn main() -> Result<()> {
                         // TODO queue this up somehow
                         viewer
                             .resize(
-                                &waragraph,
+                                &graph,
                                 &mut engine,
                                 &mut window_resources,
                                 size.width,

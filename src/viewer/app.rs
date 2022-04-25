@@ -65,10 +65,10 @@ impl ViewerSys {
     pub fn init(
         engine: &mut VkEngine,
         waragraph: &Arc<Waragraph>,
+        graph_module: &Arc<rhai::Module>,
         db: &sled::Db,
         buffers: &mut BufferStorage,
         window_resources: &mut WindowResources,
-        gui: &GuiSys,
         width: u32,
         // height: u32,
     ) -> Result<Self> {
@@ -118,6 +118,7 @@ impl ViewerSys {
                 crate::console::append_to_engine(db, engine);
 
                 engine.register_static_module("slot", slot_module.clone());
+                engine.register_static_module("graph", graph_module.clone());
 
                 engine.register_fn("bind_key", bind_key_closure.clone());
             })?;
