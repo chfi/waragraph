@@ -154,7 +154,19 @@ impl Console {
                     &self.input,
                 ) {
                     Ok(r) => {
-                        log::warn!("Console result: {:?}", r);
+                        let body = match r.type_name() {
+                            "waragraph::graph::Node" => format!(
+                                "Node: {}",
+                                r.cast::<crate::graph::Node>()
+                            ),
+                            "waragraph::graph::Path" => format!(
+                                "Path: {}",
+                                r.cast::<crate::graph::Path>().ix()
+                            ),
+                            "()" => "()".to_string(),
+                            _ => format!("{}: {}", r.type_name(), r),
+                        };
+                        log::warn!("Console result: {}", body);
                     }
                     Err(e) => {
                         log::error!("Console error: {:?}", e);
