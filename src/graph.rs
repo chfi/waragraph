@@ -172,6 +172,7 @@ pub struct Waragraph {
 
     // pub paths: Vec<CsVecI<Strand, u32>>,
     pub path_lens: Vec<usize>,
+    pub path_sum_lens: Arc<Vec<Vec<(Node, usize)>>>,
     pub paths: Vec<CsVecI<u32, u32>>,
 
     // pub path_names: BiBTreeMap<IVec, usize>,
@@ -319,6 +320,23 @@ impl Waragraph {
             })
             .collect::<Vec<_>>();
 
+        let mut path_sum_lens: Vec<Vec<(Node, usize)>> = Vec::new();
+
+        for path in paths.iter() {
+            let mut sum = 0usize;
+            let mut cache = Vec::new();
+
+            for (node_ix, _val) in path.iter() {
+                let len = node_lens[node_ix] as usize;
+                let val = len;
+                cache.push(((node_ix as u32).into(), sum));
+                sum += val;
+            }
+
+            path_sum_lens.push(cache);
+        }
+        let path_sum_lens = Arc::new(path_sum_lens);
+
         Ok(Self {
             node_count,
             sequences,
@@ -334,6 +352,7 @@ impl Waragraph {
             path_names,
             path_names_prefixes,
             path_lens,
+            path_sum_lens,
             paths,
 
             // path_indices,

@@ -31,6 +31,44 @@ pub fn create_graph_module(waragraph: &Arc<Waragraph>) -> rhai::Module {
     let mut module: rhai::Module = rhai::exported_module!(rhai_module);
 
     let graph = waragraph.to_owned();
+    module.set_native_fn("node_at_pos", move |pos: i64| {
+        let total = graph.total_len();
+        let pos = if pos.is_positive() {
+            pos.min(total as i64) as usize
+        } else {
+            let v = pos + total as i64;
+            v as usize
+        };
+
+        let ix = graph
+            .node_sum_lens
+            .binary_search(&pos)
+            .map_or_else(|x| x, |x| x);
+
+        let node = Node::from(ix);
+        Ok(node)
+    });
+
+    let graph = waragraph.to_owned();
+    module.set_native_fn("node_at_pos", move |path: Path, pos: i64| {
+        let total = graph.path_lens[path.ix()] as i64;
+        let pos = if pos.is_positive() {
+            pos.min(total) as usize
+        } else {
+            let pos = pos.min(total);
+            let v = pos + total;
+            v as usize
+        };
+
+        let ix = graph.path_sum_lens[path.ix()]
+            .binary_search_by_key(&pos, |(node, p)| *p)
+            .map_or_else(|x| x, |x| x);
+
+        let node = Node::from(ix);
+        Ok(node)
+    });
+
+    let graph = waragraph.to_owned();
     module.set_native_fn("sequence_str", move |node: Node| {
         graph
             .sequences

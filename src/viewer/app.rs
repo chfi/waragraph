@@ -183,22 +183,7 @@ impl ViewerSys {
                 },
             );
 
-            let mut cache_vec: Vec<Vec<(Node, usize)>> = Vec::new();
-
-            for path in graph.paths.iter() {
-                let mut sum = 0usize;
-                let mut cache = Vec::new();
-
-                for (node_ix, _val) in path.iter() {
-                    let len = graph.node_lens[node_ix] as usize;
-                    let val = len;
-                    cache.push(((node_ix as u32).into(), sum));
-                    sum += val;
-                }
-
-                cache_vec.push(cache);
-            }
-
+            let cache_vec = waragraph.path_sum_lens.clone();
             let graph = waragraph.clone();
             slot_fns.write().register_data_source_u32(
                 "prefix-sum:node-len",
