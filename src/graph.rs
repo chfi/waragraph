@@ -399,6 +399,24 @@ impl Waragraph {
         self.path_offsets[usize::from(path)]
     }
 
+    pub fn node_at_pos(&self, offset: usize) -> Option<Node> {
+        if offset >= self.total_len {
+            return None;
+        }
+
+        let ix = match self.node_sum_lens.binary_search(&offset) {
+            Ok(i) => i,
+            Err(i) => {
+                if i == 0 {
+                    i
+                } else {
+                    i - 1
+                }
+            }
+        };
+        Some(Node::from(ix as u32))
+    }
+
     pub fn node_count(&self) -> usize {
         self.node_count
     }
@@ -420,52 +438,6 @@ impl Waragraph {
             slice
         };
         Some(slice)
-    }
-
-    pub fn sample_node_lengths_db(
-        &self,
-        nsamples: usize,
-        // pos_offset: usize,
-        // len: usize,
-        view: &ViewDiscrete1D,
-        // out: &mut Vec<(Node, usize)>,
-        out: &mut Vec<[u32; 2]>,
-        // tree: &sled::Db
-    ) {
-        out.clear();
-
-        let range = view.range();
-        let pos_offset = range.start;
-        let len = range.end - range.start;
-
-        let pos_end = pos_offset + len;
-
-        let slice = &self.node_sum_lens;
-        let sample_width = len / nsamples;
-
-        let sample_point = |p| match slice.binary_search(&p) {
-            Ok(i) => i,
-            Err(i) => {
-                if i == 0 {
-                    i
-                } else {
-                    i - 1
-                }
-            }
-        };
-
-        let p0 = pos_offset;
-
-        for i in 0..=nsamples {
-            let p = p0 + i * sample_width;
-            let ix = sample_point(p);
-            let offset = self.node_sum_lens[ix];
-
-            let node = Node(ix as u32);
-            let rem = p - offset;
-
-            out.push([node.0, rem as u32]);
-        }
     }
 
     pub fn sample_node_lengths(

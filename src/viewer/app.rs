@@ -270,9 +270,14 @@ impl ViewerSys {
                 "node-len",
                 move |path, node| {
                     let ix = usize::from(path);
+                    let node_ix = usize::from(node);
                     let path_len = graph.path_lens[ix];
 
                     let cache = cache_vec.get(ix)?;
+
+                    if !graph.path_nodes[ix].contains(node_ix as u32) {
+                        return None;
+                    }
 
                     let ix = cache
                         .binary_search_by_key(&node, |(n, _)| *n)

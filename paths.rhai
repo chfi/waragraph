@@ -171,9 +171,16 @@ fn gui_update() {
       let list_range = slot::list_range();
       let path = graph::path(slot.index + list_range.start);
 
+      let offset = view.offset.to_float();
+      let len = view.len.to_float();
+
+      let pos = (slot.t * len + offset).to_int();
+
       if path.type_of() == "Path" {
         let path_name = path.name();
-        print(`slot: ${slot.index}, ${slot.t} --  path: ${path_name}`);
+        let node = graph::node_at_pos(pos);
+        let path_pos = graph::pos_at_node(path, node);
+        print(`pos: ${pos} -- node: ${node} -- path: ${path_name}, pos: ${path_pos}`);
       }
     }
 

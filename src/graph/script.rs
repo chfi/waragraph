@@ -56,22 +56,28 @@ pub fn create_graph_module(waragraph: &Arc<Waragraph>) -> rhai::Module {
     });
 
     let graph = waragraph.to_owned();
-    module.set_native_fn("node_at_pos", move |path: Path, pos: i64| {
-        let total = graph.path_lens[path.ix()] as i64;
-        let pos = if pos.is_positive() {
-            pos.min(total) as usize
+    module.set_native_fn("node_at_pos", move |pos: i64| {
+        let pos = pos as usize;
+        if let Some(node) = graph.node_at_pos(pos as usize) {
+            Ok(Dyn::from(node))
         } else {
-            let pos = pos.min(total);
-            let v = pos + total;
-            v as usize
-        };
+            Ok(Dyn::FALSE)
+        }
+    });
 
-        let ix = graph.path_sum_lens[path.ix()]
-            .binary_search_by_key(&pos, |(node, p)| *p)
-            .map_or_else(|x| x, |x| x);
+    let graph = waragraph.to_owned();
+    module.set_native_fn("pos_at_node", move |path: Path, node: Node| {
+        let path_sum = &graph.path_sum_lens[path.ix()];
 
-        let node = Node::from(ix);
-        Ok(node)
+        let ix = path_sum
+            .binary_search_by_key(&node, |(n, _)| *n)
+            .unwrap_or_else(|v| v);
+
+        if let Some((_, offset)) = path_sum.get(ix) {
+            Ok(Dyn::from_int(*offset as i64))
+        } else {
+            Ok(Dyn::FALSE)
+        }
     });
 
     let graph = waragraph.to_owned();
