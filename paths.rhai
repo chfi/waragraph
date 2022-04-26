@@ -118,7 +118,7 @@ fn set_tooltip(text, pos) {
   pos.x -= width / 2;
   pos.y -= 8;
 
-  let inner = #{ x: pos.x - 2, y: pos.y - 2, w: width, h: 12, c: 3 };
+  let inner = #{ x: pos.x - 2, y: pos.y - 2, w: width, h: 12, c: 6 };
   let outer = inner;
 
   outer.x -= 1;
@@ -138,7 +138,7 @@ fn set_tooltip(text, pos) {
   gui::update_label(msg);
 }
 
-fn remove_tooltip(text) {
+fn remove_tooltip() {
   // gui::set_layer_order(["main_gui"]);
   gui::set_layer_order([]);
 }
@@ -156,14 +156,17 @@ fn gui_update(dt) {
 
   let pos = mouse::get_pos();
   let view = viewer::get_view();
+  let dims = gui::get_window_size();
 
-  print(`dt: ${dt}`);
-
-  // set_tooltip(`(${pos.x}, ${pos.y})`, pos);
+  // print(`dt: ${dt}`);
 
   let prev_slot = props.get("prev_slot");
 
   let slot = slot_ix_at_pos(pos);
+
+  if slot == false {
+    remove_tooltip();
+  }
 
   if prev_slot != slot {
 
@@ -174,12 +177,21 @@ fn gui_update(dt) {
       let offset = view.offset.to_float();
       let len = view.len.to_float();
 
-      let pos = (slot.t * len + offset).to_int();
+      let bp_pos = (slot.t * len + offset).to_int();
 
       if path.type_of() == "Path" {
         let path_name = path.name();
-        let node = graph::node_at_pos(pos);
+        let node = graph::node_at_pos(bp_pos);
         let path_pos = graph::pos_at_node(path, node);
+
+        // let text = `${path_pos}`;
+        let text = `${bp_pos}`;
+
+        let slot_pos = slot_rect(dims, slot.index);
+        let tooltip_pos = #{ x: pos.x, y: slot_pos.y - 4 };
+
+        set_tooltip(text, tooltip_pos);
+
         print(`pos: ${pos} -- node: ${node} -- path: ${path_name}, pos: ${path_pos}`);
       }
     }
