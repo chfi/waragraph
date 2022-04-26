@@ -267,7 +267,7 @@ impl ViewerSys {
             let cache_vec = waragraph.path_sum_lens.clone();
             let graph = waragraph.clone();
             slot_fns.write().register_data_source_u32(
-                "prefix-sum:node-len",
+                "node-len",
                 move |path, node| {
                     let ix = usize::from(path);
                     let path_len = graph.path_lens[ix];
@@ -281,8 +281,10 @@ impl ViewerSys {
                     let (_, v) = *cache.get(ix)?;
 
                     let val = (v as f32) / (path_len as f32);
+                    // let val =
 
                     Some((val * 255.0) as u32)
+                    // Some(v)
                 },
             );
         }
@@ -340,10 +342,8 @@ impl ViewerSys {
             .slot_fn_u32
             .insert("loop_count_mean".into(), slot_fn_loop);
 
-        let slot_fn_loop = slot_fns
-            .write()
-            .slot_fn_mid_u32("prefix-sum:node-len", |v| v)
-            .unwrap();
+        let slot_fn_loop =
+            slot_fns.write().slot_fn_mid_u32("node-len", |v| v).unwrap();
 
         slot_fns
             .write()

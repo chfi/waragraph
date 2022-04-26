@@ -149,32 +149,35 @@ fn gui_init() {
   gui::set_layer_order(["main_gui"]);
 }
 
-props.set("prev_ix", false);
+props.set("prev_slot", false);
 
 fn gui_update() {
   let props = viewer::props;
 
   let pos = mouse::get_pos();
+  let view = viewer::get_view();
+
+
 
   // set_tooltip(`(${pos.x}, ${pos.y})`, pos);
 
-  let prev_ix = props.get("prev_ix");
+  let prev_slot = props.get("prev_slot");
 
-  let ix = slot_ix_at_pos(pos);
+  let slot = slot_ix_at_pos(pos);
 
-  if prev_ix != ix {
+  if prev_slot != slot {
 
-    if ix.type_of() != "bool" {
+    if slot.type_of() != "bool" {
       let list_range = slot::list_range();
-      let path = graph::path(ix + list_range.start);
+      let path = graph::path(slot.index + list_range.start);
 
       if path.type_of() == "Path" {
         let path_name = path.name();
-        print(`slot: ${ix} -- path: ${path_name}`);
+        print(`slot: ${slot.index}, ${slot.t} --  path: ${path_name}`);
       }
     }
 
-    props.set("prev_ix", ix);
+    props.set("prev_slot", slot);
 
   }
 }
@@ -676,11 +679,13 @@ fn slot_ix_at_pos(pos) {
 
   let i = y / yd;
 
+  let t = (pos.x - rect.x) / rect.w;
+
   // if i > vis_count {
   //   return false;
   // }
 
-  i.to_int()
+  return #{ index: i.to_int(), t: t };
 }
 
 fn draw_slots(batch, win_dims, slot_desc_sets, color_buffer) {

@@ -182,9 +182,10 @@ pub struct Waragraph {
     // pub path_indices: BTreeMap<Arc<Vec<u8>>, usize>,
     // pub path_names: Vec<Vec<u8>>,
     pub path_nodes: Vec<roaring::RoaringBitmap>,
-    pub path_invert: Vec<roaring::RoaringBitmap>,
 
     pub path_offsets: Vec<usize>,
+
+    pub path_steps: Vec<Vec<Strand>>,
 }
 
 impl Waragraph {
@@ -242,7 +243,8 @@ impl Waragraph {
         let mut path_offsets = Vec::new();
 
         let mut path_nodes = Vec::new();
-        let mut path_invert = Vec::new();
+
+        let mut path_steps = Vec::new();
 
         dbg!();
         let paths = gfa
@@ -287,6 +289,8 @@ impl Waragraph {
                 let mut nodeset = roaring::RoaringBitmap::default();
                 let mut inv_set = roaring::RoaringBitmap::default();
 
+                let mut steps = Vec::new();
+
                 let mut len = 0;
 
                 for (seg, orient) in path.iter() {
@@ -294,7 +298,9 @@ impl Waragraph {
                     // let strand = Strand::new(node, orient.is_reverse());
 
                     let i = (seg - 1) as u32;
-                    // let v = if orient.is_reverse() { -1 } else { 1 };
+                    let v = if orient.is_reverse() { -1 } else { 1 };
+
+                    steps.push(Strand::new(Node::from(i), orient.is_reverse()));
 
                     len += node_lens[i as usize] as usize;
 
@@ -308,6 +314,7 @@ impl Waragraph {
 
                 path_nodes.push(nodeset);
                 path_lens.push(len);
+                path_steps.push(steps);
 
                 let mut ids: Vec<(u32, u32)> = loop_count.into_iter().collect();
 
@@ -322,19 +329,28 @@ impl Waragraph {
 
         let mut path_sum_lens: Vec<Vec<(Node, usize)>> = Vec::new();
 
-        for path in paths.iter() {
+        for (path_ix, steps) in path_steps.iter().enumerate() {
             let mut sum = 0usize;
-            let mut cache = Vec::new();
 
-            for (node_ix, _val) in path.iter() {
+            let mut cache = BTreeMap::default();
+
+            for strand in steps.iter() {
+                let node = strand.node();
+
+                let node_ix = usize::from(node);
                 let len = node_lens[node_ix] as usize;
                 let val = len;
-                cache.push(((node_ix as u32).into(), sum));
+
+                if !cache.contains_key(&node) {
+                    cache.insert(node, sum);
+                }
                 sum += val;
             }
 
+            let cache = cache.into_iter().collect::<Vec<_>>();
             path_sum_lens.push(cache);
         }
+
         let path_sum_lens = Arc::new(path_sum_lens);
 
         Ok(Self {
@@ -359,7 +375,7 @@ impl Waragraph {
             path_offsets,
 
             path_nodes,
-            path_invert,
+            path_steps,
         })
     }
 
