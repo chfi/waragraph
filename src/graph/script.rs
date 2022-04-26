@@ -67,17 +67,17 @@ pub fn create_graph_module(waragraph: &Arc<Waragraph>) -> rhai::Module {
 
     let graph = waragraph.to_owned();
     module.set_native_fn("pos_at_node", move |path: Path, node: Node| {
-        let path_sum = &graph.path_sum_lens[path.ix()];
+        if let Some(path_sum) = graph.path_sum_lens.get(path.ix()) {
+            let ix = path_sum
+                .binary_search_by_key(&node, |(n, _)| *n)
+                .unwrap_or_else(|v| v);
 
-        let ix = path_sum
-            .binary_search_by_key(&node, |(n, _)| *n)
-            .unwrap_or_else(|v| v);
-
-        if let Some((_, offset)) = path_sum.get(ix) {
-            Ok(Dyn::from_int(*offset as i64))
-        } else {
-            Ok(Dyn::FALSE)
+            if let Some((_, offset)) = path_sum.get(ix) {
+                return Ok(Dyn::from_int(*offset as i64));
+            }
         }
+
+        Ok(Dyn::FALSE)
     });
 
     let graph = waragraph.to_owned();

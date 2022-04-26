@@ -151,13 +151,13 @@ fn gui_init() {
 
 props.set("prev_slot", false);
 
-fn gui_update() {
+fn gui_update(dt) {
   let props = viewer::props;
 
   let pos = mouse::get_pos();
   let view = viewer::get_view();
 
-
+  print(`dt: ${dt}`);
 
   // set_tooltip(`(${pos.x}, ${pos.y})`, pos);
 

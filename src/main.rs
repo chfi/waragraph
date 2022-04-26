@@ -298,11 +298,9 @@ fn main() -> Result<()> {
                     console
                         .scope
                         .set_value("dt", rhai::Dynamic::from_float(delta_time));
-
-                    // console.scope.set_value("window_dimensions", rhai::Dynamic::
                 }
 
-                match console.eval(&db, &buffers, "viewer::gui_update()") {
+                match console.eval(&db, &buffers, "viewer::gui_update(dt)") {
                     Ok(v) => {
                         // log::warn!("success: {:?}", v);
                     }
