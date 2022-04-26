@@ -697,36 +697,39 @@ impl GuiSys {
                 })
                 .for_each(|(layer_name, layer)| match &layer.rects {
                     RectVertices::Palette { buffer_set, rects } => {
-                        let vx_buf_ix = layer.vertex_buf_ix;
+                        if !rects.is_empty() {
+                            let vx_buf_ix = layer.vertex_buf_ix;
 
-                        let vx_buf = res[vx_buf_ix].buffer;
-                        let vxs = [vx_buf];
+                            let vx_buf = res[vx_buf_ix].buffer;
+                            let vxs = [vx_buf];
 
-                        let vertex_count = rects.len() * 6;
+                            let vertex_count = rects.len() * 6;
 
-                        device.cmd_bind_vertex_buffers(cmd, 0, &vxs, &[12]);
+                            device.cmd_bind_vertex_buffers(cmd, 0, &vxs, &[12]);
 
-                        let dims = [extent.width as f32, extent.height as f32];
+                            let dims =
+                                [extent.width as f32, extent.height as f32];
 
-                        let constants = bytemuck::cast_slice(&dims);
+                            let constants = bytemuck::cast_slice(&dims);
 
-                        let stages = vk::ShaderStageFlags::VERTEX
-                            | vk::ShaderStageFlags::FRAGMENT;
-                        device.cmd_push_constants(
-                            cmd, layout, stages, 0, constants,
-                        );
+                            let stages = vk::ShaderStageFlags::VERTEX
+                                | vk::ShaderStageFlags::FRAGMENT;
+                            device.cmd_push_constants(
+                                cmd, layout, stages, 0, constants,
+                            );
 
-                        let descriptor_sets = [res[*buffer_set]];
-                        device.cmd_bind_descriptor_sets(
-                            cmd,
-                            vk::PipelineBindPoint::GRAPHICS,
-                            layout,
-                            0,
-                            &descriptor_sets,
-                            &[],
-                        );
+                            let descriptor_sets = [res[*buffer_set]];
+                            device.cmd_bind_descriptor_sets(
+                                cmd,
+                                vk::PipelineBindPoint::GRAPHICS,
+                                layout,
+                                0,
+                                &descriptor_sets,
+                                &[],
+                            );
 
-                        device.cmd_draw(cmd, vertex_count as u32, 1, 0, 0);
+                            device.cmd_draw(cmd, vertex_count as u32, 1, 0, 0);
+                        }
                     }
                 });
 
