@@ -314,6 +314,16 @@ impl ViewerSys {
             },
         );
 
+        let graph = waragraph.clone();
+        slot_fns.write().register_data_source_u32(
+            "node_id",
+            move |path, node| {
+                let path = graph.path_nodes.get(path.ix())?;
+                let node: u32 = node.into();
+                path.contains(node).then(|| node)
+            },
+        );
+
         // using a Rhai function for the final step in mapping values to color indices
         let mut rhai_engine =
             Self::create_engine(db, buffers, &arc_module, &slot_module);
@@ -333,7 +343,7 @@ impl ViewerSys {
         let cmap = color_map.clone();
 
         let slot_fn_loop = slot_fns
-            .write()
+            .read()
             .slot_fn_prefix_sum_mean_u32(
                 waragraph,
                 "loop_count",
@@ -347,13 +357,28 @@ impl ViewerSys {
             .slot_fn_u32
             .insert("loop_count_mean".into(), slot_fn_loop);
 
-        let slot_fn_loop =
-            slot_fns.write().slot_fn_mid_u32("node-len", |v| v).unwrap();
+        let slot_fn_id =
+            slot_fns.read().slot_fn_mid_u32("node_id", |v| v).unwrap();
+        // slot_fns.read().slot_fn_mean_round_u32("node_id").unwrap();
 
         slot_fns
             .write()
             .slot_fn_u32
-            .insert("node_length".into(), slot_fn_loop);
+            .insert("node_id".into(), slot_fn_id);
+
+        slot_fns
+            .write()
+            .slot_color
+            .insert("node_id".into(), "gradient-colorbrewer-spectral".into());
+
+        let slot_fn_len =
+            slot_fns.write().slot_fn_mean_round_u32("node-len").unwrap();
+        // slot_fns.write().slot_fn_mid_u32("node-len", |v| v).unwrap();
+
+        slot_fns
+            .write()
+            .slot_fn_u32
+            .insert("node_length".into(), slot_fn_len);
 
         let cmap = color_map.clone();
         let slot_fn_loop_mid = slot_fns
