@@ -292,6 +292,26 @@ impl ViewerSys {
                     // Some(v)
                 },
             );
+
+            let cache_vec = waragraph.path_sum_lens.clone();
+            // let graph = waragraph.clone();
+            slot_fns.write().register_data_source_u32(
+                "path-position",
+                move |path, node| {
+                    let ix = usize::from(path);
+                    // let node_ix = usize::from(node);
+                    // let path_len = graph.path_lens[ix];
+
+                    let cache = cache_vec.get(ix)?;
+
+                    let ix = cache
+                        .binary_search_by_key(&node, |(n, _)| *n)
+                        .unwrap_or_else(|x| x);
+
+                    let (_, v) = *cache.get(ix)?;
+                    Some(v as u32)
+                },
+            );
         }
 
         //
@@ -356,6 +376,37 @@ impl ViewerSys {
             .write()
             .slot_fn_u32
             .insert("loop_count_mean".into(), slot_fn_loop);
+
+        let graph = waragraph.clone();
+        let slot_fn_pos = slot_fns
+            .read()
+            .slot_fn_reduce_u32(
+                waragraph,
+                "path-position",
+                // move |acc, val| {
+                |acc, val| acc + val,
+                move |path, val| {
+                    if let Some(path_len) = graph.path_lens.get(path.ix()) {
+                        let len = *path_len as f64;
+                        let t = val / len;
+                        let v = (t * 255.0) as u32;
+                        v
+                    } else {
+                        0
+                    }
+                },
+            )
+            .unwrap();
+
+        slot_fns
+            .write()
+            .slot_fn_u32
+            .insert("path_position".into(), slot_fn_pos);
+
+        slot_fns
+            .write()
+            .slot_color
+            .insert("path_position".into(), "gradient-grayscale".into());
 
         let slot_fn_id =
             slot_fns.read().slot_fn_mid_u32("node_id", |v| v).unwrap();

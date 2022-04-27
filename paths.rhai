@@ -88,15 +88,20 @@ bind_key(key::Tab, |pressed| {
   }
 });
 
+// const primary = "loop_count_mean";
+const primary = "node_id";
+
+// const secondary = "node_length";
+const secondary = "path_position";
 
 bind_key(key::F1, |pressed| {
   if pressed {
     cfg.update("viz.slot_function", || {
-      if this == "node_length" {
-        this = "loop_count_mean";
+      if this == primary {
+        this = secondary;
         slot::force_update();
       } else {
-        this = "node_length";
+        this = primary;
         slot::force_update();
       }
     });
@@ -192,7 +197,7 @@ fn gui_update(dt) {
 
         set_tooltip(text, tooltip_pos);
 
-        print(`pos: ${pos} -- node: ${node} -- path: ${path_name}, pos: ${path_pos}`);
+        print(`pos: ${pos} -- node: ${node.to_int()} -- path: ${path_name}, pos: ${path_pos}`);
       }
     }
 

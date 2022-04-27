@@ -61,14 +61,16 @@ impl SlotFnCache {
         self.data_sources_u32.get(id)
     }
 
-    pub fn slot_fn_reduce_u32<F>(
+    pub fn slot_fn_reduce_u32<F, G>(
         &self,
         graph: &Arc<Waragraph>,
         val_data_source: &str,
         f: F,
+        cmap: G,
     ) -> Option<SlotUpdateFn<u32>>
     where
         F: Fn(f64, f64) -> f64 + Send + Sync + 'static,
+        G: Fn(Path, f64) -> u32 + Send + Sync + 'static,
         // F: Fn(u32, u32, u32) -> u32 + Send + Sync + 'static,
     {
         let val_data_source =
@@ -105,9 +107,9 @@ impl SlotFnCache {
 
                 if let Some(val) = val_data_source(path, ix.into()) {
                     let val = val as f64;
-                    val * len
+                    f(acc, val * len)
                 } else {
-                    acc
+                    f(acc, 0.0)
                 }
 
                 // let val = val_data_source(path, ix.into()).unwrap_or_default() as usize;
@@ -134,7 +136,7 @@ impl SlotFnCache {
 
             let avg = val / sum_len;
 
-            avg.round() as u32
+            cmap(path, avg)
         };
         Some(Arc::new(f) as SlotUpdateFn<u32>)
     }
