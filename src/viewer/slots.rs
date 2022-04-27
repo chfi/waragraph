@@ -61,6 +61,84 @@ impl SlotFnCache {
         self.data_sources_u32.get(id)
     }
 
+    pub fn slot_fn_reduce_u32<F>(
+        &self,
+        graph: &Arc<Waragraph>,
+        val_data_source: &str,
+        f: F,
+    ) -> Option<SlotUpdateFn<u32>>
+    where
+        F: Fn(f64, f64) -> f64 + Send + Sync + 'static,
+        // F: Fn(u32, u32, u32) -> u32 + Send + Sync + 'static,
+    {
+        let val_data_source =
+            self.get_data_source_u32(val_data_source)?.clone();
+        let graph = graph.clone();
+
+        let f = move |samples: &[(Node, usize)], path: Path, ix: usize| {
+            let left_ix = ix.min(samples.len() - 1);
+            let right_ix = (ix + 1).min(samples.len() - 1);
+
+            let (left, l_offset) = samples[left_ix];
+            let (right, r_offset) = samples[right_ix];
+
+            let li: u32 = left.into();
+            let ri: u32 = right.into();
+
+            let sample_bitmap = roaring::RoaringBitmap::from_iter(li..ri);
+
+            let bitmap = sample_bitmap & &graph.path_nodes[path.ix()];
+
+            // let left_start = graph.node_sum_lens[li];
+
+            // let mut val = 0;
+
+            // let ix =
+
+            let mut sum_len = 0.0;
+
+            let val = bitmap.into_iter().fold(0.0, |acc, ix| {
+                // f(acc, val * len)
+
+                let len = graph.node_lens[ix as usize] as f64;
+                sum_len += len;
+
+                if let Some(val) = val_data_source(path, ix.into()) {
+                    let val = val as f64;
+                    val * len
+                } else {
+                    acc
+                }
+
+                // let val = val_data_source(path, ix.into()).unwrap_or_default() as usize;
+                // let val = val_data_source
+            });
+            // .reduce(|acc, val| {
+            //     let len = graph.node_lens[val as usize];
+            //     let v = (val as f64)
+            //     f(acc, val, len)
+            // })
+
+            // let l_val = l_val as usize;
+            // let r_val = r_val as usize;
+
+            // let mut val = r_val - l_val;
+
+            // add the left chunk of the right node
+            // val += r_offset * r_node_val;
+            // remove the left chunk of the left node
+            // val = val.checked_sub(l_offset * l_node_val).unwrap_or_default();
+
+            // len -= l_offset;
+            // len += r_offset;
+
+            let avg = val / sum_len;
+
+            avg.round() as u32
+        };
+        Some(Arc::new(f) as SlotUpdateFn<u32>)
+    }
+
     pub fn slot_fn_prefix_sum_mean_u32<F>(
         &self,
         graph: &Arc<Waragraph>,
@@ -162,7 +240,7 @@ impl SlotFnCache {
         Some(Arc::new(f) as SlotUpdateFn<u32>)
     }
 
-    pub fn slot_fn_mean_round_u32<F>(
+    pub fn slot_fn_mean_round_u32(
         &self,
         data_source: &str,
     ) -> Option<SlotUpdateFn<u32>> {
