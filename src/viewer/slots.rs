@@ -102,7 +102,12 @@ impl SlotFnCache {
                     f(acc, 0.0)
                 }
             });
+
             let mut avg = val / sum_len;
+
+            if val > 0.0 && avg < 1.00 {
+                avg = 1.0;
+            }
 
             if avg.is_nan() {
                 avg = 0.0;

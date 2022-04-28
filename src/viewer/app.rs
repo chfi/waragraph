@@ -329,14 +329,14 @@ impl ViewerSys {
         slot_fns.write().register_data_source_u32(
             "has_node",
             move |path, node| {
-                let path = graph.paths.get(path.ix())?;
-                path.get(node.into()).map(|_| 1)
+                let path = graph.path_nodes.get(path.ix())?;
+                path.contains(node.into()).then(|| 1)
             },
         );
 
         let graph = waragraph.clone();
         slot_fns.write().register_data_source_u32(
-            "node_id",
+            "node-id",
             move |path, node| {
                 let path = graph.path_nodes.get(path.ix())?;
                 let node: u32 = node.into();
@@ -428,8 +428,43 @@ impl ViewerSys {
             .slot_color
             .insert("path_position".into(), "gradient-grayscale".into());
 
-        let slot_fn_id =
-            slot_fns.read().slot_fn_mid_u32("node_id", |v| v).unwrap();
+        let slot_fn_has_node = slot_fns
+            .read()
+            .slot_fn_reduce_u32(
+                waragraph,
+                "has_node",
+                |acc, val| acc + val,
+                |path, v| {
+                    if v < 0.5 {
+                        8
+                    } else {
+                        13
+                    }
+                },
+            )
+            .unwrap();
+
+        slot_fns
+            .write()
+            .slot_fn_u32
+            .insert("has_node".into(), slot_fn_has_node);
+
+        slot_fns
+            .write()
+            .slot_color
+            .insert("has_node".into(), "gui-palette".into());
+
+        let slot_fn_id = slot_fns
+            .read()
+            .slot_fn_mid_u32("node-id", |v| {
+                if v == 0 {
+                    0
+                } else {
+                    let i = (v - 1) % 255;
+                    1 + i
+                }
+            })
+            .unwrap();
         // slot_fns.read().slot_fn_mean_round_u32("node_id").unwrap();
 
         slot_fns
