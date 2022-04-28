@@ -304,9 +304,9 @@ impl ViewerSys {
 
                     let cache = cache_vec.get(ix)?;
 
-                    let ix = cache
-                        .binary_search_by_key(&node, |(n, _)| *n)
-                        .unwrap_or_else(|x| x);
+                    let ix =
+                        cache.binary_search_by_key(&node, |(n, _)| *n).ok()?;
+                    // .unwrap_or_else(|x| x);
 
                     let (_, v) = *cache.get(ix)?;
                     Some(v as u32)
@@ -383,7 +383,6 @@ impl ViewerSys {
             .slot_fn_reduce_u32(
                 waragraph,
                 "path-position",
-                // move |acc, val| {
                 |acc, val| acc + val,
                 move |path, val| {
                     if let Some(path_len) = graph.path_lens.get(path.ix()) {
@@ -397,6 +396,27 @@ impl ViewerSys {
                 },
             )
             .unwrap();
+        /*
+        let graph = waragraph.clone();
+        let slot_fn_pos = slot_fns
+            .read()
+            .slot_fn_reduce_u32(
+                waragraph,
+                "path-position",
+                |acc, val| acc + val,
+                move |path, val| {
+                    if let Some(path_len) = graph.path_lens.get(path.ix()) {
+                        let len = *path_len as f64;
+                        let t = val / len;
+                        let v = (t * 255.0) as u32;
+                        v
+                    } else {
+                        0
+                    }
+                },
+            )
+            .unwrap();
+        */
 
         slot_fns
             .write()

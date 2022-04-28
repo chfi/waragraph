@@ -190,7 +190,8 @@ fn gui_update(dt) {
         let path_pos = graph::pos_at_node(path, node);
 
         // let text = `${path_pos}`;
-        let text = `${bp_pos}`;
+        // let text = `${bp_pos}`;
+        let text = `${node.to_int()} - ${path_pos}`;
 
         let slot_pos = slot_rect(dims, slot.index);
         let tooltip_pos = #{ x: pos.x, y: slot_pos.y - 4 };

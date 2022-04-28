@@ -347,7 +347,8 @@ impl Waragraph {
                 sum += val;
             }
 
-            let cache = cache.into_iter().collect::<Vec<_>>();
+            let mut cache = cache.into_iter().collect::<Vec<_>>();
+            cache.sort_by_key(|(node, _)| *node);
             path_sum_lens.push(cache);
         }
 
