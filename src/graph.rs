@@ -71,7 +71,7 @@ impl Strand {
     pub fn new(node: Node, rev: bool) -> Self {
         let i = node.0 << 1;
         if rev {
-            Strand(i & 1)
+            Strand(i | 1)
         } else {
             Strand(i)
         }
