@@ -422,7 +422,7 @@ fn resize(width, height) {
 }
 
 
-fn foreground(batch, desc_sets, w, h) {
+fn foreground(batch, desc_sets, w, h, slot_buf_size) {
 
   let cfg = viewer::cfg;
 
@@ -463,9 +463,10 @@ fn foreground(batch, desc_sets, w, h) {
 
   if colors.type_of() == "string" {
     batch = draw_slots(batch,
-                           dims,
-                           desc_sets,
-                           colors);
+                       dims,
+                       slot_buf_size,
+                       desc_sets,
+                       colors);
   } else {
     print("could not find color scheme");
   }
@@ -716,7 +717,7 @@ fn slot_ix_at_pos(pos) {
   return #{ index: i.to_int(), t: t };
 }
 
-fn draw_slots(batch, win_dims, slot_desc_sets, color_buffer) {
+fn draw_slots(batch, win_dims, slot_buf_size, slot_desc_sets, color_buffer) {
   let x_size = 8;
   let y_size = 8;
 
@@ -750,6 +751,7 @@ fn draw_slots(batch, win_dims, slot_desc_sets, color_buffer) {
           pc.append_int(rect.y.to_int());
           pc.append_int(rect.w.to_int());
           pc.append_int(rect.h.to_int());
+          pc.append_int(slot_buf_size);
 
           batch.dispatch_compute(viewer::path_pipeline.get(),
                                  [slot_set,

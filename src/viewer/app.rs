@@ -52,7 +52,7 @@ pub struct ViewerSys {
 
     pub on_resize: RhaiBatchFn2<i64, i64>,
 
-    pub draw_foreground: RhaiBatchFn4<BatchBuilder, rhai::Array, i64, i64>,
+    pub draw_foreground: RhaiBatchFn5<BatchBuilder, rhai::Array, i64, i64, i64>,
     pub copy_to_swapchain:
         Arc<RhaiBatchFn5<BatchBuilder, DescSetIx, rhai::Map, i64, i64>>,
 
@@ -545,7 +545,7 @@ impl ViewerSys {
 
         // main draw function
         let draw_foreground = rhai::Func::<
-            (BatchBuilder, rhai::Array, i64, i64),
+            (BatchBuilder, rhai::Array, i64, i64, i64),
             BatchBuilder,
         >::create_from_ast(
             Self::create_engine(db, buffers, &arc_module, &slot_module),
@@ -1024,12 +1024,15 @@ impl ViewerSys {
         // desc_sets.extend(self.path_viewer.visible_paths(graph).map(|path| {
         // }));
 
+        let slot_buf_size = self.path_viewer.width;
+
         let batch_builder = BatchBuilder::default();
         let fg_batch = (&self.draw_foreground)(
             batch_builder,
             desc_sets.clone(),
             size.width as i64,
             size.height as i64,
+            slot_buf_size as i64,
         )
         .unwrap();
         let fg_batch_fn = fg_batch.build();
