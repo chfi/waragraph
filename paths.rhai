@@ -430,8 +430,10 @@ fn foreground(batch, desc_sets, w, h, slot_buf_size) {
 
   batch.transition_image(img,
                          vk::AccessFlags::SHADER_WRITE,
-                         vk::PipelineStageFlags::COMPUTE_SHADER | vk::PipelineStageFlags::FRAGMENT_SHADER,
-                         vk::AccessFlags::SHADER_READ,
+                         vk::PipelineStageFlags::COMPUTE_SHADER
+                         | vk::PipelineStageFlags::FRAGMENT_SHADER,
+                         vk::AccessFlags::SHADER_READ
+                         | vk::AccessFlags::SHADER_WRITE,
                          vk::PipelineStageFlags::COMPUTE_SHADER,
                          vk::ImageLayout::UNDEFINED,
                          vk::ImageLayout::GENERAL);
@@ -474,8 +476,11 @@ fn foreground(batch, desc_sets, w, h, slot_buf_size) {
   batch.transition_image(img,
                          vk::AccessFlags::SHADER_WRITE,
                          vk::PipelineStageFlags::COMPUTE_SHADER,
-                         vk::AccessFlags::SHADER_READ,
-                         vk::PipelineStageFlags::COMPUTE_SHADER | vk::PipelineStageFlags::FRAGMENT_SHADER,
+                         vk::AccessFlags::SHADER_READ
+                         | vk::AccessFlags::SHADER_WRITE,
+                         vk::PipelineStageFlags::COMPUTE_SHADER
+                         | vk::PipelineStageFlags::FRAGMENT_SHADER
+                         | vk::PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT,
                          vk::ImageLayout::GENERAL,
                          vk::ImageLayout::GENERAL);
 
@@ -598,12 +603,17 @@ fn draw_labels(width, height, labels) {
 
   let img = viewer::out_image.get();
   this.transition_image(img,
-                         vk::AccessFlags::SHADER_WRITE,
-                         vk::PipelineStageFlags::COMPUTE_SHADER | vk::PipelineStageFlags::FRAGMENT_SHADER,
-                         vk::AccessFlags::SHADER_READ,
+                        vk::AccessFlags::SHADER_WRITE
+                        | vk::AccessFlags::COLOR_ATTACHMENT_WRITE,
+                        vk::PipelineStageFlags::COMPUTE_SHADER
+                        // | vk::PipelineStageFlags::FRAGMENT_SHADER
+                        | vk::PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT,
+                        vk::AccessFlags::SHADER_READ
+                        | vk::AccessFlags::SHADER_WRITE,
                          vk::PipelineStageFlags::COMPUTE_SHADER,
                          vk::ImageLayout::GENERAL,
                          vk::ImageLayout::GENERAL);
+
 
   for label in labels {
     let pc = blob();
@@ -632,11 +642,19 @@ fn draw_labels(width, height, labels) {
   }
 
 
+
   this.transition_image(img,
                          vk::AccessFlags::SHADER_WRITE,
                          vk::PipelineStageFlags::COMPUTE_SHADER,
-                         vk::AccessFlags::SHADER_READ | vk::AccessFlags::SHADER_WRITE,
-                         vk::PipelineStageFlags::COMPUTE_SHADER | vk::PipelineStageFlags::FRAGMENT_SHADER,
+                        // vk::AccessFlags::SHADER_READ
+                        vk::AccessFlags::SHADER_WRITE
+                        // | vk::AccessFlags::COLOR_ATTACHMENT_READ
+                        | vk::AccessFlags::COLOR_ATTACHMENT_WRITE
+                        // | vk::AccessFlags::HOST_WRITE
+                        | vk::AccessFlags::SHADER_WRITE,
+                        // vk::PipelineStageFlags::COMPUTE_SHADER
+                        vk::PipelineStageFlags::FRAGMENT_SHADER
+                        | vk::PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT,
                          vk::ImageLayout::GENERAL,
                          vk::ImageLayout::GENERAL);
 

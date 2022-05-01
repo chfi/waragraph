@@ -599,7 +599,7 @@ impl ViewerSys {
 
             // hardcoded for now
             let semaphore_count = 3;
-            let cmd_buf_count = 2;
+            let cmd_buf_count = 3;
 
             let mut new_frame = || {
                 engine
@@ -1116,14 +1116,6 @@ impl ViewerSys {
             .unwrap();
 
         let gui_labels_batch_fn = builder.cast::<BatchBuilder>().build();
-        // let gui_labels_batch_fn = (&self.draw_labels)(
-        //     batch_builder,
-        //     size.width as i64,
-        //     size.height as i64,
-        //     gui_label_sets,
-        // )
-        // .unwrap()
-        // .build();
 
         let fg_batch = Box::new(
             move |dev: &Device,
@@ -1133,21 +1125,17 @@ impl ViewerSys {
                 fg_batch_fn(dev, res, cmd);
                 labels_batch_fn(dev, res, cmd);
                 gui_batch_fn(dev, res, cmd);
-                gui_labels_batch_fn(dev, res, cmd);
             },
         ) as Box<_>;
 
-        // let gui_batch = Box::new(
-        //     move |dev: &Device,
-        //           res: &GpuResources,
-        //           _input: &BatchInput,
-        //           cmd: vk::CommandBuffer| {
-        //         // fg_batch_fn(dev, res, cmd);
-        //         // labels_batch_fn(dev, res, cmd);
-        //     },
-        // ) as Box<_>;
-
-        // let copy_to_swapchain = self.copy_to_swapchain.clone();
+        let gui_text_batch = Box::new(
+            move |dev: &Device,
+                  res: &GpuResources,
+                  _input: &BatchInput,
+                  cmd: vk::CommandBuffer| {
+                gui_labels_batch_fn(dev, res, cmd);
+            },
+        ) as Box<_>;
 
         let sample_out_desc_set = *window_resources
             .indices
@@ -1200,7 +1188,7 @@ impl ViewerSys {
             },
         ) as Box<_>;
 
-        let batches = [&fg_batch, &copy_swapchain_batch];
+        let batches = [&fg_batch, &gui_text_batch, &copy_swapchain_batch];
 
         let deps = vec![
             None,
@@ -1209,10 +1197,15 @@ impl ViewerSys {
                 vk::PipelineStageFlags::COMPUTE_SHADER
                     | vk::PipelineStageFlags::ALL_GRAPHICS,
             )]),
+            Some(vec![(
+                1,
+                vk::PipelineStageFlags::COMPUTE_SHADER
+                    | vk::PipelineStageFlags::ALL_GRAPHICS,
+            )]),
         ];
 
         let result =
-            engine.draw_from_batches(frame, &batches, deps.as_slice(), 1)?;
+            engine.draw_from_batches(frame, &batches, deps.as_slice(), 2)?;
 
         Ok(result)
     }
