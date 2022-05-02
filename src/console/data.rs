@@ -181,6 +181,15 @@ impl AnnotationSet {
     ) -> Option<&roaring::RoaringBitmap> {
         self.record_nodes.get(&record_ix)
     }
+
+    pub fn records_on_path_node(
+        &self,
+        path: Path,
+        node: Node,
+    ) -> Option<&roaring::RoaringBitmap> {
+        let path = self.path_record_indices.get(&path)?;
+        path.get(&node)
+    }
 }
 
 pub fn create_rhai_module() -> rhai::Module {
@@ -226,6 +235,29 @@ pub fn add_module_fns(
                     Err(format!("Error parsing BED file: {:?}", err).into())
                 }
             }
+        },
+    );
+
+    let annots = annotations.clone();
+    let cache = slot_fns.clone();
+    module.set_native_fn(
+        "create_data_source",
+        move |set: &mut Arc<AnnotationSet>| {
+            let mut cache = cache.write();
+            let source_str = set.source.as_str();
+            let source = set.source.clone();
+
+            if cache.get_data_source_u32(source_str).is_some() {
+                return Ok(source.clone());
+            }
+
+            let set = set.clone();
+            cache.register_data_source_u32(source_str, move |path, node| {
+                let indices = set.records_on_path_node(path, node)?;
+                indices.select(0)
+            });
+
+            return Ok(source);
         },
     );
 
@@ -398,23 +430,18 @@ pub mod rhai_module {
     #[rhai_fn(return_raw)]
     pub fn records_on_node(
         set: &mut AnnotationSet,
-        graph: Arc<Waragraph>,
         path: Path,
         node: Node,
     ) -> EvalResult<rhai::Array> {
-        if let Some(path) = set.path_record_indices.get(&path) {
-            if let Some(records) = path.get(&node) {
-                let records = records
-                    .iter()
-                    .map(|i| rhai::Dynamic::from(i as i64))
-                    .collect::<Vec<_>>();
+        if let Some(records) = set.records_on_path_node(path, node) {
+            let records = records
+                .iter()
+                .map(|i| rhai::Dynamic::from(i as i64))
+                .collect::<Vec<_>>();
 
-                Ok(records)
-            } else {
-                Err("node not found in path records".into())
-            }
+            Ok(records)
         } else {
-            Err("path not found in annotation records".into())
+            Err("node not found in path records".into())
         }
     }
 }
