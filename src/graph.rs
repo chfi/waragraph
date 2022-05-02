@@ -173,6 +173,7 @@ pub struct Waragraph {
     // pub paths: Vec<CsVecI<Strand, u32>>,
     pub path_lens: Vec<usize>,
     pub path_sum_lens: Arc<Vec<Vec<(Node, usize)>>>,
+    pub path_sum_lens_pos: Arc<Vec<Vec<(Node, usize)>>>,
     pub paths: Vec<CsVecI<u32, u32>>,
 
     // pub path_names: BiBTreeMap<IVec, usize>,
@@ -328,6 +329,7 @@ impl Waragraph {
             .collect::<Vec<_>>();
 
         let mut path_sum_lens: Vec<Vec<(Node, usize)>> = Vec::new();
+        let mut path_sum_lens_pos: Vec<Vec<(Node, usize)>> = Vec::new();
 
         for (path_ix, steps) in path_steps.iter().enumerate() {
             let mut sum = 0usize;
@@ -348,11 +350,18 @@ impl Waragraph {
             }
 
             let mut cache = cache.into_iter().collect::<Vec<_>>();
+
             cache.sort_by_key(|(node, _)| *node);
+
+            let mut pos_cache = cache.clone();
+            pos_cache.sort_by_key(|(_, pos)| *pos);
+
             path_sum_lens.push(cache);
+            path_sum_lens_pos.push(pos_cache);
         }
 
         let path_sum_lens = Arc::new(path_sum_lens);
+        let path_sum_lens_pos = Arc::new(path_sum_lens_pos);
 
         Ok(Self {
             node_count,
@@ -370,6 +379,7 @@ impl Waragraph {
             path_names_prefixes,
             path_lens,
             path_sum_lens,
+            path_sum_lens_pos,
             paths,
 
             // path_indices,
@@ -416,6 +426,76 @@ impl Waragraph {
             }
         };
         Some(Node::from(ix as u32))
+    }
+
+    pub fn path_pos_at_node(&self, path: Path, node: Node) -> Option<usize> {
+        let path_sum = self.path_sum_lens.get(path.ix())?;
+        let ix = path_sum.binary_search_by_key(&node, |(n, _)| *n).ok()?;
+        let (_, offset) = path_sum.get(ix)?;
+        Some(*offset)
+    }
+
+    pub fn node_at_path_pos(&self, path: Path, pos: usize) -> Option<Node> {
+        let path_sum = self.path_sum_lens_pos.get(path.ix())?;
+        let ix = path_sum
+            .binary_search_by_key(&pos, |(_, p)| *p)
+            .unwrap_or_else(|i| i);
+        let (node, _) = path_sum.get(ix)?;
+        Some(*node)
+    }
+
+    pub fn nodes_in_path_range<'a, R>(
+        &'a self,
+        path: Path,
+        range: R,
+    ) -> impl Iterator<Item = &'a (Node, usize)> + 'a
+    where
+        R: std::ops::RangeBounds<usize>,
+    {
+        let path_sum = self.path_sum_lens_pos.get(path.ix()).unwrap();
+
+        let start = match range.start_bound() {
+            std::ops::Bound::Included(&p) => p,
+            std::ops::Bound::Excluded(&p) => p + 1,
+            std::ops::Bound::Unbounded => 0,
+        };
+
+        let end = match range.end_bound() {
+            std::ops::Bound::Included(&p) => p,
+            std::ops::Bound::Excluded(&p) => p - 1,
+            std::ops::Bound::Unbounded => self.path_lens[path.ix()],
+        };
+
+        // let start_ix = match path_sum.binary_search_by_key(&start, |(_, p)| *p)
+        // {
+        //     Ok(ix) => {
+        //         //
+        //         ix
+        //     }
+        //     Err(ix) => {
+        //         //
+        //     }
+        // };
+
+        let start_ix = path_sum
+            .binary_search_by_key(&start, |(_, p)| *p)
+            .unwrap_or_else(|i| i);
+
+        let end_ix = path_sum
+            .binary_search_by_key(&end, |(_, p)| *p)
+            .unwrap_or_else(|i| i);
+
+        // let nodes = path_sum
+        //     .iter()
+        //     .skip(start_ix)
+        //     .take(end_ix)
+        //     .map(|(node, _offset)| u32::from(*node))
+        //     .collect::<roaring::RoaringBitmap>();
+
+        // nodes
+
+        path_sum.iter().skip(start_ix).take(end_ix)
+        // .map(|(node, _offset)| u32::from(*node))
     }
 
     pub fn node_count(&self) -> usize {
