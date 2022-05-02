@@ -248,18 +248,21 @@ fn main() -> Result<()> {
         }
     }
 
+    /*
     {
         let mut input = Vec::new();
         input.extend([
             "let p = graph::get_path(\"gi|568815592\");",
             "let n = graph::node(41);",
             "let g = graph::get_graph();",
-            "let s = slot::load_bed_file(g, \"A-3105.test.bed\");",
+            "let s = slot::load_bed_file(g, \"A-3105.test2.bed\");",
             "let ds_name = slot::create_data_source(s);",
             "let ds = slot::get_data_source(ds_name);",
+            "let fn_name = \"bed_slot_fn\";",
+            "let slot_fn = slot::new_slot_fn_from_data_source(ds_name, fn_name);",
+            "slot::set_slot_color_scheme(fn_name, \"gradient-colorbrewer-spectral\");",
+            "cfg.set(\"viz.slot_function\", fn_name);",
         ]);
-        // input.push(
-        // input.
 
         for line in input {
             log::warn!("evaluating `{}`", line);
@@ -273,6 +276,7 @@ fn main() -> Result<()> {
             }
         }
     }
+    */
 
     //
     let _update_threads = (0..4)

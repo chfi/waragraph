@@ -164,9 +164,14 @@ impl AnnotationSet {
                 let end = fields.next().unwrap().parse::<usize>()?;
 
                 for (col_ix, field) in fields.enumerate() {
-                    // let col = col_ix + 3;
+                    let col = col_ix + 3;
                     if let Err(e) = columns[col_ix].parse_push(field) {
-                        log::error!("error parsing column: {:?}", e);
+                        log::error!(
+                            "error parsing row {}, column {}: {:?}",
+                            ix,
+                            col,
+                            e
+                        );
                     }
                 }
 
@@ -298,6 +303,27 @@ pub fn add_module_fns(
             });
 
             return Ok(source);
+        },
+    );
+
+    let cache = slot_fns.clone();
+    module.set_native_fn(
+        "new_slot_fn_from_data_source",
+        move |data_source_name: rhai::ImmutableString,
+              slot_fn_name: rhai::ImmutableString| {
+            let mut cache = cache.write();
+            dbg!();
+            if let Some(slot_fn) =
+                cache.slot_fn_mid_u32(&data_source_name, |v| v)
+            // .slot_fn_mid_u32(&data_source_name, |v| (v % 254) + 1)
+            {
+                dbg!();
+                cache.slot_fn_u32.insert(slot_fn_name, slot_fn);
+                dbg!();
+                Ok(rhai::Dynamic::TRUE)
+            } else {
+                Ok(rhai::Dynamic::FALSE)
+            }
         },
     );
 
@@ -499,5 +525,34 @@ pub mod rhai_module {
         } else {
             Err("node not found in path records".into())
         }
+    }
+
+    #[rhai_fn(global, return_raw)]
+    pub fn get_record_field(
+        set: &mut AnnotationSet,
+        record_ix: i64,
+        column: i64,
+    ) -> EvalResult<rhai::Dynamic> {
+        if let Some(column) = set.columns.get(column as usize) {
+            match column {
+                super::BedColumn::Int(vs) => {
+                    if let Some(val) = vs.get(record_ix as usize) {
+                        return Ok(rhai::Dynamic::from_int(*val));
+                    }
+                }
+                super::BedColumn::Float(vs) => {
+                    if let Some(val) = vs.get(record_ix as usize) {
+                        return Ok(rhai::Dynamic::from_float(*val));
+                    }
+                }
+                super::BedColumn::String(vs) => {
+                    if let Some(val) = vs.get(record_ix as usize) {
+                        return Ok(rhai::Dynamic::from(val.to_owned()));
+                    }
+                }
+            }
+        }
+
+        Err("Error getting record field".into())
     }
 }

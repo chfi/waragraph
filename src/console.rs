@@ -160,6 +160,9 @@ impl Console {
                 ) {
                     Ok(r) => {
                         let body = match r.type_name() {
+                            // "string" => {
+                            //     format!("{}", r.cast::<rhai::ImmutableString>())
+                            // }
                             "waragraph::graph::Node" => format!(
                                 "Node: {}",
                                 r.cast::<crate::graph::Node>()
