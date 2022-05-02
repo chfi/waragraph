@@ -48,7 +48,26 @@ pub enum BedColumn {
     Int(Vec<i64>),
     Float(Vec<f32>),
     String(Vec<rhai::ImmutableString>),
-    Dyn(Vec<rhai::Dynamic>),
+    // Dyn(Vec<rhai::Dynamic>),
+}
+
+impl BedColumn {
+    pub fn parse_push(&mut self, field: &str) -> Result<()> {
+        match self {
+            BedColumn::Int(vs) => {
+                let val = field.parse::<i64>()?;
+                vs.push(val);
+            }
+            BedColumn::Float(vs) => {
+                let val = field.parse::<f32>()?;
+                vs.push(val);
+            }
+            BedColumn::String(vs) => {
+                vs.push(rhai::ImmutableString::from(field));
+            }
+        }
+        Ok(())
+    }
 }
 
 pub struct AnnotationSet {
@@ -119,6 +138,21 @@ impl AnnotationSet {
                     //
                 } else {
                     header_done = true;
+
+                    // prepare the columns
+                    let mut fields = line.split("\t");
+
+                    for (ix, field) in fields.skip(3).enumerate() {
+                        let col = ix + 3;
+
+                        if let Ok(_int) = field.parse::<i64>() {
+                            columns.push(BedColumn::Int(Vec::new()));
+                        } else if let Ok(_float) = field.parse::<f32>() {
+                            columns.push(BedColumn::Float(Vec::new()));
+                        } else {
+                            columns.push(BedColumn::String(Vec::new()));
+                        }
+                    }
                 }
             }
 
@@ -128,6 +162,13 @@ impl AnnotationSet {
                 let path_name = fields.next().unwrap();
                 let start = fields.next().unwrap().parse::<usize>()?;
                 let end = fields.next().unwrap().parse::<usize>()?;
+
+                for (col_ix, field) in fields.enumerate() {
+                    // let col = col_ix + 3;
+                    if let Err(e) = columns[col_ix].parse_push(field) {
+                        log::error!("error parsing column: {:?}", e);
+                    }
+                }
 
                 if let Some(path) = graph.path_index(path_name.as_bytes()) {
                     let offset = graph.path_offset(path);
