@@ -238,7 +238,6 @@ pub fn add_module_fns(
         },
     );
 
-    let annots = annotations.clone();
     let cache = slot_fns.clone();
     module.set_native_fn(
         "create_data_source",
@@ -260,6 +259,22 @@ pub fn add_module_fns(
             return Ok(source);
         },
     );
+
+    /*
+    module.set_raw_fn(
+        "insert_slot_fn",
+        rhai::FnNamespace::Global,
+        rhai::FnAccess::Public,
+        [std::any::TypeId::of::<Arc<AnnotationSet>>()],
+        move |ctx, args| {
+            let set = std::mem::take(args[0]);
+            let set = set.cast::<Arc<AnnotationSet>>();
+
+            ctx.call_fn("create_data_source", args)
+            // ctx.call_fn_raw(fn_name, is_ref_mut, is_method_call, args)
+        },
+    );
+    */
 
     let cache = slot_fns.clone();
     module.set_native_fn(
@@ -356,52 +371,52 @@ pub mod rhai_module {
     pub type SlotUpdateFnU32 = SlotUpdateFn<u32>;
     pub type SlotUpdateFnF32 = SlotUpdateFn<f32>;
 
-    #[rhai_fn(global, name = "call")]
-    pub fn call_data_source_dyn(
+    #[rhai_fn(global, name = "at")]
+    pub fn get_data_source_dyn(
         d: &mut DataSource<rhai::Dynamic>,
         path: Path,
-        node: i64,
+        node: Node,
     ) -> rhai::Dynamic {
-        if let Some(v) = d(path, Node::from(node as u32)) {
+        if let Some(v) = d(path, node) {
             v
         } else {
             rhai::Dynamic::UNIT
         }
     }
 
-    #[rhai_fn(global, name = "call")]
-    pub fn call_data_source_f32(
+    #[rhai_fn(global, name = "at")]
+    pub fn get_data_source_f32(
         d: &mut DataSource<f32>,
         path: Path,
-        node: i64,
+        node: Node,
     ) -> rhai::Dynamic {
-        if let Some(v) = d(path, Node::from(node as u32)) {
+        if let Some(v) = d(path, node) {
             rhai::Dynamic::from_float(v)
         } else {
             rhai::Dynamic::UNIT
         }
     }
 
-    #[rhai_fn(global, name = "call")]
-    pub fn call_data_source_u32(
-        d: &mut DataSource<u32>,
+    #[rhai_fn(global, name = "at")]
+    pub fn get_data_source_u32(
+        d: &mut DataSourceU32,
         path: Path,
-        node: i64,
+        node: Node,
     ) -> rhai::Dynamic {
-        if let Some(v) = d(path, Node::from(node as u32)) {
+        if let Some(v) = d(path, node) {
             rhai::Dynamic::from_int(v as i64)
         } else {
             rhai::Dynamic::UNIT
         }
     }
 
-    #[rhai_fn(global, name = "call")]
-    pub fn call_data_source_i64(
+    #[rhai_fn(global, name = "at")]
+    pub fn get_data_source_i64(
         d: &mut DataSource<i64>,
         path: Path,
-        node: i64,
+        node: Node,
     ) -> rhai::Dynamic {
-        if let Some(v) = d(path, Node::from(node as u32)) {
+        if let Some(v) = d(path, node) {
             rhai::Dynamic::from_int(v)
         } else {
             rhai::Dynamic::UNIT

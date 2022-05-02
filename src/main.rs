@@ -248,6 +248,32 @@ fn main() -> Result<()> {
         }
     }
 
+    {
+        let mut input = Vec::new();
+        input.extend([
+            "let p = graph::get_path(\"gi|568815592\");",
+            "let n = graph::node(41);",
+            "let g = graph::get_graph();",
+            "let s = slot::load_bed_file(g, \"A-3105.test.bed\");",
+            "let ds_name = slot::create_data_source(s);",
+            "let ds = slot::get_data_source(ds_name);",
+        ]);
+        // input.push(
+        // input.
+
+        for line in input {
+            log::warn!("evaluating `{}`", line);
+            match console.eval(&db, &buffers, line) {
+                Ok(v) => {
+                    // log::warn!("success: {:?}", v);
+                }
+                Err(e) => {
+                    log::error!("console error {:?}", e);
+                }
+            }
+        }
+    }
+
     //
     let _update_threads = (0..4)
         .map(|_| {
