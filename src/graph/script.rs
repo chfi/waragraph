@@ -30,6 +30,9 @@ macro_rules! some_dyn_or_other {
 pub fn create_graph_module(waragraph: &Arc<Waragraph>) -> rhai::Module {
     let mut module: rhai::Module = rhai::exported_module!(rhai_module);
 
+    let graph = waragraph.to_owned();
+    module.set_native_fn("get_graph", move || Ok(graph.clone()));
+
     let node_count = waragraph.node_count();
     module.set_native_fn("node_count", move || Ok(node_count as i64));
 
@@ -143,10 +146,13 @@ pub fn create_graph_module(waragraph: &Arc<Waragraph>) -> rhai::Module {
 #[export_module]
 pub mod rhai_module {
 
-    use super::super::{Node as NodeIx, Path as PathIx};
+    use super::super::{
+        Node as NodeIx, Path as PathIx, Waragraph as Waragraph_,
+    };
 
     pub type Node = NodeIx;
     pub type Path = PathIx;
+    pub type Waragraph = Arc<Waragraph_>;
 
     pub fn path(p: i64) -> Path {
         PathIx(p as usize)

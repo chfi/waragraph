@@ -17,6 +17,7 @@ use winit::event::VirtualKeyCode;
 use winit::window::Window;
 
 use crate::config::ConfigMap;
+use crate::console::data::AnnotationSet;
 use crate::console::{RhaiBatchFn2, RhaiBatchFn4, RhaiBatchFn5};
 use crate::graph::{Node, Path, Waragraph};
 use crate::util::{BufFmt, BufferStorage, LabelStorage};
@@ -60,6 +61,10 @@ pub struct ViewerSys {
     engine: rhai::Engine,
 
     pub slot_rhai_module: Arc<rhai::Module>,
+
+    // pub annotations: BTreeMap<rhai::ImmutableString, Arc<AnnotationSet>>,
+    annotations:
+        Arc<RwLock<BTreeMap<rhai::ImmutableString, Arc<AnnotationSet>>>>,
 }
 
 impl ViewerSys {
@@ -100,9 +105,17 @@ impl ViewerSys {
 
         let slot_fns = Arc::new(RwLock::new(SlotFnCache::default()));
 
+        let annotations: Arc<
+            RwLock<BTreeMap<rhai::ImmutableString, Arc<AnnotationSet>>>,
+        > = Arc::new(RwLock::new(BTreeMap::default()));
+
         let slot_module = {
             let mut module = crate::console::data::create_rhai_module();
-            crate::console::data::add_cache_fns(&mut module, &slot_fns);
+            crate::console::data::add_module_fns(
+                &mut module,
+                &slot_fns,
+                &annotations,
+            );
 
             let force_update = path_viewer.force_update_fn();
             module.set_native_fn("force_update", move || {
@@ -627,6 +640,7 @@ impl ViewerSys {
             path_viewer,
 
             slot_functions: slot_fns,
+            annotations,
 
             labels: txt,
             label_updates,

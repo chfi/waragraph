@@ -62,7 +62,8 @@ pub struct AnnotationSet {
     path_record_indices:
         FxHashMap<Path, BTreeMap<Node, roaring::RoaringBitmap>>,
 
-    path_record_nodes: FxHashMap<Path, BTreeMap<usize, roaring::RoaringBitmap>>,
+    record_nodes: BTreeMap<usize, roaring::RoaringBitmap>,
+    // path_record_nodes: FxHashMap<Path, BTreeMap<usize, roaring::RoaringBitmap>>,
     // columns: Vec<Vec<
     column_headers: FxHashMap<rhai::ImmutableString, usize>,
     columns: Vec<BedColumn>,
@@ -88,10 +89,13 @@ impl AnnotationSet {
             BTreeMap<Node, roaring::RoaringBitmap>,
         > = FxHashMap::default();
 
-        let mut path_record_nodes: FxHashMap<
-            Path,
-            BTreeMap<usize, roaring::RoaringBitmap>,
-        > = FxHashMap::default();
+        // let mut path_record_nodes: FxHashMap<
+        //     Path,
+        //     BTreeMap<usize, roaring::RoaringBitmap>,
+        // > = FxHashMap::default();
+
+        let mut record_nodes: BTreeMap<usize, roaring::RoaringBitmap> =
+            BTreeMap::default();
 
         let mut column_headers = FxHashMap::default();
 
@@ -131,13 +135,13 @@ impl AnnotationSet {
                     let end = end - offset;
 
                     let indices = path_record_indices.entry(path).or_default();
-                    let nodes = path_record_nodes.entry(path).or_default();
+                    let nodes = record_nodes.entry(ix).or_default();
 
                     for &(node, _) in
                         graph.nodes_in_path_range(path, start..end)
                     {
                         indices.entry(node).or_default().insert(ix as u32);
-                        nodes.entry(ix).or_default().insert(node.into());
+                        nodes.insert(node.into());
                     }
                 }
 
@@ -148,7 +152,8 @@ impl AnnotationSet {
         Ok(AnnotationSet {
             source,
             path_record_indices,
-            path_record_nodes,
+            record_nodes,
+            // path_record_nodes,
             column_headers,
             columns,
         })
@@ -169,6 +174,13 @@ impl AnnotationSet {
         let path = self.path_record_indices.get(&path)?;
         path.get(&node)
     }
+
+    pub fn nodes_on_record(
+        &self,
+        record_ix: usize,
+    ) -> Option<&roaring::RoaringBitmap> {
+        self.record_nodes.get(&record_ix)
+    }
 }
 
 pub fn create_rhai_module() -> rhai::Module {
@@ -177,10 +189,46 @@ pub fn create_rhai_module() -> rhai::Module {
     module
 }
 
-pub fn add_cache_fns(
+pub fn add_module_fns(
     module: &mut rhai::Module,
     slot_fns: &Arc<RwLock<SlotFnCache>>,
+    annotations: &Arc<
+        RwLock<BTreeMap<rhai::ImmutableString, Arc<AnnotationSet>>>,
+    >,
 ) {
+    let annots = annotations.clone();
+    module.set_native_fn(
+        "get_annotation_set",
+        move |source: rhai::ImmutableString| {
+            let annots = annots.read();
+            if let Some(set) = annots.get(&source) {
+                Ok(set.to_owned())
+            } else {
+                Err(format!("annotation set `{}` not found", source).into())
+            }
+        },
+    );
+
+    let annots = annotations.clone();
+    module.set_native_fn(
+        "load_bed_file",
+        move |graph: &mut Arc<Waragraph>, path: rhai::ImmutableString| {
+            let file_path = std::path::Path::new(path.as_str());
+
+            match AnnotationSet::load_bed(graph, file_path) {
+                Ok(set) => {
+                    let source = path;
+                    let set = Arc::new(set);
+                    annots.write().insert(source.clone(), set.clone());
+                    Ok(set)
+                }
+                Err(err) => {
+                    Err(format!("Error parsing BED file: {:?}", err).into())
+                }
+            }
+        },
+    );
+
     let cache = slot_fns.clone();
     module.set_native_fn(
         "set_slot_color_scheme",
@@ -325,6 +373,48 @@ pub mod rhai_module {
             rhai::Dynamic::from_int(v)
         } else {
             rhai::Dynamic::UNIT
+        }
+    }
+
+    pub type AnnotationSet = Arc<super::AnnotationSet>;
+
+    #[rhai_fn(return_raw)]
+    pub fn nodes_in_record(
+        set: &mut AnnotationSet,
+        record_ix: i64,
+    ) -> EvalResult<rhai::Array> {
+        if let Some(nodes) = set.nodes_on_record(record_ix as usize) {
+            let nodes = nodes
+                .iter()
+                .map(|i| rhai::Dynamic::from(Node::from(i)))
+                .collect::<Vec<_>>();
+
+            Ok(nodes)
+        } else {
+            Err("record out of bounds".into())
+        }
+    }
+
+    #[rhai_fn(return_raw)]
+    pub fn records_on_node(
+        set: &mut AnnotationSet,
+        graph: Arc<Waragraph>,
+        path: Path,
+        node: Node,
+    ) -> EvalResult<rhai::Array> {
+        if let Some(path) = set.path_record_indices.get(&path) {
+            if let Some(records) = path.get(&node) {
+                let records = records
+                    .iter()
+                    .map(|i| rhai::Dynamic::from(i as i64))
+                    .collect::<Vec<_>>();
+
+                Ok(records)
+            } else {
+                Err("node not found in path records".into())
+            }
+        } else {
+            Err("path not found in annotation records".into())
         }
     }
 }
