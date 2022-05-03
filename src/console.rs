@@ -70,6 +70,8 @@ pub struct Console {
     pub scope: rhai::Scope<'static>,
 
     pub modules: HashMap<rhai::ImmutableString, Arc<rhai::Module>>,
+
+    pub ast: Arc<rhai::AST>,
 }
 
 impl Console {
@@ -95,13 +97,8 @@ impl Console {
         buffers: &BufferStorage,
         input: &str,
     ) -> Result<rhai::Dynamic> {
-        eval_scope::<rhai::Dynamic>(
-            &mut self.scope,
-            &self.modules,
-            db,
-            buffers,
-            input,
-        )
+        let ast = Arc::make_mut(&mut self.ast);
+        eval_scope_ast(ast, &mut self.scope, &self.modules, db, buffers, input)
     }
 
     pub fn create_engine(
@@ -151,7 +148,10 @@ impl Console {
                 self.focus += 1;
             }
             ConsoleInput::Submit => {
-                match eval_scope::<rhai::Dynamic>(
+                let ast = Arc::make_mut(&mut self.ast);
+
+                match eval_scope_ast::<rhai::Dynamic>(
+                    ast,
                     &mut self.scope,
                     &self.modules,
                     db,
@@ -523,6 +523,33 @@ pub fn eval<T: Clone + Send + Sync + 'static>(
     }
 }
 
+pub fn eval_scope_ast<T: Clone + Send + Sync + 'static>(
+    old_ast: &mut rhai::AST,
+    scope: &mut rhai::Scope,
+    modules: &HashMap<rhai::ImmutableString, Arc<rhai::Module>>,
+    db: &sled::Db,
+    buffers: &BufferStorage,
+    script: &str,
+) -> Result<T> {
+    let mut engine = create_engine(db, buffers);
+
+    for (name, module) in modules.iter() {
+        engine.register_static_module(name, module.clone());
+    }
+
+    let new_ast = engine.compile_with_scope(scope, script)?;
+    *old_ast = old_ast.merge(&new_ast);
+
+    let result = engine.eval_ast_with_scope(scope, old_ast);
+
+    old_ast.clear_statements();
+
+    match result {
+        Ok(result) => Ok(result),
+        Err(err) => Err(anyhow!("eval err: {:?}", err)),
+    }
+}
+
 pub fn eval_scope<T: Clone + Send + Sync + 'static>(
     scope: &mut rhai::Scope,
     modules: &HashMap<rhai::ImmutableString, Arc<rhai::Module>>,
@@ -535,8 +562,7 @@ pub fn eval_scope<T: Clone + Send + Sync + 'static>(
     for (name, module) in modules.iter() {
         engine.register_static_module(name, module.clone());
     }
-    // engine.
-    // match engine.run_with_scope(scope, script) {
+
     match engine.eval_with_scope(scope, script) {
         Ok(result) => Ok(result),
         Err(err) => Err(anyhow!("eval err: {:?}", err)),

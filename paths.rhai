@@ -92,10 +92,10 @@ const primary = "loop_count_mean";
 // const primary = "node_id";
 // const primary = "has_node";
 
-const secondary = "has_node";
+// const secondary = "has_node";
 // const secondary = "node_id";
 // const secondary = "node_length";
-// const secondary = "path_position";
+const secondary = "path_position";
 
 bind_key(key::F1, |pressed| {
   if pressed {

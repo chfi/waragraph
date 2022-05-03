@@ -578,7 +578,7 @@ fn main() -> Result<()> {
 
                 match event {
                     WindowEvent::ReceivedCharacter(c) => {
-                        if !c.is_ascii_control() {
+                        if !c.is_ascii_control() && c.is_ascii() {
                             console
                                 .handle_input(
                                     &db,
