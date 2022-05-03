@@ -18,7 +18,9 @@ use winit::window::Window;
 
 use crate::config::ConfigMap;
 use crate::console::data::AnnotationSet;
-use crate::console::{RhaiBatchFn2, RhaiBatchFn4, RhaiBatchFn5};
+use crate::console::{
+    Console, EvalResult, RhaiBatchFn2, RhaiBatchFn4, RhaiBatchFn5,
+};
 use crate::graph::{Node, Path, Waragraph};
 use crate::util::{BufFmt, BufferStorage, LabelStorage};
 use crate::viewer::{SlotRenderers, ViewDiscrete1D};
@@ -359,7 +361,7 @@ impl ViewerSys {
 
         // using a Rhai function for the final step in mapping values to color indices
         let mut rhai_engine =
-            Self::create_engine(db, buffers, &arc_module, &slot_module);
+            Self::create_engine_impl(db, buffers, &arc_module, &slot_module);
         rhai_engine.set_optimization_level(rhai::OptimizationLevel::Full);
 
         let color_map = rhai::Func::<(f32,), i64>::create_from_ast(
@@ -561,7 +563,7 @@ impl ViewerSys {
             (BatchBuilder, rhai::Array, i64, i64, i64),
             BatchBuilder,
         >::create_from_ast(
-            Self::create_engine(db, buffers, &arc_module, &slot_module),
+            Self::create_engine_impl(db, buffers, &arc_module, &slot_module),
             builder.ast.clone_functions_only(),
             "foreground",
         );
@@ -570,14 +572,19 @@ impl ViewerSys {
             (BatchBuilder, DescSetIx, rhai::Map, i64, i64),
             BatchBuilder,
         >::create_from_ast(
-            Self::create_engine(db, buffers, &arc_module, &slot_module),
+            Self::create_engine_impl(db, buffers, &arc_module, &slot_module),
             builder.ast.clone_functions_only(),
             "copy_to_swapchain",
         );
 
         {
             let init = rhai::Func::<(), BatchBuilder>::create_from_ast(
-                Self::create_engine(db, buffers, &arc_module, &slot_module),
+                Self::create_engine_impl(
+                    db,
+                    buffers,
+                    &arc_module,
+                    &slot_module,
+                ),
                 builder.ast.clone_functions_only(),
                 "init",
             );
@@ -600,7 +607,12 @@ impl ViewerSys {
         let on_resize = {
             let resize =
                 rhai::Func::<(i64, i64), BatchBuilder>::create_from_ast(
-                    Self::create_engine(db, buffers, &arc_module, &slot_module),
+                    Self::create_engine_impl(
+                        db,
+                        buffers,
+                        &arc_module,
+                        &slot_module,
+                    ),
                     builder.ast.clone_functions_only(),
                     "resize",
                 );
@@ -631,7 +643,7 @@ impl ViewerSys {
         };
 
         let engine =
-            Self::create_engine(db, buffers, &arc_module, &slot_module);
+            Self::create_engine_impl(db, buffers, &arc_module, &slot_module);
 
         Ok(Self {
             config,
@@ -872,6 +884,131 @@ impl ViewerSys {
             waragraph,
             &self.path_viewer,
         )
+    }
+
+    pub fn create_queued_slot_fns(
+        &mut self,
+        db: &sled::Db,
+        buffers: &BufferStorage,
+        console: &Console,
+    ) -> Result<()> {
+        let queued =
+            std::mem::take(&mut self.slot_functions.write().slot_fn_queue);
+
+        for new in queued {
+            let mut engine = console.create_engine(db, buffers);
+            let ast = console.ast.clone();
+            engine.set_optimization_level(rhai::OptimizationLevel::Full);
+
+            let mut slot_fns = self.slot_functions.write();
+
+            type DataFn = Box<
+                dyn Fn(Path, Node) -> Option<rhai::Dynamic>
+                    + Send
+                    + Sync
+                    + 'static,
+            >;
+            // type DataFn =
+            // Box<dyn Fn(Path, Node) -> Option<rhai::Dynamic> + 'static>;
+
+            let name = new.name.clone();
+
+            let data_sources = new
+                .data_sources
+                .into_iter()
+                .map(|(ty, name)| {
+                    if ty == std::any::TypeId::of::<u32>() {
+                        let f = slot_fns
+                            .data_sources_u32
+                            .get(&name)
+                            .unwrap()
+                            .clone();
+
+                        Box::new(
+                            move |path: Path, node: Node| -> Option<rhai::Dynamic> {
+                                f(path, node).map(|i| rhai::Dynamic::from_int(i as i64))
+                            },
+                        ) as DataFn
+                    } else if ty == std::any::TypeId::of::<f32>() {
+                        let f = slot_fns
+                            .data_sources_f32
+                            .get(&name)
+                            .unwrap()
+                            .clone();
+                        Box::new(
+                            move |path: Path, node: Node| -> Option<rhai::Dynamic> {
+                                f(path, node).map(rhai::Dynamic::from_float)
+                            },
+                        ) as DataFn
+                    } else if ty == std::any::TypeId::of::<i64>() {
+                        let f = slot_fns
+                            .data_sources_i64
+                            .get(&name)
+                            .unwrap()
+                            .clone();
+                        Box::new(
+                            move |path: Path, node: Node| -> Option<rhai::Dynamic> {
+                                f(path, node).map(rhai::Dynamic::from_int)
+                            },
+                        )as DataFn
+                    } else if ty == std::any::TypeId::of::<rhai::Dynamic>() {
+                        let f = slot_fns
+                            .data_sources_dyn
+                            .get(&name)
+                            .unwrap()
+                            .clone();
+                        Box::new(
+                            move |path: Path, node: Node| -> Option<rhai::Dynamic> {
+                                f(path, node)
+                            },
+                        )as DataFn
+                    } else {
+                        unreachable!();
+                    }
+                })
+                .collect::<Vec<_>>();
+
+            let slot_fn = move |samples: &[(Node, usize)],
+                                path: Path,
+                                sample_ix: usize| {
+                let left_ix = sample_ix.min(samples.len() - 1);
+                let right_ix = (sample_ix + 1).min(samples.len() - 1);
+
+                let (left, _offset) = samples[left_ix];
+                let (right, _offset) = samples[right_ix];
+
+                let l: u32 = left.into();
+                let r: u32 = right.into();
+
+                let node = l + (r - l) / 2;
+
+                let args = data_sources
+                    .iter()
+                    .map(|ds| {
+                        if let Some(val) = ds(path, node.into()) {
+                            val
+                        } else {
+                            rhai::Dynamic::UNIT
+                        }
+                    })
+                    .collect::<Vec<_>>();
+
+                let result: EvalResult<i64> =
+                    new.fn_ptr.call(&engine, &ast, args);
+
+                match result {
+                    Ok(v) => v as u32,
+                    Err(e) => {
+                        log::error!("rhai data source error: {:?}", e);
+                        0
+                    }
+                }
+            };
+
+            slot_fns.slot_fn_u32.insert(name, Arc::new(slot_fn));
+        }
+
+        Ok(())
     }
 
     pub fn resize(
@@ -1224,7 +1361,7 @@ impl ViewerSys {
         Ok(result)
     }
 
-    fn create_engine(
+    fn create_engine_impl(
         db: &sled::Db,
         buffers: &BufferStorage,
         viewer_module: &Arc<rhai::Module>,

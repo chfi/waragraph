@@ -33,6 +33,20 @@ pub enum ColorSchemeKind {
 
 // pub struct ColorSchemes {}
 
+pub enum DataSourceKind {
+    F32,
+    U32,
+    I64,
+    Dyn,
+}
+
+#[derive(Clone)]
+pub struct NewSlotFn {
+    pub name: rhai::ImmutableString,
+    pub(crate) data_sources: Vec<(std::any::TypeId, rhai::ImmutableString)>,
+    pub(crate) fn_ptr: rhai::FnPtr,
+}
+
 #[derive(Default)]
 pub struct SlotFnCache {
     pub data_sources_f32: HashMap<rhai::ImmutableString, DataSource<f32>>,
@@ -46,9 +60,24 @@ pub struct SlotFnCache {
     pub slot_fn_f32: HashMap<rhai::ImmutableString, SlotUpdateFn<f32>>,
 
     pub slot_color: HashMap<rhai::ImmutableString, rhai::ImmutableString>,
+
+    pub slot_fn_queue: Vec<NewSlotFn>,
 }
 
 impl SlotFnCache {
+    pub fn queue_slot_fn(
+        &mut self,
+        name: &str,
+        data_sources: Vec<(std::any::TypeId, rhai::ImmutableString)>,
+        fn_ptr: rhai::FnPtr,
+    ) {
+        self.slot_fn_queue.push(NewSlotFn {
+            name: name.into(),
+            data_sources,
+            fn_ptr,
+        });
+    }
+
     pub fn register_data_source_u32<F>(&mut self, id: &str, f: F)
     where
         F: Fn(Path, Node) -> Option<u32> + Send + Sync + 'static,

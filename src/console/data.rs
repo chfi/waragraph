@@ -315,7 +315,6 @@ pub fn add_module_fns(
             dbg!();
             if let Some(slot_fn) =
                 cache.slot_fn_mid_u32(&data_source_name, |v| v)
-            // .slot_fn_mid_u32(&data_source_name, |v| (v % 254) + 1)
             {
                 dbg!();
                 cache.slot_fn_u32.insert(slot_fn_name, slot_fn);
@@ -437,6 +436,61 @@ pub mod rhai_module {
 
     pub type SlotUpdateFnU32 = SlotUpdateFn<u32>;
     pub type SlotUpdateFnF32 = SlotUpdateFn<f32>;
+
+    #[rhai_fn(return_raw)]
+    pub fn queue_new_slot_fn(
+        slot_fns: &mut SlotFnCache,
+        name: &str,
+        data_sources: rhai::Array,
+        fn_ptr: rhai::FnPtr,
+    ) -> EvalResult<rhai::Dynamic> {
+        let mut sources = Vec::new();
+
+        for desc in data_sources.into_iter() {
+            let (ty, name) = desc.try_cast::<rhai::Map>()
+                .and_then(|map| {
+                    let ty = map.get("type")?;
+                    let name = map.get("name")?;
+
+                    if ty.type_name() == "string" && name.type_name() == "string" {
+                        Some((ty.clone_cast(), name.clone_cast()))
+                    } else {
+                        None
+                    }
+                }).ok_or(
+                "Element must be a map with `type` and `name` string fields",
+            )?;
+
+            let ty: rhai::ImmutableString = ty;
+            let name: rhai::ImmutableString = name;
+
+            match ty.as_str() {
+                "u32" => {
+                    sources.push((std::any::TypeId::of::<u32>(), name));
+                }
+                /*
+                "f32" => {
+                    //
+                }
+                "i64" => {
+                    //
+                }
+                "dyn" => {
+                    //
+                }
+                */
+                _ => {
+                    return Err(
+                        format!("unknown data source type: {}", ty).into()
+                    )
+                }
+            }
+        }
+
+        slot_fns.write().queue_slot_fn(name, sources, fn_ptr);
+
+        Ok(rhai::Dynamic::UNIT)
+    }
 
     #[rhai_fn(global, name = "at")]
     pub fn get_data_source_dyn(
