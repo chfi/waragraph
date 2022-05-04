@@ -39,6 +39,8 @@ bstr = "0.2"
 
 log = "0.4"
 
+ctrlc = "3.2"
+
 anyhow = "1.0"
 
 crossbeam = "0.8"

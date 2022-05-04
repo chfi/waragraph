@@ -63,6 +63,15 @@ fn main() -> Result<()> {
     let graph_module =
         Arc::new(waragraph::graph::script::create_graph_module(&graph));
 
+    let should_exit = Arc::new(AtomicCell::new(false));
+
+    {
+        let exit = should_exit.clone();
+        ctrlc::set_handler(move || {
+            exit.store(true);
+        });
+    }
+
     let event_loop: EventLoop<()>;
 
     #[cfg(target_os = "linux")]
@@ -634,6 +643,7 @@ fn main() -> Result<()> {
             }
             Event::LoopDestroyed => {
                 log::debug!("Event::LoopDestroyed");
+                log::debug!("Freeing resources");
 
                 unsafe {
                     let queue = engine.queues.thread.queue;
@@ -647,6 +657,11 @@ fn main() -> Result<()> {
                 res.cleanup(ctx, alloc).unwrap();
             }
             _ => (),
+        }
+
+        if should_exit.load() {
+            log::debug!("Ctrl-C received, exiting");
+            *control_flow = winit::event_loop::ControlFlow::Exit;
         }
     });
 
