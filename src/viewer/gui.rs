@@ -318,6 +318,7 @@ pub struct GuiSys {
     // pub draw_shapes: RhaiBatchFn4<BatchBuilder, i64, i64, rhai::Array>,
     pub pass: RenderPassIx,
     pub pipeline: PipelineIx,
+    pub text_pipeline: PipelineIx,
 
     pub rhai_module: Arc<rhai::Module>,
 
@@ -379,7 +380,7 @@ impl GuiSys {
         let labels = LabelStorage::new(&db)?;
         let label_updates = labels.tree.watch_prefix(b"t:");
 
-        let (pass_ix, pipeline_ix) = {
+        let (pass_ix, pipeline_ix, text_pipeline_ix) = {
             // let format = engine.swapchain_props.format.format;
             let format = vk::Format::R8G8B8A8_UNORM;
 
@@ -409,7 +410,63 @@ impl GuiSys {
                 let pipeline_ix =
                     res.create_graphics_pipeline_tmp(ctx, vx, fx, pass)?;
 
-                Ok((pass_ix, pipeline_ix))
+                let vert = res.load_shader(
+                    "shaders/text.vert.spv",
+                    vk::ShaderStageFlags::VERTEX,
+                )?;
+                let frag = res.load_shader(
+                    "shaders/text.frag.spv",
+                    vk::ShaderStageFlags::FRAGMENT,
+                )?;
+
+                let vx = res.insert_shader(vert);
+                let fx = res.insert_shader(frag);
+
+                let vert_binding_desc =
+                    vk::VertexInputBindingDescription::builder()
+                        .binding(0)
+                        .stride(std::mem::size_of::<Self>() as u32)
+                        .input_rate(vk::VertexInputRate::INSTANCE)
+                        .build();
+
+                let pos_desc = vk::VertexInputAttributeDescription::builder()
+                    .binding(0)
+                    .location(0)
+                    .format(vk::Format::R32G32_SFLOAT)
+                    .offset(0)
+                    .build();
+
+                let ix_desc = vk::VertexInputAttributeDescription::builder()
+                    .binding(0)
+                    .location(1)
+                    .format(vk::Format::R32G32_UINT)
+                    .offset(8)
+                    .build();
+
+                let color_desc = vk::VertexInputAttributeDescription::builder()
+                    .binding(0)
+                    .location(2)
+                    .format(vk::Format::R32G32_UINT)
+                    .offset(16)
+                    .build();
+
+                let vert_binding_descs = [vert_binding_desc];
+                let vert_attr_descs = [pos_desc, ix_desc, color_desc];
+
+                let vert_input_info =
+                    vk::PipelineVertexInputStateCreateInfo::builder()
+                        .vertex_binding_descriptions(&vert_binding_descs)
+                        .vertex_attribute_descriptions(&vert_attr_descs);
+
+                let text_pipeline_ix = res.create_graphics_pipeline(
+                    ctx,
+                    vx,
+                    fx,
+                    pass,
+                    vert_input_info,
+                )?;
+
+                Ok((pass_ix, pipeline_ix, text_pipeline_ix))
             })?
         };
 
@@ -616,6 +673,7 @@ impl GuiSys {
 
             pass: pass_ix,
             pipeline: pipeline_ix,
+            text_pipeline: text_pipeline_ix,
 
             rhai_module,
 
