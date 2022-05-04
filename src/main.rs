@@ -237,7 +237,9 @@ fn main() -> Result<()> {
     )?;
 
     let vert_buffer = {
-        let (s0, l0) = label_space.bounds_for("this is a label")?;
+        let alphas = ('A'..='Z').collect::<String>();
+        let (s0, l0) = label_space.bounds_for(&alphas)?;
+        // let (s0, l0) = label_space.bounds_for("this is a label")?;
         let (s1, l1) = label_space.bounds_for("whoaa!!!")?;
 
         let bounds = [(s0, l0), (s1, l1)];
@@ -247,8 +249,8 @@ fn main() -> Result<()> {
 
         let labels = (0..10)
             .map(|i| {
-                let x = 50.0 + (i as f32) * 50.0;
-                let y = 30.0 + (i as f32) * 50.0;
+                let x = 50.0 + (i as f32) * 32.0;
+                let y = 30.0 + (i as f32) * 32.0;
 
                 let (s, l) = bounds[i % 2];
 
@@ -271,7 +273,7 @@ fn main() -> Result<()> {
                 | vk::BufferUsageFlags::STORAGE_BUFFER
                 | vk::BufferUsageFlags::TRANSFER_SRC
                 | vk::BufferUsageFlags::TRANSFER_DST,
-            true,
+            false,
             0..labels.len(),
             |i| {
                 let label = labels[i];

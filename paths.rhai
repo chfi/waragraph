@@ -117,8 +117,8 @@ bind_key(key::F1, |pressed| {
 
 fn set_tooltip(text, pos) {
   // gui::set_layer_order(["main_gui", "main_gui-legend", "tooltip"]);
-  // gui::set_layer_order(["main_gui", "tooltip"]);
-  gui::set_layer_order(["tooltip"]);
+  gui::set_layer_order(["main_gui", "tooltip"]);
+  // gui::set_layer_order(["tooltip"]);
 
   let width = text.len() * 8 + 4;
 
@@ -147,14 +147,15 @@ fn set_tooltip(text, pos) {
 }
 
 fn remove_tooltip() {
-  // gui::set_layer_order(["main_gui"]);
-  gui::set_layer_order([]);
+  gui::set_layer_order(["main_gui"]);
+  // gui::set_layer_order([]);
 }
 
 
 
 fn gui_init() {
   gui::set_layer_order(["main_gui"]);
+  // gui::set_layer_order([]);
 }
 
 props.set("prev_slot", false);

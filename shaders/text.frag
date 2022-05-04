@@ -19,12 +19,12 @@ layout (push_constant) uniform Inputs {
 } inputs;
 
 vec2 offset_for_char(in uint packed_char, in uint offset) {
-  uint char_ix = (packed_char >> (offset * 8)) & 0xFF;
+  uint char_ix = (packed_char >> (offset * 8)) & 127;
   return vec2(char_ix * 8, 0);
 }
 
 void main() {
-  uint char_ix = uint(i_uv.x) / 8;
+  uint char_ix = i_text_offset.x + uint(i_uv.x) / 8;
 
   uint packed_ix = char_ix / 4;
   uint packed_offset = char_ix % 4;
@@ -32,19 +32,21 @@ void main() {
 
   vec2 tex_origin = offset_for_char(text.packed_chars[packed_ix],
                                     packed_offset);
+
   vec2 offset = vec2(uint(i_uv.x) % 8, uint(i_uv.y));
 
-  float r = i_uv.x / float(i_text_offset.y * 8.0);
-  // float g = float(i_uv.y) / 8.0;
+  float r = offset.x / 8.0;
+  float b = offset.y / 8.0;
 
-  // float r = i_uv.x;
-  // float g = i_uv.y;
   float g = 0.0;
-  float b = 0.0;
 
-  f_color = vec4(r, g, b, 1.0);
+  vec2 char_px = (tex_origin + offset) / vec2(1024.0, 8.0);
 
-  // f_color = texture(sampler2D(font_img, u_sampler), tex_origin + offset);
+  vec4 color = texture(sampler2D(font_img, u_sampler), char_px);
 
-
+  if (color.r < 0.5) {
+    f_color = i_color;
+  } else {
+    f_color = vec4(0.0);
+  }
 }

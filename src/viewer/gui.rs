@@ -769,14 +769,13 @@ impl GuiSys {
                                 pipeline,
                             );
 
-                            log::error!("Drawing labels");
                             // let vx_buf_ix = layer.vertex_buf_ix;
                             let vx_buf_ix = vert_buffer;
 
                             let vx_buf = res[vx_buf_ix].buffer;
                             let vxs = [vx_buf];
 
-                            device.cmd_bind_vertex_buffers(cmd, 0, &vxs, &[16]);
+                            device.cmd_bind_vertex_buffers(cmd, 0, &vxs, &[0]);
                             // device.cmd_bind_vertex_buffers(cmd, 0, &vxs, &[12]);
 
                             let dims =

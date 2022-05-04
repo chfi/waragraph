@@ -1223,10 +1223,7 @@ impl ViewerSys {
         let labels_batch_fn = builder.cast::<BatchBuilder>().build();
         // let labels_batch_fn = labels_batch.build();
 
-        let extent = vk::Extent2D {
-            width: width,
-            height: height,
-        };
+        let extent = vk::Extent2D { width, height };
 
         let out_framebuffer =
             *window_resources.indices.framebuffers.get("out").unwrap();
@@ -1234,7 +1231,7 @@ impl ViewerSys {
         let font_desc_set = {
             let font_desc_set =
                 self.frame.module.get_var("font_desc_set").unwrap();
-            log::error!("font_desc_set: {:?}", font_desc_set.type_name());
+            // log::error!("font_desc_set: {:?}", font_desc_set.type_name());
 
             let r = font_desc_set.cast::<Resolvable<DescSetIx>>();
             r.get().unwrap()

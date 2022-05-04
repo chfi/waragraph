@@ -124,7 +124,7 @@ impl LabelSpace {
         self.text.extend(text.as_bytes());
         self.offsets.insert(text.into(), bounds);
 
-        self.capacity += len;
+        self.used_bytes += len;
 
         Ok(bounds)
     }
