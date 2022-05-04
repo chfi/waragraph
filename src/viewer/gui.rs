@@ -33,6 +33,8 @@ use zerocopy::{AsBytes, FromBytes};
 
 use rhai::plugin::*;
 
+pub mod tree_list;
+
 type LabelId = u64;
 
 #[derive(Clone)]

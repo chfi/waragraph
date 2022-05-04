@@ -10,7 +10,7 @@ layout (set = 0, binding = 0) uniform texture2D font_img;
 layout (set = 0, binding = 1) uniform sampler u_sampler;
 
 layout (set = 1, binding = 0) buffer TextData {
-  uint len;
+  // uint len;
   uint packed_chars[];
 } text;
 
