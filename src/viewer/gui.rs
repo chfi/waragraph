@@ -35,6 +35,8 @@ use rhai::plugin::*;
 
 pub mod tree_list;
 
+pub mod layer;
+
 type LabelId = u64;
 
 #[derive(Clone)]
