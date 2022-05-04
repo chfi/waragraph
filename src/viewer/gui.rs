@@ -44,6 +44,10 @@ pub enum RectVertices {
         buffer_set: DescSetIx,
         rects: Vec<([f32; 4], u32)>,
     },
+    Text {
+        buffer_set: DescSetIx,
+        labels: Vec<([f32; 2], [u32; 2], [f32; 4])>,
+    },
 }
 
 #[derive(Clone)]
@@ -357,6 +361,10 @@ impl GuiSys {
                     }
 
                     buffers.insert_data(layer.vertex_buf_id, &vertices)?;
+                }
+
+                RectVertices::Text { buffer_set, labels } => {
+                    vertices.clear();
                 }
             }
 
@@ -692,6 +700,7 @@ impl GuiSys {
         layer_names: Vec<rhai::ImmutableString>,
         pass: RenderPassIx,
         pipeline: PipelineIx,
+        text_pipeline: PipelineIx,
         framebuffer: FramebufferIx,
         // vertex_count: usize,
         extent: vk::Extent2D,
@@ -754,6 +763,48 @@ impl GuiSys {
                     Some((name, layer))
                 })
                 .for_each(|(layer_name, layer)| match &layer.rects {
+                    RectVertices::Text { buffer_set, labels } => {
+                        if !labels.is_empty() {
+                            let vx_buf_ix = layer.vertex_buf_ix;
+
+                            let vx_buf = res[vx_buf_ix].buffer;
+                            let vxs = [vx_buf];
+
+                            device.cmd_bind_vertex_buffers(cmd, 0, &vxs, &[12]);
+
+                            let dims =
+                                [extent.width as f32, extent.height as f32];
+
+                            let constants = bytemuck::cast_slice(&dims);
+
+                            let stages = vk::ShaderStageFlags::VERTEX
+                                | vk::ShaderStageFlags::FRAGMENT;
+                            device.cmd_push_constants(
+                                cmd, layout, stages, 0, constants,
+                            );
+
+                            let descriptor_sets = [res[*buffer_set]];
+                            device.cmd_bind_descriptor_sets(
+                                cmd,
+                                vk::PipelineBindPoint::GRAPHICS,
+                                layout,
+                                0,
+                                &descriptor_sets,
+                                &[],
+                            );
+
+                            let instance_count = labels.len();
+                            let vertex_count = 6;
+
+                            device.cmd_draw(
+                                cmd,
+                                vertex_count as u32,
+                                instance_count as u32,
+                                0,
+                                0,
+                            );
+                        }
+                    }
                     RectVertices::Palette { buffer_set, rects } => {
                         if !rects.is_empty() {
                             let vx_buf_ix = layer.vertex_buf_ix;
@@ -806,6 +857,7 @@ impl GuiSys {
     ) -> Box<dyn Fn(&Device, &GpuResources, vk::CommandBuffer)> {
         let pass = self.pass;
         let pipeline = self.pipeline;
+        let text_pipeline = self.text_pipeline;
         // let buf_ix = self.buf_ix;
         let layers = self.layers.clone();
         let layer_names: Vec<rhai::ImmutableString> =
@@ -820,6 +872,7 @@ impl GuiSys {
                 layer_names,
                 pass,
                 pipeline,
+                text_pipeline,
                 framebuffer,
                 extent,
                 dev,
@@ -911,6 +964,37 @@ pub mod script {
                     let c = get_cast("c")?;
 
                     Some(([x as f32, y as f32, w as f32, h as f32], c as u32))
+                }));
+            }
+            RectVertices::Text { labels, .. } => {
+                labels.clear();
+
+                labels.extend(new_rects.into_iter().filter_map(|label| {
+                    let label = label.try_cast::<rhai::Map>()?;
+
+                    let get_cast_i = |k: &str| {
+                        let field = label.get(k)?;
+                        field.as_int().ok()
+                    };
+
+                    let get_cast_f = |k: &str| {
+                        let field = label.get(k)?;
+                        field.as_float().ok()
+                    };
+
+                    let x = get_cast_f("x")?;
+                    let y = get_cast_f("y")?;
+                    let txt_o = get_cast_i("text_offset")?;
+                    let txt_l = get_cast_i("text_len")?;
+                    let r = get_cast_f("r")?;
+                    let g = get_cast_f("g")?;
+                    let b = get_cast_f("b")?;
+
+                    let pos = [x, y];
+                    let txt = [txt_o as u32, txt_l as u32];
+                    let color = [r, g, b, 1.0];
+
+                    Some((pos, txt, color))
                 }));
             }
         }
