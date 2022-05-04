@@ -1,6 +1,6 @@
 use crossbeam::atomic::AtomicCell;
 use gfa::gfa::GFA;
-use parking_lot::RwLock;
+use parking_lot::{Mutex, RwLock};
 use raving::vk::{VkEngine, WindowResources};
 use waragraph::console::{Console, ConsoleInput};
 
@@ -26,6 +26,8 @@ use anyhow::{anyhow, bail, Result};
 
 use zerocopy::{AsBytes, FromBytes};
 
+use arboard::Clipboard;
+
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum Modes {
     PathViewer,
@@ -42,6 +44,39 @@ fn main() -> Result<()> {
         .start()?;
 
     let mut args = std::env::args();
+
+    let clipboard = Arc::new(Mutex::new(arboard::Clipboard::new()?));
+    let clipboard_module = {
+        let clipboard = Arc::downgrade(&clipboard);
+
+        let mut module = rhai::Module::new();
+
+        let cb = clipboard.clone();
+        module.set_native_fn("get_text", move || {
+            if let Some(cb) = cb.upgrade() {
+                let mut cb = cb.lock();
+                if let Ok(text) = cb.get_text() {
+                    return Ok(rhai::ImmutableString::from(text));
+                }
+            }
+
+            Err("error getting clipboard text".into())
+        });
+
+        let cb = clipboard.clone();
+        module.set_native_fn("set_text", move |text: &str| {
+            if let Some(cb) = cb.upgrade() {
+                let mut cb = cb.lock();
+                if let Ok(()) = cb.set_text(text.into()) {
+                    return Ok(());
+                }
+            }
+
+            Err("error setting clipboard text".into())
+        });
+
+        Arc::new(module)
+    };
 
     let _ = args.next().unwrap();
 
@@ -69,7 +104,7 @@ fn main() -> Result<()> {
         let exit = should_exit.clone();
         ctrlc::set_handler(move || {
             exit.store(true);
-        });
+        })?;
     }
 
     let event_loop: EventLoop<()>;
@@ -156,6 +191,10 @@ fn main() -> Result<()> {
     console
         .modules
         .insert("viewer".into(), viewer.rhai_module.clone());
+
+    console
+        .modules
+        .insert("clipboard".into(), clipboard_module.clone());
 
     console.modules.insert("graph".into(), graph_module.clone());
 
@@ -644,6 +683,8 @@ fn main() -> Result<()> {
             Event::LoopDestroyed => {
                 log::debug!("Event::LoopDestroyed");
                 log::debug!("Freeing resources");
+
+                let _ = clipboard;
 
                 unsafe {
                     let queue = engine.queues.thread.queue;
