@@ -435,7 +435,7 @@ impl GuiSys {
                 let vert_binding_desc =
                     vk::VertexInputBindingDescription::builder()
                         .binding(0)
-                        .stride(std::mem::size_of::<Self>() as u32)
+                        .stride(std::mem::size_of::<[f32; 8]>() as u32)
                         .input_rate(vk::VertexInputRate::INSTANCE)
                         .build();
 
@@ -456,7 +456,7 @@ impl GuiSys {
                 let color_desc = vk::VertexInputAttributeDescription::builder()
                     .binding(0)
                     .location(2)
-                    .format(vk::Format::R32G32_UINT)
+                    .format(vk::Format::R32G32B32A32_SFLOAT)
                     .offset(16)
                     .build();
 
@@ -698,10 +698,12 @@ impl GuiSys {
     }
 
     pub fn draw_impl(
+        vert_buffer: BufferIx,
         layers: Arc<RwLock<FxHashMap<rhai::ImmutableString, GuiLayer>>>,
         layer_names: Vec<rhai::ImmutableString>,
         pass: RenderPassIx,
         pipeline: PipelineIx,
+        font_desc_set: DescSetIx,
         text_pipeline: PipelineIx,
         framebuffer: FramebufferIx,
         // vertex_count: usize,
@@ -748,14 +750,6 @@ impl GuiSys {
 
             device.cmd_set_scissor(cmd, 0, &scissors);
 
-            let (pipeline, layout) = res[pipeline];
-
-            device.cmd_bind_pipeline(
-                cmd,
-                vk::PipelineBindPoint::GRAPHICS,
-                pipeline,
-            );
-
             let layers = layers.read();
 
             layer_names
@@ -767,12 +761,23 @@ impl GuiSys {
                 .for_each(|(layer_name, layer)| match &layer.rects {
                     RectVertices::Text { buffer_set, labels } => {
                         if !labels.is_empty() {
-                            let vx_buf_ix = layer.vertex_buf_ix;
+                            let (pipeline, layout) = res[text_pipeline];
+
+                            device.cmd_bind_pipeline(
+                                cmd,
+                                vk::PipelineBindPoint::GRAPHICS,
+                                pipeline,
+                            );
+
+                            log::error!("Drawing labels");
+                            // let vx_buf_ix = layer.vertex_buf_ix;
+                            let vx_buf_ix = vert_buffer;
 
                             let vx_buf = res[vx_buf_ix].buffer;
                             let vxs = [vx_buf];
 
-                            device.cmd_bind_vertex_buffers(cmd, 0, &vxs, &[12]);
+                            device.cmd_bind_vertex_buffers(cmd, 0, &vxs, &[16]);
+                            // device.cmd_bind_vertex_buffers(cmd, 0, &vxs, &[12]);
 
                             let dims =
                                 [extent.width as f32, extent.height as f32];
@@ -785,7 +790,9 @@ impl GuiSys {
                                 cmd, layout, stages, 0, constants,
                             );
 
-                            let descriptor_sets = [res[*buffer_set]];
+                            let descriptor_sets =
+                                [res[font_desc_set], res[*buffer_set]];
+                            // [res[font_desc_set]];
                             device.cmd_bind_descriptor_sets(
                                 cmd,
                                 vk::PipelineBindPoint::GRAPHICS,
@@ -808,6 +815,14 @@ impl GuiSys {
                         }
                     }
                     RectVertices::Palette { buffer_set, rects } => {
+                        let (pipeline, layout) = res[pipeline];
+
+                        device.cmd_bind_pipeline(
+                            cmd,
+                            vk::PipelineBindPoint::GRAPHICS,
+                            pipeline,
+                        );
+
                         if !rects.is_empty() {
                             let vx_buf_ix = layer.vertex_buf_ix;
 
@@ -855,6 +870,8 @@ impl GuiSys {
         // layer_names: Vec<rhai::ImmutableString>,
         framebuffer: FramebufferIx,
         extent: vk::Extent2D,
+        vert_buffer: BufferIx,
+        font_desc_set: DescSetIx,
         // color_buffer_set: DescSetIx,
     ) -> Box<dyn Fn(&Device, &GpuResources, vk::CommandBuffer)> {
         let pass = self.pass;
@@ -870,10 +887,12 @@ impl GuiSys {
             let layers = layers.clone();
             let layer_names = layer_names.clone();
             Self::draw_impl(
+                vert_buffer,
                 layers,
                 layer_names,
                 pass,
                 pipeline,
+                font_desc_set,
                 text_pipeline,
                 framebuffer,
                 extent,

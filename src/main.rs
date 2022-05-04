@@ -12,7 +12,8 @@ use sled::IVec;
 use waragraph::graph::{Node, Path, Waragraph};
 use waragraph::util::{BufferStorage, LabelStorage};
 use waragraph::viewer::app::ViewerSys;
-use waragraph::viewer::gui::{GuiLayer, GuiSys, LabelMsg};
+use waragraph::viewer::gui::tree_list::LabelSpace;
+use waragraph::viewer::gui::{GuiLayer, GuiSys, LabelMsg, RectVertices};
 use waragraph::viewer::{SlotRenderers, SlotUpdateFn, ViewDiscrete1D};
 use winit::event::{Event, VirtualKeyCode, WindowEvent};
 use winit::{event_loop::EventLoop, window::WindowBuilder};
@@ -223,6 +224,9 @@ fn main() -> Result<()> {
         buffers.get_desc_set_ix(id).unwrap()
     };
 
+    let mut label_space =
+        LabelSpace::new(&mut engine, "test-labels", 1024 * 1024)?;
+
     let mut gui_layer = GuiLayer::new(
         &mut engine,
         &db,
@@ -231,6 +235,66 @@ fn main() -> Result<()> {
         1023,
         gui_palette_set,
     )?;
+
+    let vert_buffer = {
+        let (s0, l0) = label_space.bounds_for("this is a label")?;
+        let (s1, l1) = label_space.bounds_for("whoaa!!!")?;
+
+        let bounds = [(s0, l0), (s1, l1)];
+        let buffer_set = label_space.text_set;
+
+        let color = [0.0, 0.0, 0.0, 1.0];
+
+        let labels = (0..10)
+            .map(|i| {
+                let x = 50.0 + (i as f32) * 50.0;
+                let y = 30.0 + (i as f32) * 50.0;
+
+                let (s, l) = bounds[i % 2];
+
+                ([x, y], [s as u32, l as u32], color)
+            })
+            .collect::<Vec<_>>();
+
+        // let p0 = [400.0, 300.0];
+        // let b0 = [s0 as u32, l0 as u32];
+
+        // let p1 = [0.0, 100.0];
+        // let b1 = [s1 as u32, l1 as u32];
+
+        // let labels = vec![(p0, b0, color), (p1, b1, color)];
+
+        let buffer = waragraph::util::alloc_buffer_with(
+            &mut engine,
+            Some("label vertex buffer"),
+            vk::BufferUsageFlags::VERTEX_BUFFER
+                | vk::BufferUsageFlags::STORAGE_BUFFER
+                | vk::BufferUsageFlags::TRANSFER_SRC
+                | vk::BufferUsageFlags::TRANSFER_DST,
+            true,
+            0..labels.len(),
+            |i| {
+                let label = labels[i];
+
+                let mut out = [0u8; 8 + 8 + 16];
+
+                out[0..8].clone_from_slice(label.0.as_bytes());
+                out[8..16].clone_from_slice(label.1.as_bytes());
+                out[16..32].clone_from_slice(label.2.as_bytes());
+
+                log::error!("{}: {:?}", i, out);
+
+                out
+            },
+        )?;
+
+        label_space.write_buffer(&mut engine.resources).unwrap();
+
+        gui_layer.rects = RectVertices::Text { buffer_set, labels };
+
+        // gui_layer.rects
+        buffer
+    };
 
     let mut gui_tooltip_layer = GuiLayer::new(
         &mut engine,
@@ -556,6 +620,7 @@ fn main() -> Result<()> {
                                 &window_resources,
                                 &graph,
                                 &gui_sys,
+                                vert_buffer,
                             )
                             .unwrap(),
                         Modes::Graph3D => todo!(),

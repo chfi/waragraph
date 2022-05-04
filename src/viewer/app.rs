@@ -1,10 +1,10 @@
 use bstr::ByteSlice;
 use crossbeam::atomic::AtomicCell;
 use parking_lot::RwLock;
-use raving::script::console::frame::FrameBuilder;
+use raving::script::console::frame::{FrameBuilder, Resolvable};
 use raving::script::console::BatchBuilder;
 use raving::vk::{
-    BatchInput, DescSetIx, FrameResources, GpuResources, VkEngine,
+    BatchInput, BufferIx, DescSetIx, FrameResources, GpuResources, VkEngine,
 };
 
 use raving::vk::resource::WindowResources;
@@ -1125,12 +1125,14 @@ impl ViewerSys {
         window_resources: &WindowResources,
         graph: &Waragraph,
         gui: &GuiSys,
+        vert_buffer: BufferIx,
     ) -> Result<bool> {
         let f_ix = engine.current_frame_number();
 
         let frame = &mut self.frame_resources[f_ix % raving::vk::FRAME_OVERLAP];
 
-        let size = window.inner_size();
+        let [width, height] = window_resources.dims();
+        // let size = window.inner_size();
 
         let mut label_sets = Vec::new();
         let mut desc_sets = Vec::new();
@@ -1181,8 +1183,8 @@ impl ViewerSys {
         let fg_batch = (&self.draw_foreground)(
             batch_builder,
             desc_sets.clone(),
-            size.width as i64,
-            size.height as i64,
+            width as i64,
+            height as i64,
             slot_buf_size as i64,
         )
         .unwrap();
@@ -1203,8 +1205,8 @@ impl ViewerSys {
                 "draw_labels",
                 Some(&mut builder),
                 [
-                    rhai::Dynamic::from_int(size.width as i64),
-                    rhai::Dynamic::from_int(size.height as i64),
+                    rhai::Dynamic::from_int(width as i64),
+                    rhai::Dynamic::from_int(height as i64),
                     rhai::Dynamic::from_array(label_sets),
                 ],
             )
@@ -1222,14 +1224,24 @@ impl ViewerSys {
         // let labels_batch_fn = labels_batch.build();
 
         let extent = vk::Extent2D {
-            width: size.width,
-            height: size.height,
+            width: width,
+            height: height,
         };
 
         let out_framebuffer =
             *window_resources.indices.framebuffers.get("out").unwrap();
 
-        let gui_batch_fn = gui.draw(out_framebuffer, extent);
+        let font_desc_set = {
+            let font_desc_set =
+                self.frame.module.get_var("font_desc_set").unwrap();
+            log::error!("font_desc_set: {:?}", font_desc_set.type_name());
+
+            let r = font_desc_set.cast::<Resolvable<DescSetIx>>();
+            r.get().unwrap()
+        };
+
+        let gui_batch_fn =
+            gui.draw(out_framebuffer, extent, vert_buffer, font_desc_set);
 
         let mut gui_label_sets = Vec::new();
 
@@ -1259,8 +1271,8 @@ impl ViewerSys {
                 "draw_labels",
                 Some(&mut builder),
                 [
-                    rhai::Dynamic::from_int(size.width as i64),
-                    rhai::Dynamic::from_int(size.height as i64),
+                    rhai::Dynamic::from_int(width as i64),
+                    rhai::Dynamic::from_int(height as i64),
                     rhai::Dynamic::from_array(gui_label_sets),
                 ],
             )
@@ -1325,8 +1337,8 @@ impl ViewerSys {
                     batch_builder,
                     sample_out_desc_set,
                     cp_swapchain,
-                    size.width as i64,
-                    size.height as i64,
+                    width as i64,
+                    height as i64,
                 );
 
                 if let Err(e) = &batch {

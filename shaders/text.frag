@@ -1,6 +1,6 @@
 #version 450
 
-layout (location = 0) flat in uvec2 i_uv;
+layout (location = 0) in vec2 i_uv;
 layout (location = 1) flat in uvec2 i_text_offset;
 layout (location = 2) in vec4 i_color;
 
@@ -24,16 +24,27 @@ vec2 offset_for_char(in uint packed_char, in uint offset) {
 }
 
 void main() {
-  uint char_ix = i_uv.x / 8;
+  uint char_ix = uint(i_uv.x) / 8;
 
   uint packed_ix = char_ix / 4;
   uint packed_offset = char_ix % 4;
 
-  vec2 tex_origin = offset_for_char(text.packed_chars[packed_ix], packed_offset);
 
-  vec2 offset = vec2(i_uv.x % 8, i_uv.y);
+  vec2 tex_origin = offset_for_char(text.packed_chars[packed_ix],
+                                    packed_offset);
+  vec2 offset = vec2(uint(i_uv.x) % 8, uint(i_uv.y));
 
-  f_color = texture(sampler2D(font_img, u_sampler), tex_origin + offset);
+  float r = i_uv.x / float(i_text_offset.y * 8.0);
+  // float g = float(i_uv.y) / 8.0;
+
+  // float r = i_uv.x;
+  // float g = i_uv.y;
+  float g = 0.0;
+  float b = 0.0;
+
+  f_color = vec4(r, g, b, 1.0);
+
+  // f_color = texture(sampler2D(font_img, u_sampler), tex_origin + offset);
 
 
 }

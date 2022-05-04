@@ -44,8 +44,8 @@ pub struct LabelSpace {
     capacity: usize,
     used_bytes: usize,
 
-    text_buffer: BufferIx,
-    text_set: DescSetIx,
+    pub text_buffer: BufferIx,
+    pub text_set: DescSetIx,
 }
 
 impl LabelSpace {
