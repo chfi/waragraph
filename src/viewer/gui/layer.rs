@@ -36,7 +36,7 @@ pub struct Compositor {
 
     pub pass: RenderPassIx,
 
-    layer: Layer,
+    pub layer: Layer,
 }
 
 impl Compositor {
@@ -212,7 +212,7 @@ impl Compositor {
 }
 
 pub struct Layer {
-    sublayers: Vec<Sublayer>,
+    pub sublayers: Vec<Sublayer>,
 }
 
 /*
@@ -250,11 +250,31 @@ impl Sublayer {
         self.sets.extend(new_sets);
     }
 
+    pub fn update_vertices_array<const N: usize, I>(
+        &mut self,
+        new: I,
+    ) -> Result<()>
+    where
+        I: IntoIterator<Item = [u8; N]>,
+    {
+        assert!(N == self.vertex_stride);
+        self.vertex_data.clear();
+        self.vertex_count = 0;
+
+        for slice in new.into_iter() {
+            self.vertex_data.extend_from_slice(&slice);
+            self.vertex_count += 1;
+        }
+
+        Ok(())
+    }
+
     pub fn update_vertices<'a, I>(&mut self, new: I) -> Result<()>
     where
         I: IntoIterator<Item = &'a [u8]> + 'a,
     {
         self.vertex_data.clear();
+        self.vertex_count = 0;
 
         for slice in new.into_iter() {
             if slice.len() != self.vertex_stride {
@@ -264,7 +284,7 @@ impl Sublayer {
                     self.vertex_stride
                 );
             }
-            assert!(slice.len() == self.vertex_stride);
+            // assert!(slice.len() == self.vertex_stride);
             self.vertex_data.extend_from_slice(slice);
             self.vertex_count += 1;
         }

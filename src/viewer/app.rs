@@ -33,6 +33,7 @@ use anyhow::{anyhow, bail, Result};
 
 use zerocopy::{AsBytes, FromBytes};
 
+use super::gui::layer::Compositor;
 use super::gui::GuiSys;
 use super::{PathViewer, SlotFnCache, SlotUpdateFn};
 
@@ -1124,6 +1125,7 @@ impl ViewerSys {
         window: &Window,
         window_resources: &WindowResources,
         graph: &Waragraph,
+        compositor: &Compositor,
         gui: &GuiSys,
         vert_buffer: BufferIx,
     ) -> Result<bool> {
@@ -1240,6 +1242,8 @@ impl ViewerSys {
         let gui_batch_fn =
             gui.draw(out_framebuffer, extent, vert_buffer, font_desc_set);
 
+        let comp_batch_fn = compositor.draw(out_framebuffer, extent);
+
         let mut gui_label_sets = Vec::new();
 
         for layer_name in gui.layer_order.read().iter() {
@@ -1284,7 +1288,8 @@ impl ViewerSys {
                   cmd: vk::CommandBuffer| {
                 fg_batch_fn(dev, res, cmd);
                 labels_batch_fn(dev, res, cmd);
-                gui_batch_fn(dev, res, cmd);
+                // gui_batch_fn(dev, res, cmd);
+                comp_batch_fn(dev, res, cmd);
             },
         ) as Box<_>;
 

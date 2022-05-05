@@ -1,7 +1,8 @@
 use crossbeam::atomic::AtomicCell;
 use gfa::gfa::GFA;
 use parking_lot::{Mutex, RwLock};
-use raving::vk::{VkEngine, WindowResources};
+use raving::script::console::frame::Resolvable;
+use raving::vk::{DescSetIx, VkEngine, WindowResources};
 use waragraph::console::{Console, ConsoleInput};
 
 use ash::vk;
@@ -12,6 +13,7 @@ use sled::IVec;
 use waragraph::graph::{Node, Path, Waragraph};
 use waragraph::util::{BufferStorage, LabelStorage};
 use waragraph::viewer::app::ViewerSys;
+use waragraph::viewer::gui::layer::Compositor;
 use waragraph::viewer::gui::tree_list::LabelSpace;
 use waragraph::viewer::gui::{GuiLayer, GuiSys, LabelMsg, RectVertices};
 use waragraph::viewer::{SlotRenderers, SlotUpdateFn, ViewDiscrete1D};
@@ -202,6 +204,13 @@ fn main() -> Result<()> {
     viewer.labels.set_label_pos(b"console", 4, 4)?;
     viewer.labels.set_text_for(b"console", "")?;
 
+    let font_desc_set = {
+        let font_desc_set =
+            viewer.frame.module.get_var("font_desc_set").unwrap();
+        let r = font_desc_set.cast::<Resolvable<DescSetIx>>();
+        r.get().unwrap()
+    };
+
     buffers.allocate_queued(&mut engine)?;
     buffers.fill_updated_buffers(&mut engine.resources)?;
 
@@ -225,6 +234,15 @@ fn main() -> Result<()> {
         "main_gui",
         1023,
         gui_palette_set,
+    )?;
+
+    let mut compositor =
+        Compositor::init(&mut engine, &swapchain_dims, font_desc_set)?;
+
+    compositor.push_sublayer(
+        &mut engine,
+        "text",
+        Some(label_space.text_set),
     )?;
 
     let vert_buffer = {
@@ -256,6 +274,16 @@ fn main() -> Result<()> {
         // let b1 = [s1 as u32, l1 as u32];
 
         // let labels = vec![(p0, b0, color), (p1, b1, color)];
+
+        compositor.layer.sublayers[0].update_vertices_array(
+            labels.iter().map(|label| {
+                let mut out = [0u8; 8 + 8 + 16];
+                out[0..8].clone_from_slice(label.0.as_bytes());
+                out[8..16].clone_from_slice(label.1.as_bytes());
+                out[16..32].clone_from_slice(label.2.as_bytes());
+                out
+            }),
+        )?;
 
         let buffer = waragraph::util::alloc_buffer_with(
             &mut engine,
@@ -621,6 +649,7 @@ fn main() -> Result<()> {
                                 &window,
                                 &window_resources,
                                 &graph,
+                                &compositor,
                                 &gui_sys,
                                 vert_buffer,
                             )
