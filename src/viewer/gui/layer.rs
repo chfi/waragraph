@@ -1,8 +1,8 @@
 use crossbeam::atomic::AtomicCell;
 use raving::vk::context::VkContext;
 use raving::vk::{
-    BufferIx, DescSetIx, GpuResources, PipelineIx, RenderPassIx, ShaderIx,
-    VkEngine,
+    BufferIx, DescSetIx, FramebufferIx, GpuResources, PipelineIx, RenderPassIx,
+    ShaderIx, VkEngine,
 };
 
 use raving::vk::resource::WindowResources;
@@ -78,6 +78,137 @@ impl Compositor {
             layer,
         })
     }
+
+    pub fn draw<'a>(
+        &'a self,
+        framebuffer: FramebufferIx,
+        extent: vk::Extent2D,
+    ) -> Box<dyn Fn(&Device, &GpuResources, vk::CommandBuffer) + 'a> {
+        let draw = move |device: &Device,
+                         res: &GpuResources,
+                         cmd: vk::CommandBuffer| {
+            //
+
+            let pass_info = vk::RenderPassBeginInfo::builder()
+                .render_pass(res[self.pass])
+                .framebuffer(res[framebuffer])
+                .render_area(vk::Rect2D {
+                    offset: vk::Offset2D { x: 0, y: 0 },
+                    extent,
+                })
+                .clear_values(&[])
+                .build();
+
+            unsafe {
+                device.cmd_begin_render_pass(
+                    cmd,
+                    &pass_info,
+                    vk::SubpassContents::INLINE,
+                );
+
+                let viewport = vk::Viewport {
+                    x: 0.0,
+                    y: 0.0,
+                    width: extent.width as f32,
+                    height: extent.height as f32,
+                    min_depth: 0.0,
+                    max_depth: 1.0,
+                };
+
+                let viewports = [viewport];
+
+                device.cmd_set_viewport(cmd, 0, &viewports);
+
+                let scissor = vk::Rect2D {
+                    offset: vk::Offset2D { x: 0, y: 0 },
+                    extent,
+                };
+                let scissors = [scissor];
+
+                device.cmd_set_scissor(cmd, 0, &scissors);
+
+                for sublayer in self.layer.sublayers.iter() {
+                    let def =
+                        self.sublayer_defs.get(&sublayer.def_name).unwrap();
+
+                    let vertices = sublayer.vertex_buffer;
+
+                    let sets =
+                        def.sets.iter().chain(sublayer.sets.iter()).copied();
+                    let (vx_count, i_count) = if def.name == "text" {
+                        (6, sublayer.vertex_count)
+                        // let vertex_count = 6;
+                        // let instance_count = sublayer.vertex_count;
+                    } else if def.name == "rect-palette" {
+                        (sublayer.vertex_count, 1)
+                        // let vertex_count = sublayer.vertex_count;
+                        // let instance_count = 1;
+                    } else {
+                        panic!("TODO");
+                    };
+
+                    def.draw(
+                        vertices, vx_count, i_count, sets, extent, device, res,
+                        cmd,
+                    );
+
+                    // def.draw(
+
+                    //
+                }
+            }
+        };
+
+        Box::new(draw)
+    }
+
+    pub fn push_sublayer(
+        &mut self,
+        engine: &mut VkEngine,
+        def_name: &str,
+        sets: impl IntoIterator<Item = DescSetIx>,
+    ) -> Result<()> {
+        let def = self.sublayer_defs.get(def_name).ok_or(anyhow!(
+            "could not find sublayer definition `{}`",
+            def_name
+        ))?;
+
+        let capacity = 1024 * 1024;
+
+        let vertex_buffer = engine.with_allocators(|ctx, res, alloc| {
+            let mem_loc = gpu_allocator::MemoryLocation::CpuToGpu;
+            let usage = vk::BufferUsageFlags::VERTEX_BUFFER
+                // | vk::BufferUsageFlags::STORAGE_BUFFER
+                | vk::BufferUsageFlags::TRANSFER_SRC
+                | vk::BufferUsageFlags::TRANSFER_DST;
+            let buffer = res.allocate_buffer(
+                ctx,
+                alloc,
+                mem_loc,
+                def.vertex_stride,
+                capacity,
+                usage,
+                Some(&format!("sublayer {}", def_name)),
+            )?;
+
+            let buf_ix = res.insert_buffer(buffer);
+
+            Ok(buf_ix)
+        })?;
+
+        let sublayer = Sublayer {
+            def_name: def.name.clone(),
+            vertex_count: 0,
+            vertex_stride: def.vertex_stride,
+            vertex_data: Vec::new(),
+            vertex_buffer,
+            sets: sets.into_iter().collect(),
+        };
+
+        self.layer.sublayers.push(sublayer);
+
+        Ok(())
+    }
 }
 
 pub struct Layer {
@@ -101,12 +232,24 @@ pub struct Sublayer {
     pub def_name: rhai::ImmutableString,
     // def: Arc<SublayerDef>,
     vertex_stride: usize,
+
+    vertex_count: usize,
     vertex_data: Vec<u8>,
 
     vertex_buffer: BufferIx,
+
+    sets: Vec<DescSetIx>,
 }
 
 impl Sublayer {
+    pub fn update_sets(
+        &mut self,
+        new_sets: impl IntoIterator<Item = DescSetIx>,
+    ) {
+        self.sets.clear();
+        self.sets.extend(new_sets);
+    }
+
     pub fn update_vertices<'a, I>(&mut self, new: I) -> Result<()>
     where
         I: IntoIterator<Item = &'a [u8]> + 'a,
@@ -123,6 +266,7 @@ impl Sublayer {
             }
             assert!(slice.len() == self.vertex_stride);
             self.vertex_data.extend_from_slice(slice);
+            self.vertex_count += 1;
         }
 
         Ok(())
