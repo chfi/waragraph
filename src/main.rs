@@ -99,15 +99,6 @@ fn main() -> Result<()> {
     let graph_module =
         Arc::new(waragraph::graph::script::create_graph_module(&graph));
 
-    let should_exit = Arc::new(AtomicCell::new(false));
-
-    {
-        let exit = should_exit.clone();
-        ctrlc::set_handler(move || {
-            exit.store(true);
-        })?;
-    }
-
     let event_loop: EventLoop<()>;
 
     #[cfg(target_os = "linux")]
@@ -428,6 +419,15 @@ fn main() -> Result<()> {
         .collect::<Vec<_>>();
 
     let mut prev_frame = std::time::Instant::now();
+
+    let should_exit = Arc::new(AtomicCell::new(false));
+
+    {
+        let exit = should_exit.clone();
+        ctrlc::set_handler(move || {
+            exit.store(true);
+        })?;
+    }
 
     event_loop.run(move |event, _, control_flow| {
         *control_flow = winit::event_loop::ControlFlow::Poll;
