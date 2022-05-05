@@ -285,6 +285,10 @@ fn main() -> Result<()> {
             }),
         )?;
 
+        compositor.layer.sublayers[0]
+            .write_buffer(&mut engine.resources)
+            .unwrap();
+
         let buffer = waragraph::util::alloc_buffer_with(
             &mut engine,
             Some("label vertex buffer"),

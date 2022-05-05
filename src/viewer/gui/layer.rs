@@ -87,8 +87,6 @@ impl Compositor {
         let draw = move |device: &Device,
                          res: &GpuResources,
                          cmd: vk::CommandBuffer| {
-            //
-
             let pass_info = vk::RenderPassBeginInfo::builder()
                 .render_pass(res[self.pass])
                 .framebuffer(res[framebuffer])
@@ -133,16 +131,11 @@ impl Compositor {
 
                     let vertices = sublayer.vertex_buffer;
 
-                    let sets =
-                        def.sets.iter().chain(sublayer.sets.iter()).copied();
+                    let sets = sublayer.sets.iter().copied();
                     let (vx_count, i_count) = if def.name == "text" {
                         (6, sublayer.vertex_count)
-                        // let vertex_count = 6;
-                        // let instance_count = sublayer.vertex_count;
                     } else if def.name == "rect-palette" {
                         (sublayer.vertex_count, 1)
-                        // let vertex_count = sublayer.vertex_count;
-                        // let instance_count = 1;
                     } else {
                         panic!("TODO");
                     };
@@ -151,11 +144,9 @@ impl Compositor {
                         vertices, vx_count, i_count, sets, extent, device, res,
                         cmd,
                     );
-
-                    // def.draw(
-
-                    //
                 }
+
+                device.cmd_end_render_pass(cmd);
             }
         };
 
@@ -215,22 +206,9 @@ pub struct Layer {
     pub sublayers: Vec<Sublayer>,
 }
 
-/*
-impl Layer {
-    pub fn draw<'a>(&'a self,
-                framebuffer: FramebufferIx,
-                extent: vk::Extent2D,
-    ) -> Box<dyn Fn(&Device, &GpuResources, vk::CommandBuffer) + 'a> {
-
-
-
-    }
-}
-*/
-
 pub struct Sublayer {
     pub def_name: rhai::ImmutableString,
-    // def: Arc<SublayerDef>,
+
     vertex_stride: usize,
 
     vertex_count: usize,
@@ -284,7 +262,7 @@ impl Sublayer {
                     self.vertex_stride
                 );
             }
-            // assert!(slice.len() == self.vertex_stride);
+
             self.vertex_data.extend_from_slice(slice);
             self.vertex_count += 1;
         }
@@ -292,18 +270,9 @@ impl Sublayer {
         Ok(())
     }
 
-    /*
-    pub fn update_vertices<T>(&mut self, new: &[T]) -> Result<()>
-        where T: std::any::Any + Copy,
-    {
-    }
-    */
-
     pub fn write_buffer(&mut self, res: &mut GpuResources) -> Option<()> {
         assert!(self.vertex_data.len() % self.vertex_stride == 0);
-        // if self.used_bytes == 0 {
-        //     return Some(());
-        // }
+
         let buf = &mut res[self.vertex_buffer];
         let slice = buf.mapped_slice_mut()?;
         let len = self.vertex_data.len();
