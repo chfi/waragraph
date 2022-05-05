@@ -405,7 +405,7 @@ impl GuiSys {
                 )?;
 
                 let vert = res.load_shader(
-                    "shaders/rect.vert.spv",
+                    "shaders/gui_rect.vert.spv",
                     vk::ShaderStageFlags::VERTEX,
                 )?;
                 let frag = res.load_shader(

@@ -8,7 +8,6 @@ layout (location = 0) out vec2 o_uv;
 layout (location = 1) out uvec2 o_text_offset;
 layout (location = 2) out vec4 o_color;
 
-
 layout (push_constant) uniform Input {
   vec2 window_dims;
 } inputs;

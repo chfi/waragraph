@@ -449,8 +449,10 @@ pub(super) fn rect_palette_sublayer(
     res: &mut GpuResources,
     pass: vk::RenderPass,
 ) -> Result<SublayerDef> {
-    let vert =
-        res.load_shader("shaders/rect.vert.spv", vk::ShaderStageFlags::VERTEX)?;
+    let vert = res.load_shader(
+        "shaders/tri_2d_window.vert.spv",
+        vk::ShaderStageFlags::VERTEX,
+    )?;
     let frag = res.load_shader(
         "shaders/rect_flat_color.frag.spv",
         vk::ShaderStageFlags::FRAGMENT,
