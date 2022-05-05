@@ -39,7 +39,7 @@ pub struct Layer {
 
 pub struct Sublayer {
     pub def_name: rhai::ImmutableString,
-
+    // def: Arc<SublayerDef>,
     vertex_stride: usize,
     vertex_data: Vec<u8>,
 
@@ -47,6 +47,34 @@ pub struct Sublayer {
 }
 
 impl Sublayer {
+    pub fn update_vertices<'a, I>(&mut self, new: I) -> Result<()>
+    where
+        I: IntoIterator<Item = &'a [u8]> + 'a,
+    {
+        self.vertex_data.clear();
+
+        for slice in new.into_iter() {
+            if slice.len() != self.vertex_stride {
+                anyhow::bail!(
+                    "slice length {} doesn't match vertex stride {}",
+                    slice.len(),
+                    self.vertex_stride
+                );
+            }
+            assert!(slice.len() == self.vertex_stride);
+            self.vertex_data.extend_from_slice(slice);
+        }
+
+        Ok(())
+    }
+
+    /*
+    pub fn update_vertices<T>(&mut self, new: &[T]) -> Result<()>
+        where T: std::any::Any + Copy,
+    {
+    }
+    */
+
     pub fn write_buffer(&mut self, res: &mut GpuResources) -> Option<()> {
         assert!(self.vertex_data.len() % self.vertex_stride == 0);
         // if self.used_bytes == 0 {
@@ -68,6 +96,8 @@ pub struct SublayerDef {
     pub(super) vertex_stride: usize,
 
     vertex_offset: usize,
+
+    elem_type: std::any::TypeId,
 }
 
 impl SublayerDef {
@@ -135,7 +165,7 @@ impl SublayerDef {
         }
     }
 
-    pub fn new<'a>(
+    pub fn new<'a, T, S>(
         ctx: &VkContext,
         res: &mut GpuResources,
         name: &str,
@@ -145,8 +175,13 @@ impl SublayerDef {
         vertex_offset: usize,
         vertex_stride: usize,
         vert_input_info: vk::PipelineVertexInputStateCreateInfoBuilder<'a>,
-        sets: impl IntoIterator<Item = DescSetIx>,
-    ) -> Result<Self> {
+        sets: S,
+    ) -> Result<Self>
+    where
+        // T: std::any::Any + Copy + AsBytes,
+        S: IntoIterator<Item = DescSetIx>,
+        T: std::any::Any + Copy,
+    {
         let pipeline = res.create_graphics_pipeline(
             ctx,
             vert,
@@ -162,6 +197,8 @@ impl SublayerDef {
             sets: sets.into_iter().collect(),
             vertex_stride,
             vertex_offset,
+
+            elem_type: std::any::TypeId::of::<T>(),
         })
     }
 }
@@ -211,7 +248,7 @@ pub(super) fn rect_palette_sublayer(
     let vertex_offset = 12;
     let vertex_stride = 12;
 
-    SublayerDef::new(
+    SublayerDef::new::<([f32; 4], u32), _>(
         ctx,
         res,
         "rect-palette",
@@ -276,7 +313,7 @@ pub(super) fn text_sublayer(
     let vertex_offset = 0;
     let vertex_stride = 32;
 
-    SublayerDef::new(
+    SublayerDef::new::<([f32; 2], [u32; 2], [f32; 4]), _>(
         ctx,
         res,
         "text",
