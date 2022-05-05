@@ -1,3 +1,4 @@
+use crossbeam::atomic::AtomicCell;
 use raving::vk::context::VkContext;
 use raving::vk::{
     BufferIx, DescSetIx, GpuResources, PipelineIx, RenderPassIx, ShaderIx,
@@ -30,12 +31,71 @@ use zerocopy::{AsBytes, FromBytes};
 use rhai::plugin::*;
 
 pub struct Compositor {
+    window_dims: Arc<AtomicCell<[u32; 2]>>,
     sublayer_defs: BTreeMap<rhai::ImmutableString, SublayerDef>,
+
+    pub pass: RenderPassIx,
+
+    layer: Layer,
+}
+
+impl Compositor {
+    pub fn init(
+        engine: &mut VkEngine,
+        window_dims: &Arc<AtomicCell<[u32; 2]>>,
+        font_desc_set: DescSetIx,
+    ) -> Result<Self> {
+        let mut sublayer_defs = BTreeMap::default();
+
+        let mut layer = Layer {
+            sublayers: Vec::new(),
+        };
+
+        let pass = engine.with_allocators(|ctx, res, alloc| {
+            let format = vk::Format::R8G8B8A8_UNORM;
+            let pass = res.create_line_render_pass(
+                ctx,
+                format,
+                vk::ImageLayout::GENERAL,
+                vk::ImageLayout::GENERAL,
+            )?;
+
+            let pass_ix = res.insert_render_pass(pass);
+
+            let text_def = text_sublayer(ctx, res, font_desc_set, pass)?;
+            let rect_def = rect_palette_sublayer(ctx, res, pass)?;
+
+            sublayer_defs.insert(text_def.name.clone(), text_def);
+            sublayer_defs.insert(rect_def.name.clone(), rect_def);
+
+            Ok(pass_ix)
+        })?;
+
+        Ok(Self {
+            window_dims: window_dims.clone(),
+            sublayer_defs,
+            pass,
+            layer,
+        })
+    }
 }
 
 pub struct Layer {
     sublayers: Vec<Sublayer>,
 }
+
+/*
+impl Layer {
+    pub fn draw<'a>(&'a self,
+                framebuffer: FramebufferIx,
+                extent: vk::Extent2D,
+    ) -> Box<dyn Fn(&Device, &GpuResources, vk::CommandBuffer) + 'a> {
+
+
+
+    }
+}
+*/
 
 pub struct Sublayer {
     pub def_name: rhai::ImmutableString,
