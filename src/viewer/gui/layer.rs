@@ -31,6 +31,33 @@ use zerocopy::{AsBytes, FromBytes};
 
 use rhai::plugin::*;
 
+#[derive(Clone)]
+pub struct SublayerAllocMsg {
+    layer_name: rhai::ImmutableString,
+
+    sublayer_name: rhai::ImmutableString,
+    sublayer_def: rhai::ImmutableString,
+
+    sets: Vec<DescSetIx>,
+}
+
+impl SublayerAllocMsg {
+    pub fn new(
+        layer_name: &str,
+        sublayer_name: &str,
+        sublayer_def: &str,
+        sets: &[DescSetIx],
+    ) -> Self {
+        Self {
+            layer_name: layer_name.into(),
+            sublayer_name: sublayer_name.into(),
+            sublayer_def: sublayer_def.into(),
+
+            sets: sets.to_vec(),
+        }
+    }
+}
+
 pub struct Compositor {
     window_dims: Arc<AtomicCell<[u32; 2]>>,
     pub sublayer_defs: BTreeMap<rhai::ImmutableString, SublayerDef>,
@@ -40,18 +67,37 @@ pub struct Compositor {
     pub layers: Arc<RwLock<BTreeMap<rhai::ImmutableString, Layer>>>,
     // pub(crate) layer_priority: BTreeMap<rhai::ImmutableString, (usize, bool)>,
     // pub layer: Layer,
+    sublayer_alloc_tx: crossbeam::channel::Sender<SublayerAllocMsg>,
+    sublayer_alloc_rx: crossbeam::channel::Receiver<SublayerAllocMsg>,
 }
 
 impl Compositor {
-    pub fn new_layer(&self, name: &str, depth: usize, enabled: bool) {
-        let layer = Layer {
-            sublayers: Vec::new(),
-            sublayer_order: Vec::new(),
-            sublayer_names: BTreeMap::default(),
+    pub fn allocate_sublayers(&mut self, engine: &mut VkEngine) -> Result<()> {
+        let mut layers = self.layers.write();
 
-            depth,
-            enabled: enabled.into(),
-        };
+        while let Ok(msg) = self.sublayer_alloc_rx.try_recv() {
+            if let Some(layer) = layers.get_mut(&msg.layer_name) {
+                Self::push_sublayer(
+                    &self.sublayer_defs,
+                    engine,
+                    layer,
+                    &msg.sublayer_def,
+                    &msg.sublayer_name,
+                    msg.sets,
+                )?;
+            } else {
+                log::error!(
+                    "tried to allocate sublayer for nonexistent layer `{}`",
+                    msg.layer_name
+                );
+            }
+        }
+
+        Ok(())
+    }
+
+    pub fn new_layer(&self, name: &str, depth: usize, enabled: bool) {
+        let layer = Layer::new(depth, enabled);
         self.layers.write().insert(name.into(), layer);
     }
 
@@ -115,13 +161,17 @@ sublayer `{}`, sublayer def `{}`",
         let layers = Arc::new(RwLock::new(BTreeMap::default()));
         // let layer_priority = BTreeMap::default();
 
+        let (tx, rx) = crossbeam::channel::unbounded();
+
         Ok(Self {
             window_dims: window_dims.clone(),
             sublayer_defs,
             pass,
             // layer,
             layers,
-            // layer_priority,
+
+            sublayer_alloc_tx: tx,
+            sublayer_alloc_rx: rx,
         })
     }
 
@@ -247,7 +297,7 @@ sublayer `{}`, sublayer def `{}`",
         engine: &mut VkEngine,
         layer: &mut Layer,
         def_name: &str,
-        name: &str,
+        sublayer_name: &str,
         sets: impl IntoIterator<Item = DescSetIx>,
     ) -> Result<()> {
         let def = defs.get(def_name).ok_or(anyhow!(
@@ -270,7 +320,7 @@ sublayer `{}`, sublayer def `{}`",
                 def.vertex_stride,
                 capacity,
                 usage,
-                Some(&format!("sublayer {}", def_name)),
+                Some(&format!("sublayer {}:{}", def_name, sublayer_name)),
             )?;
 
             let buf_ix = res.insert_buffer(buffer);
@@ -296,7 +346,7 @@ sublayer `{}`, sublayer def `{}`",
 
         let i = layer.sublayers.len();
 
-        let name = rhai::ImmutableString::from(name);
+        let name = rhai::ImmutableString::from(sublayer_name);
         layer.sublayer_names.insert(name.clone(), i);
         layer.sublayer_order.push(i);
         layer.sublayers.push(sublayer);
@@ -360,15 +410,35 @@ sublayer `{}`, sublayer def `{}`",
     */
 }
 
+#[derive(Clone, Default)]
 pub struct Layer {
     pub sublayers: Vec<Sublayer>,
     pub sublayer_order: Vec<usize>,
     pub sublayer_names: BTreeMap<rhai::ImmutableString, usize>,
 
     pub depth: usize,
-    pub enabled: AtomicCell<bool>,
+    pub enabled: bool,
 }
 
+impl Layer {
+    pub fn new(depth: usize, enabled: bool) -> Self {
+        Layer {
+            sublayers: Vec::new(),
+            sublayer_order: Vec::new(),
+            sublayer_names: BTreeMap::default(),
+
+            depth,
+            enabled,
+        }
+    }
+
+    pub fn get_sublayer_mut(&mut self, name: &str) -> Option<&mut Sublayer> {
+        let ix = *self.sublayer_names.get(name)?;
+        self.sublayers.get_mut(ix)
+    }
+}
+
+#[derive(Clone)]
 pub struct Sublayer {
     pub def_name: rhai::ImmutableString,
 
@@ -817,4 +887,165 @@ pub(super) fn improved_rect_sublayer(
         vert_input_info,
         None,
     )
+}
+
+pub fn create_rhai_module(
+    compositor: &Compositor,
+    // buffers: &BufferStorage,
+) -> rhai::Module {
+    let mut module: rhai::Module = rhai::exported_module!(rhai_module);
+
+    let layers = compositor.layers.clone();
+
+    module.set_native_fn(
+        "init_layer",
+        move |name: &str, depth: i64, enabled: bool| {
+            let mut layers = layers.write();
+            if layers.contains_key(name) {
+                return Ok(rhai::Dynamic::FALSE);
+            }
+
+            layers.insert(name.into(), Layer::new(depth as usize, enabled));
+
+            Ok(rhai::Dynamic::TRUE)
+        },
+    );
+
+    let alloc_tx = compositor.sublayer_alloc_tx.clone();
+
+    module.set_native_fn(
+        "allocate_rect_sublayer",
+        move |layer_name: &str, sublayer_name: &str| {
+            let msg = SublayerAllocMsg::new(
+                layer_name,
+                sublayer_name,
+                "rect-rgb",
+                &[],
+            );
+
+            if let Err(e) = alloc_tx.send(msg) {
+                Err(format!("sublayer allocation message error: {:?}", e)
+                    .into())
+            } else {
+                Ok(())
+            }
+        },
+    );
+
+    let layers = compositor.layers.clone();
+
+    module.set_native_fn(
+        "update_sublayer",
+        move |layer_name: &str, sublayer_name: &str, data: rhai::Array| {
+            let mut layers = layers.write();
+
+            let get_cast = |map: &rhai::Map, k: &str| {
+                let field = map.get(k)?;
+                field
+                    .as_float()
+                    .ok()
+                    .or(field.as_int().ok().map(|v| v as f32))
+            };
+
+            if let Some(layer) = layers.get_mut(layer_name) {
+                if let Some(sublayer) = layer.get_sublayer_mut(sublayer_name) {
+                    // let def_name = sublayer.def_name.clone();
+                    match sublayer.def_name.as_str() {
+                        "rect-rgb" => {
+                            let result = sublayer.update_vertices_array(
+                                data.into_iter().filter_map(|val| {
+                                    let map = val.try_cast::<rhai::Map>()?;
+
+                                    let mut out = [0u8; 32];
+
+                                    let x = get_cast(&map, "x")?;
+                                    let y = get_cast(&map, "y")?;
+                                    let w = get_cast(&map, "w")?;
+                                    let h = get_cast(&map, "h")?;
+
+                                    let r = get_cast(&map, "r")?;
+                                    let g = get_cast(&map, "g")?;
+                                    let b = get_cast(&map, "b")?;
+                                    let a = get_cast(&map, "a")?;
+
+                                    out[0..8]
+                                        .clone_from_slice([x, y].as_bytes());
+                                    out[8..16]
+                                        .clone_from_slice([w, h].as_bytes());
+                                    out[16..32].clone_from_slice(
+                                        [r, g, b, a].as_bytes(),
+                                    );
+
+                                    Some(out)
+                                }),
+                            );
+
+                            if let Err(e) = result {
+                                return Err(format!(
+                                    "sublayer update error: {:?}",
+                                    e
+                                )
+                                .into());
+                            } else {
+                                return Ok(());
+                            }
+                            // .map_err(|e| {
+                            //     format!("sublayer update error: {:?}", e)
+                            //         .into()
+                            // })?;
+                        }
+                        e => {
+                            return Err(format!(
+                                "unknown sublayer definition: `{}`",
+                                e
+                            )
+                            .into());
+                        }
+                    }
+
+                    //
+                }
+
+                // if let Some((sublayer
+            }
+
+            // if let Some((layer_name, layer)) = layers.remove_entry(layer_name) {
+            //     //
+
+            //     layers.insert(layer_name, layer);
+            // }
+
+            Ok(())
+        },
+    );
+
+    /*
+    module.set_native_fn(
+        "with_layer",
+        move |layer_name: &str, fn_ptr: rhai::FnPtr| {
+            let mut layers = layers.write();
+
+            if let Some((layer_name, layer)) = layers.remove_entry(layer_name) {
+                // bind layer to `this` and call fn_ptr
+
+
+
+                layers.insert(layer_name, layer);
+            }
+
+            Ok(())
+        },
+    );
+    */
+
+    // let layers = compositor.layers.clone();
+
+    module
+}
+
+#[export_module]
+pub mod rhai_module {
+
+    pub type Layer = super::Layer;
+    pub type Sublayer = super::Sublayer;
 }

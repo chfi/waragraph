@@ -154,14 +154,68 @@ fn remove_tooltip() {
 
 
 fn gui_init() {
+  let props = viewer::props;
+  props.set("time", 0.0);
   gui::set_layer_order(["main_gui"]);
   // gui::set_layer_order([]);
+
+  ui::init_layer("rhai-main", 1, true);
+  ui::allocate_rect_sublayer("rhai-main", "rects");
 }
 
 props.set("prev_slot", false);
 
+let rects = [];
+
+let s = 5.0;
+
+let cols = 160;
+let rows = 80;
+
+for col in 0..cols {
+  let x = 20.0 + col * (s + 1.0);
+
+  let r = col.to_float() / 80.0;
+
+  for row in 0..rows {
+    let y = 20.0 + row * (s + 1.0);
+
+    let b = row.to_float() / 40.0;
+
+    let rect =
+       #{ x: x, y: y,
+          w: s, h: s,
+          r: r, g: 0.0, b: b, a: 1.0 };
+
+    rects.push(rect);
+  }
+}
+
+export let gui_rects = rects;
+
 fn gui_update(dt) {
+
+
   let props = viewer::props;
+  let g_time = props.get("time");
+
+  props.update("time", || this += dt);
+
+  // ui::update
+  let pos = mouse::get_pos();
+
+  try {
+    let x = pos.x;
+    let y = pos.y;
+
+    ui::update_sublayer("rhai-main", "rects",
+                        viewer::gui_rects);
+  }
+  catch (err) {
+    // print(`UI update error: ${err}`);
+  }
+
+
 
   let pos = mouse::get_pos();
   let view = viewer::get_view();

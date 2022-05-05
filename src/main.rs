@@ -239,6 +239,12 @@ fn main() -> Result<()> {
     let mut compositor =
         Compositor::init(&mut engine, &swapchain_dims, font_desc_set)?;
 
+    {
+        let module =
+            waragraph::viewer::gui::layer::create_rhai_module(&compositor);
+        console.modules.insert("ui".into(), Arc::new(module));
+    }
+
     let color_palette = {
         let id = buffers.get_id("gradient-colorbrewer-spectral").unwrap();
         buffers.get_desc_set_ix(id).unwrap()
@@ -545,6 +551,10 @@ fn main() -> Result<()> {
             Event::MainEventsCleared => {
                 let delta_time = prev_frame.elapsed().as_secs_f32();
                 prev_frame = std::time::Instant::now();
+
+                if let Err(e) = compositor.allocate_sublayers(&mut engine) {
+                    log::error!("Compositor error: {:?}", e);
+                }
 
                 if let Err(e) = compositor.write_layers(&mut engine.resources) {
                     log::error!("Compositor error: {:?}", e);
