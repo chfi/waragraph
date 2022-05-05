@@ -239,22 +239,41 @@ fn main() -> Result<()> {
     let mut compositor =
         Compositor::init(&mut engine, &swapchain_dims, font_desc_set)?;
 
-    compositor.push_sublayer(
-        &mut engine,
-        "text",
-        Some(label_space.text_set),
-    )?;
-
     let color_palette = {
         let id = buffers.get_id("gradient-colorbrewer-spectral").unwrap();
         buffers.get_desc_set_ix(id).unwrap()
     };
 
-    compositor.push_sublayer(
-        &mut engine,
-        "rect-palette",
-        Some(color_palette),
-    )?;
+    compositor.new_layer("main", 0, true);
+
+    {
+        let mut layers = compositor.layers.write();
+        let layer = layers.get_mut("main").unwrap();
+        Compositor::push_sublayer(
+            &compositor.sublayer_defs,
+            &mut engine,
+            layer,
+            "rect-rgb",
+            "gui-rects",
+            None,
+        )?;
+
+        Compositor::push_sublayer(
+            &compositor.sublayer_defs,
+            &mut engine,
+            layer,
+            "text",
+            "gui-text",
+            Some(label_space.text_set),
+        )?;
+    }
+    // compositor.push_sublayer(
+    //     &mut engine,
+    //     "text",
+    //     Some(label_space.text_set),
+    // )?;
+
+    // compositor.push_sublayer(&mut engine, "rect-rgb", None)?;
 
     let vert_buffer = {
         let alphas = ('A'..='Z').collect::<String>();
@@ -286,6 +305,7 @@ fn main() -> Result<()> {
 
         // let labels = vec![(p0, b0, color), (p1, b1, color)];
 
+        /*
         compositor.layer.sublayers[0].update_vertices_array(
             labels.iter().map(|label| {
                 let mut out = [0u8; 8 + 8 + 16];
@@ -297,42 +317,27 @@ fn main() -> Result<()> {
         )?;
 
         let rects = [
-            ([0.0f32, 0.0, 100.0, 100.0], 8u32),
-            ([50.0, 50.0, 150.0, 150.0], 10),
+            ([0.0f32, 0.0], [100.0f32, 100.0], [1.0f32, 0.0, 0.0, 1.0]),
+            ([50.0, 50.0], [150.0, 150.0], [0.7, 0.0, 0.9, 0.5]),
         ];
 
         let mut vertices: Vec<u8> = Vec::new();
 
-        for (rect, color) in rects.iter() {
-            let &[x, y, w, h] = rect;
-
-            vertices.extend([x, y].as_bytes());
-            vertices.extend(color.as_bytes());
-
-            vertices.extend([x, y + h].as_bytes());
-            vertices.extend(color.as_bytes());
-
-            vertices.extend([x + w, y].as_bytes());
-            vertices.extend(color.as_bytes());
-
-            vertices.extend([x, y + h].as_bytes());
-            vertices.extend(color.as_bytes());
-
-            vertices.extend([x + w, y + h].as_bytes());
-            vertices.extend(color.as_bytes());
-
-            vertices.extend([x + w, y].as_bytes());
+        for (pos, size, color) in rects.iter() {
+            vertices.extend(pos.as_bytes());
+            vertices.extend(size.as_bytes());
             vertices.extend(color.as_bytes());
         }
 
-        compositor.layer.sublayers[1].update_vertices_raw(
-            &vertices,
-            rects.len() * 6,
-            1,
-        );
-        // rects.into_iter().map(|(pos, col)| {
-        //     let mut out = [0u8; 12
-        // }))?;
+        compositor.layer.sublayers[1].update_vertices_array(
+            rects.iter().map(|(pos, size, color)| {
+                let mut out = [0u8; 8 + 8 + 16];
+                out[0..8].clone_from_slice(pos.as_bytes());
+                out[8..16].clone_from_slice(size.as_bytes());
+                out[16..32].clone_from_slice(color.as_bytes());
+                out
+            }),
+        )?;
 
         compositor.layer.sublayers[0]
             .write_buffer(&mut engine.resources)
@@ -341,6 +346,7 @@ fn main() -> Result<()> {
         compositor.layer.sublayers[1]
             .write_buffer(&mut engine.resources)
             .unwrap();
+        */
 
         let buffer = waragraph::util::alloc_buffer_with(
             &mut engine,

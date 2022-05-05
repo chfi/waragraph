@@ -1,4 +1,5 @@
 use crossbeam::atomic::AtomicCell;
+use parking_lot::RwLock;
 use raving::vk::context::VkContext;
 use raving::vk::{
     BufferIx, DescSetIx, FramebufferIx, GpuResources, PipelineIx, RenderPassIx,
@@ -32,24 +33,34 @@ use rhai::plugin::*;
 
 pub struct Compositor {
     window_dims: Arc<AtomicCell<[u32; 2]>>,
-    sublayer_defs: BTreeMap<rhai::ImmutableString, SublayerDef>,
+    pub sublayer_defs: BTreeMap<rhai::ImmutableString, SublayerDef>,
 
     pub pass: RenderPassIx,
 
-    pub layer: Layer,
+    pub layers: Arc<RwLock<BTreeMap<rhai::ImmutableString, Layer>>>,
+    // pub(crate) layer_priority: BTreeMap<rhai::ImmutableString, (usize, bool)>,
+    // pub layer: Layer,
 }
 
 impl Compositor {
+    pub fn new_layer(&self, name: &str, depth: usize, enabled: bool) {
+        let layer = Layer {
+            sublayers: Vec::new(),
+            sublayer_order: Vec::new(),
+            sublayer_names: BTreeMap::default(),
+
+            depth,
+            enabled: enabled.into(),
+        };
+        self.layers.write().insert(name.into(), layer);
+    }
+
     pub fn init(
         engine: &mut VkEngine,
         window_dims: &Arc<AtomicCell<[u32; 2]>>,
         font_desc_set: DescSetIx,
     ) -> Result<Self> {
         let mut sublayer_defs = BTreeMap::default();
-
-        let mut layer = Layer {
-            sublayers: Vec::new(),
-        };
 
         let pass = engine.with_allocators(|ctx, res, alloc| {
             let format = vk::Format::R8G8B8A8_UNORM;
@@ -68,14 +79,22 @@ impl Compositor {
             sublayer_defs.insert(text_def.name.clone(), text_def);
             sublayer_defs.insert(rect_def.name.clone(), rect_def);
 
+            let rect_def = improved_rect_sublayer(ctx, res, pass)?;
+            sublayer_defs.insert(rect_def.name.clone(), rect_def);
+
             Ok(pass_ix)
         })?;
+
+        let layers = Arc::new(RwLock::new(BTreeMap::default()));
+        // let layer_priority = BTreeMap::default();
 
         Ok(Self {
             window_dims: window_dims.clone(),
             sublayer_defs,
             pass,
-            layer,
+            // layer,
+            layers,
+            // layer_priority,
         })
     }
 
@@ -125,16 +144,51 @@ impl Compositor {
 
                 device.cmd_set_scissor(cmd, 0, &scissors);
 
-                for sublayer in self.layer.sublayers.iter() {
-                    log::warn!("drawing sublayer {}", sublayer.def_name);
-                    let def =
-                        self.sublayer_defs.get(&sublayer.def_name).unwrap();
+                let sublayers = {
+                    let layers = self.layers.read();
 
-                    let vertices = sublayer.vertex_buffer;
+                    let mut layer_vec = layers
+                        .iter()
+                        .map(|(_, layer)| {
+                            (
+                                layer.depth,
+                                layer
+                                    .sublayer_order
+                                    .iter()
+                                    .map(|i| &layer.sublayers[*i]),
+                            )
+                        })
+                        .collect::<Vec<_>>();
 
-                    let sets = sublayer.sets.iter().copied();
-                    let vx_count = sublayer.vertex_count;
-                    let i_count = sublayer.instance_count;
+                    layer_vec.sort_by_key(|(depth, _)| *depth);
+
+                    layer_vec
+                        .into_iter()
+                        .flat_map(|(_, sublayer)| {
+                            sublayer.map(|sublayer| {
+                                let def_name = sublayer.def_name.clone();
+                                let vertices = sublayer.vertex_buffer;
+                                let vx_count = sublayer.vertex_count;
+                                let i_count = sublayer.instance_count;
+                                let sets = sublayer.sets.clone();
+
+                                (def_name, vertices, vx_count, i_count, sets)
+                            })
+                        })
+                        .collect::<Vec<_>>()
+
+                    // let mut layer_vec = layers.iter().collect::<Vec<_>>();
+                    // layer_vec.sort_by_key(|(_, l)| *l.depth);
+                };
+
+                for (def_name, vertices, vx_count, i_count, sets) in sublayers {
+                    log::trace!("drawing sublayer {}", def_name);
+                    let def = self.sublayer_defs.get(&def_name).unwrap();
+
+                    // let vertices = sublayer.vertex_buffer;
+                    // let sets = sublayer.sets.iter().copied();
+                    // let vx_count = sublayer.vertex_count;
+                    // let i_count = sublayer.instance_count;
 
                     def.draw(
                         vertices, vx_count, i_count, sets, extent, device, res,
@@ -149,6 +203,67 @@ impl Compositor {
         Box::new(draw)
     }
 
+    pub fn push_sublayer(
+        defs: &BTreeMap<rhai::ImmutableString, SublayerDef>,
+        engine: &mut VkEngine,
+        layer: &mut Layer,
+        def_name: &str,
+        name: &str,
+        sets: impl IntoIterator<Item = DescSetIx>,
+    ) -> Result<()> {
+        let def = defs.get(def_name).ok_or(anyhow!(
+            "could not find sublayer definition `{}`",
+            def_name
+        ))?;
+
+        let capacity = 1024 * 1024;
+
+        let vertex_buffer = engine.with_allocators(|ctx, res, alloc| {
+            let mem_loc = gpu_allocator::MemoryLocation::CpuToGpu;
+            let usage = vk::BufferUsageFlags::VERTEX_BUFFER
+                // | vk::BufferUsageFlags::STORAGE_BUFFER
+                | vk::BufferUsageFlags::TRANSFER_SRC
+                | vk::BufferUsageFlags::TRANSFER_DST;
+            let buffer = res.allocate_buffer(
+                ctx,
+                alloc,
+                mem_loc,
+                def.vertex_stride,
+                capacity,
+                usage,
+                Some(&format!("sublayer {}", def_name)),
+            )?;
+
+            let buf_ix = res.insert_buffer(buffer);
+
+            Ok(buf_ix)
+        })?;
+
+        let sublayer = Sublayer {
+            def_name: def.name.clone(),
+
+            instance_count: def.default_instance_count.unwrap_or_default(),
+            vertex_count: def.default_vertex_count.unwrap_or_default(),
+            per_instance: def.per_instance,
+
+            vertex_stride: def.vertex_stride,
+            vertex_data: Vec::new(),
+            vertex_buffer,
+
+            sets: sets.into_iter().collect(),
+        };
+
+        let i = layer.sublayers.len();
+
+        let name = rhai::ImmutableString::from(name);
+        layer.sublayer_names.insert(name.clone(), i);
+        layer.sublayer_order.push(i);
+        layer.sublayers.push(sublayer);
+
+        Ok(())
+    }
+
+    /*
     pub fn push_sublayer(
         &mut self,
         engine: &mut VkEngine,
@@ -201,11 +316,21 @@ impl Compositor {
 
         Ok(())
     }
+    */
 }
 
 pub struct Layer {
-    pub sublayers: Vec<Sublayer>,
+    sublayers: Vec<Sublayer>,
+    sublayer_order: Vec<usize>,
+    sublayer_names: BTreeMap<rhai::ImmutableString, usize>,
+
+    depth: usize,
+    enabled: AtomicCell<bool>,
 }
+
+// impl Layer {
+
+// }
 
 pub struct Sublayer {
     pub def_name: rhai::ImmutableString,
@@ -573,5 +698,76 @@ pub(super) fn text_sublayer(
         None,
         vert_input_info,
         [font_desc_set],
+    )
+}
+
+pub(super) fn improved_rect_sublayer(
+    ctx: &VkContext,
+    res: &mut GpuResources,
+    pass: vk::RenderPass,
+) -> Result<SublayerDef> {
+    let vert = res.load_shader(
+        "shaders/rect_window.vert.spv",
+        vk::ShaderStageFlags::VERTEX,
+    )?;
+    let frag = res.load_shader(
+        "shaders/rect_window.frag.spv",
+        vk::ShaderStageFlags::FRAGMENT,
+    )?;
+
+    let vert = res.insert_shader(vert);
+    let frag = res.insert_shader(frag);
+
+    let vert_binding_desc = vk::VertexInputBindingDescription::builder()
+        .binding(0)
+        .stride(std::mem::size_of::<[f32; 8]>() as u32)
+        .input_rate(vk::VertexInputRate::INSTANCE)
+        .build();
+
+    let pos_desc = vk::VertexInputAttributeDescription::builder()
+        .binding(0)
+        .location(0)
+        .format(vk::Format::R32G32_SFLOAT)
+        .offset(0)
+        .build();
+
+    let size_desc = vk::VertexInputAttributeDescription::builder()
+        .binding(0)
+        .location(1)
+        .format(vk::Format::R32G32_SFLOAT)
+        .offset(8)
+        .build();
+
+    let color_desc = vk::VertexInputAttributeDescription::builder()
+        .binding(0)
+        .location(2)
+        .format(vk::Format::R32G32B32A32_SFLOAT)
+        .offset(16)
+        .build();
+
+    let vert_binding_descs = [vert_binding_desc];
+    let vert_attr_descs = [pos_desc, size_desc, color_desc];
+
+    let vert_input_info = vk::PipelineVertexInputStateCreateInfo::builder()
+        .vertex_binding_descriptions(&vert_binding_descs)
+        .vertex_attribute_descriptions(&vert_attr_descs);
+
+    let vertex_offset = 0;
+    let vertex_stride = 32;
+
+    SublayerDef::new::<([f32; 2], [f32; 2], [f32; 4]), _>(
+        ctx,
+        res,
+        "rect-rgb",
+        vert,
+        frag,
+        pass,
+        vertex_offset,
+        vertex_stride,
+        true,
+        Some(6),
+        None,
+        vert_input_info,
+        None,
     )
 }
