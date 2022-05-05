@@ -16,12 +16,17 @@ layout (push_constant) uniform Input {
 void main() {
   uint i = gl_VertexIndex % 6;
 
-  float mult = 8.0 * 2.0;
-  // float mult = 8.0 * 4.0;
+  vec2 mult = 16.0 * vec2(1.0, 1.0);
+  // vec2 mult = 16.0 * vec2(0.8, 1.0);
+  // vec2 mult = 16.0 * vec2(1.0, 0.5);
+  // vec2 mult = 16.0 * vec2(1.0, 0.8);
 
-  float width = float(mult * text_offset.y) / inputs.window_dims.x;
-  float height = mult / inputs.window_dims.y;
+  // vec2 mult = 16.0 * vec2(1.0, 7.0 / 8.0);
+
+  float width = float(mult.x * text_offset.y) / inputs.window_dims.x;
+  float height = mult.y / inputs.window_dims.y;
   vec2 origin = (2.0 * position / inputs.window_dims) - vec2(1.0);
+
 
   if (i == 0) {
       gl_Position = vec4(origin, 0.0, 1.0);

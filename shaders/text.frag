@@ -29,11 +29,10 @@ void main() {
   uint packed_ix = char_ix / 4;
   uint packed_offset = char_ix % 4;
 
-
   vec2 tex_origin = offset_for_char(text.packed_chars[packed_ix],
                                     packed_offset);
 
-  vec2 offset = vec2(uint(i_uv.x) % 8, uint(i_uv.y));
+  vec2 offset = vec2(uint(i_uv.x) % 8 + fract(i_uv.x), i_uv.y);
 
   float r = offset.x / 8.0;
   float b = offset.y / 8.0;
@@ -42,11 +41,7 @@ void main() {
 
   vec2 char_px = (tex_origin + offset) / vec2(1024.0, 8.0);
 
-  vec4 color = texture(sampler2D(font_img, u_sampler), char_px);
+  float value = texture(sampler2D(font_img, u_sampler), char_px).r;
 
-  if (color.r < 0.5) {
-    f_color = i_color;
-  } else {
-    f_color = vec4(0.0);
-  }
+  f_color = vec4(i_color.rgb, 1.0 - value);
 }

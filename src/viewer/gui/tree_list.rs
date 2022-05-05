@@ -97,6 +97,11 @@ impl LabelSpace {
         })
     }
 
+    pub fn clear(&mut self) {
+        self.text.clear();
+        self.used_bytes = 0;
+    }
+
     pub fn write_buffer(&self, res: &mut GpuResources) -> Option<()> {
         if self.used_bytes == 0 {
             return Some(());
@@ -105,6 +110,11 @@ impl LabelSpace {
         let slice = buf.mapped_slice_mut()?;
         slice[0..self.used_bytes].clone_from_slice(&self.text);
         Some(())
+    }
+
+    pub fn insert(&mut self, text: &str) -> Result<()> {
+        self.bounds_for(text)?;
+        Ok(())
     }
 
     pub fn bounds_for(&mut self, text: &str) -> Result<(usize, usize)> {

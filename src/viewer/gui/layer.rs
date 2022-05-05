@@ -29,7 +29,38 @@ use zerocopy::{AsBytes, FromBytes};
 
 use rhai::plugin::*;
 
-pub struct SublayerDesc {
+pub struct Compositor {
+    sublayer_defs: BTreeMap<rhai::ImmutableString, SublayerDef>,
+}
+
+pub struct Layer {
+    sublayers: Vec<Sublayer>,
+}
+
+pub struct Sublayer {
+    pub def_name: rhai::ImmutableString,
+
+    vertex_stride: usize,
+    vertex_data: Vec<u8>,
+
+    vertex_buffer: BufferIx,
+}
+
+impl Sublayer {
+    pub fn write_buffer(&mut self, res: &mut GpuResources) -> Option<()> {
+        assert!(self.vertex_data.len() % self.vertex_stride == 0);
+        // if self.used_bytes == 0 {
+        //     return Some(());
+        // }
+        let buf = &mut res[self.vertex_buffer];
+        let slice = buf.mapped_slice_mut()?;
+        let len = self.vertex_data.len();
+        slice[0..len].clone_from_slice(&self.vertex_data);
+        Some(())
+    }
+}
+
+pub struct SublayerDef {
     pub name: rhai::ImmutableString,
 
     pub(super) pipeline: PipelineIx,
@@ -39,7 +70,7 @@ pub struct SublayerDesc {
     vertex_offset: usize,
 }
 
-impl SublayerDesc {
+impl SublayerDef {
     pub fn draw(
         &self,
         vertices: BufferIx,
@@ -139,7 +170,7 @@ pub(super) fn rect_palette_sublayer(
     ctx: &VkContext,
     res: &mut GpuResources,
     pass: vk::RenderPass,
-) -> Result<SublayerDesc> {
+) -> Result<SublayerDef> {
     let vert =
         res.load_shader("shaders/rect.vert.spv", vk::ShaderStageFlags::VERTEX)?;
     let frag = res.load_shader(
@@ -180,7 +211,7 @@ pub(super) fn rect_palette_sublayer(
     let vertex_offset = 12;
     let vertex_stride = 12;
 
-    SublayerDesc::new(
+    SublayerDef::new(
         ctx,
         res,
         "rect-palette",
@@ -199,7 +230,7 @@ pub(super) fn text_sublayer(
     res: &mut GpuResources,
     font_desc_set: DescSetIx,
     pass: vk::RenderPass,
-) -> Result<SublayerDesc> {
+) -> Result<SublayerDef> {
     let vert =
         res.load_shader("shaders/text.vert.spv", vk::ShaderStageFlags::VERTEX)?;
     let frag = res
@@ -245,7 +276,7 @@ pub(super) fn text_sublayer(
     let vertex_offset = 0;
     let vertex_stride = 32;
 
-    SublayerDesc::new(
+    SublayerDef::new(
         ctx,
         res,
         "text",
