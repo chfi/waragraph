@@ -267,13 +267,6 @@ fn main() -> Result<()> {
             Some(label_space.text_set),
         )?;
     }
-    // compositor.push_sublayer(
-    //     &mut engine,
-    //     "text",
-    //     Some(label_space.text_set),
-    // )?;
-
-    // compositor.push_sublayer(&mut engine, "rect-rgb", None)?;
 
     let vert_buffer = {
         let alphas = ('A'..='Z').collect::<String>();
@@ -297,6 +290,44 @@ fn main() -> Result<()> {
             })
             .collect::<Vec<_>>();
 
+        let rects = [
+            ([0.0f32, 0.0], [100.0f32, 100.0], [1.0f32, 0.0, 0.0, 1.0]),
+            ([50.0, 50.0], [150.0, 150.0], [0.7, 0.0, 0.9, 0.5]),
+        ];
+
+        compositor.with_layer("main", |layer| {
+            let rect_ix = *layer.sublayer_names.get("gui-rects").unwrap();
+            let text_ix = *layer.sublayer_names.get("gui-text").unwrap();
+
+            {
+                let sub_rect = &mut layer.sublayers[rect_ix];
+
+                sub_rect.update_vertices_array(rects.iter().map(
+                    |(pos, size, color)| {
+                        let mut out = [0u8; 8 + 8 + 16];
+                        out[0..8].clone_from_slice(pos.as_bytes());
+                        out[8..16].clone_from_slice(size.as_bytes());
+                        out[16..32].clone_from_slice(color.as_bytes());
+                        out
+                    },
+                ))?;
+            }
+
+            {
+                let sub_text = &mut layer.sublayers[text_ix];
+
+                sub_text.update_vertices_array(labels.iter().map(|label| {
+                    let mut out = [0u8; 8 + 8 + 16];
+                    out[0..8].clone_from_slice(label.0.as_bytes());
+                    out[8..16].clone_from_slice(label.1.as_bytes());
+                    out[16..32].clone_from_slice(label.2.as_bytes());
+                    out
+                }))?;
+            }
+
+            Ok(())
+        })?;
+
         // let p0 = [400.0, 300.0];
         // let b0 = [s0 as u32, l0 as u32];
 
@@ -306,20 +337,7 @@ fn main() -> Result<()> {
         // let labels = vec![(p0, b0, color), (p1, b1, color)];
 
         /*
-        compositor.layer.sublayers[0].update_vertices_array(
-            labels.iter().map(|label| {
-                let mut out = [0u8; 8 + 8 + 16];
-                out[0..8].clone_from_slice(label.0.as_bytes());
-                out[8..16].clone_from_slice(label.1.as_bytes());
-                out[16..32].clone_from_slice(label.2.as_bytes());
-                out
-            }),
-        )?;
 
-        let rects = [
-            ([0.0f32, 0.0], [100.0f32, 100.0], [1.0f32, 0.0, 0.0, 1.0]),
-            ([50.0, 50.0], [150.0, 150.0], [0.7, 0.0, 0.9, 0.5]),
-        ];
 
         let mut vertices: Vec<u8> = Vec::new();
 
@@ -527,6 +545,10 @@ fn main() -> Result<()> {
             Event::MainEventsCleared => {
                 let delta_time = prev_frame.elapsed().as_secs_f32();
                 prev_frame = std::time::Instant::now();
+
+                if let Err(e) = compositor.write_layers(&mut engine.resources) {
+                    log::error!("Compositor error: {:?}", e);
+                }
 
                 // console scope updates
                 {

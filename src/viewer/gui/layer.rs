@@ -55,6 +55,33 @@ impl Compositor {
         self.layers.write().insert(name.into(), layer);
     }
 
+    pub fn write_layers(&self, res: &mut GpuResources) -> Result<()> {
+        let mut layers = self.layers.write();
+
+        for (name, layer) in layers.iter_mut() {
+            for (sub_name, ix) in layer.sublayer_names.iter() {
+                let sublayer = layer.sublayers.get_mut(*ix).ok_or(anyhow!(
+                    "Error getting sublayer `{}` at index `{}`, in layer `{}`",
+                    sub_name,
+                    ix,
+                    name,
+                ))?;
+
+                let def_name = sublayer.def_name.clone();
+
+                sublayer.write_buffer(res).ok_or(anyhow!(
+                    "Error writing sublayer buffer in layer `{}`, \
+sublayer `{}`, sublayer def `{}`",
+                    name,
+                    sub_name,
+                    def_name
+                ))?;
+            }
+        }
+
+        Ok(())
+    }
+
     pub fn init(
         engine: &mut VkEngine,
         window_dims: &Arc<AtomicCell<[u32; 2]>>,
@@ -203,6 +230,18 @@ impl Compositor {
         Box::new(draw)
     }
 
+    pub fn with_layer<F>(&self, layer_name: &str, f: F) -> Result<()>
+    where
+        F: FnOnce(&mut Layer) -> Result<()>,
+    {
+        let mut layers = self.layers.write();
+        let layer = layers
+            .get_mut(layer_name)
+            .ok_or(anyhow!("Layer `{}` not found", layer_name))?;
+        f(layer)?;
+        Ok(())
+    }
+
     pub fn push_sublayer(
         defs: &BTreeMap<rhai::ImmutableString, SublayerDef>,
         engine: &mut VkEngine,
@@ -251,6 +290,8 @@ impl Compositor {
             vertex_buffer,
 
             sets: sets.into_iter().collect(),
+
+            need_write: false,
         };
 
         let i = layer.sublayers.len();
@@ -320,17 +361,13 @@ impl Compositor {
 }
 
 pub struct Layer {
-    sublayers: Vec<Sublayer>,
-    sublayer_order: Vec<usize>,
-    sublayer_names: BTreeMap<rhai::ImmutableString, usize>,
+    pub sublayers: Vec<Sublayer>,
+    pub sublayer_order: Vec<usize>,
+    pub sublayer_names: BTreeMap<rhai::ImmutableString, usize>,
 
-    depth: usize,
-    enabled: AtomicCell<bool>,
+    pub depth: usize,
+    pub enabled: AtomicCell<bool>,
 }
-
-// impl Layer {
-
-// }
 
 pub struct Sublayer {
     pub def_name: rhai::ImmutableString,
@@ -346,6 +383,8 @@ pub struct Sublayer {
     vertex_buffer: BufferIx,
 
     sets: Vec<DescSetIx>,
+
+    need_write: bool,
 }
 
 impl Sublayer {
@@ -368,6 +407,8 @@ impl Sublayer {
         self.vertex_data.extend_from_slice(data);
         self.vertex_count = vertex_count;
         self.instance_count = instance_count;
+
+        self.need_write = true;
     }
 
     pub fn update_vertices_array<const N: usize, I>(
@@ -385,6 +426,7 @@ impl Sublayer {
             self.vertex_data.clear();
             self.vertex_count = 0;
         }
+        self.need_write = true;
 
         for slice in new.into_iter() {
             self.vertex_data.extend_from_slice(&slice);
@@ -410,6 +452,7 @@ impl Sublayer {
             self.vertex_data.clear();
             self.vertex_count = 0;
         }
+        self.need_write = true;
 
         for slice in new.into_iter() {
             if slice.len() != self.vertex_stride {
@@ -433,12 +476,16 @@ impl Sublayer {
     }
 
     pub fn write_buffer(&mut self, res: &mut GpuResources) -> Option<()> {
+        if !self.need_write {
+            return Some(());
+        }
         assert!(self.vertex_data.len() % self.vertex_stride == 0);
 
         let buf = &mut res[self.vertex_buffer];
         let slice = buf.mapped_slice_mut()?;
         let len = self.vertex_data.len();
         slice[0..len].clone_from_slice(&self.vertex_data);
+        self.need_write = false;
         Some(())
     }
 }
