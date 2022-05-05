@@ -9,6 +9,5 @@ layout (push_constant) uniform Input {
 } inputs;
 
 void main() {
-  // f_color = vec4(0.0, 0.0, 0.0, 0.55);
   f_color = v_color;
 }

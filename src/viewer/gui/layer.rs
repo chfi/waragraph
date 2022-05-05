@@ -126,19 +126,15 @@ impl Compositor {
                 device.cmd_set_scissor(cmd, 0, &scissors);
 
                 for sublayer in self.layer.sublayers.iter() {
+                    log::warn!("drawing sublayer {}", sublayer.def_name);
                     let def =
                         self.sublayer_defs.get(&sublayer.def_name).unwrap();
 
                     let vertices = sublayer.vertex_buffer;
 
                     let sets = sublayer.sets.iter().copied();
-                    let (vx_count, i_count) = if def.name == "text" {
-                        (6, sublayer.vertex_count)
-                    } else if def.name == "rect-palette" {
-                        (sublayer.vertex_count, 1)
-                    } else {
-                        panic!("TODO");
-                    };
+                    let vx_count = sublayer.vertex_count;
+                    let i_count = sublayer.instance_count;
 
                     def.draw(
                         vertices, vx_count, i_count, sets, extent, device, res,
@@ -189,10 +185,15 @@ impl Compositor {
 
         let sublayer = Sublayer {
             def_name: def.name.clone(),
-            vertex_count: 0,
+
+            instance_count: def.default_instance_count.unwrap_or_default(),
+            vertex_count: def.default_vertex_count.unwrap_or_default(),
+            per_instance: def.per_instance,
+
             vertex_stride: def.vertex_stride,
             vertex_data: Vec::new(),
             vertex_buffer,
+
             sets: sets.into_iter().collect(),
         };
 
@@ -212,6 +213,9 @@ pub struct Sublayer {
     vertex_stride: usize,
 
     vertex_count: usize,
+    instance_count: usize,
+    per_instance: bool,
+
     vertex_data: Vec<u8>,
 
     vertex_buffer: BufferIx,
@@ -228,6 +232,19 @@ impl Sublayer {
         self.sets.extend(new_sets);
     }
 
+    pub fn update_vertices_raw(
+        &mut self,
+        data: &[u8],
+        vertex_count: usize,
+        instance_count: usize,
+    ) {
+        // assert!(data.len() % vertex_count == 0);
+        self.vertex_data.clear();
+        self.vertex_data.extend_from_slice(data);
+        self.vertex_count = vertex_count;
+        self.instance_count = instance_count;
+    }
+
     pub fn update_vertices_array<const N: usize, I>(
         &mut self,
         new: I,
@@ -236,12 +253,22 @@ impl Sublayer {
         I: IntoIterator<Item = [u8; N]>,
     {
         assert!(N == self.vertex_stride);
-        self.vertex_data.clear();
-        self.vertex_count = 0;
+        if self.per_instance {
+            self.vertex_data.clear();
+            self.instance_count = 0;
+        } else {
+            self.vertex_data.clear();
+            self.vertex_count = 0;
+        }
 
         for slice in new.into_iter() {
             self.vertex_data.extend_from_slice(&slice);
-            self.vertex_count += 1;
+
+            if self.per_instance {
+                self.instance_count += 1;
+            } else {
+                self.vertex_count += 1;
+            }
         }
 
         Ok(())
@@ -251,8 +278,13 @@ impl Sublayer {
     where
         I: IntoIterator<Item = &'a [u8]> + 'a,
     {
-        self.vertex_data.clear();
-        self.vertex_count = 0;
+        if self.per_instance {
+            self.vertex_data.clear();
+            self.instance_count = 0;
+        } else {
+            self.vertex_data.clear();
+            self.vertex_count = 0;
+        }
 
         for slice in new.into_iter() {
             if slice.len() != self.vertex_stride {
@@ -264,7 +296,12 @@ impl Sublayer {
             }
 
             self.vertex_data.extend_from_slice(slice);
-            self.vertex_count += 1;
+
+            if self.per_instance {
+                self.instance_count += 1;
+            } else {
+                self.vertex_count += 1;
+            }
         }
 
         Ok(())
@@ -288,7 +325,11 @@ pub struct SublayerDef {
     pub(super) sets: Vec<DescSetIx>,
     pub(super) vertex_stride: usize,
 
+    per_instance: bool,
+
     vertex_offset: usize,
+    default_vertex_count: Option<usize>,
+    default_instance_count: Option<usize>,
 
     elem_type: std::any::TypeId,
 }
@@ -367,6 +408,9 @@ impl SublayerDef {
         pass: vk::RenderPass,
         vertex_offset: usize,
         vertex_stride: usize,
+        per_instance: bool,
+        default_vertex_count: Option<usize>,
+        default_instance_count: Option<usize>,
         vert_input_info: vk::PipelineVertexInputStateCreateInfoBuilder<'a>,
         sets: S,
     ) -> Result<Self>
@@ -390,6 +434,10 @@ impl SublayerDef {
             sets: sets.into_iter().collect(),
             vertex_stride,
             vertex_offset,
+            per_instance,
+
+            default_vertex_count,
+            default_instance_count,
 
             elem_type: std::any::TypeId::of::<T>(),
         })
@@ -450,6 +498,9 @@ pub(super) fn rect_palette_sublayer(
         pass,
         vertex_offset,
         vertex_stride,
+        false,
+        None,
+        Some(1),
         vert_input_info,
         None,
     )
@@ -515,6 +566,9 @@ pub(super) fn text_sublayer(
         pass,
         vertex_offset,
         vertex_stride,
+        true,
+        Some(6),
+        None,
         vert_input_info,
         [font_desc_set],
     )

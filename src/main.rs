@@ -245,6 +245,17 @@ fn main() -> Result<()> {
         Some(label_space.text_set),
     )?;
 
+    let color_palette = {
+        let id = buffers.get_id("gradient-colorbrewer-spectral").unwrap();
+        buffers.get_desc_set_ix(id).unwrap()
+    };
+
+    compositor.push_sublayer(
+        &mut engine,
+        "rect-palette",
+        Some(color_palette),
+    )?;
+
     let vert_buffer = {
         let alphas = ('A'..='Z').collect::<String>();
         let (s0, l0) = label_space.bounds_for(&alphas)?;
@@ -285,7 +296,49 @@ fn main() -> Result<()> {
             }),
         )?;
 
+        let rects = [
+            ([0.0f32, 0.0, 100.0, 100.0], 8u32),
+            ([50.0, 50.0, 150.0, 150.0], 10),
+        ];
+
+        let mut vertices: Vec<u8> = Vec::new();
+
+        for (rect, color) in rects.iter() {
+            let &[x, y, w, h] = rect;
+
+            vertices.extend([x, y].as_bytes());
+            vertices.extend(color.as_bytes());
+
+            vertices.extend([x, y + h].as_bytes());
+            vertices.extend(color.as_bytes());
+
+            vertices.extend([x + w, y].as_bytes());
+            vertices.extend(color.as_bytes());
+
+            vertices.extend([x, y + h].as_bytes());
+            vertices.extend(color.as_bytes());
+
+            vertices.extend([x + w, y + h].as_bytes());
+            vertices.extend(color.as_bytes());
+
+            vertices.extend([x + w, y].as_bytes());
+            vertices.extend(color.as_bytes());
+        }
+
+        compositor.layer.sublayers[1].update_vertices_raw(
+            &vertices,
+            rects.len() * 6,
+            1,
+        );
+        // rects.into_iter().map(|(pos, col)| {
+        //     let mut out = [0u8; 12
+        // }))?;
+
         compositor.layer.sublayers[0]
+            .write_buffer(&mut engine.resources)
+            .unwrap();
+
+        compositor.layer.sublayers[1]
             .write_buffer(&mut engine.resources)
             .unwrap();
 
