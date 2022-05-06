@@ -33,6 +33,8 @@ use zerocopy::{AsBytes, FromBytes};
 
 use arboard::Clipboard;
 
+use rand::prelude::*;
+
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum Modes {
     PathViewer,
@@ -333,15 +335,17 @@ fn main() -> Result<()> {
             log::error!("gui on init eval error!! {:?}", e);
         }
     }
+    let mut rng = rand::thread_rng();
 
     let mut label_layout = {
         let bed_path = "A-3105.test2.bed";
 
-        let script = r#"
+        let script = format!(
+            r#"
             // let p = graph::get_path("gi|568815592");
             // let n = graph::node(41);
             let g = graph::get_graph();
-            let bed = slot::load_bed_file(g, "A-3105.test2.bed");
+            let bed = slot::load_bed_file(g, "{}");
             let ds_name = slot::create_data_source(bed);
             let ds = slot::get_data_source(ds_name);
             let fn_name = "bed_slot_fn";
@@ -349,47 +353,21 @@ fn main() -> Result<()> {
             slot::set_slot_color_scheme(fn_name, "gradient-colorbrewer-spectral");
             cfg.set("viz.slot_function", fn_name);
 cfg.set("viz.secondary", fn_name);
-"#;
+"#,
+            bed_path
+        );
 
-        // for line in input {
-        //     log::warn!("evaluating `{}`", line);
-        match console.eval(&db, &buffers, script) {
-            Ok(v) => {
-                // log::warn!("success: {:?}", v);
-            }
+        match console.eval(&db, &buffers, &script) {
+            Ok(v) => {}
             Err(e) => {
                 log::error!("console error {:?}", e);
             }
         }
-        // }
 
         let bed = console
             .scope
             .get_value::<Arc<AnnotationSet>>("bed")
             .unwrap();
-
-        // let mut path_node_labels: BTreeMap<Path, BTreeMap<Node, (usize, usize)>> = BTreeMap::default();
-
-        // let node_label_map = graph.
-        // for
-
-        // let path =
-
-        /*
-        let path = graph.path_index(b"gi|528476637").unwrap();
-
-        let path_labels = graph
-            .path_nodes
-            .get(path.ix())
-            .unwrap()
-            .iter()
-            .filter_map(|i| {
-                let node = Node::from(i);
-                let recs = bed.path_node_records(path, node)?;
-                // let rec = bed.path_records(path)
-                todo!();
-            });
-        */
 
         log::debug!("SCOPE: {:#?}", console.scope);
 
@@ -399,13 +377,37 @@ cfg.set("viz.secondary", fn_name);
             for text in strings.iter() {
                 labels.insert(text.as_str())?;
             }
+
+            let path = graph.path_index(b"gi|157734152").unwrap();
+            // let path = graph.path_index(b"gi|568815592").unwrap();
+
+            // let p = graph::get_path("gi|568815592");
+            // graph.path_nodes
+            let max_x = graph.total_len() as f32;
+
+            let iter = graph.path_nodes[path.ix()].iter().filter_map(|n| {
+                let node = Node::from(n);
+
+                let x_p = graph.node_sum_lens[n as usize];
+                let x = 800.0 * ((x_p as f32) / max_x);
+                let y = 400.0 + rng.gen_range(-40.0..40.0);
+
+                let records = bed.path_node_records(path, node)?;
+
+                let ri = records.select(0)?;
+
+                let text = strings.get(ri as usize)?;
+
+                Some((text.as_str(), x, y))
+            });
+
             log::warn!("loaded {} bed labels", strings.len());
             LabelLayout::from_iter(
                 &mut engine,
                 &mut compositor,
                 800.0,
                 600.0,
-                strings.iter().map(|s| (s.as_str(), 400.0, 300.0)),
+                iter, // strings.iter().map(|s| (s.as_str(), 400.0, 300.0)),
             )
         } else {
             LabelLayout::from_iter(
@@ -416,13 +418,11 @@ cfg.set("viz.secondary", fn_name);
                 [],
             )
         }?;
-        // let row_label_bounds =
 
         label_layout
     };
-    let mut rng = rand::thread_rng();
 
-    label_layout.randomize_pos_radial(&mut rng);
+    // label_layout.randomize_pos_radial(&mut rng);
 
     //
     let _update_threads = (0..4)
@@ -481,8 +481,13 @@ cfg.set("viz.secondary", fn_name);
                 layout_update_since += delta_time;
 
                 if layout_update_since > 0.05 {
-                    label_layout.step(layout_update_since);
-                    label_layout.update_layer(&mut compositor).unwrap();
+                    let [width, _] = swapchain_dims.load();
+
+                    let [offset, width] = viewer.slot_x_offsets(width);
+
+                    label_layout.step(width, layout_update_since);
+
+                    label_layout.update_layer(&mut compositor, offset).unwrap();
 
                     layout_update_since = 0.0;
                 }

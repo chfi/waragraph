@@ -838,6 +838,32 @@ impl ViewerSys {
         count.min(path_count)
     }
 
+    pub fn slot_x_offsets(&self, win_width: u32) -> [f32; 2] {
+        let map = self.config.map.read();
+
+        let padding = map.get("layout.padding").unwrap().clone_cast::<i64>();
+        let slot = map.get("layout.slot").unwrap().clone_cast::<rhai::Map>();
+        let label = map.get("layout.label").unwrap().clone_cast::<rhai::Map>();
+
+        let get_cast = |m: &rhai::Map, k| m.get(k).unwrap().clone_cast::<i64>();
+
+        let label_x = get_cast(&label, "x");
+
+        let name_len = get_cast(&map, "layout.max_path_name_len");
+
+        let w = get_cast(&slot, "w");
+
+        let slot_x = get_cast(&slot, "x") + label_x + padding + name_len * 8;
+
+        let slot_w = if w < 0 {
+            (win_width as i64) + w - slot_x
+        } else {
+            w
+        };
+
+        [slot_x as f32, slot_w as f32]
+    }
+
     fn update_labels_impl(
         config: &ConfigMap,
         labels: &LabelStorage,

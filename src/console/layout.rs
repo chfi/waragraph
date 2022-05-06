@@ -46,14 +46,19 @@ use lazy_static::lazy_static;
 
 use rand::prelude::*;
 
+use nalgebra::{point, vector, Point2, Vector2};
+
+pub type Pos2 = Point2<f32>;
+pub type Vec2 = Vector2<f32>;
+
 pub struct LabelLayout {
     pub label_space: LabelSpace,
     labels: Vec<(usize, usize)>,
 
-    label_pos: Vec<[f32; 2]>,
-    label_size: Vec<[f32; 2]>,
+    label_pos: Vec<Pos2>,
+    label_size: Vec<Vec2>,
 
-    label_vel: Vec<[f32; 2]>,
+    label_vel: Vec<Vec2>,
 
     layout_width: f32,
     layout_height: f32,
@@ -67,7 +72,11 @@ pub struct LabelLayout {
 }
 
 impl LabelLayout {
-    pub fn step(&mut self, dt: f32) {
+    pub fn step(&mut self, width: f32, dt: f32) {
+        let x_mult = width / self.layout_width;
+
+        self.layout_width = width;
+
         let x0 = self.layout_width / 2.0;
         let y0 = self.layout_height / 2.0;
 
@@ -75,16 +84,80 @@ impl LabelLayout {
 
         let t = self.t;
 
-        for (pos, vel) in
-            self.label_pos.iter_mut().zip(self.label_vel.iter_mut())
+        let mut forces = vec![0.0f32; self.label_pos.len()];
+
+        for ((ix, pos), size) in
+            self.label_pos.iter().enumerate().zip(&self.label_size)
         {
-            let [x, y] = *pos;
-            let [mut dx, mut dy] = *vel;
+            let at_top = pos[1] == y0;
+            let mut ddy = 0.0;
 
-            dy += t.cos();
+            let a_l = pos.x;
+            let a_u = pos.y;
+            let a_r = a_l + size.x;
+            let a_d = a_u + size.y;
 
-            *pos = [x + dx, y + dy];
-            *vel = [dx, dy];
+            for ((i_ix, other), other_size) in self
+                .label_pos
+                .iter()
+                .enumerate()
+                .zip(&self.label_size)
+                .skip(ix)
+            {
+                if i_ix == ix {
+                    continue;
+                }
+
+                let b_l = other.x;
+                let b_u = other.y;
+                let b_r = b_l + other_size.x;
+                let b_d = b_u + other_size.y;
+
+                let collides = a_l < b_r && a_r > b_l && a_u < b_d && a_d > b_u;
+
+                if !collides {
+                    continue;
+                }
+
+                let a_mid = a_u + 4.0;
+                let b_mid = b_u + 4.0;
+
+                let v = (a_mid - b_mid).abs();
+
+                ddy += v;
+            }
+
+            if at_top {
+                ddy = 0.0;
+            }
+
+            forces[ix] = ddy;
+        }
+
+        for ((pos, vel), acc) in self
+            .label_pos
+            .iter_mut()
+            .zip(self.label_vel.iter_mut())
+            .zip(forces)
+        {
+            let mut x = pos.x;
+            let y = pos.y;
+            let dx = vel.x;
+            let mut dy = vel.y;
+            // let [dx, mut dy] = *vel;
+
+            // dy += t.cos();
+            // dy += acc;
+            dy += acc;
+            dy *= dt * 0.98;
+            // x = x_offset ;
+            x *= x_mult;
+
+            *vel = vector![dx, dy];
+            *pos = point![x + dx, y + dy];
+            // *pos = [x + dx, y + dy];
+            // *vel = vector![d
+            // *vel = [dx, dy];
         }
     }
 
@@ -102,7 +175,7 @@ impl LabelLayout {
 
             let x = origin[0] + mag * angle.cos();
             let y = origin[1] + mag * angle.sin();
-            *pos = [x, y];
+            *pos = point![x, y];
         }
     }
 
@@ -127,9 +200,11 @@ impl LabelLayout {
         for (text, x, y) in labels.into_iter() {
             let (s, l) = label_space.bounds_for_insert(text)?;
 
-            let pos = [x, y];
-            let vel = [0.0f32; 2];
-            let size = [8.0 * l as f32, 8.0];
+            let w = 8.0 * l as f32;
+
+            let pos = point![x - w / 2.0, y];
+            let vel = vector![0.0f32, 0.0];
+            let size = vector![8.0 * l as f32, 8.0];
             labels_vec.push((s, l));
             label_pos.push(pos);
             label_vel.push(vel);
@@ -162,7 +237,7 @@ impl LabelLayout {
             )?;
 
             Ok(())
-        });
+        })?;
 
         Ok(Self {
             label_space,
@@ -186,7 +261,11 @@ impl LabelLayout {
         // let mut result = LabelLayout
     }
 
-    pub fn update_layer(&mut self, compositor: &mut Compositor) -> Result<()> {
+    pub fn update_layer(
+        &mut self,
+        compositor: &mut Compositor,
+        slot_offset: f32,
+    ) -> Result<()> {
         compositor.with_layer(&self.layer_name, |layer| {
             if let Some(sublayer) = layer.get_sublayer_mut(&self.sublayer_text)
             {
@@ -196,7 +275,9 @@ impl LabelLayout {
 
                         let color = [0.0f32, 0.0, 0.0, 1.0];
                         let mut out = [0u8; 8 + 8 + 16];
-                        out[0..8].clone_from_slice(pos.as_bytes());
+                        out[0..8].clone_from_slice(
+                            [slot_offset + pos.x, pos.y].as_bytes(),
+                        );
                         out[8..16]
                             .clone_from_slice([s as u32, l as u32].as_bytes());
                         out[16..32].clone_from_slice(color.as_bytes());
