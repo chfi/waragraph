@@ -201,6 +201,8 @@ impl TreeList {
                 bg[16..32]
                     .clone_from_slice([0.85f32, 0.85, 0.85, 1.0].as_bytes());
 
+                sublayer.update_vertices_array_range(0..1, [bg])?;
+
                 sublayer.update_vertices_array(Some(bg).into_iter().chain(
                     self.list.iter().enumerate().map(|(i, (s, v))| {
                         let color = if i % 2 == 0 {

@@ -483,6 +483,79 @@ impl Sublayer {
         self.need_write = true;
     }
 
+    /// Overwrites the vertices in the given range with the values
+    /// from the iterator.
+    ///
+    /// If the iterator produces fewer values than elements in
+    /// `range`, the remaining vertices aren't updated; if more values
+    /// are produced, they are discarded.
+    pub fn update_vertices_array_range<const N: usize, I>(
+        &mut self,
+        range: std::ops::Range<usize>,
+        new: I,
+    ) -> Result<()>
+    where
+        I: IntoIterator<Item = [u8; N]>,
+    {
+        assert!(N == self.vertex_stride);
+
+        let bytes_len = range.end * self.vertex_stride;
+        self.vertex_data.resize(bytes_len, 0);
+        if self.per_instance {
+            self.instance_count = range.end;
+        } else {
+            self.vertex_count = range.end;
+        }
+        self.need_write = true;
+
+        let bytes_range = (range.start * N)..(range.end * N);
+
+        for (src, dst) in new
+            .into_iter()
+            .zip(self.vertex_data[bytes_range].chunks_exact_mut(N))
+        {
+            dst.clone_from_slice(&src);
+        }
+
+        Ok(())
+    }
+
+    /// overwrites the vertices after the provided offset with the
+    /// vertices from the given iterator
+    pub fn update_vertices_array_offset<const N: usize, I, J>(
+        &mut self,
+        offset: usize,
+        new: I,
+    ) -> Result<()>
+    where
+        I: IntoIterator<IntoIter = J>,
+        J: ExactSizeIterator + Iterator<Item = [u8; N]>,
+    {
+        assert!(N == self.vertex_stride);
+
+        let start_byte = offset * N;
+
+        self.vertex_data.truncate(start_byte);
+        if self.per_instance {
+            self.instance_count = offset;
+        } else {
+            self.vertex_count = offset;
+        }
+        self.need_write = true;
+
+        for slice in new.into_iter() {
+            self.vertex_data.extend_from_slice(&slice);
+
+            if self.per_instance {
+                self.instance_count += 1;
+            } else {
+                self.vertex_count += 1;
+            }
+        }
+
+        Ok(())
+    }
+
     pub fn update_vertices_array<const N: usize, I>(
         &mut self,
         new: I,
