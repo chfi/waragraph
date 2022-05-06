@@ -31,6 +31,8 @@ use zerocopy::{AsBytes, FromBytes};
 
 use rhai::plugin::*;
 
+use super::tree_list::LabelSpace;
+
 #[derive(Clone)]
 pub struct SublayerAllocMsg {
     layer_name: rhai::ImmutableString,
@@ -936,6 +938,74 @@ pub fn create_rhai_module(
 
     module.set_native_fn(
         "update_sublayer",
+        move |label_space: &mut Arc<RwLock<LabelSpace>>,
+              layer_name: &str,
+              sublayer_name: &str,
+              labels: rhai::Array| {
+            let mut layers = layers.write();
+
+            if let Some(layer) = layers.get_mut(layer_name) {
+                if let Some(sublayer) = layer.get_sublayer_mut(sublayer_name) {
+                    // let def_name = sublayer.def_name.clone();
+                    match sublayer.def_name.as_str() {
+                        "text" => {
+                            let vertices =
+                                super::tree_list::rhai_module::label_rects(
+                                    label_space,
+                                    labels,
+                                )?;
+
+                            let result =
+                                sublayer.update_vertices_array(vertices);
+                            /*
+                            let result = sublayer.update_vertices_array(
+                                data.into_iter().filter_map(|val| {
+
+                                    Some(out)
+                                }),
+                            );
+                            */
+
+                            if let Err(e) = result {
+                                return Err(format!(
+                                    "sublayer update error: {:?}",
+                                    e
+                                )
+                                .into());
+                            } else {
+                                return Ok(());
+                            }
+                            // .map_err(|e| {
+                            //     format!("sublayer update error: {:?}", e)
+                            //         .into()
+                            // })?;
+                        }
+                        e => {
+                            return Err(format!(
+                                "expected `text` sublayer type: `{}`",
+                                e
+                            )
+                            .into());
+                        } // "text" => {
+                          //     // let rects = data
+                          //     // let result = sublayer.update_vertices_array(new)
+                          // }
+                    }
+
+                    //
+                }
+
+                // if let Some((sublayer
+            }
+
+            Ok(())
+        },
+    );
+
+    let layers = compositor.layers.clone();
+
+    module.set_native_fn(
+        "update_sublayer",
         move |layer_name: &str, sublayer_name: &str, data: rhai::Array| {
             let mut layers = layers.write();
 
@@ -1000,7 +1070,10 @@ pub fn create_rhai_module(
                                 e
                             )
                             .into());
-                        }
+                        } // "text" => {
+                          //     // let rects = data
+                          //     // let result = sublayer.update_vertices_array(new)
+                          // }
                     }
 
                     //

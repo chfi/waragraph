@@ -168,5 +168,82 @@ impl TreeList {
 pub mod rhai_module {
     use parking_lot::RwLock;
 
+    use crate::console::EvalResult;
+
     pub type LabelSpace = Arc<RwLock<super::LabelSpace>>;
+
+    /*
+    #[rhai_fn(global)]
+    pub fn bounds_for(
+        labels: &mut LabelSpace,
+        text: rhai::ImmutableString,
+    ) -> EvalResult<std::ops::Range<i64>> {
+        // let mut space = labels.write();
+        todo!();
+    }
+    */
+
+    #[rhai_fn(global, return_raw)]
+    pub fn label_rects(
+        label_space: &mut LabelSpace,
+        labels: rhai::Array,
+    ) -> EvalResult<Vec<[u8; 4 * 8]>> {
+        let mut space = label_space.write();
+
+        let mut result = Vec::with_capacity(labels.len());
+
+        let get_f32 = |map: &rhai::Map, k: &str| -> EvalResult<f32> {
+            map.get(k).and_then(|v| v.as_float().ok()).ok_or_else(|| {
+                format!("map key `{}` must be a float", k).into()
+            })
+        };
+
+        for label in labels {
+            let mut map = label
+                .try_cast::<rhai::Map>()
+                .ok_or("array elements must be maps")?;
+
+            let x = get_f32(&map, "x")?;
+            let y = get_f32(&map, "y")?;
+
+            let color = [
+                get_f32(&map, "r")?,
+                get_f32(&map, "g")?,
+                get_f32(&map, "b")?,
+                get_f32(&map, "a")?,
+            ];
+
+            let text = map
+                .remove("contents")
+                .and_then(|v| v.into_string().ok())
+                .ok_or("`contents` key must be a string")?;
+
+            let (s, l) = space.bounds_for_insert(&text).unwrap();
+
+            let mut vertex = [0u8; 4 * 8];
+            vertex[0..8].clone_from_slice([x, y].as_bytes());
+            vertex[8..16].clone_from_slice([s as u32, l as u32].as_bytes());
+            vertex[16..32].clone_from_slice(color.as_bytes());
+            result.push(vertex);
+        }
+
+        Ok(result)
+    }
+
+    #[rhai_fn(global, return_raw)]
+    pub fn batch_upload_labels(
+        labels: &mut LabelSpace,
+        texts: rhai::Array,
+    ) -> EvalResult<()> {
+        let mut space = labels.write();
+
+        for text in texts {
+            let text = text.into_immutable_string()?;
+            if let Err(e) = space.insert(&text) {
+                return Err(format!("LabelSpace batch error: {:?}", e).into());
+            }
+        }
+
+        Ok(())
+    }
 }

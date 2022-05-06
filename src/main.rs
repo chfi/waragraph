@@ -224,8 +224,12 @@ fn main() -> Result<()> {
         buffers.get_desc_set_ix(id).unwrap()
     };
 
-    let mut label_space =
-        LabelSpace::new(&mut engine, "test-labels", 1024 * 1024)?;
+    let label_space = LabelSpace::new(&mut engine, "test-labels", 1024 * 1024)?;
+
+    let label_space = Arc::new(RwLock::new(label_space));
+    console
+        .scope
+        .push_constant("label_space", label_space.clone());
 
     let mut gui_layer = GuiLayer::new(
         &mut engine,
