@@ -66,7 +66,7 @@ pub struct ViewerSys {
     pub slot_rhai_module: Arc<rhai::Module>,
 
     // pub annotations: BTreeMap<rhai::ImmutableString, Arc<AnnotationSet>>,
-    annotations:
+    pub annotations:
         Arc<RwLock<BTreeMap<rhai::ImmutableString, Arc<AnnotationSet>>>>,
 }
 

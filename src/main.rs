@@ -3,6 +3,7 @@ use gfa::gfa::GFA;
 use parking_lot::{Mutex, RwLock};
 use raving::script::console::frame::Resolvable;
 use raving::vk::{DescSetIx, VkEngine, WindowResources};
+use waragraph::console::data::{AnnotationSet, BedColumn};
 use waragraph::console::{Console, ConsoleInput};
 
 use ash::vk;
@@ -451,35 +452,48 @@ fn main() -> Result<()> {
         }
     }
 
-    /*
     {
-        let mut input = Vec::new();
-        input.extend([
-            "let p = graph::get_path(\"gi|568815592\");",
-            "let n = graph::node(41);",
-            "let g = graph::get_graph();",
-            "let s = slot::load_bed_file(g, \"A-3105.test2.bed\");",
-            "let ds_name = slot::create_data_source(s);",
-            "let ds = slot::get_data_source(ds_name);",
-            "let fn_name = \"bed_slot_fn\";",
-            "let slot_fn = slot::new_slot_fn_from_data_source(ds_name, fn_name);",
-            "slot::set_slot_color_scheme(fn_name, \"gradient-colorbrewer-spectral\");",
-            "cfg.set(\"viz.slot_function\", fn_name);",
-        ]);
+        let bed_path = "A-3105.test2.bed";
 
-        for line in input {
-            log::warn!("evaluating `{}`", line);
-            match console.eval(&db, &buffers, line) {
-                Ok(v) => {
-                    // log::warn!("success: {:?}", v);
-                }
-                Err(e) => {
-                    log::error!("console error {:?}", e);
-                }
+        let script = r#"
+            // let p = graph::get_path("gi|568815592");
+            // let n = graph::node(41);
+            let g = graph::get_graph();
+            let bed = slot::load_bed_file(g, "A-3105.test2.bed");
+            let ds_name = slot::create_data_source(bed);
+            let ds = slot::get_data_source(ds_name);
+            let fn_name = "bed_slot_fn";
+            let slot_fn = slot::new_slot_fn_from_data_source(ds_name, fn_name);
+            slot::set_slot_color_scheme(fn_name, "gradient-colorbrewer-spectral");
+            cfg.set("viz.slot_function", fn_name);
+cfg.set("viz.secondary", fn_name);
+"#;
+
+        // for line in input {
+        //     log::warn!("evaluating `{}`", line);
+        match console.eval(&db, &buffers, script) {
+            Ok(v) => {
+                // log::warn!("success: {:?}", v);
+            }
+            Err(e) => {
+                log::error!("console error {:?}", e);
             }
         }
+        // }
+
+        let bed = console
+            .scope
+            .get_value::<Arc<AnnotationSet>>("bed")
+            .unwrap();
+
+        log::debug!("SCOPE: {:#?}", console.scope);
+
+        if let BedColumn::String(strings) = &bed.columns[0] {
+            log::warn!("loaded {} bed labels", strings.len());
+        }
+
+        // let row_label_bounds =
     }
-    */
 
     //
     let _update_threads = (0..4)

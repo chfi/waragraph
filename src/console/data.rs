@@ -85,7 +85,7 @@ pub struct AnnotationSet {
     // path_record_nodes: FxHashMap<Path, BTreeMap<usize, roaring::RoaringBitmap>>,
     // columns: Vec<Vec<
     column_headers: FxHashMap<rhai::ImmutableString, usize>,
-    columns: Vec<BedColumn>,
+    pub columns: Vec<BedColumn>,
 }
 
 impl AnnotationSet {

@@ -88,16 +88,22 @@ bind_key(key::Tab, |pressed| {
   }
 });
 
-const primary = "loop_count_mean";
+
+cfg.set("viz.primary", "loop_count_mean");
+cfg.set("viz.secondary", "path_position");
+// const primary = "loop_count_mean";
 // const primary = "node_id";
 // const primary = "has_node";
 
 // const secondary = "has_node";
 // const secondary = "node_id";
 // const secondary = "node_length";
-const secondary = "path_position";
+// const secondary = "path_position";
 
 bind_key(key::F1, |pressed| {
+  let cfg = viewer::cfg;
+  let primary = cfg.get("viz.primary");
+  let secondary = cfg.get("viz.secondary");
   if pressed {
     cfg.update("viz.slot_function", || {
       if this == primary {
