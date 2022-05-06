@@ -442,7 +442,7 @@ fn main() -> Result<()> {
 
     let (slot_tx, slot_rx) = crossbeam::channel::unbounded::<SlotMsg>();
 
-    match console.eval(&db, &buffers, "viewer::gui_init()") {
+    match console.eval(&db, &buffers, "viewer::gui_init(label_space)") {
         Ok(v) => {
             log::warn!("success: {:?}", v);
         }
@@ -535,6 +535,11 @@ fn main() -> Result<()> {
                 let delta_time = prev_frame.elapsed().as_secs_f32();
                 prev_frame = std::time::Instant::now();
 
+                {
+                    let mut labels = label_space.write();
+                    let _ = labels.write_buffer(&mut engine.resources);
+                }
+
                 if let Err(e) = compositor.allocate_sublayers(&mut engine) {
                     log::error!("Compositor error: {:?}", e);
                 }
@@ -550,7 +555,11 @@ fn main() -> Result<()> {
                         .set_value("dt", rhai::Dynamic::from_float(delta_time));
                 }
 
-                match console.eval(&db, &buffers, "viewer::gui_update(dt)") {
+                match console.eval(
+                    &db,
+                    &buffers,
+                    "viewer::gui_update(label_space, dt)",
+                ) {
                     Ok(v) => {
                         // log::warn!("success: {:?}", v);
                     }

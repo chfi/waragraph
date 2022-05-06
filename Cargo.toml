@@ -47,7 +47,7 @@ crossbeam = "0.8"
 parking_lot = "0.11.1"
 # poll-promise = "0.1"
 
-rhai = { version = "1.6", features = ["sync", "f32_float", "internals"] }
+rhai = { version = "1.7", features = ["sync", "f32_float", "internals"] }
 arboard = "2.1"
 
 bytemuck = { version = "1.7", features = ["derive"] }

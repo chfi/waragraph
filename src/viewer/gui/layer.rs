@@ -934,6 +934,31 @@ pub fn create_rhai_module(
         },
     );
 
+    let alloc_tx = compositor.sublayer_alloc_tx.clone();
+
+    module.set_native_fn(
+        "allocate_text_sublayer",
+        move |label_space: &mut Arc<RwLock<LabelSpace>>,
+              layer_name: &str,
+              sublayer_name: &str| {
+            let text_set = label_space.read().text_set;
+
+            let msg = SublayerAllocMsg::new(
+                layer_name,
+                sublayer_name,
+                "text",
+                &[text_set],
+            );
+
+            if let Err(e) = alloc_tx.send(msg) {
+                Err(format!("sublayer allocation message error: {:?}", e)
+                    .into())
+            } else {
+                Ok(())
+            }
+        },
+    );
+
     let layers = compositor.layers.clone();
 
     module.set_native_fn(

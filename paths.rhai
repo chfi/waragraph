@@ -153,7 +153,7 @@ fn remove_tooltip() {
 
 
 
-fn gui_init() {
+fn gui_init(label_space) {
   let props = viewer::props;
   props.set("time", 0.0);
   gui::set_layer_order(["main_gui"]);
@@ -161,6 +161,7 @@ fn gui_init() {
 
   ui::init_layer("rhai-main", 1, true);
   ui::allocate_rect_sublayer("rhai-main", "sidebar");
+  ui::allocate_text_sublayer(label_space, "rhai-main", "sidebar-labels");
 }
 
 props.set("prev_slot", false);
@@ -209,7 +210,7 @@ fn append_rect(x, y, w, h, color) {
                r: color.r, g: color.g, b: color.b, a: color.a });
 }
 
-fn gui_update(dt) {
+fn gui_update(label_space, dt) {
 
 
   let props = viewer::props;
@@ -231,6 +232,22 @@ fn gui_update(dt) {
     sidebar_rects.call(f, x, y, 32.0, 32.0, rgb(1.0, 0.0, 0.0));
 
     ui::update_sublayer("rhai-main", "sidebar", sidebar_rects);
+
+    // let append_label = |x, y, text| {
+    // };
+
+    let label = #{ x: x, y: y,
+                   r: 0.0, g: 0.0, b: 0.0, a: 1.0,
+                   contents: "hello world" };
+
+    let label_2 = label;
+    label_2.x += 32.0;
+    label_2.y += 16.0;
+    label_2.contents = "whoa!";
+
+    let sidebar_labels = [label, label_2];
+
+    ui::update_sublayer(label_space, "rhai-main", "sidebar-labels", sidebar_labels);
   }
   catch (err) {
     print(`UI update error: ${err}`);
