@@ -1126,15 +1126,12 @@ impl ViewerSys {
         window_resources: &WindowResources,
         graph: &Waragraph,
         compositor: &Compositor,
-        gui: &GuiSys,
-        vert_buffer: BufferIx,
     ) -> Result<bool> {
         let f_ix = engine.current_frame_number();
 
         let frame = &mut self.frame_resources[f_ix % raving::vk::FRAME_OVERLAP];
 
         let [width, height] = window_resources.dims();
-        // let size = window.inner_size();
 
         let mut label_sets = Vec::new();
         let mut desc_sets = Vec::new();
@@ -1230,56 +1227,7 @@ impl ViewerSys {
         let out_framebuffer =
             *window_resources.indices.framebuffers.get("out").unwrap();
 
-        let font_desc_set = {
-            let font_desc_set =
-                self.frame.module.get_var("font_desc_set").unwrap();
-            // log::error!("font_desc_set: {:?}", font_desc_set.type_name());
-
-            let r = font_desc_set.cast::<Resolvable<DescSetIx>>();
-            r.get().unwrap()
-        };
-
-        let gui_batch_fn =
-            gui.draw(out_framebuffer, extent, vert_buffer, font_desc_set);
-
         let comp_batch_fn = compositor.draw(out_framebuffer, extent);
-
-        let mut gui_label_sets = Vec::new();
-
-        for layer_name in gui.layer_order.read().iter() {
-            if let Some(layer) = gui.layers.read().get(layer_name) {
-                layer
-                    .labels
-                    .values()
-                    .filter_map(|label| {
-                        let id = label.is_visible().then(|| label.label_id)?;
-                        let map = gui.labels.create_label_rhai_map(id).ok()?;
-                        Some(rhai::Dynamic::from_map(map))
-                    })
-                    .for_each(|map| gui_label_sets.push(map));
-            }
-        }
-
-        let batch_builder = BatchBuilder::default();
-        let mut builder = rhai::Dynamic::from(batch_builder);
-
-        self.engine
-            .call_fn_raw(
-                &mut rhai::Scope::default(),
-                &self.frame.ast,
-                false,
-                true,
-                "draw_labels",
-                Some(&mut builder),
-                [
-                    rhai::Dynamic::from_int(width as i64),
-                    rhai::Dynamic::from_int(height as i64),
-                    rhai::Dynamic::from_array(gui_label_sets),
-                ],
-            )
-            .unwrap();
-
-        let gui_labels_batch_fn = builder.cast::<BatchBuilder>().build();
 
         let fg_batch = Box::new(
             move |dev: &Device,
@@ -1288,17 +1236,7 @@ impl ViewerSys {
                   cmd: vk::CommandBuffer| {
                 fg_batch_fn(dev, res, cmd);
                 labels_batch_fn(dev, res, cmd);
-                // gui_batch_fn(dev, res, cmd);
                 comp_batch_fn(dev, res, cmd);
-            },
-        ) as Box<_>;
-
-        let gui_text_batch = Box::new(
-            move |dev: &Device,
-                  res: &GpuResources,
-                  _input: &BatchInput,
-                  cmd: vk::CommandBuffer| {
-                gui_labels_batch_fn(dev, res, cmd);
             },
         ) as Box<_>;
 
@@ -1353,7 +1291,7 @@ impl ViewerSys {
             },
         ) as Box<_>;
 
-        let batches = [&fg_batch, &gui_text_batch, &copy_swapchain_batch];
+        let batches = [&fg_batch, &copy_swapchain_batch];
 
         let deps = vec![
             None,
@@ -1362,15 +1300,10 @@ impl ViewerSys {
                 vk::PipelineStageFlags::COMPUTE_SHADER
                     | vk::PipelineStageFlags::ALL_GRAPHICS,
             )]),
-            Some(vec![(
-                1,
-                vk::PipelineStageFlags::COMPUTE_SHADER
-                    | vk::PipelineStageFlags::ALL_GRAPHICS,
-            )]),
         ];
 
         let result =
-            engine.draw_from_batches(frame, &batches, deps.as_slice(), 2)?;
+            engine.draw_from_batches(frame, &batches, deps.as_slice(), 1)?;
 
         Ok(result)
     }

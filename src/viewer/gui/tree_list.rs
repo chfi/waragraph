@@ -113,11 +113,15 @@ impl LabelSpace {
     }
 
     pub fn insert(&mut self, text: &str) -> Result<()> {
-        self.bounds_for(text)?;
+        self.bounds_for_insert(text)?;
         Ok(())
     }
 
-    pub fn bounds_for(&mut self, text: &str) -> Result<(usize, usize)> {
+    pub fn bounds_for(&self, text: &str) -> Option<(usize, usize)> {
+        self.offsets.get(text).copied()
+    }
+
+    pub fn bounds_for_insert(&mut self, text: &str) -> Result<(usize, usize)> {
         if let Some(bounds) = self.offsets.get(text) {
             return Ok(*bounds);
         }
@@ -162,5 +166,7 @@ impl TreeList {
 
 #[export_module]
 pub mod rhai_module {
-    //
+    use parking_lot::RwLock;
+
+    pub type LabelSpace = Arc<RwLock<super::LabelSpace>>;
 }

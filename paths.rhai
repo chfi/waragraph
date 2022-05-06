@@ -160,11 +160,12 @@ fn gui_init() {
   // gui::set_layer_order([]);
 
   ui::init_layer("rhai-main", 1, true);
-  ui::allocate_rect_sublayer("rhai-main", "rects");
+  ui::allocate_rect_sublayer("rhai-main", "sidebar");
 }
 
 props.set("prev_slot", false);
 
+/*
 let rects = [];
 
 let s = 5.0;
@@ -192,6 +193,21 @@ for col in 0..cols {
 }
 
 export let gui_rects = rects;
+*/
+
+fn rgb(r, g, b) {
+#{ r: r, g: g, b: b, a: 1.0 }
+}
+
+// fn rgba(r, g, b, a) {
+// #{ r: r, g: g, b: b, a: 1.0 }
+// }
+
+fn append_rect(x, y, w, h, color) {
+  this.push(#{ x: x, y: y,
+               w: w, h: h,
+               r: color.r, g: color.g, b: color.b, a: color.a });
+}
 
 fn gui_update(dt) {
 
@@ -208,11 +224,16 @@ fn gui_update(dt) {
     let x = pos.x;
     let y = pos.y;
 
-    ui::update_sublayer("rhai-main", "rects",
-                        viewer::gui_rects);
+    let f = Fn("append_rect");
+
+    let sidebar_rects = [];
+
+    sidebar_rects.call(f, x, y, 32.0, 32.0, rgb(1.0, 0.0, 0.0));
+
+    ui::update_sublayer("rhai-main", "sidebar", sidebar_rects);
   }
   catch (err) {
-    // print(`UI update error: ${err}`);
+    print(`UI update error: ${err}`);
   }
 
 

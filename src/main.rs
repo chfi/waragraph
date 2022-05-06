@@ -250,30 +250,8 @@ fn main() -> Result<()> {
         buffers.get_desc_set_ix(id).unwrap()
     };
 
+    /*
     compositor.new_layer("main", 0, true);
-
-    {
-        let mut layers = compositor.layers.write();
-        let layer = layers.get_mut("main").unwrap();
-        Compositor::push_sublayer(
-            &compositor.sublayer_defs,
-            &mut engine,
-            layer,
-            "rect-rgb",
-            "gui-rects",
-            None,
-        )?;
-
-        Compositor::push_sublayer(
-            &compositor.sublayer_defs,
-            &mut engine,
-            layer,
-            "text",
-            "gui-text",
-            Some(label_space.text_set),
-        )?;
-    }
-
     let vert_buffer = {
         let alphas = ('A'..='Z').collect::<String>();
         let (s0, l0) = label_space.bounds_for(&alphas)?;
@@ -403,6 +381,7 @@ fn main() -> Result<()> {
         // gui_layer.rects
         buffer
     };
+    */
 
     let mut gui_tooltip_layer = GuiLayer::new(
         &mut engine,
@@ -745,8 +724,6 @@ fn main() -> Result<()> {
                                 &window_resources,
                                 &graph,
                                 &compositor,
-                                &gui_sys,
-                                vert_buffer,
                             )
                             .unwrap(),
                         Modes::Graph3D => todo!(),
