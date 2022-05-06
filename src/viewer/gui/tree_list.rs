@@ -33,6 +33,8 @@ use zerocopy::{AsBytes, FromBytes};
 
 use rhai::plugin::*;
 
+use super::layer::Compositor;
+
 #[derive(Clone)]
 pub struct LabelSpace {
     name: rhai::ImmutableString,
@@ -145,22 +147,132 @@ impl LabelSpace {
 }
 
 pub struct TreeList {
-    // list: Vec<rhai::ImmutableString>,
-    list: Vec<rhai::Dynamic>,
+    // list: Vec<rhai::Dynamic>,
+    pub list: Vec<(String, usize)>,
 
-    rects: super::RectVertices,
-    // labels:
+    pub label_space: LabelSpace,
 
-    // layers: Vec<Vec<()>>,
-    text_buffers: Vec<BufferIx>,
-    text_sets: Vec<DescSetIx>,
+    layer_name: rhai::ImmutableString,
 
-    rhai_module: Arc<rhai::Module>,
+    sublayer_rect: rhai::ImmutableString,
+    sublayer_text: rhai::ImmutableString,
+    // rhai_module: Arc<rhai::Module>,
 }
 
 impl TreeList {
-    pub fn new(engine: &mut VkEngine) -> Result<Self> {
-        todo!();
+    pub fn update_layer(&mut self, compositor: &mut Compositor) -> Result<()> {
+        compositor.with_layer(&self.layer_name, |layer| {
+            let mut max_label_len = 0;
+
+            if let Some(sublayer) = layer.get_sublayer_mut(&self.sublayer_text)
+            {
+                sublayer.update_vertices_array(
+                    self.list.iter().enumerate().map(|(i, (text, v))| {
+                        max_label_len = max_label_len.max(text.len());
+
+                        let (s, l) =
+                            self.label_space.bounds_for_insert(text).unwrap();
+
+                        let h = 10.0;
+
+                        let x = 100.0f32;
+                        let y = 101.0 + h * i as f32;
+
+                        let color = [0.0f32, 0.0, 0.0, 1.0];
+
+                        let mut out = [0u8; 8 + 8 + 16];
+                        out[0..8].clone_from_slice([x, y].as_bytes());
+                        out[8..16]
+                            .clone_from_slice([s as u32, l as u32].as_bytes());
+                        out[16..32].clone_from_slice(color.as_bytes());
+                        out
+                    }),
+                )?;
+            }
+
+            if let Some(sublayer) = layer.get_sublayer_mut(&self.sublayer_rect)
+            {
+                let w = 4.0 + 8.0 * max_label_len as f32;
+                let h = 4.0 + 8.0 * self.list.len() as f32;
+
+                let mut bg = [0u8; 8 + 8 + 16];
+                bg[0..8].clone_from_slice([98.0f32, 99.0].as_bytes());
+                bg[8..16].clone_from_slice([w, h].as_bytes());
+                bg[16..32]
+                    .clone_from_slice([0.85f32, 0.85, 0.85, 1.0].as_bytes());
+
+                sublayer.update_vertices_array(Some(bg).into_iter().chain(
+                    self.list.iter().enumerate().map(|(i, (s, v))| {
+                        let color = if i % 2 == 0 {
+                            [0.85f32, 0.85, 0.85, 1.0]
+                        } else {
+                            [0.75f32, 0.75, 0.75, 1.0]
+                        };
+
+                        let h = 10.0;
+
+                        let x = 98.0f32;
+                        let y = 100.0 + h * i as f32;
+
+                        let mut out = [0u8; 32];
+                        out[0..8].clone_from_slice([x, y].as_bytes());
+                        out[8..16].clone_from_slice([w, h].as_bytes());
+                        out[16..32].clone_from_slice(color.as_bytes());
+                        out
+                    }),
+                ))?;
+            }
+
+            Ok(())
+        })?;
+
+        Ok(())
+    }
+
+    pub fn new(
+        engine: &mut VkEngine,
+        compositor: &mut Compositor,
+    ) -> Result<Self> {
+        let label_space =
+            LabelSpace::new(engine, "tree-list-labels", 4 * 1024 * 1024)?;
+
+        let layer_name = "tree-list-layer";
+        let rect_name = "tree-list:rect";
+        let text_name = "tree-list:text";
+
+        compositor.new_layer(layer_name, 1, true);
+
+        compositor.with_layer(layer_name, |layer| {
+            Compositor::push_sublayer(
+                &compositor.sublayer_defs,
+                engine,
+                layer,
+                "rect-rgb",
+                rect_name,
+                None,
+            )?;
+
+            Compositor::push_sublayer(
+                &compositor.sublayer_defs,
+                engine,
+                layer,
+                "text",
+                text_name,
+                [label_space.text_set],
+            )?;
+
+            Ok(())
+        });
+
+        Ok(Self {
+            list: Vec::new(),
+            label_space,
+
+            layer_name: layer_name.into(),
+
+            sublayer_rect: rect_name.into(),
+            sublayer_text: text_name.into(),
+        })
     }
 }
 

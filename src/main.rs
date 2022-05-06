@@ -15,7 +15,7 @@ use waragraph::graph::{Node, Path, Waragraph};
 use waragraph::util::{BufferStorage, LabelStorage};
 use waragraph::viewer::app::ViewerSys;
 use waragraph::viewer::gui::layer::Compositor;
-use waragraph::viewer::gui::tree_list::LabelSpace;
+use waragraph::viewer::gui::tree_list::{LabelSpace, TreeList};
 use waragraph::viewer::gui::{GuiLayer, GuiSys, LabelMsg, RectVertices};
 use waragraph::viewer::{SlotRenderers, SlotUpdateFn, ViewDiscrete1D};
 use winit::event::{Event, VirtualKeyCode, WindowEvent};
@@ -243,6 +243,19 @@ fn main() -> Result<()> {
 
     let mut compositor =
         Compositor::init(&mut engine, &swapchain_dims, font_desc_set)?;
+
+    let mut tree_list = TreeList::new(&mut engine, &mut compositor)?;
+
+    for i in 0..20 {
+        let text = format!("row - {}", i);
+        tree_list.list.push((text, i));
+    }
+
+    tree_list.update_layer(&mut compositor)?;
+    tree_list
+        .label_space
+        .write_buffer(&mut engine.resources)
+        .unwrap();
 
     {
         let module =
@@ -486,9 +499,37 @@ cfg.set("viz.secondary", fn_name);
             .get_value::<Arc<AnnotationSet>>("bed")
             .unwrap();
 
+        // let mut path_node_labels: BTreeMap<Path, BTreeMap<Node, (usize, usize)>> = BTreeMap::default();
+
+        // let node_label_map = graph.
+        // for
+
+        // let path =
+
+        /*
+        let path = graph.path_index(b"gi|528476637").unwrap();
+
+        let path_labels = graph
+            .path_nodes
+            .get(path.ix())
+            .unwrap()
+            .iter()
+            .filter_map(|i| {
+                let node = Node::from(i);
+                let recs = bed.path_node_records(path, node)?;
+                // let rec = bed.path_records(path)
+                todo!();
+            });
+        */
+
         log::debug!("SCOPE: {:#?}", console.scope);
 
         if let BedColumn::String(strings) = &bed.columns[0] {
+            let mut labels = label_space.write();
+
+            for text in strings.iter() {
+                labels.insert(text.as_str())?;
+            }
             log::warn!("loaded {} bed labels", strings.len());
         }
 
