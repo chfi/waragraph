@@ -34,14 +34,14 @@ use bstr::ByteSlice as BstrByteSlice;
 use crate::{
     graph::{Node, Path, Waragraph},
     util::{BufFmt, BufId, BufMeta, BufferStorage, LabelStorage},
-    viewer::{DataSource, SlotFnCache, ViewDiscrete1D},
+    viewer::{
+        gui::tree_list::LabelSpace, DataSource, SlotFnCache, ViewDiscrete1D,
+    },
 };
 
 use rhai::plugin::*;
 
 use lazy_static::lazy_static;
-
-use self::rhai_module::DataSourceF32;
 
 #[derive(Clone)]
 pub enum BedColumn {

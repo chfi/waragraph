@@ -147,6 +147,8 @@ impl LabelSpace {
 }
 
 pub struct TreeList {
+    pub offset: Arc<AtomicCell<[f32; 2]>>,
+
     // list: Vec<rhai::Dynamic>,
     pub list: Vec<(String, usize)>,
 
@@ -161,6 +163,8 @@ pub struct TreeList {
 
 impl TreeList {
     pub fn update_layer(&mut self, compositor: &mut Compositor) -> Result<()> {
+        let [x0, y0] = self.offset.load();
+
         compositor.with_layer(&self.layer_name, |layer| {
             let mut max_label_len = 0;
 
@@ -175,8 +179,8 @@ impl TreeList {
 
                         let h = 10.0;
 
-                        let x = 100.0f32;
-                        let y = 101.0 + h * i as f32;
+                        let x = x0;
+                        let y = y0 + h * i as f32;
 
                         let color = [0.0f32, 0.0, 0.0, 1.0];
 
@@ -196,7 +200,7 @@ impl TreeList {
                 let h = 4.0 + 8.0 * self.list.len() as f32;
 
                 let mut bg = [0u8; 8 + 8 + 16];
-                bg[0..8].clone_from_slice([98.0f32, 99.0].as_bytes());
+                bg[0..8].clone_from_slice([x0, y0].as_bytes());
                 bg[8..16].clone_from_slice([w, h].as_bytes());
                 bg[16..32]
                     .clone_from_slice([0.85f32, 0.85, 0.85, 1.0].as_bytes());
@@ -213,8 +217,8 @@ impl TreeList {
 
                         let h = 10.0;
 
-                        let x = 98.0f32;
-                        let y = 100.0 + h * i as f32;
+                        let x = x0;
+                        let y = y0 + h * i as f32;
 
                         let mut out = [0u8; 32];
                         out[0..8].clone_from_slice([x, y].as_bytes());
@@ -234,6 +238,8 @@ impl TreeList {
     pub fn new(
         engine: &mut VkEngine,
         compositor: &mut Compositor,
+        x: f32,
+        y: f32,
     ) -> Result<Self> {
         let label_space =
             LabelSpace::new(engine, "tree-list-labels", 4 * 1024 * 1024)?;
@@ -241,6 +247,8 @@ impl TreeList {
         let layer_name = "tree-list-layer";
         let rect_name = "tree-list:rect";
         let text_name = "tree-list:text";
+
+        let offset = Arc::new(AtomicCell::new([x, y]));
 
         compositor.new_layer(layer_name, 1, true);
 
@@ -267,6 +275,8 @@ impl TreeList {
         });
 
         Ok(Self {
+            offset,
+
             list: Vec::new(),
             label_space,
 

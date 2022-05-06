@@ -34,6 +34,7 @@ use crate::{
 use lazy_static::lazy_static;
 
 pub mod data;
+pub mod layout;
 pub mod math;
 pub mod view;
 

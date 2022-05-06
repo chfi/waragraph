@@ -4,6 +4,7 @@ use parking_lot::{Mutex, RwLock};
 use raving::script::console::frame::Resolvable;
 use raving::vk::{DescSetIx, VkEngine, WindowResources};
 use waragraph::console::data::{AnnotationSet, BedColumn};
+use waragraph::console::layout::LabelLayout;
 use waragraph::console::{Console, ConsoleInput};
 
 use ash::vk;
@@ -244,7 +245,8 @@ fn main() -> Result<()> {
     let mut compositor =
         Compositor::init(&mut engine, &swapchain_dims, font_desc_set)?;
 
-    let mut tree_list = TreeList::new(&mut engine, &mut compositor)?;
+    let mut tree_list =
+        TreeList::new(&mut engine, &mut compositor, 100.0, 100.0)?;
 
     for i in 0..20 {
         let text = format!("row - {}", i);
@@ -267,139 +269,6 @@ fn main() -> Result<()> {
         let id = buffers.get_id("gradient-colorbrewer-spectral").unwrap();
         buffers.get_desc_set_ix(id).unwrap()
     };
-
-    /*
-    compositor.new_layer("main", 0, true);
-    let vert_buffer = {
-        let alphas = ('A'..='Z').collect::<String>();
-        let (s0, l0) = label_space.bounds_for(&alphas)?;
-        // let (s0, l0) = label_space.bounds_for("this is a label")?;
-        let (s1, l1) = label_space.bounds_for("whoaa!!!")?;
-
-        let bounds = [(s0, l0), (s1, l1)];
-        let buffer_set = label_space.text_set;
-
-        let color = [0.0, 0.0, 0.0, 1.0];
-
-        let labels = (0..10)
-            .map(|i| {
-                let x = 50.0 + (i as f32) * 32.0;
-                let y = 30.0 + (i as f32) * 32.0;
-
-                let (s, l) = bounds[i % 2];
-
-                ([x, y], [s as u32, l as u32], color)
-            })
-            .collect::<Vec<_>>();
-
-        let rects = [
-            ([0.0f32, 0.0], [100.0f32, 100.0], [1.0f32, 0.0, 0.0, 1.0]),
-            ([50.0, 50.0], [150.0, 150.0], [0.7, 0.0, 0.9, 0.5]),
-        ];
-
-        compositor.with_layer("main", |layer| {
-            let rect_ix = *layer.sublayer_names.get("gui-rects").unwrap();
-            let text_ix = *layer.sublayer_names.get("gui-text").unwrap();
-
-            {
-                let sub_rect = &mut layer.sublayers[rect_ix];
-
-                sub_rect.update_vertices_array(rects.iter().map(
-                    |(pos, size, color)| {
-                        let mut out = [0u8; 8 + 8 + 16];
-                        out[0..8].clone_from_slice(pos.as_bytes());
-                        out[8..16].clone_from_slice(size.as_bytes());
-                        out[16..32].clone_from_slice(color.as_bytes());
-                        out
-                    },
-                ))?;
-            }
-
-            {
-                let sub_text = &mut layer.sublayers[text_ix];
-
-                sub_text.update_vertices_array(labels.iter().map(|label| {
-                    let mut out = [0u8; 8 + 8 + 16];
-                    out[0..8].clone_from_slice(label.0.as_bytes());
-                    out[8..16].clone_from_slice(label.1.as_bytes());
-                    out[16..32].clone_from_slice(label.2.as_bytes());
-                    out
-                }))?;
-            }
-
-            Ok(())
-        })?;
-
-        // let p0 = [400.0, 300.0];
-        // let b0 = [s0 as u32, l0 as u32];
-
-        // let p1 = [0.0, 100.0];
-        // let b1 = [s1 as u32, l1 as u32];
-
-        // let labels = vec![(p0, b0, color), (p1, b1, color)];
-
-        /*
-
-
-        let mut vertices: Vec<u8> = Vec::new();
-
-        for (pos, size, color) in rects.iter() {
-            vertices.extend(pos.as_bytes());
-            vertices.extend(size.as_bytes());
-            vertices.extend(color.as_bytes());
-        }
-
-        compositor.layer.sublayers[1].update_vertices_array(
-            rects.iter().map(|(pos, size, color)| {
-                let mut out = [0u8; 8 + 8 + 16];
-                out[0..8].clone_from_slice(pos.as_bytes());
-                out[8..16].clone_from_slice(size.as_bytes());
-                out[16..32].clone_from_slice(color.as_bytes());
-                out
-            }),
-        )?;
-
-        compositor.layer.sublayers[0]
-            .write_buffer(&mut engine.resources)
-            .unwrap();
-
-        compositor.layer.sublayers[1]
-            .write_buffer(&mut engine.resources)
-            .unwrap();
-        */
-
-        let buffer = waragraph::util::alloc_buffer_with(
-            &mut engine,
-            Some("label vertex buffer"),
-            vk::BufferUsageFlags::VERTEX_BUFFER
-                | vk::BufferUsageFlags::STORAGE_BUFFER
-                | vk::BufferUsageFlags::TRANSFER_SRC
-                | vk::BufferUsageFlags::TRANSFER_DST,
-            false,
-            0..labels.len(),
-            |i| {
-                let label = labels[i];
-
-                let mut out = [0u8; 8 + 8 + 16];
-
-                out[0..8].clone_from_slice(label.0.as_bytes());
-                out[8..16].clone_from_slice(label.1.as_bytes());
-                out[16..32].clone_from_slice(label.2.as_bytes());
-
-                log::error!("{}: {:?}", i, out);
-
-                out
-            },
-        )?;
-
-        label_space.write_buffer(&mut engine.resources).unwrap();
-
-        gui_layer.rects = RectVertices::Text { buffer_set, labels };
-
-        // gui_layer.rects
-        buffer
-    };
-    */
 
     let mut gui_tooltip_layer = GuiLayer::new(
         &mut engine,
@@ -465,7 +334,7 @@ fn main() -> Result<()> {
         }
     }
 
-    {
+    let mut label_layout = {
         let bed_path = "A-3105.test2.bed";
 
         let script = r#"
@@ -524,17 +393,36 @@ cfg.set("viz.secondary", fn_name);
 
         log::debug!("SCOPE: {:#?}", console.scope);
 
-        if let BedColumn::String(strings) = &bed.columns[0] {
+        let label_layout = if let BedColumn::String(strings) = &bed.columns[0] {
             let mut labels = label_space.write();
 
             for text in strings.iter() {
                 labels.insert(text.as_str())?;
             }
             log::warn!("loaded {} bed labels", strings.len());
-        }
-
+            LabelLayout::from_iter(
+                &mut engine,
+                &mut compositor,
+                800.0,
+                600.0,
+                strings.iter().map(|s| (s.as_str(), 400.0, 300.0)),
+            )
+        } else {
+            LabelLayout::from_iter(
+                &mut engine,
+                &mut compositor,
+                800.0,
+                600.0,
+                [],
+            )
+        }?;
         // let row_label_bounds =
-    }
+
+        label_layout
+    };
+    let mut rng = rand::thread_rng();
+
+    label_layout.randomize_pos_radial(&mut rng);
 
     //
     let _update_threads = (0..4)
@@ -582,15 +470,29 @@ cfg.set("viz.secondary", fn_name);
         })?;
     }
 
+    let mut layout_update_since = 0.0;
+
     event_loop.run(move |event, _, control_flow| {
         *control_flow = winit::event_loop::ControlFlow::Poll;
 
         match event {
             Event::MainEventsCleared => {
                 let delta_time = prev_frame.elapsed().as_secs_f32();
+                layout_update_since += delta_time;
+
+                if layout_update_since > 0.05 {
+                    label_layout.step(layout_update_since);
+                    label_layout.update_layer(&mut compositor).unwrap();
+
+                    layout_update_since = 0.0;
+                }
+
                 prev_frame = std::time::Instant::now();
 
                 {
+                    let _ = label_layout
+                        .label_space
+                        .write_buffer(&mut engine.resources);
                     let mut labels = label_space.write();
                     let _ = labels.write_buffer(&mut engine.resources);
                 }
