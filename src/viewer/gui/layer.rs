@@ -816,7 +816,7 @@ pub(super) fn rect_palette_sublayer(
     let ix_desc = vk::VertexInputAttributeDescription::builder()
         .binding(0)
         .location(1)
-        .format(vk::Format::R32_SFLOAT)
+        .format(vk::Format::R32_UINT)
         .offset(8)
         .build();
 

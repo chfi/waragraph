@@ -419,8 +419,46 @@ impl GuiSys {
 
                 let pass = res[pass_ix];
 
-                let pipeline_ix =
-                    res.create_graphics_pipeline_tmp(ctx, vx, fx, pass)?;
+                let pipeline_ix = {
+                    let vert_binding_desc =
+                        vk::VertexInputBindingDescription::builder()
+                            .binding(0)
+                            .stride(std::mem::size_of::<[f32; 8]>() as u32)
+                            .input_rate(vk::VertexInputRate::INSTANCE)
+                            .build();
+
+                    let pos_desc =
+                        vk::VertexInputAttributeDescription::builder()
+                            .binding(0)
+                            .location(0)
+                            .format(vk::Format::R32G32_SFLOAT)
+                            .offset(0)
+                            .build();
+
+                    let ix_desc =
+                        vk::VertexInputAttributeDescription::builder()
+                            .binding(0)
+                            .location(1)
+                            .format(vk::Format::R32_UINT)
+                            .offset(8)
+                            .build();
+
+                    let vert_binding_descs = [vert_binding_desc];
+                    let vert_attr_descs = [pos_desc, ix_desc];
+
+                    let vert_input_info =
+                        vk::PipelineVertexInputStateCreateInfo::builder()
+                            .vertex_binding_descriptions(&vert_binding_descs)
+                            .vertex_attribute_descriptions(&vert_attr_descs);
+
+                    res.create_graphics_pipeline(
+                        ctx,
+                        vx,
+                        fx,
+                        pass,
+                        vert_input_info,
+                    )
+                }?;
 
                 let vert = res.load_shader(
                     "shaders/text.vert.spv",
