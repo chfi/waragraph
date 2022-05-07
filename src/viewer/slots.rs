@@ -189,14 +189,14 @@ impl SlotFnCache {
             let l_val = l_val as usize;
             let r_val = r_val as usize;
 
-            let mut val = r_val - l_val;
+            let mut val = r_val.checked_sub(l_val).unwrap_or_default();
 
             // add the left chunk of the right node
             val += r_offset * r_node_val;
             // remove the left chunk of the left node
             val = val.checked_sub(l_offset * l_node_val).unwrap_or_default();
 
-            len -= l_offset;
+            len = len.checked_sub(l_offset).unwrap_or_default();
             len += r_offset;
 
             let avg = val as f32 / len as f32;
@@ -525,7 +525,7 @@ impl SlotRenderers {
             // remove the left chunk of the left node
             val = val.checked_sub(l_offset * l_node_val).unwrap_or_default();
 
-            len -= l_offset;
+            len = len.checked_sub(l_offset).unwrap_or_default();
             len += r_offset;
 
             let avg = val as f32 / len as f32;

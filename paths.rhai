@@ -163,11 +163,12 @@ fn gui_init(label_space) {
   let props = viewer::props;
   props.set("time", 0.0);
   gui::set_layer_order(["main_gui"]);
-  // gui::set_layer_order([]);
 
   ui::init_layer("rhai-main", 1, true);
   ui::allocate_rect_sublayer("rhai-main", "sidebar");
   ui::allocate_text_sublayer(label_space, "rhai-main", "sidebar-labels");
+
+  ui::toggle_layer("tree-list-layer", false);
 }
 
 props.set("prev_slot", false);

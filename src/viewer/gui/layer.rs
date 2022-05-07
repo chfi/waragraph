@@ -228,14 +228,18 @@ sublayer `{}`, sublayer def `{}`",
 
                     let mut layer_vec = layers
                         .iter()
-                        .map(|(_, layer)| {
-                            (
-                                layer.depth,
-                                layer
-                                    .sublayer_order
-                                    .iter()
-                                    .map(|i| &layer.sublayers[*i]),
-                            )
+                        .filter_map(|(_, layer)| {
+                            if layer.enabled {
+                                Some((
+                                    layer.depth,
+                                    layer
+                                        .sublayer_order
+                                        .iter()
+                                        .map(|i| &layer.sublayers[*i]),
+                                ))
+                            } else {
+                                None
+                            }
                         })
                         .collect::<Vec<_>>();
 
@@ -1057,6 +1061,20 @@ pub fn create_rhai_module(
             } else {
                 Ok(())
             }
+        },
+    );
+
+    let layers = compositor.layers.clone();
+    module.set_native_fn(
+        "toggle_layer",
+        move |layer_name: &str, enabled: bool| {
+            let mut layers = layers.write();
+            if let Some(layer) = layers.get_mut(layer_name) {
+                layer.enabled = enabled;
+                return Ok(layer.enabled);
+            }
+
+            Ok(false)
         },
     );
 

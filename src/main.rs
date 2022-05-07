@@ -352,8 +352,8 @@ fn main() -> Result<()> {
                 let fn_name = "bed_slot_fn";
                 let slot_fn = slot::new_slot_fn_from_data_source(ds_name, fn_name);
                 slot::set_slot_color_scheme(fn_name, "gradient-colorbrewer-spectral");
-                cfg.set("viz.slot_function", fn_name);
-    cfg.set("viz.secondary", fn_name);
+                // cfg.set("viz.slot_function", fn_name);
+    // cfg.set("viz.secondary", fn_name);
     "#,
                 bed_path
             );
@@ -362,68 +362,68 @@ fn main() -> Result<()> {
                 Ok(v) => {}
                 Err(e) => {
                     log::error!("console error {:?}", e);
-                }
-            }
-
-            let bed = console
-                .scope
-                .get_value::<Arc<AnnotationSet>>("bed")
-                .unwrap();
-
-            log::debug!("SCOPE: {:#?}", console.scope);
-
-            let label_layout = if let BedColumn::String(strings) = &bed.columns[0] {
-                let mut labels = label_space.write();
-
-                for text in strings.iter() {
-                    labels.insert(text.as_str())?;
+    >>>>>>> Stashed changes
                 }
 
-                let path = graph.path_index(b"gi|157734152").unwrap();
-                // let path = graph.path_index(b"gi|568815592").unwrap();
+                let bed = console
+                    .scope
+                    .get_value::<Arc<AnnotationSet>>("bed")
+                    .unwrap();
 
-                // let p = graph::get_path("gi|568815592");
-                // graph.path_nodes
-                let max_x = graph.total_len() as f32;
+                log::debug!("SCOPE: {:#?}", console.scope);
 
-                let iter = graph.path_nodes[path.ix()].iter().filter_map(|n| {
-                    let node = Node::from(n);
+                let label_layout = if let BedColumn::String(strings) = &bed.columns[0] {
+                    let mut labels = label_space.write();
 
-                    let x_p = graph.node_sum_lens[n as usize];
-                    let x = (x_p as f32) / max_x;
-                    // let x = 800.0 * ((x_p as f32) / max_x);
-                    let y = 250.0 + rng.gen_range(0.0..80.0);
+                    for text in strings.iter() {
+                        labels.insert(text.as_str())?;
+                    }
 
-                    let records = bed.path_node_records(path, node)?;
+                    let path = graph.path_index(b"gi|157734152").unwrap();
+                    // let path = graph.path_index(b"gi|568815592").unwrap();
 
-                    let ri = records.select(0)?;
+                    // let p = graph::get_path("gi|568815592");
+                    // graph.path_nodes
+                    let max_x = graph.total_len() as f32;
 
-                    let text = strings.get(ri as usize)?;
+                    let iter = graph.path_nodes[path.ix()].iter().filter_map(|n| {
+                        let node = Node::from(n);
 
-                    Some((text.as_str(), x, y))
-                });
+                        let x_p = graph.node_sum_lens[n as usize];
+                        let x = (x_p as f32) / max_x;
+                        // let x = 800.0 * ((x_p as f32) / max_x);
+                        let y = 250.0 + rng.gen_range(0.0..80.0);
 
-                log::warn!("loaded {} bed labels", strings.len());
-                LabelLayout::from_iter(
-                    &mut engine,
-                    &mut compositor,
-                    800.0,
-                    600.0,
-                    iter, // strings.iter().map(|s| (s.as_str(), 400.0, 300.0)),
-                )
-            } else {
-                LabelLayout::from_iter(
-                    &mut engine,
-                    &mut compositor,
-                    800.0,
-                    600.0,
-                    [],
-                )
-            }?;
+                        let records = bed.path_node_records(path, node)?;
 
-            label_layout
-        };
-        */
+                        let ri = records.select(0)?;
+
+                        let text = strings.get(ri as usize)?;
+
+                        Some((text.as_str(), x, y))
+                    });
+
+                    log::warn!("loaded {} bed labels", strings.len());
+                    LabelLayout::from_iter(
+                        &mut engine,
+                        &mut compositor,
+                        800.0,
+                        600.0,
+                        iter, // strings.iter().map(|s| (s.as_str(), 400.0, 300.0)),
+                    )
+                } else {
+                    LabelLayout::from_iter(
+                        &mut engine,
+                        &mut compositor,
+                        800.0,
+                        600.0,
+                        [],
+                    )
+                }?;
+
+                label_layout
+            };
+            */
 
     // label_layout.randomize_pos_radial(&mut rng);
 
