@@ -154,8 +154,11 @@ sublayer `{}`, sublayer def `{}`",
             sublayer_defs.insert(text_def.name.clone(), text_def);
             sublayer_defs.insert(rect_def.name.clone(), rect_def);
 
-            let rect_def = improved_rect_sublayer(ctx, res, pass)?;
+            let rect_def = rect_rgb_sublayer(ctx, res, pass)?;
             sublayer_defs.insert(rect_def.name.clone(), rect_def);
+
+            let line_def = line_rgb_sublayer(ctx, res, pass)?;
+            sublayer_defs.insert(line_def.name.clone(), line_def);
 
             Ok(pass_ix)
         })?;
@@ -925,7 +928,7 @@ pub(super) fn text_sublayer(
     )
 }
 
-pub(super) fn improved_rect_sublayer(
+pub(super) fn rect_rgb_sublayer(
     ctx: &VkContext,
     res: &mut GpuResources,
     pass: vk::RenderPass,
@@ -996,6 +999,82 @@ pub(super) fn improved_rect_sublayer(
     )
 }
 
+pub(super) fn line_rgb_sublayer(
+    ctx: &VkContext,
+    res: &mut GpuResources,
+    pass: vk::RenderPass,
+) -> Result<SublayerDef> {
+    let vert = res
+        .load_shader("shaders/vector.vert.spv", vk::ShaderStageFlags::VERTEX)?;
+    let frag = res.load_shader(
+        "shaders/vector.frag.spv",
+        vk::ShaderStageFlags::FRAGMENT,
+    )?;
+
+    let vert = res.insert_shader(vert);
+    let frag = res.insert_shader(frag);
+
+    let vert_binding_desc = vk::VertexInputBindingDescription::builder()
+        .binding(0)
+        .stride(std::mem::size_of::<[f32; 9]>() as u32)
+        .input_rate(vk::VertexInputRate::INSTANCE)
+        .build();
+
+    let p0_desc = vk::VertexInputAttributeDescription::builder()
+        .binding(0)
+        .location(0)
+        .format(vk::Format::R32G32_SFLOAT)
+        .offset(0)
+        .build();
+
+    let p1_desc = vk::VertexInputAttributeDescription::builder()
+        .binding(0)
+        .location(1)
+        .format(vk::Format::R32G32_SFLOAT)
+        .offset(8)
+        .build();
+
+    let width_desc = vk::VertexInputAttributeDescription::builder()
+        .binding(0)
+        .location(2)
+        .format(vk::Format::R32_SFLOAT)
+        .offset(16)
+        .build();
+
+    let color_desc = vk::VertexInputAttributeDescription::builder()
+        .binding(0)
+        .location(3)
+        .format(vk::Format::R32G32B32A32_SFLOAT)
+        .offset(20)
+        .build();
+
+    let vert_binding_descs = [vert_binding_desc];
+    let vert_attr_descs = [p0_desc, p1_desc, width_desc, color_desc];
+
+    let vert_input_info = vk::PipelineVertexInputStateCreateInfo::builder()
+        .vertex_binding_descriptions(&vert_binding_descs)
+        .vertex_attribute_descriptions(&vert_attr_descs);
+
+    let vertex_offset = 0;
+    let vertex_stride = 36;
+
+    SublayerDef::new::<([f32; 2], [f32; 2], f32, [f32; 4]), _>(
+        ctx,
+        res,
+        "line-rgb",
+        vert,
+        frag,
+        pass,
+        vertex_offset,
+        vertex_stride,
+        true,
+        Some(6),
+        None,
+        vert_input_info,
+        None,
+    )
+}
+
 pub fn create_rhai_module(
     compositor: &Compositor,
     // buffers: &BufferStorage,
@@ -1021,12 +1100,12 @@ pub fn create_rhai_module(
     let alloc_tx = compositor.sublayer_alloc_tx.clone();
 
     module.set_native_fn(
-        "allocate_rect_sublayer",
-        move |layer_name: &str, sublayer_name: &str| {
+        "allocate_sublayer",
+        move |layer_name: &str, sublayer_def: &str, sublayer_name: &str| {
             let msg = SublayerAllocMsg::new(
                 layer_name,
                 sublayer_name,
-                "rect-rgb",
+                sublayer_def,
                 &[],
             );
 
@@ -1165,6 +1244,50 @@ pub fn create_rhai_module(
                 if let Some(sublayer) = layer.get_sublayer_mut(sublayer_name) {
                     // let def_name = sublayer.def_name.clone();
                     match sublayer.def_name.as_str() {
+                        "line-rgb" => {
+                            // log::error!("huuuuh??");
+                            let result = sublayer.update_vertices_array(
+                                data.into_iter().filter_map(|val| {
+                                    let map = val.try_cast::<rhai::Map>()?;
+
+                                    let mut out = [0u8; 36];
+
+                                    let x0 = get_cast(&map, "x0")?;
+                                    let y0 = get_cast(&map, "y0")?;
+                                    let x1 = get_cast(&map, "x1")?;
+                                    let y1 = get_cast(&map, "y1")?;
+
+                                    let w = get_cast(&map, "w")?;
+
+                                    let r = get_cast(&map, "r")?;
+                                    let g = get_cast(&map, "g")?;
+                                    let b = get_cast(&map, "b")?;
+                                    let a = get_cast(&map, "a")?;
+
+                                    out[0..8]
+                                        .clone_from_slice([x0, y0].as_bytes());
+                                    out[8..16]
+                                        .clone_from_slice([x1, y1].as_bytes());
+                                    out[16..20]
+                                        .clone_from_slice([w].as_bytes());
+                                    out[20..36].clone_from_slice(
+                                        [r, g, b, a].as_bytes(),
+                                    );
+
+                                    Some(out)
+                                }),
+                            );
+
+                            if let Err(e) = result {
+                                return Err(format!(
+                                    "sublayer update error: {:?}",
+                                    e
+                                )
+                                .into());
+                            } else {
+                                return Ok(());
+                            }
+                        }
                         "rect-rgb" => {
                             let result = sublayer.update_vertices_array(
                                 data.into_iter().filter_map(|val| {

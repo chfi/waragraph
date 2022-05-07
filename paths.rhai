@@ -121,36 +121,6 @@ bind_key(key::F1, |pressed| {
 // GUI definition
 //
 
-fn set_tooltip(text, pos) {
-  // gui::set_layer_order(["main_gui", "main_gui-legend", "tooltip"]);
-  gui::set_layer_order(["main_gui", "tooltip"]);
-  // gui::set_layer_order(["tooltip"]);
-
-  let width = text.len() * 8 + 4;
-
-  // this makes the label centered above the given point (good for e.g. mouse pos)
-  pos.x -= width / 2;
-  pos.y -= 8;
-
-  let inner = #{ x: pos.x - 2, y: pos.y - 2, w: width, h: 12, c: 6 };
-  let outer = inner;
-
-  outer.x -= 1;
-  outer.w += 2;
-  outer.y -= 1;
-  outer.h += 2;
-  outer.c = 2;
-
-  gui::with_layer("tooltip", || {
-    gui::set_rects(this, [outer, inner]);
-  });
-
-  let msg = gui::label("tooltip", "label");
-  msg.contents = text;
-  msg.position = pos;
-
-  gui::update_label(msg);
-}
 
 fn remove_tooltip() {
   // gui::set_layer_order(["main_gui"]);
@@ -166,14 +136,17 @@ fn gui_init(label_space) {
   gui::set_layer_order(["main_gui"]);
 
   ui::init_layer("rhai-main", 1, true);
-  ui::allocate_rect_sublayer("rhai-main", "sidebar");
+  ui::allocate_sublayer("rhai-main", "rect-rgb", "sidebar");
   ui::allocate_text_sublayer(label_space, "rhai-main", "sidebar-labels");
 
   ui::toggle_layer("tree-list-layer", false);
 
   ui::init_layer("tooltip", 10, false);
-  ui::allocate_rect_sublayer("tooltip", "rect");
+  ui::allocate_sublayer("tooltip", "rect-rgb", "rect");
   ui::allocate_text_sublayer(label_space, "tooltip", "text");
+
+  ui::init_layer("lines", 5, true);
+  ui::allocate_sublayer("lines", "line-rgb", "lines");
 }
 
 fn show_tooltip(label_space, pos, list) {
@@ -212,16 +185,16 @@ fn show_tooltip(label_space, pos, list) {
   let height = labels.len().to_float() * 8.0;
   let width = t_w + 4.0;
 
-  let col0 = #{ r: 0.85, g: 0.85, b: 0.85, a: 1.0 };
-  let col1 = #{ r: 0.75, g: 0.75, b: 0.75, a: 1.0 };
+  let col0 = rgb(0.85, 0.85, 0.85);
+  let col1 = rgb(0.75, 0.75, 0.75);
 
   rects.push(#{ x: x0 - 2.0, y: y0 - 2.0,
-                w: width + 4.0, h: height + 4.0,
-                r: 0.55, g: 0.55, b: 0.55, a: col0.a });
+                w: width + 4.0, h: height + 4.0
+              } + rgb(0.55, 0.55, 0.55));
 
   rects.push(#{ x: x0 - 1.0, y: y0 - 1.0,
-                w: width + 2.0, h: height + 2.0,
-                r: col0.r, g: col0.g, b: col0.b, a: col0.a });
+                w: width + 2.0, h: height + 2.0
+              } + col0 );
 
   for (val, ix) in list {
 
@@ -234,10 +207,7 @@ fn show_tooltip(label_space, pos, list) {
       col1
     };
 
-
-    rects.push(#{ x: x, y: y,
-                  w: width, h: row_h,
-                  r: color.r, g: color.g, b: color.b, a: color.a });
+    rects.push(#{ x: x, y: y, w: width, h: row_h } + color);
   }
 
   ui::update_sublayer("tooltip", "rect", rects);
@@ -250,48 +220,25 @@ fn show_tooltip(label_space, pos, list) {
 
 props.set("prev_slot", false);
 
-/*
-let rects = [];
-
-let s = 5.0;
-
-let cols = 160;
-let rows = 80;
-
-for col in 0..cols {
-  let x = 20.0 + col * (s + 1.0);
-
-  let r = col.to_float() / 80.0;
-
-  for row in 0..rows {
-    let y = 20.0 + row * (s + 1.0);
-
-    let b = row.to_float() / 40.0;
-
-    let rect =
-       #{ x: x, y: y,
-          w: s, h: s,
-          r: r, g: 0.0, b: b, a: 1.0 };
-
-    rects.push(rect);
-  }
-}
-
-export let gui_rects = rects;
-*/
-
 fn rgb(r, g, b) {
 #{ r: r, g: g, b: b, a: 1.0 }
 }
 
-// fn rgba(r, g, b, a) {
-// #{ r: r, g: g, b: b, a: 1.0 }
-// }
+fn rgba(r, g, b, a) {
+#{ r: r, g: g, b: b, a: 1.0 }
+}
 
 fn append_rect(x, y, w, h, color) {
   this.push(#{ x: x, y: y,
                w: w, h: h,
                r: color.r, g: color.g, b: color.b, a: color.a });
+}
+
+fn line(x0, y0, x1, y1) {
+#{ x0: x0, y0: y0,
+   x1: x1, y1: y1,
+   w: 2.0
+ } + rgb(1.0, 0.0, 0.0)
 }
 
 fn gui_update(label_space, dt) {
@@ -307,6 +254,15 @@ fn gui_update(label_space, dt) {
   let pos = mouse::get_pos();
   let view = viewer::get_view();
   let dims = gui::get_window_size();
+
+  {
+    let l0 = line(100.0, 100.0, pos.x, pos.y);
+    let l1 = line(dims.width - 100.0, 100.0, pos.x, pos.y);
+    let l2 = line(dims.width - 100.0, dims.height - 100.0, pos.x, pos.y);
+    let l3 = line(100.0, dims.height - 100.0, pos.x, pos.y);
+
+    ui::update_sublayer("lines", "lines", [l0, l1, l2, l3]);
+  }
 
   // print(`dt: ${dt}`);
 
