@@ -65,3 +65,10 @@ ash-window = "0.9.1"
 rspirv-reflect = "0.6"
 
 flexi_logger = { version = "0.18", features = ["async"] }
+
+
+[profile.dev]
+opt-level = 3
+
+# [profile.release]
+# debug-assertions = true

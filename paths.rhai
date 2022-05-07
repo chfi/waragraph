@@ -301,6 +301,7 @@ fn gui_update(label_space, dt) {
         set_tooltip(text, tooltip_pos);
 
         print(`pos: ${pos} -- node: ${node.to_int()} -- path: ${path_name}, pos: ${path_pos}`);
+        // clipboard::set_text(`pos: ${pos} -- node: ${node.to_int()} -- path: ${path_name}, pos: ${path_pos}`);
       }
     }
 
@@ -443,19 +444,14 @@ export let unnorm_sampler = create_sampler(unnorm_sampler_info);
 export let norm_sampler = create_sampler(norm_sampler_info);
 
 export let bg_shader = load_shader("shaders/bg_color.comp.spv",
-                                   vk::ShaderStageFlags::COMPUTE);
+                                   vk::ShaderStageFlags::VERTEX | vk::ShaderStageFlags::COMPUTE | vk::ShaderStageFlags::FRAGMENT);
 export let bg_pipeline = create_compute_pipeline(bg_shader);
 
 // text
 
 export let text_shader = load_shader("shaders/text.comp.spv",
-                                   vk::ShaderStageFlags::COMPUTE);
+                                     vk::ShaderStageFlags::VERTEX | vk::ShaderStageFlags::COMPUTE | vk::ShaderStageFlags::FRAGMENT);
 export let text_pipeline = create_compute_pipeline(text_shader);
-
-// line rasterizer
-export let line_shader = load_shader("shaders/lines_sdf.comp.spv",
-                                     vk::ShaderStageFlags::COMPUTE);
-export let line_pipeline = create_compute_pipeline(line_shader);
 
 
 // font
@@ -467,6 +463,8 @@ export let font_image = allocate_image("font_image",
                                        | vk::ImageUsageFlags::SAMPLED
                                        | vk::ImageUsageFlags::TRANSFER_SRC
                                        | vk::ImageUsageFlags::TRANSFER_DST);
+
+
 export let font_image_view = image_view_for(font_image);
 export let font_desc_set =
   create_desc_set(text_shader,
@@ -476,7 +474,7 @@ export let font_desc_set =
 
 
 export let path_shader = load_shader("shaders/path_slot_indexed.comp.spv",
-                                     vk::ShaderStageFlags::COMPUTE);
+                                     vk::ShaderStageFlags::VERTEX | vk::ShaderStageFlags::COMPUTE | vk::ShaderStageFlags::FRAGMENT);
 export let path_pipeline = create_compute_pipeline(path_shader);
 
 
@@ -639,7 +637,7 @@ fn foreground(batch, desc_sets, w, h, slot_buf_size) {
 
 
 export let img_shader = load_shader("shaders/copy_image.comp.spv",
-                                    vk::ShaderStageFlags::COMPUTE);
+                                    vk::ShaderStageFlags::VERTEX | vk::ShaderStageFlags::FRAGMENT | vk::ShaderStageFlags::COMPUTE);
 
 export let img_pipeline = create_compute_pipeline(img_shader);
 

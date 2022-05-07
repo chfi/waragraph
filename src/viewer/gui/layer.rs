@@ -322,7 +322,10 @@ sublayer `{}`, sublayer def `{}`",
                 def.vertex_stride,
                 capacity,
                 usage,
-                Some(&format!("sublayer {}:{}", def_name, sublayer_name)),
+                Some(&format!(
+                    "Buffer: Sublayer {}.{}",
+                    def_name, sublayer_name
+                )),
             )?;
 
             let buf_ix = res.insert_buffer(buffer);
@@ -697,14 +700,16 @@ impl SublayerDef {
                 .map(|s| res[s])
                 .collect::<Vec<_>>();
 
-            device.cmd_bind_descriptor_sets(
-                cmd,
-                vk::PipelineBindPoint::GRAPHICS,
-                layout,
-                0,
-                &descriptor_sets,
-                &[],
-            );
+            if !descriptor_sets.is_empty() {
+                device.cmd_bind_descriptor_sets(
+                    cmd,
+                    vk::PipelineBindPoint::GRAPHICS,
+                    layout,
+                    0,
+                    &descriptor_sets,
+                    &[],
+                );
+            }
 
             device.cmd_draw(
                 cmd,
@@ -744,6 +749,21 @@ impl SublayerDef {
             vert_input_info,
         )?;
 
+        {
+            let (pipeline, pipeline_layout) = res[pipeline];
+
+            VkEngine::set_debug_object_name(
+                ctx,
+                pipeline,
+                &format!("Sublayer Pipeline: `{}`", name),
+            )?;
+            VkEngine::set_debug_object_name(
+                ctx,
+                pipeline_layout,
+                &format!("Sublayer Pipeline Layout: `{}`", name),
+            )?;
+        }
+
         Ok(Self {
             name: name.into(),
 
@@ -768,7 +788,9 @@ pub(super) fn rect_palette_sublayer(
 ) -> Result<SublayerDef> {
     let vert = res.load_shader(
         "shaders/tri_2d_window.vert.spv",
-        vk::ShaderStageFlags::VERTEX,
+        vk::ShaderStageFlags::VERTEX
+            | vk::ShaderStageFlags::FRAGMENT
+            | vk::ShaderStageFlags::COMPUTE,
     )?;
     let frag = res.load_shader(
         "shaders/rect_flat_color.frag.spv",
@@ -808,6 +830,8 @@ pub(super) fn rect_palette_sublayer(
     let vertex_offset = 12;
     let vertex_stride = 12;
 
+    // VkEngine::set_debug_object_name(
+
     SublayerDef::new::<([f32; 4], u32), _>(
         ctx,
         res,
@@ -833,8 +857,12 @@ pub(super) fn text_sublayer(
 ) -> Result<SublayerDef> {
     let vert =
         res.load_shader("shaders/text.vert.spv", vk::ShaderStageFlags::VERTEX)?;
-    let frag = res
-        .load_shader("shaders/text.frag.spv", vk::ShaderStageFlags::FRAGMENT)?;
+    let frag = res.load_shader(
+        "shaders/text.frag.spv",
+        vk::ShaderStageFlags::VERTEX
+            | vk::ShaderStageFlags::COMPUTE
+            | vk::ShaderStageFlags::FRAGMENT,
+    )?;
 
     let vert = res.insert_shader(vert);
     let frag = res.insert_shader(frag);
