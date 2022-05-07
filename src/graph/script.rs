@@ -130,8 +130,6 @@ pub fn create_graph_module(waragraph: &Arc<Waragraph>) -> rhai::Module {
                     let is = rhai::ImmutableString::from(s);
                     Ok(Dyn::from(is))
                 })
-
-            // some_dyn_or_other!(graph.path_name(path), Dyn::FALSE)
         },
     );
 

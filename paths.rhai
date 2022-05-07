@@ -153,8 +153,9 @@ fn set_tooltip(text, pos) {
 }
 
 fn remove_tooltip() {
-  gui::set_layer_order(["main_gui"]);
+  // gui::set_layer_order(["main_gui"]);
   // gui::set_layer_order([]);
+  ui::toggle_layer("tooltip", false);
 }
 
 
@@ -169,7 +170,83 @@ fn gui_init(label_space) {
   ui::allocate_text_sublayer(label_space, "rhai-main", "sidebar-labels");
 
   ui::toggle_layer("tree-list-layer", false);
+
+  ui::init_layer("tooltip", 10, false);
+  ui::allocate_rect_sublayer("tooltip", "rect");
+  ui::allocate_text_sublayer(label_space, "tooltip", "text");
 }
+
+fn show_tooltip(label_space, pos, list) {
+
+  ui::toggle_layer("tooltip", true);
+
+  let x0 = pos.x + 8.0;
+  let y0 = pos.y + 2.0;
+
+  let row_h = 8.0;
+
+  let rects = [];
+  let labels = [];
+
+  let max_len = 0;
+
+  for (val, ix) in list {
+    let text = `${val}`;
+
+    if max_len < text.len() {
+      max_len = text.len();
+    }
+
+    let x = x0 + 1.0;
+    let y = y0 + row_h * ix;
+
+    let label = #{ x: x, y: y,
+                   r: 0.0, g: 0.0, b: 0.0, a: 1.0,
+                   contents: text };
+
+    labels.push(label);
+  }
+
+  let t_w = 8.0 * max_len;
+
+  let height = labels.len().to_float() * 8.0;
+  let width = t_w + 4.0;
+
+  let col0 = #{ r: 0.85, g: 0.85, b: 0.85, a: 1.0 };
+  let col1 = #{ r: 0.75, g: 0.75, b: 0.75, a: 1.0 };
+
+  rects.push(#{ x: x0 - 2.0, y: y0 - 2.0,
+                w: width + 4.0, h: height + 4.0,
+                r: 0.55, g: 0.55, b: 0.55, a: col0.a });
+
+  rects.push(#{ x: x0 - 1.0, y: y0 - 1.0,
+                w: width + 2.0, h: height + 2.0,
+                r: col0.r, g: col0.g, b: col0.b, a: col0.a });
+
+  for (val, ix) in list {
+
+    let x = x0 - 1.0;
+    let y = y0 + row_h * ix;
+
+    let color = if ix % 2 == 0 {
+      col0
+    } else {
+      col1
+    };
+
+
+    rects.push(#{ x: x, y: y,
+                  w: width, h: row_h,
+                  r: color.r, g: color.g, b: color.b, a: color.a });
+  }
+
+  ui::update_sublayer("tooltip", "rect", rects);
+  ui::update_sublayer(label_space, "tooltip", "text", labels);
+
+  // ui::update_sublayer(label_space, "rhai-main", "sidebar-labels", sidebar_labels);
+
+}
+
 
 props.set("prev_slot", false);
 
@@ -225,44 +302,7 @@ fn gui_update(label_space, dt) {
 
   props.update("time", || this += dt);
 
-  // ui::update
   let pos = mouse::get_pos();
-
-  try {
-    /*
-    let x = pos.x;
-    let y = pos.y;
-
-    let f = Fn("append_rect");
-
-    let sidebar_rects = [];
-
-    sidebar_rects.call(f, x, y, 32.0, 32.0, rgb(1.0, 0.0, 0.0));
-
-    ui::update_sublayer("rhai-main", "sidebar", sidebar_rects);
-
-    // let append_label = |x, y, text| {
-    // };
-
-    let label = #{ x: x, y: y,
-                   r: 0.0, g: 0.0, b: 0.0, a: 1.0,
-                   contents: "hello world" };
-
-    let label_2 = label;
-    label_2.x += 32.0;
-    label_2.y += 16.0;
-    label_2.contents = "whoa!";
-
-    let sidebar_labels = [label, label_2];
-
-    ui::update_sublayer(label_space, "rhai-main", "sidebar-labels", sidebar_labels);
-    */
-  }
-  catch (err) {
-    print(`UI update error: ${err}`);
-  }
-
-
 
   let pos = mouse::get_pos();
   let view = viewer::get_view();
@@ -294,14 +334,21 @@ fn gui_update(label_space, dt) {
         let node = graph::node_at_pos(bp_pos);
         let path_pos = graph::pos_at_node(path, node);
 
-        // let text = `${path_pos}`;
-        // let text = `${bp_pos}`;
         let text = `${node.to_int()} - ${path_pos}`;
 
         let slot_pos = slot_rect(dims, slot.index);
-        let tooltip_pos = #{ x: pos.x, y: slot_pos.y - 4 };
 
-        set_tooltip(text, tooltip_pos);
+        let rows = [`Node ${node.to_int()}`];
+
+        if path_name != false {
+          rows.push(`Path ${path_name}`);
+
+          if path_pos != false {
+            rows.push(` Pos ${path_pos}`);
+          }
+        }
+
+        show_tooltip(label_space, pos, rows);
 
         print(`pos: ${pos} -- node: ${node.to_int()} -- path: ${path_name}, pos: ${path_pos}`);
         clipboard::set_text(`pos: ${pos} -- node: ${node.to_int()} -- path: ${path_name}, pos: ${path_pos}`);
