@@ -389,8 +389,9 @@ cfg.set("viz.secondary", fn_name);
                 let node = Node::from(n);
 
                 let x_p = graph.node_sum_lens[n as usize];
-                let x = 800.0 * ((x_p as f32) / max_x);
-                let y = 400.0 + rng.gen_range(-40.0..40.0);
+                let x = (x_p as f32) / max_x;
+                // let x = 800.0 * ((x_p as f32) / max_x);
+                let y = 250.0 + rng.gen_range(0.0..80.0);
 
                 let records = bed.path_node_records(path, node)?;
 
@@ -483,11 +484,23 @@ cfg.set("viz.secondary", fn_name);
                 if layout_update_since > 0.05 {
                     let [width, _] = swapchain_dims.load();
 
-                    let [offset, width] = viewer.slot_x_offsets(width);
+                    let [slot_offset, slot_width] =
+                        viewer.slot_x_offsets(width);
 
-                    label_layout.step(width, layout_update_since);
+                    let view = viewer.view.load();
 
-                    label_layout.update_layer(&mut compositor, offset).unwrap();
+                    label_layout.step(slot_width, layout_update_since);
+
+                    label_layout
+                        .update_layer(
+                            &mut compositor,
+                            slot_offset,
+                            slot_width,
+                            view.offset,
+                            view.len,
+                            view.max,
+                        )
+                        .unwrap();
 
                     layout_update_since = 0.0;
                 }
@@ -615,6 +628,15 @@ cfg.set("viz.secondary", fn_name);
 
                 // path-viewer specific, dependent on previous view
                 if viewer.path_viewer.should_update() {
+                    let [slot_offset, slot_width] =
+                        viewer.slot_x_offsets(width);
+
+                    label_layout.reset_for_view(
+                        &mut rng,
+                        &viewer.view.load(),
+                        slot_width,
+                    );
+
                     should_update = true;
 
                     let view = viewer.view.load();

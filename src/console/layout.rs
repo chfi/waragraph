@@ -55,10 +55,13 @@ pub struct LabelLayout {
     pub label_space: LabelSpace,
     labels: Vec<(usize, usize)>,
 
+    label_anchors: Vec<f32>,
+
     label_pos: Vec<Pos2>,
     label_size: Vec<Vec2>,
-
     label_vel: Vec<Vec2>,
+
+    label_flag: Vec<u64>,
 
     layout_width: f32,
     layout_height: f32,
@@ -72,30 +75,41 @@ pub struct LabelLayout {
 }
 
 impl LabelLayout {
-    pub fn step(&mut self, width: f32, dt: f32) {
-        let x_mult = width / self.layout_width;
+    pub fn step(&mut self, slot_width: f32, dt: f32) {
+        // let x_mult = width / self.layout_width;
 
-        self.layout_width = width;
+        // self.layout_width = width;
 
-        let x0 = self.layout_width / 2.0;
-        let y0 = self.layout_height / 2.0;
+        // let x0 = self.layout_width / 2.0;
+        let y0 = 250.0;
 
         self.t += dt;
 
         let t = self.t;
 
-        let mut forces = vec![0.0f32; self.label_pos.len()];
+        let mut forces = vec![(0.0f32, false); self.label_pos.len()];
+
+        let mut fall_count = 0;
 
         for ((ix, pos), size) in
             self.label_pos.iter().enumerate().zip(&self.label_size)
         {
+            self.label_flag[ix] = 0;
             let at_top = pos[1] == y0;
             let mut ddy = 0.0;
 
-            let a_l = pos.x;
+            let mut none_above = true;
+
+            let mut free_above = true;
+
+            let mut min_above = std::f32::INFINITY;
+
+            let a_l = pos.x * slot_width;
             let a_u = pos.y;
             let a_r = a_l + size.x;
             let a_d = a_u + size.y;
+
+            let mut no_collides = true;
 
             for ((i_ix, other), other_size) in self
                 .label_pos
@@ -108,53 +122,116 @@ impl LabelLayout {
                     continue;
                 }
 
-                let b_l = other.x;
+                let b_l = other.x * slot_width;
                 let b_u = other.y;
                 let b_r = b_l + other_size.x;
                 let b_d = b_u + other_size.y;
 
-                let collides = a_l < b_r && a_r > b_l && a_u < b_d && a_d > b_u;
+                let other_above = a_l < b_r && a_r > b_l && a_u > b_d;
+
+                if other_above {
+                    free_above = false;
+                }
+
+                let collides = other_above && a_d < b_u;
 
                 if !collides {
                     continue;
                 }
 
+                no_collides = false;
+
+                self.label_flag[ix] |= 1;
+
+                // if other.y < pos.y {
+                //     none_above = false;
+                // }
+
                 let a_mid = a_u + 4.0;
                 let b_mid = b_u + 4.0;
 
-                let v = (a_mid - b_mid).abs();
+                let d = (4.0 - (a_mid - b_mid).abs()) * 8.0;
 
-                ddy += v;
+                if a_u > b_u {
+                    ddy += d;
+                } else {
+                    ddy -= d;
+                }
+
+                /*
+                if d.abs() > 0.1 {
+                    ddy -= d * 8.0;
+                } else {
+                    if d
+                    ddy -= d * 8.0;
+                }
+                */
+
+                // let v = (a_mid - b_mid).abs();
+            }
+
+            if none_above {
+                self.label_flag[ix] |= 2;
+                // ddy = -12.0 * dt;
+                ddy = -8.0;
+                fall_count += 1;
+            }
+
+            if free_above {
+                self.label_flag[ix] |= 8;
             }
 
             if at_top {
+                self.label_flag[ix] |= 4;
                 ddy = 0.0;
             }
 
-            forces[ix] = ddy;
+            // if no_collides {
+            //     self.label_flag[ix] |= 16;
+            // }
+
+            forces[ix] = (ddy, none_above);
         }
 
-        for ((pos, vel), acc) in self
+        log::warn!("fall count: {}", fall_count);
+
+        for (ix, ((pos, vel), (acc, none_above))) in self
             .label_pos
             .iter_mut()
             .zip(self.label_vel.iter_mut())
             .zip(forces)
+            .enumerate()
         {
             let mut x = pos.x;
-            let y = pos.y;
+            let mut y = pos.y;
             let dx = vel.x;
             let mut dy = vel.y;
             // let [dx, mut dy] = *vel;
+            dy += acc * dt;
+            dy *= 0.99999;
 
+            // let at_top = pos == y0;
+            if pos.y <= 250.0 || !none_above {
+                dy = dy.max(0.0);
+            }
+
+            if self.label_flag[ix] & 8 != 0 {
+                dy = 0.0;
+                y = 250.0;
+            }
             // dy += t.cos();
             // dy += acc;
-            dy += acc;
-            dy *= dt * 0.98;
+            /*
+            if none_above {
+            } else {
+                dy = dy.max(0.0);
+            }
+            */
             // x = x_offset ;
-            x *= x_mult;
+            // x *= x_mult;
 
             *vel = vector![dx, dy];
-            *pos = point![x + dx, y + dy];
+            *pos = point![x + dx * dt, (y + dy * dt).max(250.0)];
             // *pos = [x + dx, y + dy];
             // *vel = vector![d
             // *vel = [dx, dy];
@@ -179,6 +256,35 @@ impl LabelLayout {
         }
     }
 
+    pub fn reset_for_view<R: rand::Rng>(
+        &mut self,
+        rng: &mut R,
+        view: &ViewDiscrete1D,
+        layout_width: f32,
+    ) {
+        log::warn!("resetting layout!");
+        self.layout_width = layout_width;
+
+        let view_scale = (view.max as f32) / view.len as f32;
+        let offset = (view.offset as f32) / view.max as f32;
+
+        for (i, anchor) in self.label_anchors.iter().enumerate() {
+            let (_, t_len) = self.labels[i];
+
+            let x = (anchor - offset) * view_scale;
+
+            // let y = 250.0 + rng.gen_range(0.0..80.0);
+
+            let y = 400.0 + rng.gen_range(0.0..200.0);
+            let w = 8.0 * t_len as f32;
+
+            self.label_pos[i] = point![x, y];
+            self.label_vel[i] = vector![0.0, 0.0];
+            // let x = (anchor * layout_width)
+            //
+        }
+    }
+
     pub fn from_iter<'a, I>(
         engine: &mut VkEngine,
         compositor: &mut Compositor,
@@ -192,6 +298,7 @@ impl LabelLayout {
         let mut label_space =
             LabelSpace::new(engine, "layout-labels", 1024 * 1024)?;
 
+        let mut label_anchors = Vec::new();
         let mut labels_vec = Vec::new();
         let mut label_pos = Vec::new();
         let mut label_vel = Vec::new();
@@ -200,9 +307,11 @@ impl LabelLayout {
         for (text, x, y) in labels.into_iter() {
             let (s, l) = label_space.bounds_for_insert(text)?;
 
+            label_anchors.push(x);
+
             let w = 8.0 * l as f32;
 
-            let pos = point![x - w / 2.0, y];
+            let pos = point![(x * layout_width) - w / 2.0, y];
             let vel = vector![0.0f32, 0.0];
             let size = vector![8.0 * l as f32, 8.0];
             labels_vec.push((s, l));
@@ -210,6 +319,8 @@ impl LabelLayout {
             label_vel.push(vel);
             label_size.push(size);
         }
+
+        let label_flag = vec![0; label_anchors.len()];
 
         let layer_name = "label-layout-layer";
         let rect_name = "label-layout:rect";
@@ -243,9 +354,13 @@ impl LabelLayout {
             label_space,
             labels: labels_vec,
 
+            label_anchors,
+
             label_pos,
             label_size,
             label_vel,
+
+            label_flag,
 
             layout_width,
             layout_height,
@@ -265,49 +380,55 @@ impl LabelLayout {
         &mut self,
         compositor: &mut Compositor,
         slot_offset: f32,
+        slot_width: f32,
+        view_offset: usize,
+        view_len: usize,
+        max_len: usize,
     ) -> Result<()> {
+        // let view_s = (view_len as f32) / (max_len as f32);
+        // let x_scale = slot_width * view_s;
+
+        // let x_offset = slot_offset + (view_offset as f32
+        // let scale = slot_width /
+
         compositor.with_layer(&self.layer_name, |layer| {
+            /*
             if let Some(sublayer) = layer.get_sublayer_mut(&self.sublayer_text)
             {
                 sublayer.update_vertices_array(
-                    self.labels.iter().enumerate().map(|(i, &(s, l))| {
-                        let pos = self.label_pos[i];
+                    self.labels.iter().enumerate().map(|(ix, &(s, l))| {
+                        let pos = self.label_pos[ix];
 
-                        let color = [0.0f32, 0.0, 0.0, 1.0];
+                        let color = if self.label_flag[ix] & 16 == 0 {
+                            [0.0f32, 0.0, 0.0, 1.0]
+                        } else {
+                            [1.0f32, 1.0, 1.0, 1.0]
+                        };
+
                         let mut out = [0u8; 8 + 8 + 16];
+
+                        let x = (slot_offset + (pos.x * slot_width));
+
                         out[0..8].clone_from_slice(
-                            [slot_offset + pos.x, pos.y].as_bytes(),
+                            [x, pos.y]
+                                // [slot_offset + (pos.x * slot_width), pos.y]
+                                .as_bytes(),
                         );
+                        // let x = slot_offset + (pos.x * view_len as f32);
+
+                        // out[0..8].clone_from_slice([x, pos.y].as_bytes());
                         out[8..16]
                             .clone_from_slice([s as u32, l as u32].as_bytes());
                         out[16..32].clone_from_slice(color.as_bytes());
                         out
                     }),
                 )?;
-
-                // self.list.iter().enumerate().map(|(i, (text, v))| {
-                //     let (s, l) =
-                //         self.label_space.bounds_for_insert(text).unwrap();
-
-                //     let h = 10.0;
-
-                //     let x = x0;
-                //     let y = y0 + h * i as f32;
-
-                //     let color = [0.0f32, 0.0, 0.0, 1.0];
-
-                //     let mut out = [0u8; 8 + 8 + 16];
-                //     out[0..8].clone_from_slice([x, y].as_bytes());
-                //     out[8..16]
-                //         .clone_from_slice([s as u32, l as u32].as_bytes());
-                //     out[16..32].clone_from_slice(color.as_bytes());
-                //     out
-                // }),
             }
+            */
 
-            /*
             if let Some(sublayer) = layer.get_sublayer_mut(&self.sublayer_rect)
             {
+                /*
                 let w = 4.0 + 8.0 * max_label_len as f32;
                 let h = 4.0 + 8.0 * self.list.len() as f32;
 
@@ -318,29 +439,46 @@ impl LabelLayout {
                     .clone_from_slice([0.85f32, 0.85, 0.85, 1.0].as_bytes());
 
                 sublayer.update_vertices_array_range(0..1, [bg])?;
-
                 sublayer.update_vertices_array(Some(bg).into_iter().chain(
-                    self.list.iter().enumerate().map(|(i, (s, v))| {
-                        let color = if i % 2 == 0 {
-                            [0.85f32, 0.85, 0.85, 1.0]
-                        } else {
-                            [0.75f32, 0.75, 0.75, 1.0]
-                        };
+                */
 
-                        let h = 10.0;
+                sublayer.update_vertices_array(
+                    self.label_flag
+                        .iter()
+                        .enumerate()
+                        .filter(|(ix, flag)| **flag != 0)
+                        .map(|(ix, flags)| {
+                            // let r = (flags & 1 != 0)
+                            //     .then(|| 1.0)
+                            //     .unwrap_or_default();
+                            let r = if flags & 1 != 0 { 0.7 } else { 0.0 };
+                            let g = if flags & 2 != 0 { 0.7 } else { 0.0 };
+                            let b = if flags & 4 != 0 { 0.7 } else { 0.0 };
 
-                        let x = x0;
-                        let y = y0 + h * i as f32;
+                            let color = if self.label_flag[ix] & 16 == 0 {
+                                [r, g, b, 1.0f32]
+                            } else {
+                                [1.0, 0.0, 0.0, 1.0]
+                            };
+                            // self.label_flag[ix] |= 16;
+                            let pos = self.label_pos[ix];
 
-                        let mut out = [0u8; 32];
-                        out[0..8].clone_from_slice([x, y].as_bytes());
-                        out[8..16].clone_from_slice([w, h].as_bytes());
-                        out[16..32].clone_from_slice(color.as_bytes());
-                        out
-                    }),
-                ))?;
+                            let (_, t_len) = self.labels[ix];
+                            let h = 10.0;
+                            let w = 8.0 * t_len as f32;
+                            // let w =
+
+                            let x = (slot_offset + (pos.x * slot_width)) - 1.0;
+                            let y = pos.y - 1.0;
+
+                            let mut out = [0u8; 32];
+                            out[0..8].clone_from_slice([x, y].as_bytes());
+                            out[8..16].clone_from_slice([w, h].as_bytes());
+                            out[16..32].clone_from_slice(color.as_bytes());
+                            out
+                        }),
+                )?;
             }
-            */
 
             Ok(())
         })?;
