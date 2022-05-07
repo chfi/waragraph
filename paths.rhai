@@ -228,6 +228,7 @@ fn gui_update(label_space, dt) {
   let pos = mouse::get_pos();
 
   try {
+    /*
     let x = pos.x;
     let y = pos.y;
 
@@ -254,6 +255,7 @@ fn gui_update(label_space, dt) {
     let sidebar_labels = [label, label_2];
 
     ui::update_sublayer(label_space, "rhai-main", "sidebar-labels", sidebar_labels);
+    */
   }
   catch (err) {
     print(`UI update error: ${err}`);
