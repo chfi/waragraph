@@ -235,9 +235,8 @@ fn append_rect(x, y, w, h, color) {
 }
 
 fn line(x0, y0, x1, y1) {
-#{ x0: x0, y0: y0,
-   x1: x1, y1: y1,
-   w: 2.0
+#{ x0: x0, y0: y0, w0: 1.0,
+   x1: x1, y1: y1, w1: 1.0,
  } + rgb(1.0, 0.0, 0.0)
 }
 
@@ -255,14 +254,21 @@ fn gui_update(label_space, dt) {
   let view = viewer::get_view();
   let dims = gui::get_window_size();
 
+  /*
   {
     let l0 = line(100.0, 100.0, pos.x, pos.y);
     let l1 = line(dims.width - 100.0, 100.0, pos.x, pos.y);
     let l2 = line(dims.width - 100.0, dims.height - 100.0, pos.x, pos.y);
     let l3 = line(100.0, dims.height - 100.0, pos.x, pos.y);
 
+    l0.w0 = 4.0;
+    l1.w0 = 4.0;
+    l2.w0 = 4.0;
+    l3.w0 = 4.0;
+
     ui::update_sublayer("lines", "lines", [l0, l1, l2, l3]);
   }
+  */
 
   // print(`dt: ${dt}`);
 

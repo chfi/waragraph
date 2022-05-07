@@ -1,9 +1,8 @@
 #version 450
 
-layout (location = 0) in vec2 p0;
-layout (location = 1) in vec2 p1;
-layout (location = 2) in float width;
-layout (location = 3) in vec4 color;
+layout (location = 0) in vec3 p0;
+layout (location = 1) in vec3 p1;
+layout (location = 2) in vec4 color;
 
 layout (location = 0) out vec4 o_color;
 
@@ -14,14 +13,14 @@ layout (push_constant) uniform Input {
 void main() {
   uint i = gl_VertexIndex % 6;
 
-  vec2 u = p1 - p0;
+  vec2 u = p1.xy - p0.xy;
   float len = length(u);
   vec2 n = u / len;
 
-  vec2 a = p0 + vec2(-n.y, n.x) * width;
-  vec2 b = p1 + vec2(-n.y, n.x) * width;
-  vec2 c = p1 - vec2(-n.y, n.x) * width;
-  vec2 d = p0 - vec2(-n.y, n.x) * width;
+  vec2 a = p0.xy + vec2(-n.y, n.x) * p0.z;
+  vec2 b = p1.xy + vec2(-n.y, n.x) * p1.z;
+  vec2 c = p1.xy - vec2(-n.y, n.x) * p1.z;
+  vec2 d = p0.xy - vec2(-n.y, n.x) * p0.z;
 
   vec2 pos = vec2(0.0);
 

@@ -1014,51 +1014,46 @@ pub(super) fn line_rgb_sublayer(
     let vert = res.insert_shader(vert);
     let frag = res.insert_shader(frag);
 
+    let vertex_size = std::mem::size_of::<[f32; 10]>() as u32;
+
     let vert_binding_desc = vk::VertexInputBindingDescription::builder()
         .binding(0)
-        .stride(std::mem::size_of::<[f32; 9]>() as u32)
+        .stride(vertex_size)
         .input_rate(vk::VertexInputRate::INSTANCE)
         .build();
 
     let p0_desc = vk::VertexInputAttributeDescription::builder()
         .binding(0)
         .location(0)
-        .format(vk::Format::R32G32_SFLOAT)
+        .format(vk::Format::R32G32B32_SFLOAT)
         .offset(0)
         .build();
 
     let p1_desc = vk::VertexInputAttributeDescription::builder()
         .binding(0)
         .location(1)
-        .format(vk::Format::R32G32_SFLOAT)
-        .offset(8)
-        .build();
-
-    let width_desc = vk::VertexInputAttributeDescription::builder()
-        .binding(0)
-        .location(2)
-        .format(vk::Format::R32_SFLOAT)
-        .offset(16)
+        .format(vk::Format::R32G32B32_SFLOAT)
+        .offset(12)
         .build();
 
     let color_desc = vk::VertexInputAttributeDescription::builder()
         .binding(0)
-        .location(3)
+        .location(2)
         .format(vk::Format::R32G32B32A32_SFLOAT)
-        .offset(20)
+        .offset(24)
         .build();
 
     let vert_binding_descs = [vert_binding_desc];
-    let vert_attr_descs = [p0_desc, p1_desc, width_desc, color_desc];
+    let vert_attr_descs = [p0_desc, p1_desc, color_desc];
 
     let vert_input_info = vk::PipelineVertexInputStateCreateInfo::builder()
         .vertex_binding_descriptions(&vert_binding_descs)
         .vertex_attribute_descriptions(&vert_attr_descs);
 
     let vertex_offset = 0;
-    let vertex_stride = 36;
+    let vertex_stride = vertex_size as usize;
 
-    SublayerDef::new::<([f32; 2], [f32; 2], f32, [f32; 4]), _>(
+    SublayerDef::new::<([f32; 3], [f32; 3], [f32; 4]), _>(
         ctx,
         res,
         "line-rgb",
@@ -1250,27 +1245,28 @@ pub fn create_rhai_module(
                                 data.into_iter().filter_map(|val| {
                                     let map = val.try_cast::<rhai::Map>()?;
 
-                                    let mut out = [0u8; 36];
+                                    let mut out = [0u8; 40];
 
                                     let x0 = get_cast(&map, "x0")?;
                                     let y0 = get_cast(&map, "y0")?;
                                     let x1 = get_cast(&map, "x1")?;
                                     let y1 = get_cast(&map, "y1")?;
 
-                                    let w = get_cast(&map, "w")?;
+                                    let w0 = get_cast(&map, "w0")?;
+                                    let w1 = get_cast(&map, "w1")?;
 
                                     let r = get_cast(&map, "r")?;
                                     let g = get_cast(&map, "g")?;
                                     let b = get_cast(&map, "b")?;
                                     let a = get_cast(&map, "a")?;
 
-                                    out[0..8]
-                                        .clone_from_slice([x0, y0].as_bytes());
-                                    out[8..16]
-                                        .clone_from_slice([x1, y1].as_bytes());
-                                    out[16..20]
-                                        .clone_from_slice([w].as_bytes());
-                                    out[20..36].clone_from_slice(
+                                    out[0..12].clone_from_slice(
+                                        [x0, y0, w0].as_bytes(),
+                                    );
+                                    out[12..24].clone_from_slice(
+                                        [x1, y1, w1].as_bytes(),
+                                    );
+                                    out[24..40].clone_from_slice(
                                         [r, g, b, a].as_bytes(),
                                     );
 
