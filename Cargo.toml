@@ -33,8 +33,6 @@ ndarray = { version = "0.15", features = ["rayon"] }
 thunderdome = "0.5"
 rustc-hash = "1.1"
 
-internment = "0.5"
-
 bstr = "0.2"
 
 log = "0.4"
@@ -50,12 +48,13 @@ parking_lot = "0.11.1"
 rhai = { version = "1.7", features = ["sync", "f32_float", "internals"] }
 arboard = "2.1"
 
-bytemuck = { version = "1.7", features = ["derive"] }
+# bytemuck = { version = "1.7", features = ["derive"] }
+bytemuck = { version = "1.7" }
 
 # temporary deps while i'm working on this as both the library & viewer
 
-futures = { version = "0.3", features = ["thread-pool"] }
-futures-timer = { version = "3.0.2" }
+# futures = { version = "0.3", features = ["thread-pool"] }
+# futures-timer = { version = "3.0.2" }
 
 winit = "0.25"
 

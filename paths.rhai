@@ -304,7 +304,7 @@ fn gui_update(label_space, dt) {
         set_tooltip(text, tooltip_pos);
 
         print(`pos: ${pos} -- node: ${node.to_int()} -- path: ${path_name}, pos: ${path_pos}`);
-        // clipboard::set_text(`pos: ${pos} -- node: ${node.to_int()} -- path: ${path_name}, pos: ${path_pos}`);
+        clipboard::set_text(`pos: ${pos} -- node: ${node.to_int()} -- path: ${path_name}, pos: ${path_pos}`);
       }
     }
 
