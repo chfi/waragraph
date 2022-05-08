@@ -33,9 +33,9 @@ use anyhow::{anyhow, bail, Result};
 
 use zerocopy::{AsBytes, FromBytes};
 
-use super::gui::layer::Compositor;
 use super::gui::GuiSys;
 use super::{PathViewer, SlotFnCache, SlotUpdateFn};
+use raving::compositor::Compositor;
 
 pub struct ViewerSys {
     pub config: ConfigMap,

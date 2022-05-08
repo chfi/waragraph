@@ -1,8 +1,11 @@
 use crossbeam::atomic::AtomicCell;
 use gfa::gfa::GFA;
 use parking_lot::{Mutex, RwLock};
+
+use raving::compositor::Compositor;
 use raving::script::console::frame::Resolvable;
 use raving::vk::{DescSetIx, VkEngine, WindowResources};
+
 use waragraph::console::data::{AnnotationSet, BedColumn};
 use waragraph::console::layout::LabelLayout;
 use waragraph::console::{Console, ConsoleInput};
@@ -15,10 +18,9 @@ use sled::IVec;
 use waragraph::graph::{Node, Path, Waragraph};
 use waragraph::util::{BufferStorage, LabelStorage};
 use waragraph::viewer::app::ViewerSys;
-use waragraph::viewer::gui::layer::Compositor;
 use waragraph::viewer::gui::tree_list::{LabelSpace, TreeList};
-use waragraph::viewer::gui::{GuiLayer, GuiSys, LabelMsg, RectVertices};
-use waragraph::viewer::{SlotRenderers, SlotUpdateFn, ViewDiscrete1D};
+use waragraph::viewer::gui::{GuiLayer, GuiSys};
+use waragraph::viewer::{SlotUpdateFn, ViewDiscrete1D};
 use winit::event::{Event, VirtualKeyCode, WindowEvent};
 use winit::{event_loop::EventLoop, window::WindowBuilder};
 
@@ -27,11 +29,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
 
-use anyhow::{anyhow, bail, Result};
-
-use zerocopy::{AsBytes, FromBytes};
-
-use arboard::Clipboard;
+use anyhow::{anyhow, Result};
 
 use rand::prelude::*;
 
@@ -244,8 +242,13 @@ fn main() -> Result<()> {
         gui_palette_set,
     )?;
 
-    let mut compositor =
-        Compositor::init(&mut engine, &swapchain_dims, font_desc_set)?;
+    let mut compositor = Compositor::init(&mut engine, &swapchain_dims)?;
+
+    waragraph::viewer::gui::layer::add_sublayer_defs(
+        &mut engine,
+        &mut compositor,
+        font_desc_set,
+    );
 
     let mut tree_list =
         TreeList::new(&mut engine, &mut compositor, 100.0, 100.0)?;

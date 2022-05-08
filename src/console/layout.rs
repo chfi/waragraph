@@ -9,6 +9,7 @@ use bstr::ByteSlice;
 use gfa::gfa::GFA;
 use gpu_allocator::vulkan::Allocator;
 use parking_lot::RwLock;
+use raving::compositor::Compositor;
 use raving::{
     script::console::BatchBuilder,
     vk::{context::VkContext, BufferIx, GpuResources, VkEngine},
@@ -35,8 +36,7 @@ use crate::{
     graph::{Node, Path, Waragraph},
     util::{BufFmt, BufId, BufMeta, BufferStorage, LabelStorage},
     viewer::{
-        gui::{layer::Compositor, tree_list::LabelSpace},
-        DataSource, SlotFnCache, ViewDiscrete1D,
+        gui::tree_list::LabelSpace, DataSource, SlotFnCache, ViewDiscrete1D,
     },
 };
 

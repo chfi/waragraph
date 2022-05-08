@@ -33,7 +33,7 @@ use zerocopy::{AsBytes, FromBytes};
 
 use rhai::plugin::*;
 
-use super::layer::Compositor;
+use raving::compositor::Compositor;
 
 #[derive(Clone)]
 pub struct LabelSpace {
