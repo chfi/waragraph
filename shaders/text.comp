@@ -32,9 +32,8 @@ void main() {
   int x_offset = inputs.x + int(char_offset) * 8 + local.x;
   int y_offset = inputs.y + local.y;
 
-  uint char = text.chars[char_offset] & 127;
-
-  ivec2 i_char_px = ivec2(char * 8 + local.x, local.y);
+  uint char_ix = text.chars[char_offset] & 127;
+  ivec2 i_char_px = ivec2(char_ix * 8 + local.x, local.y);
 
   vec2 char_px = vec2(i_char_px) / vec2(1024.0, 8.0);
 
