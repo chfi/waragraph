@@ -2,6 +2,7 @@ use crossbeam::atomic::AtomicCell;
 use gfa::gfa::GFA;
 use parking_lot::{Mutex, RwLock};
 
+use raving::compositor::label_space::LabelSpace;
 use raving::compositor::Compositor;
 use raving::script::console::frame::Resolvable;
 use raving::vk::{DescSetIx, VkEngine, WindowResources};
@@ -18,7 +19,7 @@ use sled::IVec;
 use waragraph::graph::{Node, Path, Waragraph};
 use waragraph::util::{BufferStorage, LabelStorage};
 use waragraph::viewer::app::ViewerSys;
-use waragraph::viewer::gui::tree_list::{LabelSpace, TreeList};
+use waragraph::viewer::gui::tree_list::TreeList;
 use waragraph::viewer::gui::{GuiLayer, GuiSys};
 use waragraph::viewer::{SlotUpdateFn, ViewDiscrete1D};
 use winit::event::{Event, VirtualKeyCode, WindowEvent};
@@ -143,6 +144,8 @@ fn main() -> Result<()> {
 
     let mut gui_sys = GuiSys::init(&mut engine, &db, &swapchain_dims)?;
 
+    let mut compositor = Compositor::init(&mut engine, &swapchain_dims)?;
+
     let mut window_resources = WindowResources::new();
     window_resources.add_image(
         "out",
@@ -155,7 +158,7 @@ fn main() -> Result<()> {
             (vk::ImageUsageFlags::STORAGE, vk::ImageLayout::GENERAL),
             (vk::ImageUsageFlags::SAMPLED, vk::ImageLayout::GENERAL),
         ],
-        Some(gui_sys.pass),
+        Some(compositor.pass),
     )?;
 
     {
@@ -181,7 +184,7 @@ fn main() -> Result<()> {
         width,
     )?;
 
-    let mut console = Console::default();
+    let mut console = Console::init(&mut engine, &mut compositor)?;
 
     console.scope.set_value("cfg", viewer.config.clone());
     console
@@ -202,9 +205,9 @@ fn main() -> Result<()> {
         .modules
         .insert("gui".into(), gui_sys.rhai_module.clone());
 
-    viewer.labels.allocate_label(&db, &mut engine, "console")?;
-    viewer.labels.set_label_pos(b"console", 4, 4)?;
-    viewer.labels.set_text_for(b"console", "")?;
+    // viewer.labels.allocate_label(&db, &mut engine, "console")?;
+    // viewer.labels.set_label_pos(b"console", 4, 4)?;
+    // viewer.labels.set_text_for(b"console", "")?;
 
     let font_desc_set = {
         let font_desc_set =
@@ -241,8 +244,6 @@ fn main() -> Result<()> {
         1023,
         gui_palette_set,
     )?;
-
-    let mut compositor = Compositor::init(&mut engine, &swapchain_dims)?;
 
     waragraph::viewer::gui::layer::add_sublayer_defs(
         &mut engine,
@@ -521,6 +522,14 @@ fn main() -> Result<()> {
                 {
                     let labels = label_space.read();
                     let _ = labels.write_buffer(&mut engine.resources);
+                }
+
+                if let Err(e) = console.update_layer(
+                    &mut engine.resources,
+                    &mut compositor,
+                    [0.0, 0.0],
+                ) {
+                    log::error!("Console compositor error: {:?}", e);
                 }
 
                 if let Err(e) = compositor.allocate_sublayers(&mut engine) {
@@ -806,7 +815,6 @@ fn main() -> Result<()> {
                                 .handle_input(
                                     &db,
                                     &buffers,
-                                    &viewer.labels,
                                     ConsoleInput::AppendChar(c),
                                 )
                                 .unwrap();
@@ -826,7 +834,6 @@ fn main() -> Result<()> {
                                     if let Err(e) = console.handle_input(
                                         &db,
                                         &buffers,
-                                        &viewer.labels,
                                         ConsoleInput::Submit,
                                     ) {
                                         log::error!("Console error: {:?}", e);
@@ -836,7 +843,6 @@ fn main() -> Result<()> {
                                         .handle_input(
                                             &db,
                                             &buffers,
-                                            &viewer.labels,
                                             ConsoleInput::Backspace,
                                         )
                                         .unwrap();

@@ -1,5 +1,6 @@
 use crossbeam::atomic::AtomicCell;
 use parking_lot::RwLock;
+use raving::compositor::label_space::LabelSpace;
 use raving::vk::context::VkContext;
 use raving::vk::{
     BufferIx, DescSetIx, FramebufferIx, GpuResources, PipelineIx, RenderPassIx,
@@ -31,8 +32,6 @@ use anyhow::{anyhow, bail, Result};
 use zerocopy::{AsBytes, FromBytes};
 
 use rhai::plugin::*;
-
-use super::tree_list::LabelSpace;
 
 pub fn add_sublayer_defs(
     engine: &mut VkEngine,

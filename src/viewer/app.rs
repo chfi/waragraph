@@ -229,9 +229,9 @@ impl ViewerSys {
         // kind of a temporary hack; the console should be a fully
         // separate system, but right now it's using the viewer label
         // system for rendering
-        txt.allocate_label(&db, engine, "console")?;
-        txt.set_label_pos(b"console", 4, 4)?;
-        txt.set_text_for(b"console", "")?;
+        // txt.allocate_label(&db, engine, "console")?;
+        // txt.set_label_pos(b"console", 4, 4)?;
+        // txt.set_text_for(b"console", "")?;
 
         txt.allocate_label(&db, engine, "fps")?;
         txt.set_label_pos(b"fps", 0, 580)?;

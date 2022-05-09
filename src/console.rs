@@ -4,13 +4,16 @@ use ash::vk;
 use bstr::ByteSlice;
 use gfa::gfa::GFA;
 use gpu_allocator::vulkan::Allocator;
+use nalgebra::Vector2;
 use raving::{
+    compositor::{label_space::LabelSpace, Compositor, SublayerAllocMsg},
     script::console::BatchBuilder,
     vk::{context::VkContext, BufferIx, GpuResources, VkEngine},
 };
 use rustc_hash::FxHashMap;
 
 use sled::IVec;
+use smartstring::SmartString;
 use thunderdome::{Arena, Index};
 
 use sprs::{CsMatI, CsVecI, TriMatI};
@@ -58,39 +61,116 @@ lazy_static! {
     };
 }
 
-// pub mod ivec;
-// pub mod labels;
-
 pub type EvalResult<T> = Result<T, Box<rhai::EvalAltResult>>;
 
-#[derive(Default, Clone)]
+#[derive(Clone)]
 pub struct Console {
-    pub input: String,
-    focus: usize,
-
     pub scope: rhai::Scope<'static>,
 
     pub modules: HashMap<rhai::ImmutableString, Arc<rhai::Module>>,
 
     pub ast: Arc<rhai::AST>,
+
+    focus: usize,
+    pub input: String,
+    input_history: Vec<SmartString<smartstring::Compact>>,
+    output: Vec<SmartString<smartstring::Compact>>,
+
+    label_space: LabelSpace,
 }
 
 impl Console {
-    /*
-    pub fn handle_input(
-        &mut self,
-        input: &winit::event::KeyboardInput,
-    ) -> Result<()> {
-        // winit::event::ElementState::
-        // input.state
-        let pressed =
-            matches!(input.state, winit::event::ElementState::Pressed);
+    pub const LAYER_NAME: &'static str = "console";
+    pub const RECT_SUBLAYER_NAME: &'static str = "sublayer-rect";
+    pub const TEXT_SUBLAYER_NAME: &'static str = "sublayer-text";
 
-        if let Some(vk) = input.virtual_keycode {
-            match vk {}
-        }
+    pub fn init(
+        engine: &mut VkEngine,
+        compositor: &mut Compositor,
+    ) -> Result<Self> {
+        let label_space = LabelSpace::new(engine, "console", 1024 * 1024)?;
+
+        compositor.new_layer(Self::LAYER_NAME, 20, true);
+
+        compositor.sublayer_alloc_tx.send(SublayerAllocMsg::new(
+            Self::LAYER_NAME,
+            Self::RECT_SUBLAYER_NAME,
+            "rect-rgb",
+            &[],
+        ))?;
+
+        compositor.sublayer_alloc_tx.send(SublayerAllocMsg::new(
+            Self::LAYER_NAME,
+            Self::TEXT_SUBLAYER_NAME,
+            "text",
+            &[label_space.text_set],
+        ))?;
+
+        Ok(Self {
+            scope: rhai::Scope::default(),
+            modules: HashMap::default(),
+            ast: Arc::new(rhai::AST::default()),
+
+            focus: 0,
+            input: String::new(),
+            input_history: Vec::new(),
+            output: Vec::new(),
+
+            label_space,
+        })
     }
-    */
+
+    pub fn update_layer(
+        &mut self,
+        res: &mut GpuResources,
+        compositor: &mut Compositor,
+        pos: [f32; 2],
+    ) -> Result<()> {
+        if self.label_space.used_bytes() > self.label_space.capacity() / 2 {
+            self.label_space.clear();
+        }
+
+        let (text_s, text_l) =
+            self.label_space.bounds_for_insert(&self.input)?;
+
+        let _ = self.label_space.write_buffer(res);
+
+        compositor.with_layer(Self::LAYER_NAME, |layer| {
+            let [x, y] = pos;
+            let [width, _] = compositor.window_dims();
+
+            if let Some(sublayer) =
+                layer.get_sublayer_mut(Self::TEXT_SUBLAYER_NAME)
+            {
+                let color = [0.0f32, 0.0, 0.0, 1.0];
+
+                let mut out = [0u8; 8 + 8 + 16];
+                out[0..8].clone_from_slice([x + 1.0, y + 1.0].as_bytes());
+                out[8..16].clone_from_slice(
+                    [text_s as u32, text_l as u32].as_bytes(),
+                );
+                out[16..32].clone_from_slice(color.as_bytes());
+
+                sublayer.update_vertices_array(Some(out))?;
+            }
+
+            if let Some(sublayer) =
+                layer.get_sublayer_mut(Self::RECT_SUBLAYER_NAME)
+            {
+                let mut bg = [0u8; 8 + 8 + 16];
+                bg[0..8].clone_from_slice([x, y].as_bytes());
+                bg[8..16].clone_from_slice([width as f32, 10.0].as_bytes());
+                bg[16..32]
+                    .clone_from_slice([0.85f32, 0.85, 0.85, 1.0].as_bytes());
+
+                sublayer.update_vertices_array_range(0..1, [bg])?;
+            }
+
+            Ok(())
+        })?;
+
+        Ok(())
+    }
 
     pub fn eval(
         &mut self,
@@ -140,7 +220,6 @@ impl Console {
         &mut self,
         db: &sled::Db,
         buffers: &BufferStorage,
-        txt: &LabelStorage,
         input: ConsoleInput,
     ) -> Result<()> {
         match input {
@@ -207,7 +286,7 @@ impl Console {
             }
         }
 
-        txt.set_text_for(b"console", &self.input)?;
+        // txt.set_text_for(b"console", &self.input)?;
 
         Ok(())
     }

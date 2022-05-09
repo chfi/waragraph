@@ -34,9 +34,7 @@ use bstr::ByteSlice as BstrByteSlice;
 use crate::{
     graph::{Node, Path, Waragraph},
     util::{BufFmt, BufId, BufMeta, BufferStorage, LabelStorage},
-    viewer::{
-        gui::tree_list::LabelSpace, DataSource, SlotFnCache, ViewDiscrete1D,
-    },
+    viewer::{DataSource, SlotFnCache, ViewDiscrete1D},
 };
 
 use rhai::plugin::*;
