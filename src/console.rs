@@ -73,7 +73,7 @@ pub struct Console {
 
     focus: usize,
     pub input: String,
-    input_history: Vec<SmartString<smartstring::Compact>>,
+    input_history: Vec<rhai::ImmutableString>,
     output: Vec<SmartString<smartstring::Compact>>,
 
     label_space: LabelSpace,

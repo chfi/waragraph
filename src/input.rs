@@ -31,6 +31,10 @@ pub fn set_mouse_pos(x: f64, y: f64) {
     MOUSE_POS.store((x, y));
 }
 
+pub fn get_mouse_pos() -> (f64, f64) {
+    MOUSE_POS.load()
+}
+
 pub fn create_mouse_module() -> rhai::Module {
     let mut module: rhai::Module = rhai::exported_module!(mouse);
 

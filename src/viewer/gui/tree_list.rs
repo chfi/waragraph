@@ -39,9 +39,8 @@ use raving::compositor::Compositor;
 pub struct TreeList {
     pub offset: Arc<AtomicCell<[f32; 2]>>,
 
-    // list: Vec<rhai::Dynamic>,
-    pub list: Vec<(String, usize)>,
-
+    pub list: Vec<rhai::Dynamic>,
+    // pub list: Vec<(String, usize)>,
     pub label_space: LabelSpace,
 
     layer_name: rhai::ImmutableString,
@@ -51,43 +50,189 @@ pub struct TreeList {
     // rhai_module: Arc<rhai::Module>,
 }
 
+#[derive(Debug, Default, Clone)]
+pub struct Breadcrumbs {
+    stack: smallvec::SmallVec<[u16; 11]>,
+}
+
+impl Breadcrumbs {
+    pub fn append(&self, v: u16) -> Self {
+        let mut stack = self.stack.clone();
+        stack.push(v);
+        Self { stack }
+    }
+
+    pub fn push(&mut self, v: u16) {
+        self.stack.push(v)
+    }
+
+    pub fn pop(&mut self) -> Option<u16> {
+        self.stack.pop()
+    }
+
+    pub fn len(&self) -> usize {
+        self.stack.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.stack.is_empty()
+    }
+}
+
 impl TreeList {
-    pub fn update_layer(&mut self, compositor: &mut Compositor) -> Result<()> {
+    fn label_vertices(
+        offset: [f32; 2],
+        index: usize,
+        indent: f32,
+        text_bounds: (usize, usize),
+    ) -> [u8; 32] {
+        let [x0, y0] = offset;
+
+        let (s, l) = text_bounds;
+        let color = [0.0f32, 0.0, 0.0, 1.0];
+
+        let x = x0 + 1.0 + indent;
+        let y = y0 + 1.0 + (10.0 * index as f32);
+
+        let mut out = [0u8; 8 + 8 + 16];
+        out[0..8].clone_from_slice([x, y].as_bytes());
+        out[8..16].clone_from_slice([s as u32, l as u32].as_bytes());
+        out[16..32].clone_from_slice(color.as_bytes());
+
+        out
+    }
+
+    fn rect_vertices(&self, index: usize, indent: f32, width: f32) -> [u8; 32] {
         let [x0, y0] = self.offset.load();
 
-        compositor.with_layer(&self.layer_name, |layer| {
+        let color = if index % 2 == 0 {
+            [0.85f32, 0.85, 0.85, 1.0]
+        } else {
+            [0.75f32, 0.75, 0.75, 1.0]
+        };
+
+        let h = 10.0;
+
+        let x = x0;
+        let y = y0 + h * index as f32;
+
+        let mut out = [0u8; 32];
+        out[0..8].clone_from_slice([x, y].as_bytes());
+        out[8..16].clone_from_slice([width, h].as_bytes());
+        out[16..32].clone_from_slice(color.as_bytes());
+        out
+    }
+
+    pub fn update_layer(
+        &mut self,
+        compositor: &mut Compositor,
+        mouse_pos: [f32; 2],
+    ) -> Result<()> {
+        let offset = self.offset.load();
+        let [x0, y0] = self.offset.load();
+
+        let layer_name = self.layer_name.clone();
+
+        compositor.with_layer(&layer_name, |layer| {
             let mut max_label_len = 0;
+
+            let mut total_width = 0.0;
+
+            let mut max_depth = 0;
+            let mut max_sum = 0;
+
+            let mut row_stack: Vec<(Breadcrumbs, rhai::Dynamic)> = Vec::new();
+
+            for (i, val) in self.list.iter().enumerate() {
+                let mut crumbs = Breadcrumbs::default();
+                crumbs.push(i as u16);
+                row_stack.push((crumbs, val.clone()));
+            }
+
+            let mut rows = Vec::new();
+
+            while let Some((crumbs, val)) = row_stack.pop() {
+                max_depth = max_depth.max(crumbs.len());
+
+                match val.type_name() {
+                    "bool" => {
+                        let v = val.as_bool().unwrap();
+                        let bounds = self
+                            .label_space
+                            .bounds_for_insert(&v.to_string())
+                            .unwrap();
+                        rows.push((crumbs.clone(), bounds));
+                    }
+                    "i64" => {
+                        let int = val.as_int().unwrap();
+                        let bounds = self
+                            .label_space
+                            .bounds_for_insert(&int.to_string())
+                            .unwrap();
+                        rows.push((crumbs.clone(), bounds));
+                    }
+                    "f32" => {
+                        let float = val.as_float().unwrap();
+                        let bounds = self
+                            .label_space
+                            .bounds_for_insert(&float.to_string())
+                            .unwrap();
+                        rows.push((crumbs.clone(), bounds));
+                    }
+                    "string" => {
+                        let text = val.clone_cast::<rhai::ImmutableString>();
+
+                        max_label_len = max_label_len.max(text.len());
+
+                        let bounds =
+                            self.label_space.bounds_for_insert(&text).unwrap();
+
+                        rows.push((crumbs.clone(), bounds));
+                    }
+                    "array" => {
+                        let array = val.clone_cast::<rhai::Array>();
+
+                        let mut i = 0u16;
+
+                        for val in array {
+                            let crumbs = crumbs.append(i);
+                            row_stack.push((crumbs, val));
+                            i += 1;
+                        }
+                    }
+                    "map" => {
+                        let map = val.clone_cast::<rhai::Map>();
+
+                        let mut i = 0u16;
+
+                        for (key, val) in map {
+                            if val.type_name() == "string" {}
+                        }
+                    }
+                    _ => {
+                        //
+                    }
+                }
+            }
+
+            rows.reverse();
 
             if let Some(sublayer) = layer.get_sublayer_mut(&self.sublayer_text)
             {
-                sublayer.update_vertices_array(
-                    self.list.iter().enumerate().map(|(i, (text, v))| {
-                        max_label_len = max_label_len.max(text.len());
-
-                        let (s, l) =
-                            self.label_space.bounds_for_insert(text).unwrap();
-
-                        let h = 10.0;
-
-                        let x = x0;
-                        let y = y0 + h * i as f32;
-
-                        let color = [0.0f32, 0.0, 0.0, 1.0];
-
-                        let mut out = [0u8; 8 + 8 + 16];
-                        out[0..8].clone_from_slice([x, y].as_bytes());
-                        out[8..16]
-                            .clone_from_slice([s as u32, l as u32].as_bytes());
-                        out[16..32].clone_from_slice(color.as_bytes());
-                        out
-                    }),
-                )?;
+                sublayer.update_vertices_array(rows.iter().enumerate().map(
+                    |(i, (crumbs, bounds))| {
+                        let depth = 10.0 * crumbs.len() as f32;
+                        Self::label_vertices(offset, i, depth, *bounds)
+                    },
+                ))?;
             }
 
             if let Some(sublayer) = layer.get_sublayer_mut(&self.sublayer_rect)
             {
-                let w = 4.0 + 8.0 * max_label_len as f32;
-                let h = 4.0 + 8.0 * self.list.len() as f32;
+                let w = 4.0
+                    + (10.0 * max_depth as f32)
+                    + 8.0 * max_label_len as f32;
+                let h = 4.0 + 8.0 * max_sum as f32;
 
                 let mut bg = [0u8; 8 + 8 + 16];
                 bg[0..8].clone_from_slice([x0, y0].as_bytes());
@@ -98,23 +243,9 @@ impl TreeList {
                 sublayer.update_vertices_array_range(0..1, [bg])?;
 
                 sublayer.update_vertices_array(Some(bg).into_iter().chain(
-                    self.list.iter().enumerate().map(|(i, (s, v))| {
-                        let color = if i % 2 == 0 {
-                            [0.85f32, 0.85, 0.85, 1.0]
-                        } else {
-                            [0.75f32, 0.75, 0.75, 1.0]
-                        };
-
-                        let h = 10.0;
-
-                        let x = x0;
-                        let y = y0 + h * i as f32;
-
-                        let mut out = [0u8; 32];
-                        out[0..8].clone_from_slice([x, y].as_bytes());
-                        out[8..16].clone_from_slice([w, h].as_bytes());
-                        out[16..32].clone_from_slice(color.as_bytes());
-                        out
+                    rows.iter().enumerate().map(|(i, (crumbs, _bounds))| {
+                        let depth = 10.0 * (crumbs.len() - 1) as f32;
+                        self.rect_vertices(i, depth, w)
                     }),
                 ))?;
             }

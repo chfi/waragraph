@@ -254,16 +254,40 @@ fn main() -> Result<()> {
     let mut tree_list =
         TreeList::new(&mut engine, &mut compositor, 100.0, 100.0)?;
 
-    for i in 0..20 {
-        let text = format!("row - {}", i);
-        tree_list.list.push((text, i));
-    }
+    {
+        let mut i = 0;
 
-    tree_list.update_layer(&mut compositor)?;
-    tree_list
-        .label_space
-        .write_buffer(&mut engine.resources)
-        .unwrap();
+        for _ in 0..5 {
+            let text = format!("row - {}", i);
+            let text = rhai::ImmutableString::from(text);
+            tree_list.list.push(rhai::Dynamic::from(text));
+            i += 1;
+        }
+
+        let mut sublist = Vec::new();
+        sublist.push(rhai::Dynamic::from(rhai::ImmutableString::from(
+            "sublist!!!!",
+        )));
+
+        for j in 0..5 {
+            // let text = format!("", i, j);
+            // let text = rhai::ImmutableString::from(text);
+            sublist.push(rhai::Dynamic::from_int(j));
+        }
+
+        tree_list.list.push(rhai::Dynamic::from(sublist));
+
+        for _ in 0..5 {
+            let text = format!("row - {}", i);
+            let text = rhai::ImmutableString::from(text);
+            tree_list.list.push(rhai::Dynamic::from(text));
+            i += 1;
+        }
+
+        tree_list.list.push(rhai::Dynamic::TRUE);
+        tree_list.list.push(rhai::Dynamic::FALSE);
+        tree_list.list.push(rhai::Dynamic::from_float(3.141592));
+    }
 
     {
         let module =
@@ -531,6 +555,21 @@ fn main() -> Result<()> {
                 ) {
                     log::error!("Console compositor error: {:?}", e);
                 }
+
+                let mouse_pos = {
+                    let (x, y) = waragraph::input::get_mouse_pos();
+                    [x as f32, y as f32]
+                };
+
+                if let Err(e) =
+                    tree_list.update_layer(&mut compositor, mouse_pos)
+                {
+                    log::error!("Tree list compositor error: {:?}", e);
+                }
+                tree_list
+                    .label_space
+                    .write_buffer(&mut engine.resources)
+                    .unwrap();
 
                 if let Err(e) = compositor.allocate_sublayers(&mut engine) {
                     log::error!("Compositor error: {:?}", e);
