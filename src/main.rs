@@ -19,7 +19,7 @@ use sled::IVec;
 use waragraph::graph::{Node, Path, Waragraph};
 use waragraph::util::{BufferStorage, LabelStorage};
 use waragraph::viewer::app::ViewerSys;
-use waragraph::viewer::gui::tree_list::TreeList;
+use waragraph::viewer::gui::tree_list::{Breadcrumbs, TreeList};
 use waragraph::viewer::gui::{GuiLayer, GuiSys};
 use waragraph::viewer::{SlotUpdateFn, ViewDiscrete1D};
 use winit::event::{Event, VirtualKeyCode, WindowEvent};
@@ -253,41 +253,6 @@ fn main() -> Result<()> {
 
     let mut tree_list =
         TreeList::new(&mut engine, &mut compositor, 100.0, 100.0)?;
-
-    {
-        let mut i = 0;
-
-        for _ in 0..5 {
-            let text = format!("row - {}", i);
-            let text = rhai::ImmutableString::from(text);
-            tree_list.list.push(rhai::Dynamic::from(text));
-            i += 1;
-        }
-
-        let mut sublist = Vec::new();
-        sublist.push(rhai::Dynamic::from(rhai::ImmutableString::from(
-            "sublist!!!!",
-        )));
-
-        for j in 0..5 {
-            // let text = format!("", i, j);
-            // let text = rhai::ImmutableString::from(text);
-            sublist.push(rhai::Dynamic::from_int(j));
-        }
-
-        tree_list.list.push(rhai::Dynamic::from(sublist));
-
-        for _ in 0..5 {
-            let text = format!("row - {}", i);
-            let text = rhai::ImmutableString::from(text);
-            tree_list.list.push(rhai::Dynamic::from(text));
-            i += 1;
-        }
-
-        tree_list.list.push(rhai::Dynamic::TRUE);
-        tree_list.list.push(rhai::Dynamic::FALSE);
-        tree_list.list.push(rhai::Dynamic::from_float(3.141592));
-    }
 
     {
         let module =
@@ -561,10 +526,28 @@ fn main() -> Result<()> {
                     [x as f32, y as f32]
                 };
 
-                if let Err(e) =
-                    tree_list.update_layer(&mut compositor, mouse_pos)
-                {
-                    log::error!("Tree list compositor error: {:?}", e);
+                let (all_crumbs, config_map) = {
+                    let map = viewer.config.map.read().clone();
+
+                    let map = rhai::Dynamic::from_map(map);
+
+                    let crumbs = Breadcrumbs::all_crumbs(&map);
+
+                    (crumbs, map)
+                };
+
+                match tree_list.update_layer(
+                    &mut compositor,
+                    &all_crumbs,
+                    &config_map,
+                    mouse_pos,
+                ) {
+                    Ok(_) => {
+                        //
+                    }
+                    Err(e) => {
+                        log::error!("Tree list compositor error: {:?}", e);
+                    }
                 }
                 tree_list
                     .label_space

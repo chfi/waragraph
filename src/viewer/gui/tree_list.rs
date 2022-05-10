@@ -39,7 +39,6 @@ use raving::compositor::Compositor;
 pub struct TreeList {
     pub offset: Arc<AtomicCell<[f32; 2]>>,
 
-    pub list: Vec<rhai::Dynamic>,
     // pub list: Vec<(String, usize)>,
     pub label_space: LabelSpace,
 
@@ -61,25 +60,37 @@ impl Breadcrumbs {
         base: &Breadcrumbs,
         val: &rhai::Dynamic,
     ) {
-        if val.type_name() != "array" {
-            return;
-        }
+        match val.type_name() {
+            "array" => {
+                if let Some(array) = val.read_lock::<rhai::Array>() {
+                    for (ix, val) in array.iter().enumerate() {
+                        let crumbs = base.append(ix as u16);
 
-        if let Some(array) = val.read_lock::<rhai::Array>() {
-            for (ix, val) in array.iter().enumerate() {
-                let crumbs = base.append(ix as u16);
+                        Self::all_crumbs_impl(res, &crumbs, val);
 
-                Self::all_crumbs_impl(res, &crumbs, val);
-
-                res.insert(crumbs);
+                        res.insert(crumbs);
+                    }
+                }
             }
+            "map" => {
+                if let Some(array) = val.read_lock::<rhai::Map>() {
+                    for (ix, (_key, val)) in array.iter().enumerate() {
+                        let crumbs = base.append(ix as u16);
+
+                        Self::all_crumbs_impl(res, &crumbs, val);
+
+                        res.insert(crumbs);
+                    }
+                }
+            }
+            _ => (),
         }
     }
 
     pub fn all_crumbs(val: &rhai::Dynamic) -> BTreeSet<Breadcrumbs> {
         let mut res = BTreeSet::default();
 
-        if val.type_name() != "array" {
+        if val.type_name() != "array" && val.type_name() != "map" {
             return res;
         }
 
@@ -105,13 +116,12 @@ impl Breadcrumbs {
         mut f: F,
     ) -> BTreeMap<Breadcrumbs, T>
     where
-        F: FnMut(&Breadcrumbs, &rhai::Dynamic) -> Option<T>,
-        // F: for<'a, 'b> FnMut(&'a Breadcrumbs, &'b rhai::Dynamic) -> Option<T>,
+        F: FnMut(&Breadcrumbs, Option<&str>, &rhai::Dynamic) -> Option<T>,
     {
         let mut res = BTreeMap::default();
 
         for crumbs in all_crumbs {
-            if let Some(val) = crumbs.get_map_impl(val, &mut f) {
+            if let Some(val) = crumbs.get_map_impl(None, val, &mut f) {
                 res.insert(crumbs.clone(), val);
             }
         }
@@ -119,38 +129,55 @@ impl Breadcrumbs {
         res
     }
 
-    fn get_map_impl<F, T>(&self, val: &rhai::Dynamic, f: &mut F) -> Option<T>
+    fn get_map_impl<F, T>(
+        &self,
+        key: Option<&str>,
+        val: &rhai::Dynamic,
+        f: &mut F,
+    ) -> Option<T>
     where
-        F: FnMut(&Breadcrumbs, &rhai::Dynamic) -> Option<T>,
+        F: FnMut(&Breadcrumbs, Option<&str>, &rhai::Dynamic) -> Option<T>,
     {
         if self.is_empty() {
-            return f(self, val);
+            return f(self, key, val);
         }
 
-        if val.type_name() != "array" {
-            return None;
-        }
+        match val.type_name() {
+            "array" => {
+                let array = val.read_lock::<rhai::Array>()?;
 
-        let array = val.read_lock::<rhai::Array>()?;
-
-        match self.pop_back() {
-            None => None,
-            Some((ix, crumbs)) => {
-                let val = array.get(ix as usize)?;
-                crumbs.get_map_impl(val, f)
+                match self.pop_back() {
+                    None => None,
+                    Some((ix, crumbs)) => {
+                        let val = array.get(ix as usize)?;
+                        crumbs.get_map_impl(None, val, f)
+                    }
+                }
             }
+            "map" => {
+                let map = val.read_lock::<rhai::Map>()?;
+
+                match self.pop_back() {
+                    None => None,
+                    Some((ix, crumbs)) => {
+                        let (key, val) = map.iter().nth(ix as usize)?;
+                        crumbs.get_map_impl(Some(key.as_str()), val, f)
+                    }
+                }
+            }
+            _ => None,
         }
     }
 
     pub fn get_map<F, T>(&self, val: &rhai::Dynamic, mut f: F) -> Option<T>
     where
-        F: FnMut(&Breadcrumbs, &rhai::Dynamic) -> Option<T>,
+        F: FnMut(&Breadcrumbs, Option<&str>, &rhai::Dynamic) -> Option<T>,
     {
-        self.get_map_impl(val, &mut f)
+        self.get_map_impl(None, val, &mut f)
     }
 
     pub fn index_dyn_ref(&self, val: &rhai::Dynamic) -> Option<rhai::Dynamic> {
-        self.get_map(val, |_, v: &rhai::Dynamic| Some(v.clone()))
+        self.get_map(val, |_, _, v: &rhai::Dynamic| Some(v.clone()))
     }
 
     pub fn index_dyn(&self, val: rhai::Dynamic) -> Option<rhai::Dynamic> {
@@ -252,7 +279,7 @@ impl TreeList {
         out
     }
 
-    pub fn update_layer_new(
+    pub fn update_layer(
         &mut self,
         compositor: &mut Compositor,
         all_crumbs: &BTreeSet<Breadcrumbs>,
@@ -265,14 +292,25 @@ impl TreeList {
 
         let mut max_label_len = 0;
 
-        let crumb_rows =
-            Breadcrumbs::map_all_crumbs(all_crumbs, source, |crumbs, val| {
+        let crumb_rows = Breadcrumbs::map_all_crumbs(
+            all_crumbs,
+            source,
+            |crumbs, key, val| {
+                let prefix = |k: String| {
+                    if let Some(p) = key {
+                        format!("{}: {}", p, k)
+                    } else {
+                        k
+                    }
+                };
+
+                //
                 match val.type_name() {
                     "bool" => {
                         let v = val.as_bool().unwrap();
                         let bounds = self
                             .label_space
-                            .bounds_for_insert(&v.to_string())
+                            .bounds_for_insert(&prefix(v.to_string()))
                             .unwrap();
                         Some(bounds)
                     }
@@ -280,7 +318,7 @@ impl TreeList {
                         let int = val.as_int().unwrap();
                         let bounds = self
                             .label_space
-                            .bounds_for_insert(&int.to_string())
+                            .bounds_for_insert(&prefix(int.to_string()))
                             .unwrap();
                         Some(bounds)
                     }
@@ -288,7 +326,7 @@ impl TreeList {
                         let float = val.as_float().unwrap();
                         let bounds = self
                             .label_space
-                            .bounds_for_insert(&float.to_string())
+                            .bounds_for_insert(&prefix(float.to_string()))
                             .unwrap();
                         Some(bounds)
                     }
@@ -297,14 +335,17 @@ impl TreeList {
 
                         max_label_len = max_label_len.max(text.len());
 
-                        let bounds =
-                            self.label_space.bounds_for_insert(&text).unwrap();
+                        let bounds = self
+                            .label_space
+                            .bounds_for_insert(&prefix(text.to_string()))
+                            .unwrap();
 
                         Some(bounds)
                     }
                     _ => None,
                 }
-            });
+            },
+        );
 
         let offset = self.offset.load();
         let [x0, y0] = self.offset.load();
@@ -412,139 +453,6 @@ impl TreeList {
         Ok(())
     }
 
-    pub fn update_layer(
-        &mut self,
-        compositor: &mut Compositor,
-        mouse_pos: [f32; 2],
-    ) -> Result<()> {
-        let offset = self.offset.load();
-        let [x0, y0] = self.offset.load();
-
-        let layer_name = self.layer_name.clone();
-
-        compositor.with_layer(&layer_name, |layer| {
-            let mut max_label_len = 0;
-
-            let mut total_width = 0.0;
-
-            let mut max_depth = 0;
-            let mut max_sum = 0;
-
-            let mut row_stack: Vec<(Breadcrumbs, rhai::Dynamic)> = Vec::new();
-
-            for (i, val) in self.list.iter().enumerate() {
-                let mut crumbs = Breadcrumbs::default();
-                crumbs.push(i as u16);
-                row_stack.push((crumbs, val.clone()));
-            }
-
-            let mut rows = Vec::new();
-
-            while let Some((crumbs, val)) = row_stack.pop() {
-                max_depth = max_depth.max(crumbs.len());
-
-                match val.type_name() {
-                    "bool" => {
-                        let v = val.as_bool().unwrap();
-                        let bounds = self
-                            .label_space
-                            .bounds_for_insert(&v.to_string())
-                            .unwrap();
-                        rows.push((crumbs.clone(), bounds));
-                    }
-                    "i64" => {
-                        let int = val.as_int().unwrap();
-                        let bounds = self
-                            .label_space
-                            .bounds_for_insert(&int.to_string())
-                            .unwrap();
-                        rows.push((crumbs.clone(), bounds));
-                    }
-                    "f32" => {
-                        let float = val.as_float().unwrap();
-                        let bounds = self
-                            .label_space
-                            .bounds_for_insert(&float.to_string())
-                            .unwrap();
-                        rows.push((crumbs.clone(), bounds));
-                    }
-                    "string" => {
-                        let text = val.clone_cast::<rhai::ImmutableString>();
-
-                        max_label_len = max_label_len.max(text.len());
-
-                        let bounds =
-                            self.label_space.bounds_for_insert(&text).unwrap();
-
-                        rows.push((crumbs.clone(), bounds));
-                    }
-                    "array" => {
-                        let array = val.clone_cast::<rhai::Array>();
-
-                        let mut i = 0u16;
-
-                        for val in array {
-                            let crumbs = crumbs.append(i);
-                            row_stack.push((crumbs, val));
-                            i += 1;
-                        }
-                    }
-                    "map" => {
-                        let map = val.clone_cast::<rhai::Map>();
-
-                        let mut i = 0u16;
-
-                        for (key, val) in map {
-                            if val.type_name() == "string" {}
-                        }
-                    }
-                    _ => {
-                        //
-                    }
-                }
-            }
-
-            rows.reverse();
-
-            if let Some(sublayer) = layer.get_sublayer_mut(&self.sublayer_text)
-            {
-                sublayer.update_vertices_array(rows.iter().enumerate().map(
-                    |(i, (crumbs, bounds))| {
-                        let depth = 10.0 * crumbs.len() as f32;
-                        Self::label_vertices(offset, i, depth, *bounds)
-                    },
-                ))?;
-            }
-
-            if let Some(sublayer) = layer.get_sublayer_mut(&self.sublayer_rect)
-            {
-                let w = 4.0
-                    + (10.0 * max_depth as f32)
-                    + 8.0 * max_label_len as f32;
-                let h = 4.0 + 8.0 * max_sum as f32;
-
-                let mut bg = [0u8; 8 + 8 + 16];
-                bg[0..8].clone_from_slice([x0, y0].as_bytes());
-                bg[8..16].clone_from_slice([w, h].as_bytes());
-                bg[16..32]
-                    .clone_from_slice([0.85f32, 0.85, 0.85, 1.0].as_bytes());
-
-                sublayer.update_vertices_array_range(0..1, [bg])?;
-
-                sublayer.update_vertices_array(Some(bg).into_iter().chain(
-                    rows.iter().enumerate().map(|(i, (crumbs, _bounds))| {
-                        let depth = 10.0 * (crumbs.len() - 1) as f32;
-                        self.rect_vertices(i, depth, w)
-                    }),
-                ))?;
-            }
-
-            Ok(())
-        })?;
-
-        Ok(())
-    }
-
     pub fn new(
         engine: &mut VkEngine,
         compositor: &mut Compositor,
@@ -587,7 +495,6 @@ impl TreeList {
         Ok(Self {
             offset,
 
-            list: Vec::new(),
             label_space,
 
             layer_name: layer_name.into(),
