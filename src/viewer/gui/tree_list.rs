@@ -56,6 +56,69 @@ pub struct Breadcrumbs {
 }
 
 impl Breadcrumbs {
+    pub fn pop_back(&self) -> Option<(u16, Self)> {
+        if self.is_empty() {
+            return None;
+        }
+
+        match self.stack.split_at(1) {
+            (&[v], rest) => Some((v, Self { stack: rest.into() })),
+            _ => unreachable!(),
+        }
+    }
+
+    pub fn index_dyn_ref(&self, val: &rhai::Dynamic) -> Option<rhai::Dynamic> {
+        if self.is_empty() {
+            return Some(val.clone());
+        }
+
+        if val.type_name() != "array" {
+            return None;
+        }
+
+        let array = val.read_lock::<rhai::Array>()?;
+
+        match self.pop_back() {
+            None => None,
+            Some((ix, crumbs)) => {
+                let val = array.get(ix as usize)?;
+                crumbs.index_dyn_ref(val)
+            }
+        }
+    }
+
+    pub fn index_dyn(&self, val: rhai::Dynamic) -> Option<rhai::Dynamic> {
+        if self.is_empty() {
+            return Some(val);
+        }
+
+        if val.type_name() != "array" {
+            return None;
+        }
+
+        let mut array = val.cast::<rhai::Array>();
+
+        let last_level = self.len();
+
+        for (level, ix) in self.stack.iter().enumerate() {
+            let ix = *ix as usize;
+
+            let val = (ix < array.len()).then(|| array.swap_remove(ix))?;
+
+            if level + 1 == last_level {
+                return Some(val);
+            }
+
+            if val.type_name() != "array" {
+                return None;
+            }
+
+            array = val.cast();
+        }
+
+        None
+    }
+
     pub fn append(&self, v: u16) -> Self {
         let mut stack = self.stack.clone();
         stack.push(v);
