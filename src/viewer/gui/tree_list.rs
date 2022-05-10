@@ -24,7 +24,7 @@ use crate::graph::{Node, Waragraph};
 use crate::util::{BufFmt, BufId, BufferStorage, LabelStorage};
 use crate::viewer::{SlotRenderers, ViewDiscrete1D};
 
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 use std::sync::Arc;
 
@@ -50,12 +50,44 @@ pub struct TreeList {
     // rhai_module: Arc<rhai::Module>,
 }
 
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Default, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Breadcrumbs {
     stack: smallvec::SmallVec<[u16; 11]>,
 }
 
 impl Breadcrumbs {
+    pub fn all_crumbs_impl(
+        res: &mut BTreeSet<Breadcrumbs>,
+        base: &Breadcrumbs,
+        val: &rhai::Dynamic,
+    ) {
+        if val.type_name() != "array" {
+            return;
+        }
+
+        if let Some(array) = val.read_lock::<rhai::Array>() {
+            for (ix, val) in array.iter().enumerate() {
+                let crumbs = base.append(ix as u16);
+
+                Self::all_crumbs_impl(res, &crumbs, val);
+
+                res.insert(crumbs);
+            }
+        }
+    }
+
+    pub fn all_crumbs(val: &rhai::Dynamic) -> BTreeSet<Breadcrumbs> {
+        let mut res = BTreeSet::default();
+
+        if val.type_name() != "array" {
+            return res;
+        }
+
+        Self::all_crumbs_impl(&mut res, &Breadcrumbs::default(), val);
+
+        res
+    }
+
     pub fn pop_back(&self) -> Option<(u16, Self)> {
         if self.is_empty() {
             return None;
