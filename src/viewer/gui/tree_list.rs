@@ -99,9 +99,32 @@ impl Breadcrumbs {
         }
     }
 
-    pub fn index_dyn_ref(&self, val: &rhai::Dynamic) -> Option<rhai::Dynamic> {
+    pub fn map_all_crumbs<T, F>(
+        all_crumbs: &BTreeSet<Breadcrumbs>,
+        val: &rhai::Dynamic,
+        mut f: F,
+    ) -> BTreeMap<Breadcrumbs, T>
+    where
+        F: FnMut(&Breadcrumbs, &rhai::Dynamic) -> Option<T>,
+        // F: for<'a, 'b> FnMut(&'a Breadcrumbs, &'b rhai::Dynamic) -> Option<T>,
+    {
+        let mut res = BTreeMap::default();
+
+        for crumbs in all_crumbs {
+            if let Some(val) = crumbs.get_map_impl(val, &mut f) {
+                res.insert(crumbs.clone(), val);
+            }
+        }
+
+        res
+    }
+
+    fn get_map_impl<F, T>(&self, val: &rhai::Dynamic, f: &mut F) -> Option<T>
+    where
+        F: FnMut(&Breadcrumbs, &rhai::Dynamic) -> Option<T>,
+    {
         if self.is_empty() {
-            return Some(val.clone());
+            return f(self, val);
         }
 
         if val.type_name() != "array" {
@@ -114,9 +137,20 @@ impl Breadcrumbs {
             None => None,
             Some((ix, crumbs)) => {
                 let val = array.get(ix as usize)?;
-                crumbs.index_dyn_ref(val)
+                crumbs.get_map_impl(val, f)
             }
         }
+    }
+
+    pub fn get_map<F, T>(&self, val: &rhai::Dynamic, mut f: F) -> Option<T>
+    where
+        F: FnMut(&Breadcrumbs, &rhai::Dynamic) -> Option<T>,
+    {
+        self.get_map_impl(val, &mut f)
+    }
+
+    pub fn index_dyn_ref(&self, val: &rhai::Dynamic) -> Option<rhai::Dynamic> {
+        self.get_map(val, |_, v: &rhai::Dynamic| Some(v.clone()))
     }
 
     pub fn index_dyn(&self, val: rhai::Dynamic) -> Option<rhai::Dynamic> {
@@ -216,6 +250,116 @@ impl TreeList {
         out[8..16].clone_from_slice([width, h].as_bytes());
         out[16..32].clone_from_slice(color.as_bytes());
         out
+    }
+
+    pub fn update_layer_new(
+        &mut self,
+        compositor: &mut Compositor,
+        all_crumbs: &BTreeSet<Breadcrumbs>,
+        source: &rhai::Dynamic,
+    ) -> Result<()> {
+        // let mut row = 0;
+
+        // let mut rows = Vec::new();
+
+        let mut max_label_len = 0;
+
+        let crumb_rows =
+            Breadcrumbs::map_all_crumbs(all_crumbs, source, |crumbs, val| {
+                match val.type_name() {
+                    "bool" => {
+                        let v = val.as_bool().unwrap();
+                        let bounds = self
+                            .label_space
+                            .bounds_for_insert(&v.to_string())
+                            .unwrap();
+                        Some(bounds)
+                    }
+                    "i64" => {
+                        let int = val.as_int().unwrap();
+                        let bounds = self
+                            .label_space
+                            .bounds_for_insert(&int.to_string())
+                            .unwrap();
+                        Some(bounds)
+                    }
+                    "f32" => {
+                        let float = val.as_float().unwrap();
+                        let bounds = self
+                            .label_space
+                            .bounds_for_insert(&float.to_string())
+                            .unwrap();
+                        Some(bounds)
+                    }
+                    "string" => {
+                        let text = val.clone_cast::<rhai::ImmutableString>();
+
+                        max_label_len = max_label_len.max(text.len());
+
+                        let bounds =
+                            self.label_space.bounds_for_insert(&text).unwrap();
+
+                        Some(bounds)
+                    }
+                    _ => None,
+                }
+            });
+
+        let offset = self.offset.load();
+        let [x0, y0] = self.offset.load();
+
+        let layer_name = self.layer_name.clone();
+
+        compositor.with_layer(&layer_name, |layer| {
+            let mut max_width = 0f32;
+            if let Some(sublayer) = layer.get_sublayer_mut(&self.sublayer_text)
+            {
+                sublayer.update_vertices_array(
+                    crumb_rows.iter().enumerate().map(
+                        |(i, (crumbs, bounds))| {
+                            let depth = 10.0 * crumbs.len() as f32;
+
+                            let len = bounds.1 as f32;
+
+                            max_width = max_width.max(depth + len * 8.0);
+
+                            Self::label_vertices(offset, i, depth, *bounds)
+                        },
+                    ),
+                )?;
+            }
+
+            if let Some(sublayer) = layer.get_sublayer_mut(&self.sublayer_rect)
+            {
+                let w = 4.0 + max_width;
+                let h = 4.0 + 8.0 * crumb_rows.len() as f32;
+
+                let mut bg = [0u8; 8 + 8 + 16];
+                bg[0..8].clone_from_slice([x0, y0].as_bytes());
+                bg[8..16].clone_from_slice([w, h].as_bytes());
+                bg[16..32]
+                    .clone_from_slice([0.85f32, 0.85, 0.85, 1.0].as_bytes());
+
+                sublayer.update_vertices_array_range(0..1, [bg])?;
+
+                sublayer.update_vertices_array(Some(bg).into_iter().chain(
+                    crumb_rows.iter().enumerate().map(
+                        |(i, (crumbs, _bounds))| {
+                            let depth = 10.0 * (crumbs.len() - 1) as f32;
+                            self.rect_vertices(i, depth, w)
+                        },
+                    ),
+                ))?;
+            }
+
+            Ok(())
+        })?;
+
+        // for crumbs in all_crumbs {
+        //     let val = crumbs.index_dyn_ref(&source);
+        // }
+
+        Ok(())
     }
 
     pub fn update_layer(
