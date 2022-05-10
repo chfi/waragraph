@@ -466,6 +466,8 @@ fn main() -> Result<()> {
         })?;
     }
 
+    let mut mouse_clicked = false;
+
     let mut layout_update_since = 0.0;
 
     event_loop.run(move |event, _, control_flow| {
@@ -541,13 +543,15 @@ fn main() -> Result<()> {
                     &all_crumbs,
                     &config_map,
                     mouse_pos,
+                    mouse_clicked,
                 ) {
-                    Ok(_) => {
-                        //
+                    Ok(Some((crumb, tgt))) => {
+                        log::error!("clicked entry {:?} => {}", crumb, tgt);
                     }
                     Err(e) => {
                         log::error!("Tree list compositor error: {:?}", e);
                     }
+                    _ => (),
                 }
                 tree_list
                     .label_space
@@ -752,6 +756,8 @@ fn main() -> Result<()> {
 
                 // update end
 
+                mouse_clicked = false;
+
                 if recreate_swapchain_timer.is_none() && !recreate_swapchain {
                     let render_success = match mode {
                         Modes::PathViewer => viewer
@@ -840,6 +846,15 @@ fn main() -> Result<()> {
                                     ConsoleInput::AppendChar(c),
                                 )
                                 .unwrap();
+                        }
+                    }
+                    WindowEvent::MouseInput { button, state, .. } => {
+                        if button == winit::event::MouseButton::Left
+                            && state == winit::event::ElementState::Pressed
+                            && !mouse_clicked
+                        {
+                            log::error!("mouse clicked!");
+                            mouse_clicked = true;
                         }
                     }
                     WindowEvent::CursorMoved { position, .. } => {

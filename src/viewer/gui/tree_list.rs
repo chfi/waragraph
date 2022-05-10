@@ -39,14 +39,12 @@ use raving::compositor::Compositor;
 pub struct TreeList {
     pub offset: Arc<AtomicCell<[f32; 2]>>,
 
-    // pub list: Vec<(String, usize)>,
     pub label_space: LabelSpace,
 
     layer_name: rhai::ImmutableString,
 
     sublayer_rect: rhai::ImmutableString,
     sublayer_text: rhai::ImmutableString,
-    // rhai_module: Arc<rhai::Module>,
 }
 
 #[derive(Debug, Default, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -285,7 +283,8 @@ impl TreeList {
         all_crumbs: &BTreeSet<Breadcrumbs>,
         source: &rhai::Dynamic,
         mouse_pos: [f32; 2],
-    ) -> Result<()> {
+        mouse_clicked: bool,
+    ) -> Result<Option<(Breadcrumbs, rhai::Dynamic)>> {
         // let mut row = 0;
 
         // let mut rows = Vec::new();
@@ -357,105 +356,118 @@ impl TreeList {
 
         let layer_name = self.layer_name.clone();
 
-        compositor.with_layer(&layer_name, |layer| {
-            let mut max_width = 0f32;
+        let targeted_crumb =
+            compositor.with_layer::<_, _>(&layer_name, |layer| {
+                let mut max_width = 0f32;
 
-            let [mx, my] = mouse_pos;
+                let [mx, my] = mouse_pos;
 
-            let mut targeted_crumb: Option<(Breadcrumbs, [f32; 4])> = None;
+                let mut targeted_crumb: Option<(Breadcrumbs, [f32; 4])> = None;
 
-            if let Some(sublayer) = layer.get_sublayer_mut(&self.sublayer_text)
-            {
-                sublayer.update_vertices_array(
-                    crumb_rows.iter().enumerate().map(
-                        |(i, (crumbs, bounds))| {
-                            let depth = 10.0 * (crumbs.len() - 1) as f32;
-                            // let depth = 10.0 * crumbs.len() as f32;
-
-                            let len = bounds.1 as f32;
-
-                            max_width = max_width.max(depth + len * 8.0);
-
-                            let h = 10.0;
-                            let x = x0 + depth;
-                            let y = y0 + h * i as f32;
-                            let w = max_width - depth;
-
-                            if mx >= x0 && my >= y && my <= y + h {
-                                targeted_crumb =
-                                    Some((crumbs.clone(), [x, y, w, h]));
-                            }
-
-                            Self::label_vertices(offset, i, depth, *bounds)
-                        },
-                    ),
-                )?;
-            }
-
-            if targeted_crumb.is_some() && mx >= x0 + max_width + 4.0 {
-                targeted_crumb = None;
-            }
-
-            if let Some(sublayer) = layer.get_sublayer_mut(&self.sublayer_rect)
-            {
-                let w = 4.0 + max_width;
-                let h = 4.0 + 8.0 * crumb_rows.len() as f32;
-
-                let mut bg = [0u8; 8 + 8 + 16];
-                bg[0..8].clone_from_slice([x0, y0].as_bytes());
-                bg[8..16].clone_from_slice([w, h].as_bytes());
-                bg[16..32]
-                    .clone_from_slice([0.85f32, 0.85, 0.85, 1.0].as_bytes());
-
-                sublayer.update_vertices_array_range(0..1, [bg])?;
-
-                sublayer.update_vertices_array(
-                    Some(bg)
-                        .into_iter()
-                        .chain(crumb_rows.iter().enumerate().map(
-                            |(i, (crumbs, _bounds))| {
+                if let Some(sublayer) =
+                    layer.get_sublayer_mut(&self.sublayer_text)
+                {
+                    sublayer.update_vertices_array(
+                        crumb_rows.iter().enumerate().map(
+                            |(i, (crumbs, bounds))| {
                                 let depth = 10.0 * (crumbs.len() - 1) as f32;
-                                self.rect_vertices(i, depth, w)
+                                // let depth = 10.0 * crumbs.len() as f32;
+
+                                let len = bounds.1 as f32;
+
+                                max_width = max_width.max(depth + len * 8.0);
+
+                                let h = 10.0;
+                                let x = x0 + depth;
+                                let y = y0 + h * i as f32;
+                                let w = max_width - depth;
+
+                                if mx >= x0 && my >= y && my <= y + h {
+                                    targeted_crumb =
+                                        Some((crumbs.clone(), [x, y, w, h]));
+                                }
+
+                                Self::label_vertices(offset, i, depth, *bounds)
                             },
-                        ))
-                        .chain(targeted_crumb.into_iter().flat_map(
-                            |(crumb, [x, y, w, h])| {
-                                let mut up = [0u8; 32];
+                        ),
+                    )?;
+                }
 
-                                let color = [1f32, 0.0, 0.0, 1.0];
-                                up[16..32].clone_from_slice(color.as_bytes());
+                if targeted_crumb.is_some() && mx >= x0 + max_width + 4.0 {
+                    targeted_crumb = None;
+                }
 
-                                let mut left = up;
+                if let Some(sublayer) =
+                    layer.get_sublayer_mut(&self.sublayer_rect)
+                {
+                    let w = 4.0 + max_width;
+                    let h = 4.0 + 8.0 * crumb_rows.len() as f32;
 
-                                let w = max_width + 4.0;
+                    let mut bg = [0u8; 8 + 8 + 16];
+                    bg[0..8].clone_from_slice([x0, y0].as_bytes());
+                    bg[8..16].clone_from_slice([w, h].as_bytes());
+                    bg[16..32].clone_from_slice(
+                        [0.85f32, 0.85, 0.85, 1.0].as_bytes(),
+                    );
 
-                                up[0..16].clone_from_slice(
-                                    [x0, y, w, 1.0].as_bytes(),
-                                );
-                                left[8..16]
-                                    .clone_from_slice([1.0, h].as_bytes());
+                    sublayer.update_vertices_array_range(0..1, [bg])?;
 
-                                let mut down = up;
-                                down[4..8].clone_from_slice([y + h].as_bytes());
+                    sublayer.update_vertices_array(
+                        Some(bg)
+                            .into_iter()
+                            .chain(crumb_rows.iter().enumerate().map(
+                                |(i, (crumbs, _bounds))| {
+                                    let depth =
+                                        10.0 * (crumbs.len() - 1) as f32;
+                                    self.rect_vertices(i, depth, w)
+                                },
+                            ))
+                            .chain(targeted_crumb.iter().cloned().flat_map(
+                                |(crumb, [x, y, w, h])| {
+                                    let mut up = [0u8; 32];
 
-                                let mut right = left;
-                                right[0..4]
-                                    .clone_from_slice([x0 + w].as_bytes());
+                                    let color = [1f32, 0.0, 0.0, 1.0];
+                                    up[16..32]
+                                        .clone_from_slice(color.as_bytes());
 
-                                [up, down, left, right]
-                            },
-                        )),
-                )?;
+                                    let mut left = up;
+
+                                    let w = max_width + 4.0;
+
+                                    up[0..16].clone_from_slice(
+                                        [x0, y, w, 1.0].as_bytes(),
+                                    );
+                                    left[8..16]
+                                        .clone_from_slice([1.0, h].as_bytes());
+
+                                    let mut down = up;
+                                    down[4..8]
+                                        .clone_from_slice([y + h].as_bytes());
+
+                                    let mut right = left;
+                                    right[0..4]
+                                        .clone_from_slice([x0 + w].as_bytes());
+
+                                    [up, down, left, right]
+                                },
+                            )),
+                    )?;
+                }
+
+                Ok(targeted_crumb)
+            })?;
+
+        if let Some((target, _)) = targeted_crumb {
+            if mouse_clicked {
+                if let Some(val) = target.index_dyn_ref(source) {
+                    return Ok(Some((target, val)));
+                } else {
+                    return Ok(Some((target, rhai::Dynamic::UNIT)));
+                }
             }
+        }
 
-            Ok(())
-        })?;
-
-        // for crumbs in all_crumbs {
-        //     let val = crumbs.index_dyn_ref(&source);
-        // }
-
-        Ok(())
+        Ok(None)
     }
 
     pub fn new(
@@ -495,7 +507,7 @@ impl TreeList {
             )?;
 
             Ok(())
-        });
+        })?;
 
         Ok(Self {
             offset,
