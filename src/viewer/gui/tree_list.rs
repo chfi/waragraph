@@ -304,8 +304,13 @@ impl TreeList {
                     }
                 };
 
-                //
                 match val.type_name() {
+                    "map" => {
+                        let text = key?;
+                        let bounds =
+                            self.label_space.bounds_for_insert(text).unwrap();
+                        Some(bounds)
+                    }
                     "bool" => {
                         let v = val.as_bool().unwrap();
                         let bounds = self
