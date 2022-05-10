@@ -40,6 +40,20 @@ pub struct ViewDiscrete1D {
 }
 
 impl ViewDiscrete1D {
+    pub fn view_pos_norm(&self, pos: usize) -> f64 {
+        let p = pos as f64;
+        let o = self.offset as f64;
+        let l = self.len as f64;
+        (p - o) / l
+    }
+
+    pub fn screen_x(&self, x_offset: u32, width: u32, pos: usize) -> f32 {
+        let x = x_offset as f32;
+        let w = width as f32;
+        let t = self.view_pos_norm(pos) as f32;
+        x + t * w
+    }
+
     pub fn as_bytes(&self) -> [u8; 24] {
         let max = self.max.to_le_bytes();
         let offset = self.offset.to_le_bytes();
