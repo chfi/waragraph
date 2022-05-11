@@ -19,7 +19,7 @@ use winit::event::VirtualKeyCode;
 use winit::window::Window;
 
 use crate::config::ConfigMap;
-use crate::console::{RhaiBatchFn2, RhaiBatchFn4, RhaiBatchFn5};
+use crate::console::{Console, RhaiBatchFn2, RhaiBatchFn4, RhaiBatchFn5};
 use crate::graph::{Node, Waragraph};
 use crate::util::{BufFmt, BufId, BufferStorage, LabelStorage};
 use crate::viewer::{SlotRenderers, ViewDiscrete1D};
@@ -36,15 +36,84 @@ use rhai::plugin::*;
 
 use raving::compositor::Compositor;
 
-pub struct TreeList {
-    pub offset: Arc<AtomicCell<[f32; 2]>>,
+pub struct ListPopup {
+    pub tree_list: TreeList,
 
-    pub label_space: LabelSpace,
+    all_crumbs: BTreeSet<Breadcrumbs>,
 
-    layer_name: rhai::ImmutableString,
+    pub active_state: Option<(rhai::Dynamic, rhai::FnPtr)>,
+}
 
-    sublayer_rect: rhai::ImmutableString,
-    sublayer_text: rhai::ImmutableString,
+impl ListPopup {
+    pub fn new(
+        engine: &mut VkEngine,
+        compositor: &mut Compositor,
+        name: &str,
+        x: f32,
+        y: f32,
+    ) -> Result<Self> {
+        let tree_list = TreeList::new(engine, compositor, name, x, y)?;
+
+        Ok(Self {
+            tree_list,
+
+            all_crumbs: BTreeSet::default(),
+
+            active_state: None,
+        })
+    }
+
+    pub fn set_state(&mut self, val: rhai::Dynamic, fn_ptr: rhai::FnPtr) {
+        self.all_crumbs = Breadcrumbs::all_crumbs(&val);
+        self.active_state = Some((val, fn_ptr));
+    }
+
+    pub fn update_layer(
+        &mut self,
+        res: &mut GpuResources,
+        db: &sled::Db,
+        buffers: &BufferStorage,
+        console: &Console,
+        compositor: &mut Compositor,
+        mouse_pos: [f32; 2],
+        mouse_clicked: bool,
+    ) -> Result<()> {
+        let mut remove_state = false;
+        if let Some((val, fn_ptr)) = &self.active_state {
+            compositor.toggle_layer(&self.tree_list.layer_name, true);
+            if let Some((crumbs, tgt_val)) = self.tree_list.update_layer(
+                res,
+                compositor,
+                &self.all_crumbs,
+                val,
+                mouse_pos,
+                mouse_clicked,
+            )? {
+                remove_state = true;
+
+                let engine = console.create_engine(db, buffers);
+                // fn_ptr.call_raw(context, this_ptr, arg_values)
+                fn_ptr.call(&engine, &console.ast, (tgt_val,))?;
+            }
+        }
+
+        if remove_state {
+            let _ = self.active_state.take();
+            compositor.toggle_layer(&self.tree_list.layer_name, false);
+        }
+
+        Ok(())
+    }
+}
+
+pub struct InteractiveTreeList<T: Clone> {
+    pub tree_list: TreeList,
+
+    all_crumbs: BTreeMap<Breadcrumbs, usize>,
+
+    data: Vec<T>,
+
+    ast: rhai::AST,
 }
 
 #[derive(Debug, Default, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -233,6 +302,17 @@ impl Breadcrumbs {
     }
 }
 
+pub struct TreeList {
+    pub offset: Arc<AtomicCell<[f32; 2]>>,
+
+    pub label_space: LabelSpace,
+
+    layer_name: rhai::ImmutableString,
+
+    sublayer_rect: rhai::ImmutableString,
+    sublayer_text: rhai::ImmutableString,
+}
+
 impl TreeList {
     fn label_vertices(
         offset: [f32; 2],
@@ -279,17 +359,16 @@ impl TreeList {
 
     pub fn update_layer(
         &mut self,
+        res: &mut GpuResources,
         compositor: &mut Compositor,
         all_crumbs: &BTreeSet<Breadcrumbs>,
         source: &rhai::Dynamic,
         mouse_pos: [f32; 2],
         mouse_clicked: bool,
     ) -> Result<Option<(Breadcrumbs, rhai::Dynamic)>> {
-        // let mut row = 0;
-
-        // let mut rows = Vec::new();
-
         let mut max_label_len = 0;
+
+        self.label_space.write_buffer(res).unwrap();
 
         let crumb_rows = Breadcrumbs::map_all_crumbs(
             all_crumbs,
@@ -470,30 +549,42 @@ impl TreeList {
         Ok(None)
     }
 
+    pub fn set_offset(&self, x: f32, y: f32) {
+        self.offset.store([x, y]);
+    }
+
+    pub fn offset_ref(&self) -> &Arc<AtomicCell<[f32; 2]>> {
+        &self.offset
+    }
+
     pub fn new(
         engine: &mut VkEngine,
         compositor: &mut Compositor,
+        name: &str,
         x: f32,
         y: f32,
     ) -> Result<Self> {
-        let label_space =
-            LabelSpace::new(engine, "tree-list-labels", 4 * 1024 * 1024)?;
+        let label_space = LabelSpace::new(
+            engine,
+            &format!("{}-list-labels", name),
+            4 * 1024 * 1024,
+        )?;
 
-        let layer_name = "tree-list-layer";
-        let rect_name = "tree-list:rect";
-        let text_name = "tree-list:text";
+        let layer_name = format!("{}:layer", name);
+        let rect_name = format!("{}:rect", layer_name);
+        let text_name = format!("{}:text", layer_name);
 
         let offset = Arc::new(AtomicCell::new([x, y]));
 
-        compositor.new_layer(layer_name, 1, true);
+        compositor.new_layer(&layer_name, 1, true);
 
-        compositor.with_layer(layer_name, |layer| {
+        compositor.with_layer(&layer_name, |layer| {
             Compositor::push_sublayer(
                 &compositor.sublayer_defs,
                 engine,
                 layer,
                 "rect-rgb",
-                rect_name,
+                &rect_name,
                 None,
             )?;
 
@@ -502,7 +593,7 @@ impl TreeList {
                 engine,
                 layer,
                 "text",
-                text_name,
+                &text_name,
                 [label_space.text_set],
             )?;
 

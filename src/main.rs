@@ -19,7 +19,7 @@ use sled::IVec;
 use waragraph::graph::{Node, Path, Waragraph};
 use waragraph::util::{BufferStorage, LabelStorage};
 use waragraph::viewer::app::ViewerSys;
-use waragraph::viewer::gui::tree_list::{Breadcrumbs, TreeList};
+use waragraph::viewer::gui::tree_list::{Breadcrumbs, ListPopup, TreeList};
 use waragraph::viewer::gui::{GuiLayer, GuiSys};
 use waragraph::viewer::{SlotUpdateFn, ViewDiscrete1D};
 use winit::event::{Event, VirtualKeyCode, WindowEvent};
@@ -252,7 +252,33 @@ fn main() -> Result<()> {
     );
 
     let mut tree_list =
-        TreeList::new(&mut engine, &mut compositor, 100.0, 100.0)?;
+        TreeList::new(&mut engine, &mut compositor, "example", 100.0, 100.0)?;
+
+    let popup_list =
+        ListPopup::new(&mut engine, &mut compositor, "popup", 300.0, 100.0)?;
+
+    let popup_list = Arc::new(RwLock::new(popup_list));
+
+    {
+        let mut module = rhai::Module::new();
+
+        let list = popup_list.clone();
+
+        module.set_native_fn(
+            "popup",
+            // move |ctx: rhai::NativeCallContext,
+            move |values: rhai::Array, fn_ptr: rhai::FnPtr| {
+                let values = rhai::Dynamic::from_array(values);
+                let mut list = list.write();
+
+                list.set_state(values, fn_ptr);
+
+                Ok(())
+            },
+        );
+
+        console.modules.insert("popup".into(), Arc::new(module));
+    }
 
     {
         let module =
@@ -528,24 +554,59 @@ fn main() -> Result<()> {
                     [x as f32, y as f32]
                 };
 
-                let (all_crumbs, config_map) = {
-                    let map = viewer.config.map.read().clone();
+                let (all_crumbs, options) = {
+                    let slot_fns = viewer.slot_functions.read();
 
-                    let map = rhai::Dynamic::from_map(map);
+                    let options = slot_fns
+                        .slot_fn_u32
+                        .keys()
+                        .map(|k| rhai::Dynamic::from(k.clone()))
+                        .collect::<Vec<_>>();
 
-                    let crumbs = Breadcrumbs::all_crumbs(&map);
+                    let options = rhai::Dynamic::from_array(options);
 
-                    (crumbs, map)
+                    let crumbs = Breadcrumbs::all_crumbs(&options);
+
+                    (crumbs, options)
                 };
 
+                {
+                    let mut popup = popup_list.write();
+
+                    if let Err(e) = popup.update_layer(
+                        &mut engine.resources,
+                        &db,
+                        &buffers,
+                        &console,
+                        &mut compositor,
+                        mouse_pos,
+                        mouse_clicked,
+                    ) {
+                        log::error!("popup error: {:?}", e);
+                    }
+                }
+
+                /*
                 match tree_list.update_layer(
                     &mut compositor,
                     &all_crumbs,
-                    &config_map,
+                    // &config_map,
+                    &options,
                     mouse_pos,
                     mouse_clicked,
                 ) {
                     Ok(Some((crumb, tgt))) => {
+                        if tgt.type_name() == "string" {
+                            let slot_fn =
+                                tgt.clone_cast::<rhai::ImmutableString>();
+
+                            let mut map = viewer.config.map.write();
+                            map.insert(
+                                "viz.slot_function".into(),
+                                rhai::Dynamic::from(slot_fn),
+                            );
+                        }
+
                         log::error!("clicked entry {:?} => {}", crumb, tgt);
                     }
                     Err(e) => {
@@ -557,6 +618,7 @@ fn main() -> Result<()> {
                     .label_space
                     .write_buffer(&mut engine.resources)
                     .unwrap();
+                */
 
                 if let Err(e) = compositor.allocate_sublayers(&mut engine) {
                     log::error!("Compositor error: {:?}", e);
