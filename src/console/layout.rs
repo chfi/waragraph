@@ -49,6 +49,76 @@ use nalgebra::{point, vector, Point2, Vector2};
 pub type Pos2 = Point2<f32>;
 pub type Vec2 = Vector2<f32>;
 
+pub struct LabelStacks {
+    pub label_space: LabelSpace,
+    label_map: HashMap<rhai::ImmutableString, roaring::RoaringBitmap>,
+
+    layer_name: rhai::ImmutableString,
+
+    sublayer_rect: rhai::ImmutableString,
+    sublayer_text: rhai::ImmutableString,
+}
+
+impl LabelStacks {
+    pub fn from_label_map(
+        engine: &mut VkEngine,
+        compositor: &mut Compositor,
+        label_map: HashMap<rhai::ImmutableString, roaring::RoaringBitmap>,
+    ) -> Result<Self> {
+        let mut label_space =
+            LabelSpace::new(engine, "label-stacks-labels", 1024 * 1024)?;
+
+        let layer_name = "label-stacks-layer";
+        let rect_name = "label-stacks:rect";
+        let text_name = "label-stacks:text";
+
+        compositor.new_layer(layer_name, 1, true);
+
+        compositor.with_layer(layer_name, |layer| {
+            Compositor::push_sublayer(
+                &compositor.sublayer_defs,
+                engine,
+                layer,
+                "rect-rgb",
+                rect_name,
+                None,
+            )?;
+
+            Compositor::push_sublayer(
+                &compositor.sublayer_defs,
+                engine,
+                layer,
+                "text",
+                text_name,
+                [label_space.text_set],
+            )?;
+
+            Ok(())
+        })?;
+
+        Ok(Self {
+            label_space,
+            label_map,
+
+            layer_name: layer_name.into(),
+
+            sublayer_rect: rect_name.into(),
+            sublayer_text: text_name.into(),
+        })
+    }
+
+    pub fn update_layer(
+        &self,
+        compositor: &mut Compositor,
+        view: ViewDiscrete1D,
+        slot_offset: f32,
+        slot_width: f32,
+    ) -> Result<()> {
+        //
+        todo!();
+    }
+}
+
 pub struct LabelLayout {
     pub label_space: LabelSpace,
     labels: Vec<(usize, usize)>,

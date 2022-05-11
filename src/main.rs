@@ -88,6 +88,12 @@ fn main() -> Result<()> {
 
     let gfa_path = args.next().ok_or(anyhow!("Provide a GFA path"))?;
 
+    let bed_path = args.next();
+
+    // let bed_path = args.next().and_then(|path| {
+    //     let
+    // });
+
     let gfa = {
         let parser = gfa::parser::GFAParser::default();
         let gfa: GFA<usize, ()> = parser.parse_file(&gfa_path)?;
@@ -367,94 +373,117 @@ fn main() -> Result<()> {
     }
     let mut rng = rand::thread_rng();
 
-    /*
-        let mut label_layout = {
-            let bed_path = "A-3105.test2.bed";
+    let mut label_sets = None;
 
-            let script = format!(
-                r#"
-                // let p = graph::get_path("gi|568815592");
-                // let n = graph::node(41);
-                let g = graph::get_graph();
-                let bed = slot::load_bed_file(g, "{}");
-                let ds_name = slot::create_data_source(bed);
-                let ds = slot::get_data_source(ds_name);
-                let fn_name = "bed_slot_fn";
-                let slot_fn = slot::new_slot_fn_from_data_source(ds_name, fn_name);
-                slot::set_slot_color_scheme(fn_name, "gradient-colorbrewer-spectral");
-                // cfg.set("viz.slot_function", fn_name);
+    if let Some(bed_path) = bed_path {
+        let script = format!(
+            r#"
+let g = graph::get_graph();
+let bed = slot::load_bed_file(g, "{}");
+let ds_name = slot::create_data_source(bed);
+let ds = slot::get_data_source(ds_name);
+let fn_name = "bed_slot_fn";
+let slot_fn = slot::new_slot_fn_from_data_source(ds_name, fn_name);
+slot::set_slot_color_scheme(fn_name, "gradient-colorbrewer-spectral");
+// cfg.set("viz.slot_function", fn_name);
     // cfg.set("viz.secondary", fn_name);
     "#,
-                bed_path
-            );
+            bed_path
+        );
 
-            match console.eval(&db, &buffers, &script) {
-                Ok(v) => {}
-                Err(e) => {
-                    log::error!("console error {:?}", e);
-    >>>>>>> Stashed changes
+        match console.eval(&db, &buffers, &script) {
+            Ok(v) => {}
+            Err(e) => {
+                log::error!("console error {:?}", e);
+            }
+        }
+
+        let bed = viewer
+            .annotations
+            .read()
+            .get(bed_path.as_str())
+            .unwrap()
+            .clone();
+
+        let path = graph.path_index(b"grch38#chr11").unwrap();
+
+        let by_label = bed.collect_labels(path, 3)?;
+
+        label_sets = Some(by_label);
+    }
+
+    /*
+    let mut label_layout = {
+        let bed_path = "A-3105.test2.bed";
+
+
+        match console.eval(&db, &buffers, &script) {
+            Ok(v) => {}
+            Err(e) => {
+                log::error!("console error {:?}", e);
+            }
+        }
+
+            let bed = console
+                .scope
+                .get_value::<Arc<AnnotationSet>>("bed")
+                .unwrap();
+
+            log::debug!("SCOPE: {:#?}", console.scope);
+
+            let label_layout = if let BedColumn::String(strings) = &bed.columns[0] {
+                let mut labels = label_space.write();
+
+                for text in strings.iter() {
+                    labels.insert(text.as_str())?;
                 }
 
-                let bed = console
-                    .scope
-                    .get_value::<Arc<AnnotationSet>>("bed")
-                    .unwrap();
+                let path = graph.path_index(b"gi|157734152").unwrap();
+                // let path = graph.path_index(b"gi|568815592").unwrap();
 
-                log::debug!("SCOPE: {:#?}", console.scope);
+                // let p = graph::get_path("gi|568815592");
+                // graph.path_nodes
+                let max_x = graph.total_len() as f32;
 
-                let label_layout = if let BedColumn::String(strings) = &bed.columns[0] {
-                    let mut labels = label_space.write();
+                let iter = graph.path_nodes[path.ix()].iter().filter_map(|n| {
+                    let node = Node::from(n);
 
-                    for text in strings.iter() {
-                        labels.insert(text.as_str())?;
-                    }
+                    let x_p = graph.node_sum_lens[n as usize];
+                    let x = (x_p as f32) / max_x;
+                    // let x = 800.0 * ((x_p as f32) / max_x);
+                    let y = 250.0 + rng.gen_range(0.0..80.0);
 
-                    let path = graph.path_index(b"gi|157734152").unwrap();
-                    // let path = graph.path_index(b"gi|568815592").unwrap();
+                    let records = bed.path_node_records(path, node)?;
 
-                    // let p = graph::get_path("gi|568815592");
-                    // graph.path_nodes
-                    let max_x = graph.total_len() as f32;
+                    let ri = records.select(0)?;
 
-                    let iter = graph.path_nodes[path.ix()].iter().filter_map(|n| {
-                        let node = Node::from(n);
+                    let text = strings.get(ri as usize)?;
 
-                        let x_p = graph.node_sum_lens[n as usize];
-                        let x = (x_p as f32) / max_x;
-                        // let x = 800.0 * ((x_p as f32) / max_x);
-                        let y = 250.0 + rng.gen_range(0.0..80.0);
+                    Some((text.as_str(), x, y))
+                });
 
-                        let records = bed.path_node_records(path, node)?;
+                log::warn!("loaded {} bed labels", strings.len());
+                LabelLayout::from_iter(
+                    &mut engine,
+                    &mut compositor,
+                    800.0,
+                    600.0,
+                    iter, // strings.iter().map(|s| (s.as_str(), 400.0, 300.0)),
+                )
+            } else {
+                LabelLayout::from_iter(
+                    &mut engine,
+                    &mut compositor,
+                    800.0,
+                    600.0,
+                    [],
+                )
+            }?;
 
-                        let ri = records.select(0)?;
+            label_layout
+        };
 
-                        let text = strings.get(ri as usize)?;
-
-                        Some((text.as_str(), x, y))
-                    });
-
-                    log::warn!("loaded {} bed labels", strings.len());
-                    LabelLayout::from_iter(
-                        &mut engine,
-                        &mut compositor,
-                        800.0,
-                        600.0,
-                        iter, // strings.iter().map(|s| (s.as_str(), 400.0, 300.0)),
-                    )
-                } else {
-                    LabelLayout::from_iter(
-                        &mut engine,
-                        &mut compositor,
-                        800.0,
-                        600.0,
-                        [],
-                    )
-                }?;
-
-                label_layout
-            };
-            */
-
+        */
     // label_layout.randomize_pos_radial(&mut rng);
 
     //
@@ -941,6 +970,50 @@ fn main() -> Result<()> {
                             if input.state
                                 == winit::event::ElementState::Pressed
                             {
+                                if matches!(kc, VK::Space) {
+                                    if let Some(labels) = label_sets.as_ref() {
+                                        let view = viewer.view.load();
+
+                                        let start = graph
+                                            .node_at_pos(view.offset)
+                                            .unwrap();
+
+                                        let view_right = (view.offset
+                                            + view.len)
+                                            .min(view.max - 1);
+
+                                        let end = graph
+                                            .node_at_pos(view_right)
+                                            .unwrap();
+
+                                        let s = u32::from(start);
+                                        let e = u32::from(end);
+
+                                        let mut view_set =
+                                            roaring::RoaringBitmap::new();
+                                        view_set.insert_range(s..e);
+
+                                        for (label, set) in labels {
+                                            if view_set.intersection_len(set)
+                                                > 0
+                                            {
+                                                let intersect = &view_set & set;
+                                                let l =
+                                                    intersect.min().unwrap();
+                                                let r =
+                                                    intersect.max().unwrap();
+
+                                                let mid = l + ((r - l) / 2);
+
+                                                log::warn!(
+                                                    "{} => node {}",
+                                                    label,
+                                                    mid
+                                                );
+                                            }
+                                        }
+                                    }
+                                }
                                 if matches!(kc, VK::Return) {
                                     if let Err(e) = console.handle_input(
                                         &db,

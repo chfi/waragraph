@@ -97,7 +97,9 @@ impl AnnotationSet {
     ) -> Result<HashMap<rhai::ImmutableString, roaring::RoaringBitmap>> {
         let mut res = HashMap::default();
 
-        let col_ix = col - 3;
+        let col_ix = col
+            .checked_sub(3)
+            .ok_or(anyhow!("First three columns not supported"))?;
 
         let path_indices = self.path_indices.get(&path).ok_or(anyhow!(
             "No records for path {} found in annotation set `{}`",
