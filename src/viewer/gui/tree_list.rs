@@ -42,6 +42,8 @@ pub struct ListPopup {
     all_crumbs: BTreeSet<Breadcrumbs>,
 
     pub active_state: Option<(rhai::Dynamic, rhai::FnPtr)>,
+
+    pub popup_stack: Arc<RwLock<Vec<(rhai::Dynamic, rhai::FnPtr)>>>,
 }
 
 impl ListPopup {
@@ -60,6 +62,7 @@ impl ListPopup {
             all_crumbs: BTreeSet::default(),
 
             active_state: None,
+            popup_stack: Arc::new(RwLock::new(Vec::new())),
         })
     }
 
@@ -79,8 +82,17 @@ impl ListPopup {
         mouse_clicked: bool,
     ) -> Result<()> {
         let mut remove_state = false;
+
+        if self.active_state.is_none() {
+            if let Some((val, fn_ptr)) = self.popup_stack.write().pop() {
+                self.all_crumbs = Breadcrumbs::all_crumbs(&val);
+                self.active_state = Some((val, fn_ptr));
+            }
+        }
+
         if let Some((val, fn_ptr)) = &self.active_state {
             compositor.toggle_layer(&self.tree_list.layer_name, true);
+
             if let Some((crumbs, tgt_val)) = self.tree_list.update_layer(
                 res,
                 compositor,

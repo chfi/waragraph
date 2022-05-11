@@ -264,17 +264,19 @@ fn main() -> Result<()> {
     let popup_module = {
         let mut module = rhai::Module::new();
 
-        let list = popup_list.clone();
+        let state_stack = popup_list.read().popup_stack.clone();
 
         module.set_native_fn(
             "popup",
-            // move |ctx: rhai::NativeCallContext,
             move |values: rhai::Array, fn_ptr: rhai::FnPtr| {
-                let values = rhai::Dynamic::from_array(values);
-                let mut list = list.write();
-
-                list.set_state(values, fn_ptr);
-
+                if let Some(mut stack) = state_stack.try_write() {
+                    let values = rhai::Dynamic::from_array(values);
+                    stack.push((values, fn_ptr));
+                } else {
+                    log::error!(
+                        "attempted recursive lock of popup state stack"
+                    );
+                }
                 Ok(())
             },
         );
