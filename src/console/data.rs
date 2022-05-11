@@ -79,6 +79,9 @@ pub struct AnnotationSet {
     path_record_indices:
         FxHashMap<Path, BTreeMap<Node, roaring::RoaringBitmap>>,
 
+    // map from each path to the records on that path
+    path_indices: FxHashMap<Path, roaring::RoaringBitmap>,
+
     record_nodes: BTreeMap<usize, roaring::RoaringBitmap>,
     // path_record_nodes: FxHashMap<Path, BTreeMap<usize, roaring::RoaringBitmap>>,
     // columns: Vec<Vec<
@@ -87,6 +90,69 @@ pub struct AnnotationSet {
 }
 
 impl AnnotationSet {
+    pub fn collect_labels(
+        &self,
+        path: Path,
+        col: usize,
+    ) -> Result<HashMap<rhai::ImmutableString, roaring::RoaringBitmap>> {
+        let mut res = HashMap::default();
+
+        let col_ix = col - 3;
+
+        let path_indices = self.path_indices.get(&path).ok_or(anyhow!(
+            "No records for path {} found in annotation set `{}`",
+            path.ix(),
+            self.source
+        ))?;
+
+        let column = self.columns.get(col_ix).ok_or(anyhow!(
+            "Annotation set `{}` does not have column {}",
+            self.source,
+            col
+        ))?;
+
+        match column {
+            BedColumn::String(vs) => {
+                for record_ix in path_indices.iter() {
+                    let record_ix = record_ix as usize;
+                    let nodes = &self.record_nodes[&record_ix];
+                    let entry = res.entry(vs[record_ix].clone()).or_default();
+                    *entry |= nodes;
+                }
+
+                for (record_ix, string) in vs.iter().enumerate() {
+                    let nodes = &self.record_nodes[&record_ix];
+                    let entry = res.entry(string.clone()).or_default();
+                    *entry |= nodes;
+                }
+            }
+            BedColumn::Int(vs) => {
+                todo!();
+                for (record_ix, int) in vs.iter().enumerate() {
+                    let string = rhai::ImmutableString::from(int.to_string());
+                    let nodes = &self.record_nodes[&record_ix];
+                    let entry = res.entry(string).or_default();
+                    *entry |= nodes;
+                }
+            }
+            BedColumn::Float(vs) => {
+                todo!();
+                for (record_ix, int) in vs.iter().enumerate() {
+                    let string = rhai::ImmutableString::from(int.to_string());
+                    let nodes = &self.record_nodes[&record_ix];
+                    let entry = res.entry(string).or_default();
+                    *entry |= nodes;
+                }
+            }
+        }
+
+        if res.is_empty() {
+            log::warn!("No labels found for path in annotation set");
+        }
+
+        Ok(res)
+    }
+
     pub fn load_bed<P: AsRef<std::path::Path>>(
         graph: &Arc<Waragraph>,
         path: P,
@@ -105,6 +171,9 @@ impl AnnotationSet {
             Path,
             BTreeMap<Node, roaring::RoaringBitmap>,
         > = FxHashMap::default();
+
+        let mut path_indices: FxHashMap<Path, roaring::RoaringBitmap> =
+            FxHashMap::default();
 
         // let mut path_record_nodes: FxHashMap<
         //     Path,
@@ -181,6 +250,8 @@ impl AnnotationSet {
                     let indices = path_record_indices.entry(path).or_default();
                     let nodes = record_nodes.entry(ix).or_default();
 
+                    path_indices.entry(path).or_default().insert(ix as u32);
+
                     for &(node, _) in
                         graph.nodes_in_path_range(path, start..end)
                     {
@@ -196,6 +267,7 @@ impl AnnotationSet {
         Ok(AnnotationSet {
             source,
             path_record_indices,
+            path_indices,
             record_nodes,
             // path_record_nodes,
             column_headers,
