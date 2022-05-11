@@ -8,7 +8,7 @@ use raving::script::console::frame::Resolvable;
 use raving::vk::{DescSetIx, VkEngine, WindowResources};
 
 use waragraph::console::data::{AnnotationSet, BedColumn};
-use waragraph::console::layout::LabelLayout;
+use waragraph::console::layout::{LabelLayout, LabelStacks};
 use waragraph::console::{Console, ConsoleInput};
 
 use ash::vk;
@@ -373,7 +373,8 @@ fn main() -> Result<()> {
     }
     let mut rng = rand::thread_rng();
 
-    let mut label_sets = None;
+    // let mut label_sets = None;
+    let mut label_stacks = None;
 
     if let Some(bed_path) = bed_path {
         let script = format!(
@@ -409,84 +410,14 @@ slot::set_slot_color_scheme(fn_name, "gradient-colorbrewer-spectral");
 
         let by_label = bed.collect_labels(path, 3)?;
 
-        label_sets = Some(by_label);
+        let stacks = LabelStacks::from_label_map(
+            &mut engine,
+            &mut compositor,
+            by_label,
+        )?;
+        label_stacks = Some(stacks);
     }
 
-    /*
-    let mut label_layout = {
-        let bed_path = "A-3105.test2.bed";
-
-
-        match console.eval(&db, &buffers, &script) {
-            Ok(v) => {}
-            Err(e) => {
-                log::error!("console error {:?}", e);
-            }
-        }
-
-            let bed = console
-                .scope
-                .get_value::<Arc<AnnotationSet>>("bed")
-                .unwrap();
-
-            log::debug!("SCOPE: {:#?}", console.scope);
-
-            let label_layout = if let BedColumn::String(strings) = &bed.columns[0] {
-                let mut labels = label_space.write();
-
-                for text in strings.iter() {
-                    labels.insert(text.as_str())?;
-                }
-
-                let path = graph.path_index(b"gi|157734152").unwrap();
-                // let path = graph.path_index(b"gi|568815592").unwrap();
-
-                // let p = graph::get_path("gi|568815592");
-                // graph.path_nodes
-                let max_x = graph.total_len() as f32;
-
-                let iter = graph.path_nodes[path.ix()].iter().filter_map(|n| {
-                    let node = Node::from(n);
-
-                    let x_p = graph.node_sum_lens[n as usize];
-                    let x = (x_p as f32) / max_x;
-                    // let x = 800.0 * ((x_p as f32) / max_x);
-                    let y = 250.0 + rng.gen_range(0.0..80.0);
-
-                    let records = bed.path_node_records(path, node)?;
-
-                    let ri = records.select(0)?;
-
-                    let text = strings.get(ri as usize)?;
-
-                    Some((text.as_str(), x, y))
-                });
-
-                log::warn!("loaded {} bed labels", strings.len());
-                LabelLayout::from_iter(
-                    &mut engine,
-                    &mut compositor,
-                    800.0,
-                    600.0,
-                    iter, // strings.iter().map(|s| (s.as_str(), 400.0, 300.0)),
-                )
-            } else {
-                LabelLayout::from_iter(
-                    &mut engine,
-                    &mut compositor,
-                    800.0,
-                    600.0,
-                    [],
-                )
-            }?;
-
-            label_layout
-        };
-
-        */
-    // label_layout.randomize_pos_radial(&mut rng);
-
-    //
     let _update_threads = (0..4)
         .map(|_| {
             let input = update_rx.clone();
@@ -971,47 +902,21 @@ slot::set_slot_color_scheme(fn_name, "gradient-colorbrewer-spectral");
                                 == winit::event::ElementState::Pressed
                             {
                                 if matches!(kc, VK::Space) {
-                                    if let Some(labels) = label_sets.as_ref() {
-                                        let view = viewer.view.load();
+                                    if let Some(labels) = label_stacks.as_mut()
+                                    {
+                                        let [width, _] = swapchain_dims.load();
+                                        let [slot_offset, slot_width] =
+                                            viewer.slot_x_offsets(width);
 
-                                        let start = graph
-                                            .node_at_pos(view.offset)
+                                        labels
+                                            .update_layer(
+                                                &mut compositor,
+                                                &graph,
+                                                viewer.view.load(),
+                                                slot_offset,
+                                                slot_width,
+                                            )
                                             .unwrap();
-
-                                        let view_right = (view.offset
-                                            + view.len)
-                                            .min(view.max - 1);
-
-                                        let end = graph
-                                            .node_at_pos(view_right)
-                                            .unwrap();
-
-                                        let s = u32::from(start);
-                                        let e = u32::from(end);
-
-                                        let mut view_set =
-                                            roaring::RoaringBitmap::new();
-                                        view_set.insert_range(s..e);
-
-                                        for (label, set) in labels {
-                                            if view_set.intersection_len(set)
-                                                > 0
-                                            {
-                                                let intersect = &view_set & set;
-                                                let l =
-                                                    intersect.min().unwrap();
-                                                let r =
-                                                    intersect.max().unwrap();
-
-                                                let mid = l + ((r - l) / 2);
-
-                                                log::warn!(
-                                                    "{} => node {}",
-                                                    label,
-                                                    mid
-                                                );
-                                            }
-                                        }
                                     }
                                 }
                                 if matches!(kc, VK::Return) {

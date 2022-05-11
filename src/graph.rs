@@ -33,6 +33,12 @@ use crate::viewer::ViewDiscrete1D;
 )]
 pub struct Node(u32);
 
+impl Node {
+    pub fn ix(&self) -> usize {
+        self.0 as usize
+    }
+}
+
 impl From<u32> for Node {
     fn from(u: u32) -> Node {
         Node(u)
@@ -426,6 +432,10 @@ impl Waragraph {
             }
         };
         Some(Node::from(ix as u32))
+    }
+
+    pub fn node_pos(&self, node: Node) -> usize {
+        self.node_sum_lens[node.ix()]
     }
 
     pub fn path_pos_at_node(&self, path: Path, node: Node) -> Option<usize> {

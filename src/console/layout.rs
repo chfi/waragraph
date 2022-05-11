@@ -96,6 +96,12 @@ impl LabelStacks {
             Ok(())
         })?;
 
+        for text in label_map.keys() {
+            label_space.insert(text)?;
+        }
+
+        label_space.write_buffer(&mut engine.resources).unwrap();
+
         Ok(Self {
             label_space,
             label_map,
@@ -110,12 +116,121 @@ impl LabelStacks {
     pub fn update_layer(
         &self,
         compositor: &mut Compositor,
+        graph: &Arc<Waragraph>,
         view: ViewDiscrete1D,
         slot_offset: f32,
         slot_width: f32,
     ) -> Result<()> {
-        //
-        todo!();
+        let start = graph.node_at_pos(view.offset).unwrap();
+
+        let view_right = (view.offset + view.len).min(view.max - 1);
+
+        let end = graph.node_at_pos(view_right).unwrap();
+
+        let s = u32::from(start);
+        let e = u32::from(end);
+
+        let mut view_set = roaring::RoaringBitmap::new();
+        view_set.insert_range(s..e);
+
+        let pos_to_x = |p: usize| -> f32 {
+            let x0 = view.offset as f64;
+            let v_len = view.len as f64;
+            let x_p = ((p as f64) - x0) / v_len;
+            let w_len = slot_width as f64;
+            ((slot_offset as f64) + (w_len * x_p)) as f32
+        };
+
+        // let mut label_pos_map: HashMap<rhai::ImmutableString, usize> = self
+        let mut label_x_map: HashMap<
+            rhai::ImmutableString,
+            ((usize, usize), f32),
+        > = self
+            .label_map
+            .iter()
+            .filter_map(|(label, set)| {
+                if view_set.intersection_len(set) == 0 {
+                    return None;
+                }
+
+                let intersect = &view_set & set;
+                let l = intersect.min().unwrap();
+                let r = intersect.max().unwrap();
+
+                let len = intersect.len() as u32;
+                let m = intersect.select(len / 2);
+                let mid = l + ((r - l) / 2);
+
+                let bounds =
+                    self.label_space.bounds_for(label.as_str()).unwrap();
+                let pos = graph.node_pos(Node::from(mid));
+
+                Some((label.clone(), (bounds, pos_to_x(pos))))
+            })
+            .collect();
+
+        compositor.with_layer(&self.layer_name, |layer| {
+            if let Some(sublayer) = layer.get_sublayer_mut(&self.sublayer_text)
+            {
+                sublayer.update_vertices_array(label_x_map.into_iter().map(
+                    |(_, ((s, l), x))| {
+                        //
+                        let color = [0f32, 0.0, 0.0, 1.0];
+
+                        let mut out = [0u8; 8 + 8 + 16];
+
+                        out[0..8].clone_from_slice(
+                            [x, 400.0]
+                                // [slot_offset + (pos.x * slot_width), pos.y]
+                                .as_bytes(),
+                        );
+                        // let x = slot_offset + (pos.x * view_len as f32);
+
+                        // out[0..8].clone_from_slice([x, pos.y].as_bytes());
+                        out[8..16]
+                            .clone_from_slice([s as u32, l as u32].as_bytes());
+                        out[16..32].clone_from_slice(color.as_bytes());
+                        out
+                    },
+                ));
+
+                /*
+                self.labels.iter().enumerate().map(|(ix, &(s, l))| {
+                    let pos = self.label_pos[ix];
+
+                    let color = if self.label_flag[ix] & 16 == 0 {
+                        [0.0f32, 0.0, 0.0, 1.0]
+                    } else {
+                        [1.0f32, 1.0, 1.0, 1.0]
+                    };
+
+                    let mut out = [0u8; 8 + 8 + 16];
+
+                    let x = (slot_offset + (pos.x * slot_width));
+
+                    out[0..8].clone_from_slice(
+                        [x, pos.y]
+                            // [slot_offset + (pos.x * slot_width), pos.y]
+                            .as_bytes(),
+                    );
+                    // let x = slot_offset + (pos.x * view_len as f32);
+
+                    // out[0..8].clone_from_slice([x, pos.y].as_bytes());
+                    out[8..16]
+                        .clone_from_slice([s as u32, l as u32].as_bytes());
+                    out[16..32].clone_from_slice(color.as_bytes());
+                    out
+                }),
+                */
+                // )?;
+            }
+
+            //
+
+            Ok(())
+        })?;
+
+        Ok(())
     }
 }
 

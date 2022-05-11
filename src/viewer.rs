@@ -179,8 +179,6 @@ pub struct PathViewer {
 
     pub slots: Arc<RwLock<SlotCache>>,
 
-    // pub slots: Vec<PathViewSlot>,
-    // slot_cache: HashMap<(usize, (usize, usize), IVec), usize>,
     sample_buf: Vec<(Node, usize)>,
 
     new_samples: AtomicCell<bool>,
@@ -271,21 +269,6 @@ impl PathViewer {
         self.row_view.store((no, l));
         self.update.store(true);
     }
-
-    /*
-    pub fn update_slots(
-        &mut self,
-        ctx: &VkContext,
-        res: &mut GpuResources,
-        alloc: &mut Allocator,
-        updater: &SlotUpdateFn<u32>,
-    ) -> Option<()> {
-
-        // let paths = self.slot_cache.
-
-        Some(())
-    }
-    */
 
     pub fn apply_update(
         &mut self,
@@ -382,11 +365,6 @@ impl PathViewer {
         let (offset, len) = self.row_view.load();
         (offset..offset + len).map(|i| Path::from(i))
     }
-
-    // pub fn visible_indices(&self) -> std::ops::Range<usize> {
-    //     let (offset, len) = self.row_view.load();
-    //     offset..offset + len
-    // }
 
     pub fn resize(
         &mut self,
