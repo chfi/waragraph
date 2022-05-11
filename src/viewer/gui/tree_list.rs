@@ -92,8 +92,9 @@ impl ListPopup {
                 remove_state = true;
 
                 let engine = console.create_engine(db, buffers);
-                // fn_ptr.call_raw(context, this_ptr, arg_values)
-                fn_ptr.call(&engine, &console.ast, (tgt_val,))?;
+
+                let _: rhai::Dynamic =
+                    fn_ptr.call(&engine, &console.ast, (tgt_val,))?;
             }
         }
 

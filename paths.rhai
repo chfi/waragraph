@@ -89,31 +89,33 @@ bind_key(key::Tab, |pressed| {
 });
 
 
-cfg.set("viz.primary", "loop_count_mean");
-cfg.set("viz.secondary", "path_position");
-// const primary = "loop_count_mean";
-// const primary = "node_id";
-// const primary = "has_node";
+props.set("viz.previous", "path_position");
 
-// const secondary = "has_node";
-// const secondary = "node_id";
-// const secondary = "node_length";
-// const secondary = "path_position";
+bind_key(key::F2, |pressed| {
+  let cfg = viewer::cfg;
+  let props = viewer::props;
+  let slot_fns = slot::slot_fn_names();
+  if pressed {
+    popup::popup(slot_fns, |fn_name| {
+      cfg.update("viz.slot_function", || {
+        props.set("viz.previous", this);
+        this = fn_name;
+      })
+    });
+  }
+});
 
 bind_key(key::F1, |pressed| {
   let cfg = viewer::cfg;
-  let primary = cfg.get("viz.primary");
-  let secondary = cfg.get("viz.secondary");
+  let props = viewer::props;
+
   if pressed {
-    cfg.update("viz.slot_function", || {
-      if this == primary {
-        this = secondary;
-        slot::force_update();
-      } else {
-        this = primary;
-        slot::force_update();
-      }
-    });
+    let cur = cfg.get("viz.slot_function");
+    let prev = props.get("viz.previous");
+
+    props.set("viz.previous", cur);
+    cfg.set("viz.slot_function", prev);
+    slot::force_update();
   }
 });
 

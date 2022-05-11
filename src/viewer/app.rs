@@ -281,35 +281,6 @@ impl ViewerSys {
             );
 
             let cache_vec = waragraph.path_sum_lens.clone();
-            let graph = waragraph.clone();
-            slot_fns.write().register_data_source_u32(
-                "node-len",
-                move |path, node| {
-                    let ix = usize::from(path);
-                    let node_ix = usize::from(node);
-                    let path_len = graph.path_lens[ix];
-
-                    let cache = cache_vec.get(ix)?;
-
-                    if !graph.path_nodes[ix].contains(node_ix as u32) {
-                        return None;
-                    }
-
-                    let ix = cache
-                        .binary_search_by_key(&node, |(n, _)| *n)
-                        .unwrap_or_else(|x| x);
-
-                    let (_, v) = *cache.get(ix)?;
-
-                    let val = (v as f32) / (path_len as f32);
-                    // let val =
-
-                    Some((val * 255.0) as u32)
-                    // Some(v)
-                },
-            );
-
-            let cache_vec = waragraph.path_sum_lens.clone();
             // let graph = waragraph.clone();
             slot_fns.write().register_data_source_u32(
                 "path-position",
@@ -481,7 +452,6 @@ impl ViewerSys {
                 }
             })
             .unwrap();
-        // slot_fns.read().slot_fn_mean_round_u32("node_id").unwrap();
 
         slot_fns
             .write()
@@ -493,25 +463,18 @@ impl ViewerSys {
             .slot_color
             .insert("node_id".into(), "gradient-colorbrewer-spectral".into());
 
-        let slot_fn_len =
-            slot_fns.write().slot_fn_mean_round_u32("node-len").unwrap();
-        // slot_fns.write().slot_fn_mid_u32("node-len", |v| v).unwrap();
-
-        slot_fns
-            .write()
-            .slot_fn_u32
-            .insert("node_length".into(), slot_fn_len);
-
         let cmap = color_map.clone();
         let slot_fn_loop_mid = slot_fns
             .read()
             .slot_fn_mid_u32("loop_count", move |v| (&cmap)(v as f32))
             .unwrap();
 
+        /*
         slot_fns
             .write()
             .slot_fn_u32
             .insert("loop_count_mid".into(), slot_fn_loop_mid);
+        */
 
         ////
 
