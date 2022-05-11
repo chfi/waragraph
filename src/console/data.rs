@@ -249,6 +249,17 @@ pub fn add_module_fns(
         RwLock<BTreeMap<rhai::ImmutableString, Arc<AnnotationSet>>>,
     >,
 ) {
+    let fns = slot_fns.clone();
+    module.set_native_fn("slot_fn_names", move || {
+        let fns = fns.read();
+        let r = fns
+            .slot_fn_u32
+            .keys()
+            .map(|n| rhai::Dynamic::from(n.clone()))
+            .collect::<Vec<_>>();
+        Ok(r)
+    });
+
     let annots = annotations.clone();
     module.set_native_fn(
         "get_annotation_set",

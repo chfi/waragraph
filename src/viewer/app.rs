@@ -61,7 +61,7 @@ pub struct ViewerSys {
         Arc<RhaiBatchFn5<BatchBuilder, DescSetIx, rhai::Map, i64, i64>>,
 
     key_binds: Arc<RwLock<FxHashMap<VirtualKeyCode, rhai::FnPtr>>>,
-    engine: rhai::Engine,
+    pub engine: rhai::Engine,
 
     pub slot_rhai_module: Arc<rhai::Module>,
 
@@ -746,7 +746,11 @@ impl ViewerSys {
         Ok(())
     }
 
-    pub fn handle_input(&mut self, event: &winit::event::WindowEvent<'_>) {
+    pub fn handle_input(
+        &mut self,
+        console: &Console,
+        event: &winit::event::WindowEvent<'_>,
+    ) {
         use winit::event::{VirtualKeyCode, WindowEvent};
 
         match event {
@@ -769,7 +773,7 @@ impl ViewerSys {
                     if let Some(fn_ptr) = self.key_binds.read().get(&kc) {
                         let result: RhaiResult = fn_ptr.call(
                             &self.engine,
-                            &self.frame.ast,
+                            &console.ast,
                             (rhai::Dynamic::from(pressed),),
                         );
 

@@ -186,6 +186,8 @@ fn main() -> Result<()> {
 
     let mut console = Console::init(&mut engine, &mut compositor)?;
 
+    console.ast = Arc::new(viewer.frame.ast.clone_functions_only());
+
     console.scope.set_value("cfg", viewer.config.clone());
     console
         .modules
@@ -259,7 +261,7 @@ fn main() -> Result<()> {
 
     let popup_list = Arc::new(RwLock::new(popup_list));
 
-    {
+    let popup_module = {
         let mut module = rhai::Module::new();
 
         let list = popup_list.clone();
@@ -277,13 +279,20 @@ fn main() -> Result<()> {
             },
         );
 
-        console.modules.insert("popup".into(), Arc::new(module));
-    }
+        Arc::new(module)
+    };
+
+    console.modules.insert("popup".into(), popup_module.clone());
 
     {
         let module =
             waragraph::viewer::gui::layer::create_rhai_module(&compositor);
         console.modules.insert("ui".into(), Arc::new(module));
+    }
+
+    for name in ["popup", "ui", "gui", "clipboard", "graph"] {
+        let module = console.modules.get(name).unwrap();
+        viewer.engine.register_static_module(name, module.clone());
     }
 
     let color_palette = {
@@ -893,7 +902,8 @@ fn main() -> Result<()> {
                 match mode {
                     Modes::PathViewer => {
                         //
-                        viewer.handle_input(&event);
+                        viewer.handle_input(&console, &event);
+                        // viewer.handle_input(&event);
                     }
                     Modes::Graph3D => todo!(),
                 }
