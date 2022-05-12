@@ -20,6 +20,24 @@ fill_vec4_buffer(spectral,
                   rgba(94,79,162)]);
 
 
+let category10 = allocate_vec4_buffer("gradient-category10", 11);
+{
+  let colors = [];
+  colors.push(rgba(1.0, 1.0, 1.0));
+  colors.push(rgba(0x1f, 0x77, 0xb4));
+  colors.push(rgba(0xff, 0x7f, 0x0e));
+  colors.push(rgba(0x2c, 0xa0, 0x2c));
+  colors.push(rgba(0xd6, 0x27, 0x28));
+  colors.push(rgba(0x94, 0x67, 0xbd));
+  colors.push(rgba(0x8c, 0x56, 0x4b));
+  colors.push(rgba(0xe3, 0x77, 0xc2));
+  colors.push(rgba(0x7f, 0x7f, 0x7f));
+  colors.push(rgba(0xbc, 0xbd, 0x22));
+  colors.push(rgba(0x17, 0xbe, 0xcf));
+
+  fill_vec4_buffer(category10, colors);
+}
+
 let grayscale = allocate_vec4_buffer("gradient-grayscale", 256);
 let grayscale_inv = allocate_vec4_buffer("gradient-grayscale-invert", 256);
 {
