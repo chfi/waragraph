@@ -141,6 +141,33 @@ impl LabelStacks {
             ((slot_offset as f64) + (w_len * x_p)) as f32
         };
 
+        let mut labels_by_x: Vec<((usize, usize), f32)> = self
+            .label_map
+            .iter()
+            .filter_map(|(label, set)| {
+                if view_set.intersection_len(set) == 0 {
+                    return None;
+                }
+
+                let intersect = &view_set & set;
+                let l = intersect.min().unwrap();
+                let r = intersect.max().unwrap();
+
+                let len = intersect.len() as u32;
+                let m = intersect.select(len / 2);
+                let mid = l + ((r - l) / 2);
+
+                let bounds =
+                    self.label_space.bounds_for(label.as_str()).unwrap();
+                let pos = graph.node_pos(Node::from(mid));
+
+                Some((bounds, pos_to_x(pos)))
+            })
+            .collect();
+
+        // it's fine to just sort as integers
+        labels_by_x.sort_by_key(|(_, x)| *x as usize);
+
         // let mut label_pos_map: HashMap<rhai::ImmutableString, usize> = self
         let mut label_x_map: HashMap<
             rhai::ImmutableString,

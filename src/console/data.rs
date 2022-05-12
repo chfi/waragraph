@@ -383,6 +383,53 @@ pub fn add_module_fns(
             cache.register_data_source_u32(source_str, move |path, node| {
                 let indices = set.records_on_path_node(path, node)?;
                 indices.select(0)
+                // indices.select(1)
+            });
+
+            return Ok(source);
+        },
+    );
+
+    let cache = slot_fns.clone();
+    module.set_native_fn(
+        "create_data_source",
+        move |set: &mut Arc<AnnotationSet>, column: i64| {
+            let column = column as usize;
+            let col_ix = column - 3;
+
+            let mut cache = cache.write();
+            let source_str = set.source.as_str();
+            let source = set.source.clone();
+
+            if cache.get_data_source_u32(source_str).is_some() {
+                return Ok(source.clone());
+            }
+
+            let mut uniq: HashMap<rhai::ImmutableString, u32> =
+                HashMap::default();
+
+            if let BedColumn::String(labels) = &set.columns[col_ix] {
+                for label in labels {
+                    if !uniq.contains_key(label) {
+                        uniq.insert(label.clone(), uniq.len() as u32);
+                    }
+                }
+            } else {
+                return Err("TODO: only string columns supported".into());
+            }
+
+            let set = set.clone();
+            cache.register_data_source_u32(source_str, move |path, node| {
+                let indices = set.records_on_path_node(path, node)?;
+                let record = indices.select(0)?;
+                let text = set.columns.get(col_ix).and_then(|c| {
+                    if let BedColumn::String(labels) = c {
+                        labels.get(record as usize)
+                    } else {
+                        None
+                    }
+                })?;
+                uniq.get(text).copied()
             });
 
             return Ok(source);

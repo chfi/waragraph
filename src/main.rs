@@ -381,11 +381,13 @@ fn main() -> Result<()> {
             r#"
 let g = graph::get_graph();
 let bed = slot::load_bed_file(g, "{}");
-let ds_name = slot::create_data_source(bed);
+// let ds_name = slot::create_data_source(bed);
+let ds_name = slot::create_data_source(bed, 3);
 let ds = slot::get_data_source(ds_name);
 let fn_name = "bed_slot_fn";
 let slot_fn = slot::new_slot_fn_from_data_source(ds_name, fn_name);
-slot::set_slot_color_scheme(fn_name, "gradient-colorbrewer-spectral");
+// slot::set_slot_color_scheme(fn_name, "gradient-colorbrewer-spectral");
+slot::set_slot_color_scheme(fn_name, "gradient-category10");
 // cfg.set("viz.slot_function", fn_name);
     // cfg.set("viz.secondary", fn_name);
     "#,
