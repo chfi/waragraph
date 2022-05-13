@@ -1,6 +1,7 @@
 use std::collections::{BTreeMap, HashMap};
 
 use ash::vk;
+use bimap::BiHashMap;
 use bstr::ByteSlice;
 use gpu_allocator::vulkan::Allocator;
 use parking_lot::RwLock;
@@ -165,6 +166,89 @@ impl ViewDiscrete1D {
         let origin = origin.clamp(range.start, range.end - 1);
     }
     */
+}
+
+pub struct PathSlotList {
+    pub paths: BiHashMap<Path, rhai::ImmutableString>,
+
+    // the string is the name of the slot function
+    pub active_list: Vec<(Path, rhai::ImmutableString)>,
+    pub list_offset: usize,
+}
+
+impl PathSlotList {
+    pub fn new(graph: &Waragraph) -> Self {
+        let paths = graph
+            .path_names
+            .iter()
+            .map(|(path, name)| {
+                let name_str = name.to_str().unwrap();
+                (*path, rhai::ImmutableString::from(name_str))
+            })
+            .collect();
+
+        let active_list = Vec::new();
+
+        Self {
+            paths,
+
+            active_list,
+            list_offset: 0,
+        }
+    }
+
+    pub fn sorted_by_name(&mut self, slot_fn: &str) {
+        let slot_fn = rhai::ImmutableString::from(slot_fn);
+
+        let mut names = self.paths.iter().collect::<Vec<_>>();
+        names.sort_by_key(|(_, name)| *name);
+
+        self.active_list.clear();
+        self.active_list.extend(
+            names.into_iter().map(|(path, _)| (*path, slot_fn.clone())),
+        );
+    }
+
+    pub fn slots_for_layout<'a>(
+        &'a self,
+        layout: &ListLayout,
+    ) -> impl Iterator<Item = (Path, rhai::ImmutableString, [f32; 4])> + 'a
+    {
+        let [x, y] = layout.offset;
+        let [w, h] = layout.dims;
+
+        let [p_v, p_h] = layout.padding;
+
+        let s_h = layout.slot_height;
+
+        let dy = s_h + p_h;
+
+        let iter = self
+            .active_list
+            .iter()
+            .skip(self.list_offset)
+            .enumerate()
+            .map(move |(row, (path, slot_fn))| {
+                let y_i = y + dy * row as f32;
+                let x_i = x + p_v;
+
+                let w_i = w - x - p_v;
+                let h_i = h - y;
+
+                (*path, slot_fn.clone(), [x_i, y_i, w_i, h_i])
+            });
+
+        iter
+    }
+}
+
+#[derive(Clone, Copy)]
+pub struct ListLayout {
+    offset: [f32; 2],
+    dims: [f32; 2],
+
+    padding: [f32; 2],
+    slot_height: f32,
 }
 
 pub struct PathViewer {
