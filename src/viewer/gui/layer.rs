@@ -336,6 +336,9 @@ pub(super) fn line_rgb_sublayer(
 pub fn create_rhai_module(compositor: &Compositor) -> rhai::Module {
     let mut module = raving::compositor::create_rhai_module(compositor);
 
+    // TODO: this implementation might lead to issues if the
+    // swapchain is resized before/while the script is running,
+    // if/when scripts are being run asynchronously
     let window_size = compositor.window_dims_arc().clone();
     module.set_native_fn("get_window_size", move || {
         let [x, y] = window_size.load();

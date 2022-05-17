@@ -20,7 +20,6 @@ use waragraph::graph::{Node, Path, Waragraph};
 use waragraph::util::{BufferStorage, LabelStorage};
 use waragraph::viewer::app::ViewerSys;
 use waragraph::viewer::gui::tree_list::{Breadcrumbs, ListPopup, TreeList};
-use waragraph::viewer::gui::{GuiLayer, GuiSys};
 use waragraph::viewer::{SlotUpdateFn, ViewDiscrete1D};
 use winit::event::{Event, VirtualKeyCode, WindowEvent};
 use winit::{event_loop::EventLoop, window::WindowBuilder};
@@ -148,8 +147,6 @@ fn main() -> Result<()> {
 
     let mut buffers = BufferStorage::new(&db)?;
 
-    let mut gui_sys = GuiSys::init(&mut engine, &db, &swapchain_dims)?;
-
     let mut compositor = Compositor::init(&mut engine, &swapchain_dims)?;
 
     let mut window_resources = WindowResources::new();
@@ -240,15 +237,6 @@ fn main() -> Result<()> {
         .scope
         .push_constant("label_space", label_space.clone());
 
-    let mut gui_layer = GuiLayer::new(
-        &mut engine,
-        &db,
-        &mut buffers,
-        "main_gui",
-        1023,
-        gui_palette_set,
-    )?;
-
     waragraph::viewer::gui::layer::add_sublayer_defs(
         &mut engine,
         &mut compositor,
@@ -303,36 +291,6 @@ fn main() -> Result<()> {
         let id = buffers.get_id("gradient-colorbrewer-spectral").unwrap();
         buffers.get_desc_set_ix(id).unwrap()
     };
-
-    let mut gui_tooltip_layer = GuiLayer::new(
-        &mut engine,
-        &db,
-        &mut buffers,
-        "tooltip",
-        1023,
-        gui_palette_set,
-    )?;
-
-    let mut gui_legend_layer = GuiLayer::new(
-        &mut engine,
-        &db,
-        &mut buffers,
-        "main_gui-legend",
-        1023,
-        color_buffer_set,
-    )?;
-
-    gui_sys.layers.write().insert("main_gui".into(), gui_layer);
-    gui_sys
-        .layers
-        .write()
-        .insert("tooltip".into(), gui_tooltip_layer);
-    gui_sys
-        .layers
-        .write()
-        .insert("main_gui-legend".into(), gui_legend_layer);
-
-    gui_sys.update_layer_buffers(&buffers)?;
 
     let mut recreate_swapchain = false;
     let mut recreate_swapchain_timer: Option<std::time::Instant> = None;
@@ -621,25 +579,6 @@ slot::set_slot_color_scheme(fn_name, "gradient-category10");
                 buffers.allocate_queued(&mut engine).unwrap();
                 buffers.fill_updated_buffers(&mut engine.resources).unwrap();
 
-                if let Err(e) = gui_sys.update_layer_buffers(&buffers) {
-                    log::error!("GUI layer update error: {:?}", e);
-                }
-
-                while let Ok(label_msg) = gui_sys.label_msg_rx.try_recv() {
-                    if let Some(layer) =
-                        gui_sys.layers.write().get_mut(&label_msg.layer_name)
-                    {
-                        layer
-                            .apply_label_msg(
-                                &mut engine,
-                                &db,
-                                &mut gui_sys.labels,
-                                label_msg,
-                            )
-                            .unwrap();
-                    }
-                }
-
                 while let Ok((path, slot_fn_name, data, view, width)) =
                     slot_rx.try_recv()
                 {
@@ -759,27 +698,6 @@ slot::set_slot_color_scheme(fn_name, "gradient-category10");
 
                 for (key, value) in updates {
                     viewer
-                        .labels
-                        .update(&mut engine.resources, &key, &value)
-                        .unwrap();
-                }
-
-                let mut updates: HashMap<IVec, IVec> = HashMap::default();
-
-                while let Ok(ev) = gui_sys
-                    .label_updates
-                    .next_timeout(Duration::from_micros(10))
-                {
-                    match ev {
-                        sled::Event::Insert { key, value } => {
-                            updates.insert(key, value);
-                        }
-                        _ => (),
-                    }
-                }
-
-                for (key, value) in updates {
-                    gui_sys
                         .labels
                         .update(&mut engine.resources, &key, &value)
                         .unwrap();
