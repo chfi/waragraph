@@ -33,12 +33,6 @@ use anyhow::{anyhow, Result};
 
 use rand::prelude::*;
 
-#[derive(Clone, Copy, PartialEq, Eq)]
-pub enum Modes {
-    PathViewer,
-    Graph3D,
-}
-
 fn main() -> Result<()> {
     // disable sled logging
     let spec = "debug, sled=info";
@@ -241,7 +235,7 @@ fn main() -> Result<()> {
         &mut engine,
         &mut compositor,
         font_desc_set,
-    );
+    )?;
 
     let mut tree_list =
         TreeList::new(&mut engine, &mut compositor, "example", 100.0, 100.0)?;
@@ -297,8 +291,6 @@ fn main() -> Result<()> {
 
     let mut prev_frame_end = std::time::Instant::now();
 
-    let mut mode = Modes::PathViewer;
-
     // (samples, slot fn name, SlotUpdateFn, Path, view, width)
     type UpdateMsg = (
         Arc<Vec<(Node, usize)>>,
@@ -325,7 +317,8 @@ fn main() -> Result<()> {
             log::error!("gui on init eval error!! {:?}", e);
         }
     }
-    let mut rng = rand::thread_rng();
+
+    // let mut rng = rand::thread_rng();
 
     // let mut label_sets = None;
     let mut label_stacks = None;
@@ -429,9 +422,13 @@ slot::set_slot_color_scheme(fn_name, "gradient-category10");
         match event {
             Event::MainEventsCleared => {
                 let delta_time = prev_frame.elapsed().as_secs_f32();
+
+                /*
                 layout_update_since += delta_time;
 
                 if layout_update_since > 0.05 {
+
+
                     let [width, _] = swapchain_dims.load();
 
                     let [slot_offset, slot_width] =
@@ -439,7 +436,6 @@ slot::set_slot_color_scheme(fn_name, "gradient-category10");
 
                     let view = viewer.view.load();
 
-                    /*
                     label_layout.step(slot_width, layout_update_since);
 
                     label_layout
@@ -456,10 +452,10 @@ slot::set_slot_color_scheme(fn_name, "gradient-category10");
                     let _ = label_layout
                         .label_space
                         .write_buffer(&mut engine.resources);
-                    */
 
                     layout_update_since = 0.0;
                 }
+                    */
 
                 prev_frame = std::time::Instant::now();
 
@@ -619,12 +615,14 @@ slot::set_slot_color_scheme(fn_name, "gradient-category10");
                     let mut slots = viewer.path_viewer.slots.write();
                     for _ in 0..diff {
                         let i = slots.capacity();
-                        slots.allocate_slot(
+                        if let Err(e) = slots.allocate_slot(
                             &mut engine,
                             &db,
                             &mut viewer.labels,
                             slot_width,
-                        );
+                        ) {
+                            log::error!("Path slot allocation error: {:?}", e);
+                        }
 
                         let name = format!("path-name-{}", i);
                         viewer
@@ -708,18 +706,19 @@ slot::set_slot_color_scheme(fn_name, "gradient-category10");
                 mouse_clicked = false;
 
                 if recreate_swapchain_timer.is_none() && !recreate_swapchain {
-                    let render_success = match mode {
-                        Modes::PathViewer => viewer
-                            .render(
-                                &mut engine,
-                                &buffers,
-                                &window,
-                                &window_resources,
-                                &graph,
-                                &compositor,
-                            )
-                            .unwrap(),
-                        Modes::Graph3D => todo!(),
+                    let render_success = match viewer.render(
+                        &mut engine,
+                        &buffers,
+                        &window,
+                        &window_resources,
+                        &graph,
+                        &compositor,
+                    ) {
+                        Ok(_) => true,
+                        Err(e) => {
+                            log::error!("Render error: {:?}", e);
+                            false
+                        }
                     };
 
                     if !render_success {
@@ -777,14 +776,7 @@ slot::set_slot_color_scheme(fn_name, "gradient-category10");
             }
 
             Event::WindowEvent { event, .. } => {
-                match mode {
-                    Modes::PathViewer => {
-                        //
-                        viewer.handle_input(&console, &event);
-                        // viewer.handle_input(&event);
-                    }
-                    Modes::Graph3D => todo!(),
-                }
+                viewer.handle_input(&console, &event);
 
                 match event {
                     WindowEvent::ReceivedCharacter(c) => {
