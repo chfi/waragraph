@@ -209,10 +209,6 @@ fn main() -> Result<()> {
         .modules
         .insert("slot".into(), viewer.slot_rhai_module.clone());
 
-    console
-        .modules
-        .insert("gui".into(), gui_sys.rhai_module.clone());
-
     // viewer.labels.allocate_label(&db, &mut engine, "console")?;
     // viewer.labels.set_label_pos(b"console", 4, 4)?;
     // viewer.labels.set_text_for(b"console", "")?;
@@ -298,7 +294,7 @@ fn main() -> Result<()> {
         console.modules.insert("ui".into(), Arc::new(module));
     }
 
-    for name in ["popup", "ui", "gui", "clipboard", "graph"] {
+    for name in ["popup", "ui", "clipboard", "graph"] {
         let module = console.modules.get(name).unwrap();
         viewer.engine.register_static_module(name, module.clone());
     }

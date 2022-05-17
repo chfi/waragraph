@@ -125,8 +125,6 @@ bind_key(key::F1, |pressed| {
 
 
 fn remove_tooltip() {
-  // gui::set_layer_order(["main_gui"]);
-  // gui::set_layer_order([]);
   ui::toggle_layer("tooltip", false);
 }
 
@@ -135,7 +133,6 @@ fn remove_tooltip() {
 fn gui_init(label_space) {
   let props = viewer::props;
   props.set("time", 0.0);
-  gui::set_layer_order(["main_gui"]);
 
   ui::init_layer("rhai-main", 1, true);
   ui::allocate_sublayer("rhai-main", "rect-rgb", "sidebar");
@@ -254,7 +251,7 @@ fn gui_update(label_space, dt) {
 
   let pos = mouse::get_pos();
   let view = viewer::get_view();
-  let dims = gui::get_window_size();
+  let dims = ui::get_window_size();
 
   /*
   {
@@ -324,21 +321,8 @@ fn gui_update(label_space, dt) {
   }
 }
 
+
 /*
-fn gui_init() {
-  gui::set_layer_order(["main_gui", "main_gui-legend"]);
-}
-
-fn gui_update() {
-  let pos = mouse::get_pos();
-  let position = #{ x: pos.x, y: pos.y };
-
-  set_tooltip(`(${pos.x.to_int()}, ${pos.y.to_int()})`, position);
-  gui::with_layer("main_gui", Fn("prepare_legend_window"));
-  gui::with_layer("main_gui-legend", Fn("prepare_legend_icons"));
-}
-*/
-
 fn prepare_legend_icons() {
   let screen = gui::get_window_size();
 
@@ -413,6 +397,7 @@ fn prepare_legend_window() {
   title.position = #{ x: 24, y: 44 };
   gui::update_label(title);
 }
+*/
 
 
 
@@ -814,7 +799,7 @@ fn slot_ix_at_pos(pos) {
   let cfg = viewer::cfg;
   let padding = cfg.get("layout.padding");
 
-  let win_dims = gui::get_window_size();
+  let win_dims = ui::get_window_size();
   let rect = slot_rect(win_dims);
 
   // let vis_count = ((win_dims.height - rect.y) / (rect.h + padding)).to_int();

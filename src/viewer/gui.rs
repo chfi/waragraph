@@ -316,19 +316,9 @@ pub struct GuiSys {
     pub labels: LabelStorage,
     pub label_updates: sled::Subscriber,
 
-    // pub rects: Vec<Arc<RwLock<GuiLayer>>>,
-    // pub rects: Arc<RwLock<Vec<([f32; 4], RectColor)>>>,
-    // pub rhai_module: Arc<rhai::Module>,
-
-    // pub on_resize: RhaiBatchFn2<i64, i64>,
-
-    // pub draw_labels: RhaiBatchFn4<BatchBuilder, i64, i64, rhai::Array>,
-    // pub draw_shapes: RhaiBatchFn4<BatchBuilder, i64, i64, rhai::Array>,
     pub pass: RenderPassIx,
     pub pipeline: PipelineIx,
     pub text_pipeline: PipelineIx,
-
-    pub rhai_module: Arc<rhai::Module>,
 
     pub label_msg_tx: crossbeam::channel::Sender<LabelMsg>,
     pub label_msg_rx: crossbeam::channel::Receiver<LabelMsg>,
@@ -724,8 +714,6 @@ impl GuiSys {
             pass: pass_ix,
             pipeline: pipeline_ix,
             text_pipeline: text_pipeline_ix,
-
-            rhai_module,
 
             label_msg_tx,
             label_msg_rx,

@@ -333,12 +333,17 @@ pub(super) fn line_rgb_sublayer(
     )
 }
 
-pub fn create_rhai_module(
-    compositor: &Compositor,
-    // buffers: &BufferStorage,
-) -> rhai::Module {
+pub fn create_rhai_module(compositor: &Compositor) -> rhai::Module {
     let mut module = raving::compositor::create_rhai_module(compositor);
-    // let mut module: rhai::Module = rhai::exported_module!(rhai_module);
+
+    let window_size = compositor.window_dims_arc().clone();
+    module.set_native_fn("get_window_size", move || {
+        let [x, y] = window_size.load();
+        let mut map = rhai::Map::default();
+        map.insert("width".into(), (x as i64).into());
+        map.insert("height".into(), (y as i64).into());
+        Ok(map)
+    });
 
     let layers = compositor.layers.clone();
 
@@ -428,7 +433,6 @@ pub fn create_rhai_module(
 
             if let Some(layer) = layers.get_mut(layer_name) {
                 if let Some(sublayer) = layer.get_sublayer_mut(sublayer_name) {
-                    // let def_name = sublayer.def_name.clone();
                     match sublayer.def_name.as_str() {
                         "text" => {
                             let vertices =
@@ -439,14 +443,6 @@ pub fn create_rhai_module(
 
                             let result =
                                 sublayer.update_vertices_array(vertices);
-                            /*
-                            let result = sublayer.update_vertices_array(
-                                data.into_iter().filter_map(|val| {
-
-                                    Some(out)
-                                }),
-                            );
-                            */
 
                             if let Err(e) = result {
                                 return Err(format!(
@@ -457,10 +453,6 @@ pub fn create_rhai_module(
                             } else {
                                 return Ok(());
                             }
-                            // .map_err(|e| {
-                            //     format!("sublayer update error: {:?}", e)
-                            //         .into()
-                            // })?;
                         }
                         e => {
                             return Err(format!(
@@ -468,16 +460,9 @@ pub fn create_rhai_module(
                                 e
                             )
                             .into());
-                        } // "text" => {
-                          //     // let rects = data
-                          //     // let result = sublayer.update_vertices_array(new)
-                          // }
+                        }
                     }
-
-                    //
                 }
-
-                // if let Some((sublayer
             }
 
             Ok(())
@@ -541,10 +526,6 @@ pub fn create_rhai_module(
                             } else {
                                 return Ok(());
                             }
-                            // .map_err(|e| {
-                            //     format!("sublayer update error: {:?}", e)
-                            //         .into()
-                            // })?;
                         }
                         e => {
                             return Err(format!(
@@ -552,48 +533,14 @@ pub fn create_rhai_module(
                                 e
                             )
                             .into());
-                        } // "text" => {
-                          //     // let rects = data
-                          //     // let result = sublayer.update_vertices_array(new)
-                          // }
+                        }
                     }
-
-                    //
                 }
-
-                // if let Some((sublayer
-            }
-
-            // if let Some((layer_name, layer)) = layers.remove_entry(layer_name) {
-            //     //
-
-            //     layers.insert(layer_name, layer);
-            // }
-
-            Ok(())
-        },
-    );
-
-    /*
-    module.set_native_fn(
-        "with_layer",
-        move |layer_name: &str, fn_ptr: rhai::FnPtr| {
-            let mut layers = layers.write();
-
-            if let Some((layer_name, layer)) = layers.remove_entry(layer_name) {
-                // bind layer to `this` and call fn_ptr
-
-
-
-                layers.insert(layer_name, layer);
             }
 
             Ok(())
         },
     );
-    */
-
-    // let layers = compositor.layers.clone();
 
     module
 }
