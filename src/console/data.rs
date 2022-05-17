@@ -398,10 +398,10 @@ pub fn add_module_fns(
             let col_ix = column - 3;
 
             let mut cache = cache.write();
-            let source_str = set.source.as_str();
-            let source = set.source.clone();
+            let source = format!("{}:{}", set.source, col_ix);
+            let source = rhai::ImmutableString::from(source);
 
-            if cache.get_data_source_u32(source_str).is_some() {
+            if cache.get_data_source_u32(&source).is_some() {
                 return Ok(source.clone());
             }
 
@@ -419,7 +419,7 @@ pub fn add_module_fns(
             }
 
             let set = set.clone();
-            cache.register_data_source_u32(source_str, move |path, node| {
+            cache.register_data_source_u32(&source, move |path, node| {
                 let indices = set.records_on_path_node(path, node)?;
                 let record = indices.select(0)?;
                 let text = set.columns.get(col_ix).and_then(|c| {
@@ -676,6 +676,20 @@ pub mod rhai_module {
 
     pub type AnnotationSet = Arc<super::AnnotationSet>;
 
+    #[rhai_fn(global, return_raw)]
+    pub fn column_type(
+        set: &mut AnnotationSet,
+        column: i64,
+    ) -> EvalResult<rhai::ImmutableString> {
+        let col_ix = column as usize - 3;
+        match set.columns.get(col_ix) {
+            Some(super::BedColumn::Int(_)) => Ok("i64".into()),
+            Some(super::BedColumn::Float(_)) => Ok("f32".into()),
+            Some(super::BedColumn::String(_)) => Ok("string".into()),
+            _ => Err("Column not found".into()),
+        }
+    }
+
     #[rhai_fn(return_raw)]
     pub fn nodes_in_record(
         set: &mut AnnotationSet,
@@ -717,7 +731,8 @@ pub mod rhai_module {
         record_ix: i64,
         column: i64,
     ) -> EvalResult<rhai::Dynamic> {
-        if let Some(column) = set.columns.get(column as usize) {
+        let col_ix = column as usize - 3;
+        if let Some(column) = set.columns.get(col_ix) {
             match column {
                 super::BedColumn::Int(vs) => {
                     if let Some(val) = vs.get(record_ix as usize) {
