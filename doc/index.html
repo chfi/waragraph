@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8">
+    <meta name="description" content="">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+    <meta property="og:title" content="">
+    <meta property="og:type" content="">
+    <meta property="og:url" content="">
+    <meta property="og:image" content="">
+
+    <link rel="manifest" href="site.webmanifest">
+    <link rel="stylesheet"
+          href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.7.2/styles/default.min.css">
+    <link rel="apple-touch-icon" href="icon.png">
+    <link rel="stylesheet" href="rhai-doc-styles.css">
+    <meta name="theme-color" content="#fafafa">
+    <title>Waragraph - index.html</title>
+</head>
+
+<body>
+    <header>
+        <nav>
+            <ul>
+                <li><a href="index.html"><img class="logo" src="logo.svg" alt="Logo" /></a></li>
+                <li class="title">Waragraph</li>
+                <li>
+                    <hr class="divider" />
+                </li>
+                <li><a href="https://github.com/chfi/waragraph" class="button">GitHub</a></li>
+
+            </ul>
+        </nav>
+    </header>
+    <main>
+        <div id="content">
+            <aside>
+
+                <h1 class="menu-header">Scripts API</h1>
+                <ul>
+                    <li><a class="link"
+                           href="bed.html"><code>bed</code></a></li>
+                </ul>
+            </aside>
+            <section>
+            </section>
+        </div>
+    </main>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.7.2/highlight.min.js"></script>
+
+    <script>
+        document.addEventListener("DOMContentLoaded", function(event) {
+            document.querySelectorAll("pre > code").forEach(function(block) {
+                hljs.highlightBlock(block);
+            });
+        });
+    </script>
+
+</body>
+
+</html>

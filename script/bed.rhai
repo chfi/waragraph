@@ -2,8 +2,12 @@
 /// `columns` should be a map from column indices in the BED file to names.
 /// The indices that are given names will be loaded as visualization modes
 ///
-/// Example usage:
-/// `load_bed_file("some_file.bed", #{ "Name": 3, "another column": 4 }`
+/// Example: Load
+/// ```
+/// load_bed_file("some_file.bed",
+///               #{ "Name": 3,
+///                  "another column": 4 });
+/// ```
 fn load_bed_file(bed_path, columns) {
   let g = graph::get_graph();
   let bed_file = slot::load_bed_file(g, bed_path);

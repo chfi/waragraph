@@ -1,0 +1,18 @@
+version = "0.1"                             # Version of this TOML file
+name = "Waragraph"                         # Name of the project (optional)
+color = [246, 119, 2]                       # Theme color (optional)
+#root = "/docs/"                            # Root URL (optional)
+#index = "home.md"                          # Home page (optional)
+#icon = "icon.png"                          # Project icon (optional)
+#stylesheet = "custom.css"                  # Custom stylesheet (optional)
+#google_analytics = "G-ABCDEF1234"          # Google Analytics ID (optional)
+
+# [[links]] sections encode HTML links to the header
+
+[[links]]
+name = "GitHub"
+link = "https://github.com/chfi/waragraph"
+
+# [[links]]
+# name = "Google"
+# link = "https://www.google.com"
