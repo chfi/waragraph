@@ -4,3 +4,5 @@ pub mod graph;
 pub mod input;
 pub mod util;
 pub mod viewer;
+
+pub mod cli;

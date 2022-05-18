@@ -18,9 +18,20 @@ smallvec = "1.8.0"
 nalgebra = "0.30"
 sprs = "0.11"
 sled = "0.34"
+
+bytemuck = { version = "1.7" }
 zerocopy = "0.6.1"
+
 roaring = "0.9"
 bimap = "0.6"
+thunderdome = "0.5"
+rustc-hash = "1.1"
+ndarray = { version = "0.15", features = ["rayon"] }
+
+crossbeam = "0.8"
+parking_lot = "0.11.1"
+rayon = "1.5"
+# poll-promise = "0.1"
 
 lazy_static = "1.4"
 
@@ -28,29 +39,17 @@ rand = "0.8.5"
 
 rgb = "0.8.25"
 colorous = "1.0"
-rayon = "1.5"
-ndarray = { version = "0.15", features = ["rayon"] }
-
-thunderdome = "0.5"
-rustc-hash = "1.1"
 
 bstr = "0.2"
 
 log = "0.4"
 
+argh = "0.1"
 ctrlc = "3.2"
 
 anyhow = "1.0"
 
-crossbeam = "0.8"
-parking_lot = "0.11.1"
-# poll-promise = "0.1"
-
 rhai = { version = "1.7", features = ["sync", "f32_float", "internals"] }
-arboard = "2.1"
-
-# bytemuck = { version = "1.7", features = ["derive"] }
-bytemuck = { version = "1.7" }
 
 # temporary deps while i'm working on this as both the library & viewer
 
@@ -58,6 +57,7 @@ bytemuck = { version = "1.7" }
 # futures-timer = { version = "3.0.2" }
 
 winit = "0.25"
+arboard = "2.1"
 
 ash = { version = "0.36", features = ["linked"] }
 gpu-allocator = { version = "0.17", features = ["vulkan"] }

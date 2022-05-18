@@ -7,6 +7,7 @@ use raving::compositor::Compositor;
 use raving::script::console::frame::Resolvable;
 use raving::vk::{DescSetIx, VkEngine, WindowResources};
 
+use waragraph::cli::ViewerArgs;
 use waragraph::console::data::{AnnotationSet, BedColumn};
 use waragraph::console::layout::{LabelLayout, LabelStacks};
 use waragraph::console::{Console, ConsoleInput};
@@ -34,6 +35,8 @@ use anyhow::{anyhow, Result};
 use rand::prelude::*;
 
 fn main() -> Result<()> {
+    let viewer_args: ViewerArgs = argh::from_env();
+
     // disable sled logging
     let spec = "debug, sled=info";
     // let spec = "debug";
@@ -77,11 +80,13 @@ fn main() -> Result<()> {
         Arc::new(module)
     };
 
-    let _ = args.next().unwrap();
+    // let _ = args.next().unwrap();
 
-    let gfa_path = args.next().ok_or(anyhow!("Provide a GFA path"))?;
+    let gfa_path = &viewer_args.gfa_path;
+    // let gfa_path = args.next().ok_or(anyhow!("Provide a GFA path"))?;
 
-    let bed_path = args.next();
+    // let bed_path = args.next();
+    let bed_path = &viewer_args.bed_path;
 
     // let bed_path = args.next().and_then(|path| {
     //     let
@@ -321,36 +326,36 @@ fn main() -> Result<()> {
     // let mut rng = rand::thread_rng();
 
     // let mut label_sets = None;
-    let mut label_stacks = None;
-
-    /*
-        {
-            let script = r##"
-    import "script/bed" as bed;
-    bed::load_bed_file("betaglobin.bed", #{ "Name": 3 });
-    "##;
-
-            console.eval(&db, &buffers, script)?;
-        }
-        */
+    let mut label_stacks: Option<LabelStacks> = None;
 
     if let Some(bed_path) = bed_path {
-        let script = format!(
-            r#"
-let g = graph::get_graph();
-let bed = slot::load_bed_file(g, "{}");
-// let ds_name = slot::create_data_source(bed);
-let ds_name = slot::create_data_source(bed, 3);
-let ds = slot::get_data_source(ds_name);
-let fn_name = "bed_slot_fn";
-let slot_fn = slot::new_slot_fn_from_data_source(ds_name, fn_name);
-// slot::set_slot_color_scheme(fn_name, "gradient-colorbrewer-spectral");
-slot::set_slot_color_scheme(fn_name, "gradient-category10");
-// cfg.set("viz.slot_function", fn_name);
-    // cfg.set("viz.secondary", fn_name);
-    "#,
-            bed_path
-        );
+        let bed_str = bed_path.to_str().unwrap();
+
+        let bed_name = bed_path.file_stem().and_then(|s| s.to_str()).unwrap();
+
+        let mut column_map = rhai::Map::default();
+
+        for col_ix in viewer_args.bed_columns.iter() {
+            let name = format!("{}:{}", bed_name, col_ix);
+            let col_ix = *col_ix as i64;
+            column_map.insert(name.into(), col_ix.into());
+        }
+
+        if viewer_args.bed_columns.is_empty() {
+            let name = format!("{}:{}", bed_name, 3);
+            column_map.insert(name.into(), 3i64.into());
+        }
+
+        console
+            .scope
+            .push("bed_path", rhai::ImmutableString::from(bed_str));
+        console.scope.push("column_map", column_map);
+
+        // eval this script
+        let script = r##"
+import "script/bed" as bed;
+bed::load_bed_file(bed_path, column_map);
+"##;
 
         match console.eval(&db, &buffers, &script) {
             Ok(v) => {}
@@ -358,24 +363,6 @@ slot::set_slot_color_scheme(fn_name, "gradient-category10");
                 log::error!("console error {:?}", e);
             }
         }
-
-        let bed = viewer
-            .annotations
-            .read()
-            .get(bed_path.as_str())
-            .unwrap()
-            .clone();
-
-        let path = graph.path_index(b"grch38#chr11").unwrap();
-
-        let by_label = bed.collect_labels(path, 3)?;
-
-        let stacks = LabelStacks::from_label_map(
-            &mut engine,
-            &mut compositor,
-            by_label,
-        )?;
-        label_stacks = Some(stacks);
     }
 
     let _update_threads = (0..4)
