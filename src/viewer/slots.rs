@@ -196,8 +196,8 @@ impl SlotFnCache {
             // remove the left chunk of the left node
             val = val.checked_sub(l_offset * l_node_val).unwrap_or_default();
 
-            len = len.checked_sub(l_offset).unwrap_or_default();
             len += r_offset;
+            len = len.checked_sub(l_offset).unwrap_or_default();
 
             let avg = val as f32 / len as f32;
 

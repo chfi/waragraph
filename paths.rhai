@@ -53,20 +53,6 @@ fn value_color_index_map(v) {
   }
 }
 
-// fn value_color_index_map(v) {
-//   if v <= 0.5 {
-//     0
-//   } else if v < 1.5 {
-//     16
-//   } else if v < 3.0 {
-//     32
-//   } else if v < 4.5 {
-//     64
-//   } else {
-//     128
-//   }
-// }
-
 //
 // keybinds and commands
 //
@@ -513,45 +499,8 @@ fn foreground(batch, desc_sets, w, h, slot_buf_size) {
                          vk::ImageLayout::GENERAL);
 
 
-  /*
-  // draw lines
 
-  // let line_data_set = buffers::get_uvec4("line_storage").storage_set;
-
-  // let line_data = buffers::get_uvec4("line_storage");
-  let line_data = get_buffer("line_storage");
-  let len = line_data.len; // should be same as GPUs line_count
-
-  let pc = blob();
-
-  pc.append_float(0.0);
-  pc.append_float(0.0);
-  pc.append_float(0.0);
-  pc.append_float(1.0);
-
-  pc.append_int(w);
-  pc.append_int(h);
-
-  pc.append_float(1.0);
-
-  // let x_size = 64;
-  let x_size = 8;
-  let y_size = 8;
-
-  let workgroups = #{ x_groups: (w / x_size) + w % x_size,
-                      y_groups: (h / y_size) + h % y_size,
-                      z_groups: 1 };
-
-
-  batch.dispatch_compute(viewer::line_pipeline.get(),
-                         [line_data.set,
-                          viewer::out_desc_set.get()],
-                         pc,
-                         workgroups);
-                         */
-
-
-  // add a memory barrier (may not be needed, but)
+  // add a memory barrier
   batch.transition_image(img,
                          vk::AccessFlags::SHADER_WRITE,
                          vk::PipelineStageFlags::COMPUTE_SHADER,
@@ -559,16 +508,17 @@ fn foreground(batch, desc_sets, w, h, slot_buf_size) {
                          vk::PipelineStageFlags::COMPUTE_SHADER,
                          vk::ImageLayout::GENERAL,
                          vk::ImageLayout::GENERAL);
-                         // vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL,
-                         // vk::ImageLayout::TRANSFER_SRC_OPTIMAL);
 
   batch
 }
 
 
 
-export let img_shader = load_shader("shaders/copy_image.comp.spv",
-                                    vk::ShaderStageFlags::VERTEX | vk::ShaderStageFlags::FRAGMENT | vk::ShaderStageFlags::COMPUTE);
+export let img_shader =
+  load_shader("shaders/copy_image.comp.spv",
+              vk::ShaderStageFlags::VERTEX
+              | vk::ShaderStageFlags::FRAGMENT
+              | vk::ShaderStageFlags::COMPUTE);
 
 export let img_pipeline = create_compute_pipeline(img_shader);
 
@@ -616,8 +566,6 @@ fn copy_to_swapchain(batch, source_set, swapchain, w, h) {
                          vk::PipelineStageFlags::COMPUTE_SHADER,
                          vk::AccessFlags::SHADER_READ,
                          vk::PipelineStageFlags::COMPUTE_SHADER,
-                         // vk::AccessFlags::MEMORY_READ,
-                         // vk::PipelineStageFlags::BOTTOM_OF_PIPE,
                          vk::ImageLayout::GENERAL,
                          vk::ImageLayout::PRESENT_SRC_KHR);
 

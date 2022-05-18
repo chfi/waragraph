@@ -172,7 +172,6 @@ impl ViewerSys {
             builder
                 .module
                 .set_native_fn("get_view", move || Ok(view_.load()));
-            // .set_native_fn("get_view", move || Ok(view_.load()));
 
             let view_ = view.clone();
             let should_update = path_viewer.force_update_cell().clone();
