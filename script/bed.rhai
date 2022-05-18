@@ -1,8 +1,10 @@
 /// Loads a BED file at the given path
 /// `columns` should be a map from column indices in the BED file to names.
-/// The indices that are given names will be loaded as visualization modes
+/// The indices that are given names will be loaded as visualization modes.
 ///
-/// Example: Load
+///
+///
+/// Example usage
 /// ```
 /// load_bed_file("some_file.bed",
 ///               #{ "Name": 3,

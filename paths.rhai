@@ -5,6 +5,7 @@
 // colors and theming
 
 import "color" as color;
+import "script/tooltip" as tooltip;
 
 export let bg_color = color::bg_light;
 export let label_color = #{ r: 0.0, g: 0.0, b: 0.0 };
@@ -148,75 +149,6 @@ fn gui_init(label_space) {
   ui::allocate_sublayer("lines", "line-rgb", "lines");
 }
 
-fn show_tooltip(label_space, pos, list) {
-
-  ui::toggle_layer("tooltip", true);
-
-  let x0 = pos.x + 8.0;
-  let y0 = pos.y + 2.0;
-
-  let row_h = 8.0;
-
-  let rects = [];
-  let labels = [];
-
-  let max_len = 0;
-
-  for (val, ix) in list {
-    let text = `${val}`;
-
-    if max_len < text.len() {
-      max_len = text.len();
-    }
-
-    let x = x0 + 1.0;
-    let y = y0 + row_h * ix;
-
-    let label = #{ x: x, y: y,
-                   r: 0.0, g: 0.0, b: 0.0, a: 1.0,
-                   contents: text };
-
-    labels.push(label);
-  }
-
-  let t_w = 8.0 * max_len;
-
-  let height = labels.len().to_float() * 8.0;
-  let width = t_w + 4.0;
-
-  let col0 = rgb(0.85, 0.85, 0.85);
-  let col1 = rgb(0.75, 0.75, 0.75);
-
-  rects.push(#{ x: x0 - 2.0, y: y0 - 2.0,
-                w: width + 4.0, h: height + 4.0
-              } + rgb(0.55, 0.55, 0.55));
-
-  rects.push(#{ x: x0 - 1.0, y: y0 - 1.0,
-                w: width + 2.0, h: height + 2.0
-              } + col0 );
-
-  for (val, ix) in list {
-
-    let x = x0 - 1.0;
-    let y = y0 + row_h * ix;
-
-    let color = if ix % 2 == 0 {
-      col0
-    } else {
-      col1
-    };
-
-    rects.push(#{ x: x, y: y, w: width, h: row_h } + color);
-  }
-
-  ui::update_sublayer("tooltip", "rect", rects);
-  ui::update_sublayer(label_space, "tooltip", "text", labels);
-
-  // ui::update_sublayer(label_space, "rhai-main", "sidebar-labels", sidebar_labels);
-
-}
-
-
 props.set("prev_slot", false);
 
 fn rgb(r, g, b) {
@@ -309,7 +241,7 @@ fn gui_update(label_space, dt) {
           }
         }
 
-        show_tooltip(label_space, pos, rows);
+        tooltip::show_tooltip(label_space, pos, rows);
 
         print(`pos: ${pos} -- node: ${node.to_int()} -- path: ${path_name}, pos: ${path_pos}`);
         clipboard::set_text(`pos: ${pos} -- node: ${node.to_int()} -- path: ${path_name}, pos: ${path_pos}`);
