@@ -17,7 +17,8 @@ pub struct ViewerArgs {
     #[argh(option)]
     pub bed_columns: Vec<usize>,
 
-    /// script to evaluate on startup
+    /// script to evaluate on startup, results are placed in the
+    /// `run_result` console var
     #[argh(option, long = "run")]
     pub run_script: Option<PathBuf>,
 }

@@ -2,7 +2,9 @@
 /// `columns` should be a map from column indices in the BED file to names.
 /// The indices that are given names will be loaded as visualization modes.
 ///
-///
+/// Returns a map where the `bed` value holds a reference to the
+/// annotation set, and the other keys are the data source names for
+/// the provided columns.
 ///
 /// Example usage
 /// ```
@@ -16,6 +18,8 @@ fn load_bed_file(bed_path, columns) {
 
   print(`${columns}`);
 
+  let result = #{ bed: bed_file };
+
   for name in columns.keys() {
     let col = columns[name];
     print(`${name} -> ${col}`);
@@ -25,6 +29,9 @@ fn load_bed_file(bed_path, columns) {
     let slot_fn = slot::new_slot_fn_from_data_source(data_source_name, name);
 
     let col_type = bed_file.column_type(col);
+
+    let key = `col-${name}`;
+    result[key] = data_source_name;
 
     // set the viz. color scheme based on the column type
     if col_type == "string" {
@@ -37,4 +44,6 @@ fn load_bed_file(bed_path, columns) {
       slot::set_slot_color_scheme(name, "gradient-colorbrewer-spectral");
     }
   }
+
+  result
 }

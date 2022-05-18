@@ -354,11 +354,13 @@ fn main() -> Result<()> {
         // eval this script
         let script = r##"
 import "script/bed" as bed;
-bed::load_bed_file(bed_path, column_map);
+bed::load_bed_file(bed_path, column_map)
 "##;
 
         match console.eval(&db, &buffers, &script) {
-            Ok(v) => {}
+            Ok(val) => {
+                console.scope.push("bed_file", val);
+            }
             Err(e) => {
                 log::error!("console error {:?}", e);
             }
@@ -367,8 +369,8 @@ bed::load_bed_file(bed_path, column_map);
 
     if let Some(script_path) = &viewer_args.run_script {
         match console.eval_file(&db, &buffers, &script_path) {
-            Ok(v) => {
-                //
+            Ok(val) => {
+                console.scope.push("run_result", val);
             }
             Err(e) => {
                 log::error!(
