@@ -75,13 +75,13 @@ bind_key(key::Tab, |pressed| {
   }
 });
 
-
 props.set("viz.previous", "path_position");
 
 bind_key(key::F2, |pressed| {
   let cfg = viewer::cfg;
   let props = viewer::props;
   let slot_fns = slot::slot_fn_names();
+
   if pressed {
     popup::popup(slot_fns, |fn_name| {
       cfg.update("viz.slot_function", || {

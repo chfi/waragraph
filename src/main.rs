@@ -80,17 +80,7 @@ fn main() -> Result<()> {
         Arc::new(module)
     };
 
-    // let _ = args.next().unwrap();
-
     let gfa_path = &viewer_args.gfa_path;
-    // let gfa_path = args.next().ok_or(anyhow!("Provide a GFA path"))?;
-
-    // let bed_path = args.next();
-    let bed_path = &viewer_args.bed_path;
-
-    // let bed_path = args.next().and_then(|path| {
-    //     let
-    // });
 
     let gfa = {
         let parser = gfa::parser::GFAParser::default();
@@ -173,9 +163,6 @@ fn main() -> Result<()> {
         })?;
     }
 
-    let out_framebuffer =
-        *window_resources.indices.framebuffers.get("out").unwrap();
-
     let mut viewer = ViewerSys::init(
         &mut engine,
         &graph,
@@ -205,10 +192,6 @@ fn main() -> Result<()> {
         .modules
         .insert("slot".into(), viewer.slot_rhai_module.clone());
 
-    // viewer.labels.allocate_label(&db, &mut engine, "console")?;
-    // viewer.labels.set_label_pos(b"console", 4, 4)?;
-    // viewer.labels.set_text_for(b"console", "")?;
-
     let font_desc_set = {
         let font_desc_set =
             viewer.frame.module.get_var("font_desc_set").unwrap();
@@ -218,16 +201,6 @@ fn main() -> Result<()> {
 
     buffers.allocate_queued(&mut engine)?;
     buffers.fill_updated_buffers(&mut engine.resources)?;
-
-    let color_buffer_set = {
-        let id = buffers.get_id("gradient-colorbrewer-spectral").unwrap();
-        buffers.get_desc_set_ix(id).unwrap()
-    };
-
-    let gui_palette_set = {
-        let id = buffers.get_id("gui-palette").unwrap();
-        buffers.get_desc_set_ix(id).unwrap()
-    };
 
     let label_space = LabelSpace::new(&mut engine, "test-labels", 1024 * 1024)?;
 
@@ -241,9 +214,6 @@ fn main() -> Result<()> {
         &mut compositor,
         font_desc_set,
     )?;
-
-    let mut tree_list =
-        TreeList::new(&mut engine, &mut compositor, "example", 100.0, 100.0)?;
 
     let popup_list =
         ListPopup::new(&mut engine, &mut compositor, "popup", 300.0, 100.0)?;
@@ -286,11 +256,6 @@ fn main() -> Result<()> {
         viewer.engine.register_static_module(name, module.clone());
     }
 
-    let color_palette = {
-        let id = buffers.get_id("gradient-colorbrewer-spectral").unwrap();
-        buffers.get_desc_set_ix(id).unwrap()
-    };
-
     let mut recreate_swapchain = false;
     let mut recreate_swapchain_timer: Option<std::time::Instant> = None;
 
@@ -323,12 +288,9 @@ fn main() -> Result<()> {
         }
     }
 
-    // let mut rng = rand::thread_rng();
-
-    // let mut label_sets = None;
     let mut label_stacks: Option<LabelStacks> = None;
 
-    if let Some(bed_path) = bed_path {
+    if let Some(bed_path) = &viewer_args.bed_path {
         let bed_str = bed_path.to_str().unwrap();
 
         let bed_name = bed_path.file_stem().and_then(|s| s.to_str()).unwrap();
@@ -470,7 +432,7 @@ bed::load_bed_file(bed_path, column_map)
 
                     layout_update_since = 0.0;
                 }
-                    */
+                */
 
                 prev_frame = std::time::Instant::now();
 
@@ -523,40 +485,6 @@ bed::load_bed_file(bed_path, column_map)
                         log::error!("popup error: {:?}", e);
                     }
                 }
-
-                /*
-                match tree_list.update_layer(
-                    &mut compositor,
-                    &all_crumbs,
-                    // &config_map,
-                    &options,
-                    mouse_pos,
-                    mouse_clicked,
-                ) {
-                    Ok(Some((crumb, tgt))) => {
-                        if tgt.type_name() == "string" {
-                            let slot_fn =
-                                tgt.clone_cast::<rhai::ImmutableString>();
-
-                            let mut map = viewer.config.map.write();
-                            map.insert(
-                                "viz.slot_function".into(),
-                                rhai::Dynamic::from(slot_fn),
-                            );
-                        }
-
-                        log::error!("clicked entry {:?} => {}", crumb, tgt);
-                    }
-                    Err(e) => {
-                        log::error!("Tree list compositor error: {:?}", e);
-                    }
-                    _ => (),
-                }
-                tree_list
-                    .label_space
-                    .write_buffer(&mut engine.resources)
-                    .unwrap();
-                */
 
                 if let Err(e) = compositor.allocate_sublayers(&mut engine) {
                     log::error!("Compositor error: {:?}", e);

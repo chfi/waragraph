@@ -49,17 +49,17 @@ pub struct NewSlotFn {
 
 #[derive(Default)]
 pub struct SlotFnCache {
-    pub data_sources_f32: HashMap<rhai::ImmutableString, DataSource<f32>>,
-    pub data_sources_u32: HashMap<rhai::ImmutableString, DataSource<u32>>,
-    pub data_sources_i64: HashMap<rhai::ImmutableString, DataSource<i64>>,
+    pub data_sources_f32: BTreeMap<rhai::ImmutableString, DataSource<f32>>,
+    pub data_sources_u32: BTreeMap<rhai::ImmutableString, DataSource<u32>>,
+    pub data_sources_i64: BTreeMap<rhai::ImmutableString, DataSource<i64>>,
 
     pub data_sources_dyn:
         HashMap<rhai::ImmutableString, DataSource<rhai::Dynamic>>,
 
-    pub slot_fn_u32: HashMap<rhai::ImmutableString, SlotUpdateFn<u32>>,
-    pub slot_fn_f32: HashMap<rhai::ImmutableString, SlotUpdateFn<f32>>,
+    pub slot_fn_u32: BTreeMap<rhai::ImmutableString, SlotUpdateFn<u32>>,
+    pub slot_fn_f32: BTreeMap<rhai::ImmutableString, SlotUpdateFn<f32>>,
 
-    pub slot_color: HashMap<rhai::ImmutableString, rhai::ImmutableString>,
+    pub slot_color: BTreeMap<rhai::ImmutableString, rhai::ImmutableString>,
 
     pub slot_fn_queue: Vec<NewSlotFn>,
 }
