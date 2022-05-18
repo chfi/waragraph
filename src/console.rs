@@ -182,6 +182,23 @@ impl Console {
         eval_scope_ast(ast, &mut self.scope, &self.modules, db, buffers, input)
     }
 
+    pub fn eval_file<P: AsRef<std::path::Path>>(
+        &mut self,
+        db: &sled::Db,
+        buffers: &BufferStorage,
+        path: P,
+    ) -> Result<rhai::Dynamic> {
+        let ast = Arc::make_mut(&mut self.ast);
+        eval_scope_ast_file(
+            ast,
+            &mut self.scope,
+            &self.modules,
+            db,
+            buffers,
+            path.as_ref(),
+        )
+    }
+
     pub fn create_engine(
         &self,
         db: &sled::Db,
@@ -618,6 +635,33 @@ pub fn eval_scope_ast<T: Clone + Send + Sync + 'static>(
     }
 
     let new_ast = engine.compile_with_scope(scope, script)?;
+    *old_ast = old_ast.merge(&new_ast);
+
+    let result = engine.eval_ast_with_scope(scope, old_ast);
+
+    old_ast.clear_statements();
+
+    match result {
+        Ok(result) => Ok(result),
+        Err(err) => Err(anyhow!("eval err: {:?}", err)),
+    }
+}
+
+pub fn eval_scope_ast_file<T: Clone + Send + Sync + 'static>(
+    old_ast: &mut rhai::AST,
+    scope: &mut rhai::Scope,
+    modules: &HashMap<rhai::ImmutableString, Arc<rhai::Module>>,
+    db: &sled::Db,
+    buffers: &BufferStorage,
+    script_path: &std::path::Path,
+) -> Result<T> {
+    let mut engine = create_engine(db, buffers);
+
+    for (name, module) in modules.iter() {
+        engine.register_static_module(name, module.clone());
+    }
+
+    let new_ast = engine.compile_file_with_scope(scope, script_path.into())?;
     *old_ast = old_ast.merge(&new_ast);
 
     let result = engine.eval_ast_with_scope(scope, old_ast);

@@ -365,6 +365,21 @@ bed::load_bed_file(bed_path, column_map);
         }
     }
 
+    if let Some(script_path) = &viewer_args.run_script {
+        match console.eval_file(&db, &buffers, &script_path) {
+            Ok(v) => {
+                //
+            }
+            Err(e) => {
+                log::error!(
+                    "Error when executing script `{:?}`: {:#?}",
+                    script_path,
+                    e
+                );
+            }
+        }
+    }
+
     let _update_threads = (0..4)
         .map(|_| {
             let input = update_rx.clone();
