@@ -9,13 +9,14 @@ pub struct ViewerArgs {
     #[argh(positional)]
     pub gfa_path: PathBuf,
 
-    /// path to BED file to load, if any
+    /// path to BED file to load, if any. results are placed in the
+    /// `bed_file` console var
     #[argh(option)]
     pub bed_path: Option<PathBuf>,
 
     /// column indices into BED file that will be prepared as viz. modes
-    #[argh(option)]
-    pub bed_columns: Vec<usize>,
+    #[argh(option, short = 'c')]
+    pub bed_column: Vec<usize>,
 
     /// script to evaluate on startup, results are placed in the
     /// `run_result` console var

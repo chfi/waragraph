@@ -335,13 +335,13 @@ fn main() -> Result<()> {
 
         let mut column_map = rhai::Map::default();
 
-        for col_ix in viewer_args.bed_columns.iter() {
+        for col_ix in viewer_args.bed_column.iter() {
             let name = format!("{}:{}", bed_name, col_ix);
             let col_ix = *col_ix as i64;
             column_map.insert(name.into(), col_ix.into());
         }
 
-        if viewer_args.bed_columns.is_empty() {
+        if viewer_args.bed_column.is_empty() {
             let name = format!("{}:{}", bed_name, 3);
             column_map.insert(name.into(), 3i64.into());
         }
