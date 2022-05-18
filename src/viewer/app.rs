@@ -266,7 +266,7 @@ impl ViewerSys {
             }
 
             slot_fns.write().register_data_source_u32(
-                "prefix-sum:loop-count",
+                "prefix-sum:depth",
                 move |path, node| {
                     let cache = cache_vec.get(path.ix())?;
 
@@ -304,7 +304,7 @@ impl ViewerSys {
 
         let graph = waragraph.clone();
         slot_fns.write().register_data_source_u32(
-            "loop_count",
+            "depth",
             move |path, node| {
                 let path = graph.paths.get(path.ix())?;
                 path.get(node.into()).copied()
@@ -352,8 +352,8 @@ impl ViewerSys {
             .read()
             .slot_fn_prefix_sum_mean_u32(
                 waragraph,
-                "loop_count",
-                "prefix-sum:loop-count",
+                "depth",
+                "prefix-sum:depth",
                 move |v| (&cmap)(v),
             )
             .unwrap();
@@ -361,7 +361,7 @@ impl ViewerSys {
         slot_fns
             .write()
             .slot_fn_u32
-            .insert("loop_count_mean".into(), slot_fn_loop);
+            .insert("depth_mean".into(), slot_fn_loop);
 
         let graph = waragraph.clone();
         let slot_fn_pos = slot_fns
@@ -465,14 +465,14 @@ impl ViewerSys {
         let cmap = color_map.clone();
         let slot_fn_loop_mid = slot_fns
             .read()
-            .slot_fn_mid_u32("loop_count", move |v| (&cmap)(v as f32))
+            .slot_fn_mid_u32("depth", move |v| (&cmap)(v as f32))
             .unwrap();
 
         /*
         slot_fns
             .write()
             .slot_fn_u32
-            .insert("loop_count_mid".into(), slot_fn_loop_mid);
+            .insert("depth_mid".into(), slot_fn_loop_mid);
         */
 
         ////
@@ -663,7 +663,7 @@ impl ViewerSys {
 
         let def = slot_fns
             .slot_fn_u32
-            .get("loop_count_mean")
+            .get("depth_mean")
             .ok_or(anyhow!("default slot renderer not found"))?;
 
         let slot_fn =

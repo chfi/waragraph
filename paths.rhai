@@ -19,12 +19,12 @@ export let cfg = config::new_config_map();
 export let props = config::new_config_map();
 
 
-slot::set_slot_color_scheme("loop_count_mean", "gradient-colorbrewer-spectral");
+slot::set_slot_color_scheme("depth_mean", "gradient-colorbrewer-spectral");
 slot::set_slot_color_scheme("node_length", "gradient-grayscale");
 
 // cfg.set("viz.slot_function", "node_length");
-cfg.set("viz.slot_function", "loop_count_mean");
-// cfg.set("viz.slot_function", "loop_count_mid");
+cfg.set("viz.slot_function", "depth_mean");
+// cfg.set("viz.slot_function", "depth_mid");
 // cfg.set("viz.slot_function", "has_node_mid");
 
 // controls the slot offset and size, and the relative label offset

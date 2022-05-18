@@ -291,7 +291,7 @@ impl Waragraph {
                     }
                 }
 
-                let mut loop_count = FxHashMap::default();
+                let mut depth = FxHashMap::default();
 
                 let mut nodeset = roaring::RoaringBitmap::default();
                 let mut inv_set = roaring::RoaringBitmap::default();
@@ -316,14 +316,14 @@ impl Waragraph {
                     }
                     nodeset.insert(i);
 
-                    *loop_count.entry(i).or_default() += 1u32;
+                    *depth.entry(i).or_default() += 1u32;
                 }
 
                 path_nodes.push(nodeset);
                 path_lens.push(len);
                 path_steps.push(steps);
 
-                let mut ids: Vec<(u32, u32)> = loop_count.into_iter().collect();
+                let mut ids: Vec<(u32, u32)> = depth.into_iter().collect();
 
                 ids.sort_by_key(|(i, _)| *i);
                 ids.dedup_by_key(|(i, _)| *i);

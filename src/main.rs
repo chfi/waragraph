@@ -323,6 +323,15 @@ fn main() -> Result<()> {
     // let mut label_sets = None;
     let mut label_stacks = None;
 
+    {
+        let script = r##"
+import "script/bed" as bed;
+bed::load_bed_file("betaglobin.bed", #{ "Name": 3 });
+"##;
+
+        console.eval(&db, &buffers, script)?;
+    }
+
     if let Some(bed_path) = bed_path {
         let script = format!(
             r#"
