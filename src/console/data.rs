@@ -6,6 +6,7 @@ use std::{
 
 use ash::vk;
 use bstr::ByteSlice;
+use coitrees::IntervalNode;
 use gfa::gfa::GFA;
 use gpu_allocator::vulkan::Allocator;
 use parking_lot::RwLock;
@@ -78,6 +79,9 @@ pub struct AnnotationSet {
     // record indices at each node
     path_record_indices:
         FxHashMap<Path, BTreeMap<Node, roaring::RoaringBitmap>>,
+
+    // value is record index, and can be used with the values in `columns`
+    interval_index: FxHashMap<Path, coitrees::COITree<usize, usize>>,
 
     // map from each path to the records on that path
     path_indices: FxHashMap<Path, roaring::RoaringBitmap>,
@@ -169,6 +173,11 @@ impl AnnotationSet {
             .map(rhai::ImmutableString::from)
             .unwrap_or("UNKNOWN".into());
 
+        let mut intervals: FxHashMap<
+            Path,
+            Vec<coitrees::IntervalNode<usize, usize>>,
+        > = FxHashMap::default();
+
         let mut path_record_indices: FxHashMap<
             Path,
             BTreeMap<Node, roaring::RoaringBitmap>,
@@ -254,6 +263,12 @@ impl AnnotationSet {
 
                     path_indices.entry(path).or_default().insert(ix as u32);
 
+                    intervals.entry(path).or_default().push(IntervalNode::new(
+                        start as i32,
+                        end as i32,
+                        ix,
+                    ));
+
                     for &(node, _) in
                         graph.nodes_in_path_range(path, start..end)
                     {
@@ -266,8 +281,16 @@ impl AnnotationSet {
             }
         }
 
+        let interval_index = intervals
+            .into_iter()
+            .map(|(path, ivals)| (path, coitrees::COITree::new(ivals)))
+            .collect();
+
         Ok(AnnotationSet {
             source,
+
+            interval_index,
+
             path_record_indices,
             path_indices,
             record_nodes,
@@ -405,34 +428,61 @@ pub fn add_module_fns(
                 return Ok(source.clone());
             }
 
-            let mut uniq: HashMap<rhai::ImmutableString, u32> =
-                HashMap::default();
+            match &set.columns.get(col_ix) {
+                Some(BedColumn::String(labels)) => {
+                    let mut uniq: HashMap<rhai::ImmutableString, u32> =
+                        HashMap::default();
 
-            if let BedColumn::String(labels) = &set.columns[col_ix] {
-                for label in labels {
-                    if !uniq.contains_key(label) {
-                        uniq.insert(label.clone(), uniq.len() as u32);
+                    for label in labels {
+                        if !uniq.contains_key(label) {
+                            uniq.insert(label.clone(), uniq.len() as u32);
+                        }
                     }
+
+                    let set = set.clone();
+                    cache.register_data_source_u32(
+                        &source,
+                        move |path, node| {
+                            let indices =
+                                set.records_on_path_node(path, node)?;
+                            let record = indices.select(0)?;
+                            let text =
+                                set.columns.get(col_ix).and_then(|c| {
+                                    if let BedColumn::String(labels) = c {
+                                        labels.get(record as usize)
+                                    } else {
+                                        None
+                                    }
+                                })?;
+                            uniq.get(text).copied()
+                        },
+                    );
+
+                    return Ok(source);
                 }
-            } else {
-                return Err("TODO: only string columns supported".into());
+                Some(BedColumn::Int(values)) => {
+                    //
+                    todo!();
+                }
+                Some(BedColumn::Float(values)) => {
+                    //
+                    todo!();
+                }
+                _ => {
+                    //
+                    return Err("TODO: only string columns supported".into());
+                }
             }
 
-            let set = set.clone();
-            cache.register_data_source_u32(&source, move |path, node| {
-                let indices = set.records_on_path_node(path, node)?;
-                let record = indices.select(0)?;
-                let text = set.columns.get(col_ix).and_then(|c| {
-                    if let BedColumn::String(labels) = c {
-                        labels.get(record as usize)
-                    } else {
-                        None
-                    }
-                })?;
-                uniq.get(text).copied()
-            });
-
-            return Ok(source);
+            // if let BedColumn::String(labels) = &set.columns[col_ix] {
+            //     for label in labels {
+            //         if !uniq.contains_key(label) {
+            //             uniq.insert(label.clone(), uniq.len() as u32);
+            //         }
+            //     }
+            // } else {
+            //     return Err("TODO: only string columns supported".into());
+            // }
         },
     );
 

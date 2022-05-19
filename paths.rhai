@@ -116,7 +116,6 @@ fn remove_tooltip() {
 }
 
 
-
 fn gui_init(label_space) {
   let props = viewer::props;
   props.set("time", 0.0);
@@ -218,6 +217,25 @@ fn gui_update(label_space, dt) {
         let slot_pos = slot_rect(dims, slot.index);
 
         let rows = [`Node ${node.to_int()}`];
+
+
+        try {
+          let data_sources = props.get("tooltip_data");
+          for key in data_sources {
+            let data_source = slot::get_data_source(key);
+            let val = data_source.at(path, node);
+            print(val);
+            // print(data_source);
+            // print(data_source.type_of());
+            // print(`data_source: ${data_source} - ${data_source.type_of()}`);
+          }
+          // print(data_sources);
+        }
+        catch (e) {
+          // print(e);
+        }
+
+
 
         if path_name != false {
           rows.push(`Path ${path_name}`);
