@@ -1,6 +1,8 @@
 #![allow(non_upper_case_globals)]
 
 use bstr::ByteSlice;
+use rustc_hash::FxHashMap;
+use winit::event::ModifiersState;
 
 use crate::config::ConfigMap;
 use crate::console::{RhaiBatchFn2, RhaiBatchFn4, RhaiBatchFn5};
@@ -25,6 +27,8 @@ use lazy_static::lazy_static;
 
 lazy_static! {
     static ref MOUSE_POS: AtomicCell<(f64, f64)> = AtomicCell::new((0.0, 0.0));
+    static ref MOD_KEYS: AtomicCell<ModifiersState> =
+        AtomicCell::new(ModifiersState::empty());
 }
 
 pub fn set_mouse_pos(x: f64, y: f64) {
@@ -33,6 +37,10 @@ pub fn set_mouse_pos(x: f64, y: f64) {
 
 pub fn get_mouse_pos() -> (f64, f64) {
     MOUSE_POS.load()
+}
+
+pub fn set_modifiers(state: ModifiersState) {
+    MOD_KEYS.store(state);
 }
 
 pub fn create_mouse_module() -> rhai::Module {
@@ -51,6 +59,16 @@ pub fn create_mouse_module() -> rhai::Module {
 
 pub fn create_key_module() -> rhai::Module {
     let mut module: rhai::Module = rhai::exported_module!(key);
+
+    module.set_native_fn("get_modifiers", || {
+        let mods = MOD_KEYS.load();
+        let mut map = rhai::Map::default();
+        map.insert("ctrl".into(), mods.ctrl().into());
+        map.insert("shift".into(), mods.shift().into());
+        map.insert("alt".into(), mods.alt().into());
+        map.insert("logo".into(), mods.logo().into());
+        Ok(map)
+    });
 
     add_keys(&mut module);
 

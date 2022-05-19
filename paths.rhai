@@ -126,9 +126,7 @@ fn gui_init(label_space) {
 
   ui::toggle_layer("tree-list-layer", false);
 
-  ui::init_layer("tooltip", 10, false);
-  ui::allocate_sublayer("tooltip", "rect-rgb", "rect");
-  ui::allocate_text_sublayer(label_space, "tooltip", "text");
+  tooltip::init_tooltip(label_space);
 
   ui::init_layer("lines", 5, true);
   ui::allocate_sublayer("lines", "line-rgb", "lines");

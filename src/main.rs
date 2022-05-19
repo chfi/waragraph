@@ -725,6 +725,9 @@ bed::load_bed_file(bed_path, bed_name, column_map)
                 viewer.handle_input(&console, &event);
 
                 match event {
+                    WindowEvent::ModifiersChanged(mod_state) => {
+                        waragraph::input::set_modifiers(mod_state);
+                    }
                     WindowEvent::ReceivedCharacter(c) => {
                         if !c.is_ascii_control() && c.is_ascii() {
                             console

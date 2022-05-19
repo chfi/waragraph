@@ -83,3 +83,11 @@ fn show_tooltip(label_space, pos, list) {
   ui::update_sublayer("tooltip", "rect", rects);
   ui::update_sublayer(label_space, "tooltip", "text", labels);
 }
+
+
+/// Initialize the tooltip compositor layer. Called in paths.rhai's `gui_init()`
+fn init_tooltip(label_space) {
+  ui::init_layer("tooltip", 10, false);
+  ui::allocate_sublayer("tooltip", "rect-rgb", "rect");
+  ui::allocate_text_sublayer(label_space, "tooltip", "text");
+}
