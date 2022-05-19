@@ -298,16 +298,19 @@ fn main() -> Result<()> {
         let mut column_map = rhai::Map::default();
 
         for col_ix in viewer_args.bed_column.iter() {
-            let name = format!("{}:{}", bed_name, col_ix);
+            let name = col_ix.to_string();
             let col_ix = *col_ix as i64;
             column_map.insert(name.into(), col_ix.into());
         }
 
         if viewer_args.bed_column.is_empty() {
-            let name = format!("{}:{}", bed_name, 3);
+            let name = 3.to_string();
             column_map.insert(name.into(), 3i64.into());
         }
 
+        console
+            .scope
+            .push("bed_name", rhai::ImmutableString::from(bed_name));
         console
             .scope
             .push("bed_path", rhai::ImmutableString::from(bed_str));
@@ -316,7 +319,7 @@ fn main() -> Result<()> {
         // eval this script
         let script = r##"
 import "script/bed" as bed;
-bed::load_bed_file(bed_path, column_map)
+bed::load_bed_file(bed_path, bed_name, column_map)
 "##;
 
         match console.eval(&db, &buffers, &script) {

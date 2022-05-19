@@ -12,21 +12,26 @@
 ///               #{ "Name": 3,
 ///                  "another column": 4 });
 /// ```
-fn load_bed_file(bed_path, columns) {
+fn load_bed_file(bed_path, bed_name, columns) {
   let g = graph::get_graph();
   let bed_file = slot::load_bed_file(g, bed_path);
 
-  print(`${columns}`);
+  let ix_data_source_name = `${bed_name}_ix`;
+  let ix_data_source = slot::create_data_source(bed_file,
+                                                ix_data_source_name);
 
-  let result = #{ bed: bed_file };
+  let result = #{ bed: bed_file,  };
 
   for name in columns.keys() {
     let col = columns[name];
-    print(`${name} -> ${col}`);
-    let data_source_name = slot::create_data_source(bed_file, col);
+
+    let data_source_name = `${bed_name}:${col}`;
+    slot::create_data_source(bed_file, col, data_source_name);
     let data_source = slot::get_data_source(data_source_name);
 
-    let slot_fn = slot::new_slot_fn_from_data_source(data_source_name, name);
+    let slot_fn_name = `${bed_name}:${name}`;
+    let slot_fn = slot::new_slot_fn_from_data_source(data_source_name,
+                                                     slot_fn_name);
 
     let col_type = bed_file.column_type(col);
 
@@ -35,13 +40,17 @@ fn load_bed_file(bed_path, columns) {
 
     // set the viz. color scheme based on the column type
     if col_type == "string" {
-      slot::set_slot_color_scheme(name, "gradient-category10");
+      slot::set_slot_color_scheme(slot_fn_name,
+                                  "gradient-category10");
     } else if col_type == "i64" {
-      slot::set_slot_color_scheme(name, "gradient-colorbrewer-spectral");
+      slot::set_slot_color_scheme(slot_fn_name,
+                                  "gradient-colorbrewer-spectral");
     } else if col_type == "f32" {
-      slot::set_slot_color_scheme(name, "gradient-colorbrewer-spectral");
+      slot::set_slot_color_scheme(slot_fn_name,
+                                  "gradient-colorbrewer-spectral");
     } else {
-      slot::set_slot_color_scheme(name, "gradient-colorbrewer-spectral");
+      slot::set_slot_color_scheme(slot_fn_name,
+                                  "gradient-colorbrewer-spectral");
     }
   }
 

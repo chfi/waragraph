@@ -390,6 +390,7 @@ pub fn add_module_fns(
         },
     );
 
+    // creates a *record index* data source from the provided annotation set
     let cache = slot_fns.clone();
     module.set_native_fn(
         "create_data_source",
@@ -406,7 +407,6 @@ pub fn add_module_fns(
             cache.register_data_source_u32(source_str, move |path, node| {
                 let indices = set.records_on_path_node(path, node)?;
                 indices.select(0)
-                // indices.select(1)
             });
 
             return Ok(source);
@@ -416,13 +416,36 @@ pub fn add_module_fns(
     let cache = slot_fns.clone();
     module.set_native_fn(
         "create_data_source",
-        move |set: &mut Arc<AnnotationSet>, column: i64| {
+        move |set: &mut Arc<AnnotationSet>, name: rhai::ImmutableString| {
+            let mut cache = cache.write();
+            let source = name;
+
+            if cache.get_data_source_u32(&source).is_some() {
+                return Ok(source.clone());
+            }
+
+            let set = set.clone();
+            cache.register_data_source_u32(&source, move |path, node| {
+                let indices = set.records_on_path_node(path, node)?;
+                indices.select(0)
+            });
+
+            return Ok(source);
+        },
+    );
+
+    let cache = slot_fns.clone();
+    module.set_native_fn(
+        "create_data_source",
+        move |set: &mut Arc<AnnotationSet>,
+              column: i64,
+              source: rhai::ImmutableString| {
             let column = column as usize;
             let col_ix = column - 3;
 
             let mut cache = cache.write();
-            let source = format!("{}:{}", set.source, col_ix);
-            let source = rhai::ImmutableString::from(source);
+            // let source = format!("{}:{}", set.source, col_ix);
+            // let source = rhai::ImmutableString::from(source);
 
             if cache.get_data_source_u32(&source).is_some() {
                 return Ok(source.clone());
@@ -461,11 +484,9 @@ pub fn add_module_fns(
                     return Ok(source);
                 }
                 Some(BedColumn::Int(values)) => {
-                    //
                     todo!();
                 }
                 Some(BedColumn::Float(values)) => {
-                    //
                     todo!();
                 }
                 _ => {
