@@ -221,21 +221,19 @@ fn gui_update(label_space, dt) {
 
         try {
           let data_sources = props.get("tooltip_data");
-          for key in data_sources {
-            let data_source = slot::get_data_source(key);
-            let val = data_source.at(path, node);
-            print(val);
-            // print(data_source);
-            // print(data_source.type_of());
-            // print(`data_source: ${data_source} - ${data_source.type_of()}`);
+          for tooltip in data_sources {
+            let row_ix = tooltip.ix_data_source.at(path, node);
+            if row_ix.type_of() == "i64" {
+              let val = slot::get_record_field(tooltip.bed, row_ix, tooltip.col);
+              let text = `${tooltip.name} ${val}`;
+              rows.push(text);
+              print(val);
+            }
           }
-          // print(data_sources);
         }
         catch (e) {
-          // print(e);
+          print(e);
         }
-
-
 
         if path_name != false {
           rows.push(`Path ${path_name}`);

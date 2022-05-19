@@ -15,7 +15,7 @@ fn show_tooltip(label_space, pos, list) {
   ui::toggle_layer("tooltip", true);
 
   let x0 = pos.x + 8.0;
-  let y0 = pos.y - 8.0;
+  let y0 = pos.y - 16.0;
 
   let row_h = 8.0;
 

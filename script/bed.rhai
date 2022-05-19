@@ -20,7 +20,7 @@ fn load_bed_file(bed_path, bed_name, columns) {
   let ix_data_source = slot::create_data_source(bed_file,
                                                 ix_data_source_name);
 
-  let result = #{ bed: bed_file,  };
+  let result = #{ bed: bed_file, ix_data_source: ix_data_source };
 
   for name in columns.keys() {
     let col = columns[name];
