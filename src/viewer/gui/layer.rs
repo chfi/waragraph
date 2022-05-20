@@ -489,8 +489,51 @@ pub fn create_rhai_module(compositor: &Compositor) -> rhai::Module {
 
             if let Some(layer) = layers.get_mut(layer_name) {
                 if let Some(sublayer) = layer.get_sublayer_mut(sublayer_name) {
-                    // let def_name = sublayer.def_name.clone();
                     match sublayer.def_name.as_str() {
+                        "line-rgb" => {
+                            let result = sublayer.update_vertices_array(
+                                data.into_iter().filter_map(|val| {
+                                    let map = val.try_cast::<rhai::Map>()?;
+
+                                    let mut out = [0u8; 40];
+
+                                    let x0 = get_cast(&map, "x0")?;
+                                    let y0 = get_cast(&map, "y0")?;
+                                    let x1 = get_cast(&map, "x1")?;
+                                    let y1 = get_cast(&map, "y1")?;
+
+                                    let w0 = get_cast(&map, "w0")?;
+                                    let w1 = get_cast(&map, "w1")?;
+
+                                    let r = get_cast(&map, "r")?;
+                                    let g = get_cast(&map, "g")?;
+                                    let b = get_cast(&map, "b")?;
+                                    let a = get_cast(&map, "a")?;
+
+                                    out[0..12].clone_from_slice(
+                                        [x0, y0, w0].as_bytes(),
+                                    );
+                                    out[12..24].clone_from_slice(
+                                        [x1, y1, w1].as_bytes(),
+                                    );
+                                    out[24..40].clone_from_slice(
+                                        [r, g, b, a].as_bytes(),
+                                    );
+
+                                    Some(out)
+                                }),
+                            );
+
+                            if let Err(e) = result {
+                                return Err(format!(
+                                    "sublayer update error: {:?}",
+                                    e
+                                )
+                                .into());
+                            } else {
+                                return Ok(());
+                            }
+                        }
                         "rect-rgb" => {
                             let result = sublayer.update_vertices_array(
                                 data.into_iter().filter_map(|val| {
