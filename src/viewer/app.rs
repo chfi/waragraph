@@ -234,14 +234,6 @@ impl ViewerSys {
         txt.allocate_label(&db, engine, "fps")?;
         txt.set_label_pos(b"fps", 0, 580)?;
 
-        txt.allocate_label(&db, engine, "view:start")?;
-        txt.allocate_label(&db, engine, "view:len")?;
-        txt.allocate_label(&db, engine, "view:end")?;
-
-        txt.set_label_pos(b"view:start", 20, 16)?;
-        txt.set_label_pos(b"view:len", 300, 16)?;
-        txt.set_label_pos(b"view:end", 600, 16)?;
-
         // prefix sum loop count
 
         {
@@ -850,10 +842,6 @@ impl ViewerSys {
 
         let slot_x = get_cast(&slot, "x") + label_x + padding + name_len * 8;
 
-        labels
-            .set_label_pos(b"view:start", slot_x as u32, 16)
-            .unwrap();
-
         let h = get_cast(&slot, "h");
 
         let y_delta = padding + h;
@@ -1067,18 +1055,6 @@ impl ViewerSys {
                 self.view.store(view);
             }
 
-            // txt.set_label_pos(b"view:start", 20, 16)?;
-            let len_len = self.labels.label_len(b"view:len").unwrap();
-            let end_len = self.labels.label_len(b"view:end").unwrap();
-            let end_label_x = slot_width - (end_len * 8) - 40;
-            let len_label_x = (end_label_x / 2) - len_len / 2;
-            self.labels
-                .set_label_pos(b"view:len", len_label_x as u32, 16)
-                .unwrap();
-            self.labels
-                .set_label_pos(b"view:end", end_label_x as u32, 16)
-                .unwrap();
-
             self.labels
                 .set_label_pos(b"fps", 0, (height - 12) as u32)
                 .unwrap();
@@ -1132,14 +1108,10 @@ impl ViewerSys {
             Some(rhai::Dynamic::from_map(map))
         };
 
-        label_sets.extend(
-            ["console", "fps", "view:start", "view:len", "view:end"]
-                .into_iter()
-                .filter_map(|name| {
-                    let id = self.labels.get_label_id(name.as_bytes())?;
-                    create_label_map(id)
-                }),
-        );
+        label_sets.extend(["fps"].into_iter().filter_map(|name| {
+            let id = self.labels.get_label_id(name.as_bytes())?;
+            create_label_map(id)
+        }));
 
         let slots = self.path_viewer.slots.read();
         for path in self.path_viewer.visible_paths(graph) {

@@ -607,10 +607,6 @@ bed::load_bed_file(bed_path, bed_name, column_map)
                     let end = range.end.to_string();
                     let len = view.len().to_string();
 
-                    viewer.labels.set_text_for(b"view:start", &start).unwrap();
-                    viewer.labels.set_text_for(b"view:len", &len).unwrap();
-                    viewer.labels.set_text_for(b"view:end", &end).unwrap();
-
                     viewer.path_viewer.sample(&graph, &view);
                 }
 
