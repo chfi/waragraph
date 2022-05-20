@@ -11,7 +11,7 @@ use gfa::gfa::GFA;
 use gpu_allocator::vulkan::Allocator;
 use parking_lot::RwLock;
 use raving::{
-    script::console::BatchBuilder,
+    script::{console::BatchBuilder, EvalResult},
     vk::{context::VkContext, BufferIx, GpuResources, VkEngine},
 };
 use rustc_hash::FxHashMap;
@@ -51,6 +51,18 @@ pub enum BedColumn {
 }
 
 impl BedColumn {
+    pub fn len(&self) -> usize {
+        match self {
+            BedColumn::Int(x) => x.len(),
+            BedColumn::Float(x) => x.len(),
+            BedColumn::String(x) => x.len(),
+        }
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
     pub fn parse_push(&mut self, field: &str) -> Result<()> {
         match self {
             BedColumn::Int(vs) => {
@@ -73,6 +85,8 @@ pub struct AnnotationSet {
     // e.g. BED file path
     source: rhai::ImmutableString,
 
+    record_count: usize,
+
     // records: Vec<BEDRecord>,
 
     // map from path to a map from nodes to bitmaps representing the
@@ -94,6 +108,10 @@ pub struct AnnotationSet {
 }
 
 impl AnnotationSet {
+    pub fn len(&self) -> usize {
+        self.record_count
+    }
+
     pub fn collect_labels(
         &self,
         path: Path,
@@ -289,6 +307,8 @@ impl AnnotationSet {
         Ok(AnnotationSet {
             source,
 
+            record_count: ix,
+
             interval_index,
 
             path_record_indices,
@@ -330,6 +350,50 @@ impl AnnotationSet {
     ) -> Option<&roaring::RoaringBitmap> {
         let path = self.path_record_indices.get(&path)?;
         path.get(&node)
+    }
+
+    fn map_rhai_fn_ptr_then<A, B, F>(
+        &self,
+        ctx: &NativeCallContext,
+        column_ix: usize,
+        fn_ptr: &rhai::FnPtr,
+        mut then: F,
+    ) -> EvalResult<Vec<B>>
+    where
+        F: FnMut(A) -> B,
+        A: Clone + Send + Sync + 'static,
+        B: Send + Sync + 'static,
+    {
+        let column = self.columns.get(column_ix).unwrap();
+
+        let mut result = Vec::with_capacity(column.len());
+
+        match column {
+            BedColumn::Int(v) => {
+                for &val in v {
+                    let v_a: A = fn_ptr.call_within_context(ctx, (val,))?;
+                    let v_b = then(v_a);
+                    result.push(v_b);
+                }
+            }
+            BedColumn::Float(v) => {
+                for &val in v {
+                    let v_a: A = fn_ptr.call_within_context(ctx, (val,))?;
+                    let v_b = then(v_a);
+                    result.push(v_b);
+                }
+            }
+            BedColumn::String(v) => {
+                for val in v {
+                    let v_a: A =
+                        fn_ptr.call_within_context(ctx, (val.clone(),))?;
+                    let v_b = then(v_a);
+                    result.push(v_b);
+                }
+            }
+        }
+
+        Ok(result)
     }
 }
 
@@ -513,6 +577,48 @@ pub fn add_module_fns(
                     return Err("TODO: only string columns supported".into());
                 }
             }
+        },
+    );
+
+    // the `fn_ptr` is mapped over the
+    let cache = slot_fns.clone();
+    module.set_native_fn(
+        "create_data_source_with",
+        move |ctx: NativeCallContext,
+              set: &mut Arc<AnnotationSet>,
+              column: i64,
+              source: rhai::ImmutableString,
+              fn_ptr: rhai::FnPtr| {
+            let column = column as usize;
+            let col_ix = column - 3;
+
+            let mut cache = cache.write();
+
+            if cache.get_data_source_u32(&source).is_some() {
+                return Ok(source.clone());
+            }
+
+            // the closure is there in case more advanced logic is
+            // needed in the future, but for now the fn_ptr should
+            // just return an index
+            let values: Vec<u32> = set.map_rhai_fn_ptr_then(
+                &ctx,
+                col_ix,
+                &fn_ptr,
+                |i: i64| -> u32 { i as u32 },
+            )?;
+
+            let values = Arc::new(values);
+
+            let set = set.clone();
+            cache.register_data_source_u32(&source, move |path, node| {
+                let indices = set.records_on_path_node(path, node)?;
+                let record = indices.select(0)?;
+
+                values.get(record as usize).copied()
+            });
+
+            return Ok(source);
         },
     );
 
