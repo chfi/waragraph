@@ -17,7 +17,7 @@
     <link rel="apple-touch-icon" href="icon.png">
     <link rel="stylesheet" href="rhai-doc-styles.css">
     <meta name="theme-color" content="#fafafa">
-    <title>Waragraph - bed.html</title>
+    <title>Waragraph - ruler.html</title>
 </head>
 
 <body>
@@ -43,33 +43,28 @@
 
                 <h1 class="menu-header">Scripts API</h1>
                 <ul>
-                    <li><a class="link active"
-                           href="bed.html"><code>bed</code></a></li>
-                    <ul>
-                        <li><a href="#load_bed_file-3"><code>load_bed_file(bed_path, bed_name, columns)</code></a></li>
-                    </ul>
                     <li><a class="link"
+                           href="bed.html"><code>bed</code></a></li>
+                    <li><a class="link active"
                            href="ruler.html"><code>ruler</code></a></li>
+                    <ul>
+                        <li><a href="#draw_ruler-3"><code>draw_ruler(label_space, rect, view)</code></a></li>
+                        <li><a href="#init_ruler-1"><code>init_ruler(label_space)</code></a></li>
+                    </ul>
                     <li><a class="link"
                            href="tooltip.html"><code>tooltip</code></a></li>
                 </ul>
             </aside>
             <section>
-                <div id="load_bed_file-3" class="fn-block">
-    <pre class="fn-definition rust"><code>fn load_bed_file(bed_path, bed_name, columns)</code></pre>
+                <div id="draw_ruler-3" class="fn-block">
+    <pre class="fn-definition rust"><code>fn draw_ruler(label_space, rect, view)</code></pre>
     <div class="fn-description md">
-        <p>Loads a BED file at the given path
-<code>columns</code> should be a map from column indices in the BED file to names.
-The indices that are given names will be loaded as visualization modes.</p>
-<p>Returns a map where the <code>bed</code> value holds a reference to the
-annotation set, and the other keys are the data source names for
-the provided columns.</p>
-<p>Example usage</p>
-<pre><code class="language-ts">load_bed_file(&quot;some_file.bed&quot;,
-              #{ &quot;Name&quot;: 3,
-                 &quot;another column&quot;: 4 });
-</code></pre>
-
+        
+    </div>
+</div>                <div id="init_ruler-1" class="fn-block">
+    <pre class="fn-definition rust"><code>fn init_ruler(label_space)</code></pre>
+    <div class="fn-description md">
+        
     </div>
 </div>            </section>
         </div>

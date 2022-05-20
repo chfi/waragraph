@@ -118,6 +118,9 @@ fn remove_tooltip() {
 
 
 fn gui_init(globals, label_space) {
+
+  globals.tooltip_data = #{};
+
   let props = viewer::props;
   props.set("time", 0.0);
 
@@ -220,15 +223,20 @@ fn gui_update(globals, label_space, dt) {
         let rows = [`Node ${node.to_int()}`];
 
 
+        // kind of hacky, but this is where the BED-related
+        // `tooltip_data` is consumed (see script/tooltip.rhai)
         try {
           let data_sources = globals.tooltip_data;
 
           for tooltip in data_sources {
             let row_ix = tooltip.ix_data_source.at(path, node);
             if row_ix.type_of() == "i64" {
-              let val = slot::get_record_field(tooltip.bed, row_ix, tooltip.col);
+
+              let val = tooltip.bed.get_record_field(row_ix, tooltip.col);
+
               let text = `${tooltip.name} ${val}`;
               rows.push(text);
+
               print(val);
             }
           }

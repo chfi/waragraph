@@ -45,15 +45,50 @@
                 <ul>
                     <li><a class="link"
                            href="bed.html"><code>bed</code></a></li>
+                    <li><a class="link"
+                           href="ruler.html"><code>ruler</code></a></li>
                     <li><a class="link active"
                            href="tooltip.html"><code>tooltip</code></a></li>
                     <ul>
+                        <li><a href="#bed_tooltip_data-2"><code>bed_tooltip_data(bed_result, key)</code></a></li>
+                        <li><a href="#init_tooltip-1"><code>init_tooltip(label_space)</code></a></li>
                         <li><a href="#show_tooltip-3"><code>show_tooltip(label_space, pos, list)</code></a></li>
                     </ul>
                 </ul>
             </aside>
             <section>
-                <div id="show_tooltip-3" class="fn-block">
+                <div id="bed_tooltip_data-2" class="fn-block">
+    <pre class="fn-definition rust"><code>fn bed_tooltip_data(bed_result, key)</code></pre>
+    <div class="fn-description md">
+        <p>Given a loaded BED file and column key, prepares a config object
+that can be inserted into <code>tooltip_data</code> global,which then shows
+the column data in a tooltip when the cursor is over a
+corresponding node.</p>
+<p><code>bed_result</code> should be a map returned by <code>bed::load_bed_file</code>
+<code>key</code> is a key into the <code>columns</code> map in <code>bed_result</code>, which
+is the same as the <code>columns</code> argument in the
+<code>bed::load_bed_file()</code> function.</p>
+<p>Example usage (e.g. in a script loaded at startup with <code>--run</code>)</p>
+<pre><code class="language-ts">import &quot;script/bed&quot; as bed;
+import &quot;script/tooltip&quot; as tooltip;
+
+let bed_result = bed::load_bed_file(&quot;betaglobin.bed&quot;,
+                                    &quot;betaglobin&quot;,
+                                    #{ &quot;name&quot;: 3 });
+
+let data = tooltip::bed_tooltip_data(bed_result, &quot;name&quot;);
+
+globals.tooltip_data = [data];
+</code></pre>
+
+    </div>
+</div>                <div id="init_tooltip-1" class="fn-block">
+    <pre class="fn-definition rust"><code>fn init_tooltip(label_space)</code></pre>
+    <div class="fn-description md">
+        <p>Initialize the tooltip compositor layer. Called in paths.rhai’s <code>gui_init()</code></p>
+
+    </div>
+</div>                <div id="show_tooltip-3" class="fn-block">
     <pre class="fn-definition rust"><code>fn show_tooltip(label_space, pos, list)</code></pre>
     <div class="fn-description md">
         <p>Displays a tooltip at the provided position, mapping each value in

@@ -444,8 +444,6 @@ pub fn add_module_fns(
             let col_ix = column - 3;
 
             let mut cache = cache.write();
-            // let source = format!("{}:{}", set.source, col_ix);
-            // let source = rhai::ImmutableString::from(source);
 
             if cache.get_data_source_u32(&source).is_some() {
                 return Ok(source.clone());
@@ -484,9 +482,30 @@ pub fn add_module_fns(
                     return Ok(source);
                 }
                 Some(BedColumn::Int(values)) => {
-                    todo!();
+                    let set = set.clone();
+
+                    cache.register_data_source_u32(
+                        &source,
+                        move |path, node| {
+                            let indices =
+                                set.records_on_path_node(path, node)?;
+                            let record = indices.select(0)?;
+                            let val =
+                                set.columns.get(col_ix).and_then(|c| {
+                                    if let BedColumn::Int(vs) = c {
+                                        vs.get(record as usize)
+                                    } else {
+                                        None
+                                    }
+                                })?;
+                            Some(*val as u32)
+                        },
+                    );
+
+                    return Ok(source);
                 }
                 Some(BedColumn::Float(values)) => {
+                    log::error!("floating point columns not yet supported");
                     todo!();
                 }
                 _ => {
@@ -494,16 +513,6 @@ pub fn add_module_fns(
                     return Err("TODO: only string columns supported".into());
                 }
             }
-
-            // if let BedColumn::String(labels) = &set.columns[col_ix] {
-            //     for label in labels {
-            //         if !uniq.contains_key(label) {
-            //             uniq.insert(label.clone(), uniq.len() as u32);
-            //         }
-            //     }
-            // } else {
-            //     return Err("TODO: only string columns supported".into());
-            // }
         },
     );
 

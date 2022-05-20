@@ -1,3 +1,40 @@
+/// Given a loaded BED file and column key, prepares a config object
+/// that can be inserted into `tooltip_data` global,which then shows
+/// the column data in a tooltip when the cursor is over a
+/// corresponding node.
+///
+/// `bed_result` should be a map returned by `bed::load_bed_file`
+/// `key` is a key into the `columns` map in `bed_result`, which
+/// is the same as the `columns` argument in the
+/// `bed::load_bed_file()` function.
+/**
+   Example usage (e.g. in a script loaded at startup with `--run`)
+```
+import "script/bed" as bed;
+import "script/tooltip" as tooltip;
+
+let bed_result = bed::load_bed_file("betaglobin.bed",
+                                    "betaglobin",
+                                    #{ "name": 3 });
+
+let data = tooltip::bed_tooltip_data(bed_result, "name");
+
+globals.tooltip_data = [data];
+```
+
+*/
+fn bed_tooltip_data(bed_result, key) {
+  let ix_data_source = slot::get_data_source(bed_result.ix_data_source);
+
+  return #{ ix_data_source: ix_data_source,
+            bed: bed_result.bed,
+            name: key,
+            col: bed_result.columns[key],
+          };
+}
+
+
+
 /// Displays a tooltip at the provided position, mapping each value in
 /// `list` to a string.
 ///
@@ -90,35 +127,4 @@ fn init_tooltip(label_space) {
   ui::init_layer("tooltip", 10, false);
   ui::allocate_sublayer("tooltip", "rect-rgb", "rect");
   ui::allocate_text_sublayer(label_space, "tooltip", "text");
-}
-
-
-/// `bed_result` should be a map returned by `bed::load_bed_file`
-/// `key` is a key into the `columns` map in `bed_result`, which
-/// is the same as the `columns` argument in the
-/// `bed::load_bed_file()` function.
-/**
-   Example usage (e.g. in a script loaded at startup with `--run`)
-```
-import "script/bed" as bed;
-import "script/tooltip" as tooltip;
-
-let bed_result = bed::load_bed_file("betaglobin.bed",
-                                    "betaglobin",
-                                    #{ "name": 3 });
-
-let data = tooltip::bed_tooltip_data(bed_result, "name");
-
-globals.tooltip_data = [data];
-```
-
-*/
-fn bed_tooltip_data(bed_result, key) {
-  let ix_data_source = slot::get_data_source(bed_result.ix_data_source);
-
-  return #{ ix_data_source: ix_data_source,
-            bed: bed_result.bed,
-            name: key,
-            col: bed_result.columns[key],
-          };
 }
