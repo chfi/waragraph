@@ -22,6 +22,10 @@ fn load_bed_file(bed_path, bed_name, columns) {
 
   let result = #{ bed: bed_file, ix_data_source: ix_data_source };
 
+  let data_sources = #{};
+
+  result.columns = columns;
+
   for name in columns.keys() {
     let col = columns[name];
 
@@ -36,7 +40,7 @@ fn load_bed_file(bed_path, bed_name, columns) {
     let col_type = bed_file.column_type(col);
 
     let key = `col-${name}`;
-    result[key] = data_source_name;
+    data_sources[name] = data_source_name;
 
     // set the viz. color scheme based on the column type
     if col_type == "string" {
@@ -53,6 +57,8 @@ fn load_bed_file(bed_path, bed_name, columns) {
                                   "gradient-colorbrewer-spectral");
     }
   }
+
+  result.data_sources = data_sources;
 
   result
 }

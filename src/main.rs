@@ -192,6 +192,8 @@ fn main() -> Result<()> {
         .modules
         .insert("slot".into(), viewer.slot_rhai_module.clone());
 
+    console.scope.set_value("globals", rhai::Map::default());
+
     let font_desc_set = {
         let font_desc_set =
             viewer.frame.module.get_var("font_desc_set").unwrap();
@@ -279,7 +281,8 @@ fn main() -> Result<()> {
 
     let (slot_tx, slot_rx) = crossbeam::channel::unbounded::<SlotMsg>();
 
-    match console.eval(&db, &buffers, "viewer::gui_init(label_space)") {
+    match console.eval(&db, &buffers, "viewer::gui_init(globals, label_space)")
+    {
         Ok(v) => {
             log::warn!("success: {:?}", v);
         }
@@ -507,7 +510,7 @@ bed::load_bed_file(bed_path, bed_name, column_map)
                 match console.eval(
                     &db,
                     &buffers,
-                    "viewer::gui_update(label_space, dt)",
+                    "viewer::gui_update(globals, label_space, dt)",
                 ) {
                     Ok(v) => {
                         // log::warn!("success: {:?}", v);

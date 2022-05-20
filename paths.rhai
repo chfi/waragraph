@@ -6,6 +6,7 @@
 
 import "color" as color;
 import "script/tooltip" as tooltip;
+import "script/ruler" as ruler;
 
 export let bg_color = color::bg_light;
 export let label_color = #{ r: 0.0, g: 0.0, b: 0.0 };
@@ -116,7 +117,7 @@ fn remove_tooltip() {
 }
 
 
-fn gui_init(label_space) {
+fn gui_init(globals, label_space) {
   let props = viewer::props;
   props.set("time", 0.0);
 
@@ -127,6 +128,8 @@ fn gui_init(label_space) {
   ui::toggle_layer("tree-list-layer", false);
 
   tooltip::init_tooltip(label_space);
+
+  ruler::init_ruler(label_space);
 
   ui::init_layer("lines", 5, true);
   ui::allocate_sublayer("lines", "line-rgb", "lines");
@@ -154,7 +157,7 @@ fn line(x0, y0, x1, y1) {
  } + rgb(1.0, 0.0, 0.0)
 }
 
-fn gui_update(label_space, dt) {
+fn gui_update(globals, label_space, dt) {
 
 
   let props = viewer::props;
@@ -218,7 +221,8 @@ fn gui_update(label_space, dt) {
 
 
         try {
-          let data_sources = props.get("tooltip_data");
+          let data_sources = globals.tooltip_data;
+
           for tooltip in data_sources {
             let row_ix = tooltip.ix_data_source.at(path, node);
             if row_ix.type_of() == "i64" {
