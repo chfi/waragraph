@@ -174,6 +174,11 @@ fn gui_update(globals, label_space, dt) {
   let view = viewer::get_view();
   let dims = ui::get_window_size();
 
+  let ruler_rect = slot_rect(dims);
+  ruler_rect.y -= 8;
+
+  ruler::draw_ruler(label_space, ruler_rect, view);
+
   /*
   {
     let l0 = line(100.0, 100.0, pos.x, pos.y);
