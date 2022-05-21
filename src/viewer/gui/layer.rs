@@ -39,12 +39,13 @@ pub fn add_sublayer_defs(
     font_desc_set: DescSetIx,
 ) -> Result<()> {
     engine.with_allocators(|ctx, res, _| {
-        let pass = res[compositor.pass];
+        let clear_pass = res[compositor.clear_pass];
+        let load_pass = res[compositor.load_pass];
         compositor.add_sublayer_defs([
-            text_sublayer(ctx, res, font_desc_set, pass)?,
-            rect_palette_sublayer(ctx, res, pass)?,
-            rect_rgb_sublayer(ctx, res, pass)?,
-            line_rgb_sublayer(ctx, res, pass)?,
+            text_sublayer(ctx, res, font_desc_set, clear_pass, load_pass)?,
+            rect_palette_sublayer(ctx, res, clear_pass, load_pass)?,
+            rect_rgb_sublayer(ctx, res, clear_pass, load_pass)?,
+            line_rgb_sublayer(ctx, res, clear_pass, load_pass)?,
         ]);
 
         Ok(())
@@ -54,7 +55,8 @@ pub fn add_sublayer_defs(
 pub(super) fn rect_palette_sublayer(
     ctx: &VkContext,
     res: &mut GpuResources,
-    pass: vk::RenderPass,
+    clear_pass: vk::RenderPass,
+    load_pass: vk::RenderPass,
 ) -> Result<SublayerDef> {
     let vert = res.load_shader(
         "shaders/tri_2d_window.vert.spv",
@@ -108,7 +110,8 @@ pub(super) fn rect_palette_sublayer(
         "rect-palette",
         vert,
         frag,
-        pass,
+        clear_pass,
+        load_pass,
         vertex_offset,
         vertex_stride,
         false,
@@ -123,7 +126,8 @@ pub(super) fn text_sublayer(
     ctx: &VkContext,
     res: &mut GpuResources,
     font_desc_set: DescSetIx,
-    pass: vk::RenderPass,
+    clear_pass: vk::RenderPass,
+    load_pass: vk::RenderPass,
 ) -> Result<SublayerDef> {
     let vert =
         res.load_shader("shaders/text.vert.spv", vk::ShaderStageFlags::VERTEX)?;
@@ -180,7 +184,8 @@ pub(super) fn text_sublayer(
         "text",
         vert,
         frag,
-        pass,
+        clear_pass,
+        load_pass,
         vertex_offset,
         vertex_stride,
         true,
@@ -194,7 +199,8 @@ pub(super) fn text_sublayer(
 pub(super) fn rect_rgb_sublayer(
     ctx: &VkContext,
     res: &mut GpuResources,
-    pass: vk::RenderPass,
+    clear_pass: vk::RenderPass,
+    load_pass: vk::RenderPass,
 ) -> Result<SublayerDef> {
     let vert = res.load_shader(
         "shaders/rect_window.vert.spv",
@@ -251,7 +257,8 @@ pub(super) fn rect_rgb_sublayer(
         "rect-rgb",
         vert,
         frag,
-        pass,
+        clear_pass,
+        load_pass,
         vertex_offset,
         vertex_stride,
         true,
@@ -265,7 +272,8 @@ pub(super) fn rect_rgb_sublayer(
 pub(super) fn line_rgb_sublayer(
     ctx: &VkContext,
     res: &mut GpuResources,
-    pass: vk::RenderPass,
+    clear_pass: vk::RenderPass,
+    load_pass: vk::RenderPass,
 ) -> Result<SublayerDef> {
     let vert = res
         .load_shader("shaders/vector.vert.spv", vk::ShaderStageFlags::VERTEX)?;
@@ -322,7 +330,8 @@ pub(super) fn line_rgb_sublayer(
         "line-rgb",
         vert,
         frag,
-        pass,
+        clear_pass,
+        load_pass,
         vertex_offset,
         vertex_stride,
         true,

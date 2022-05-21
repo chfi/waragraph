@@ -124,10 +124,6 @@ fn gui_init(globals, label_space) {
   let props = viewer::props;
   props.set("time", 0.0);
 
-  ui::init_layer("rhai-main", 1, true);
-  ui::allocate_sublayer("rhai-main", "rect-rgb", "sidebar");
-  ui::allocate_text_sublayer(label_space, "rhai-main", "sidebar-labels");
-
   ui::toggle_layer("tree-list-layer", false);
 
   tooltip::init_tooltip(label_space);

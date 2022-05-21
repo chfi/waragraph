@@ -136,7 +136,12 @@ fn main() -> Result<()> {
 
     let mut buffers = BufferStorage::new(&db)?;
 
-    let mut compositor = Compositor::init(&mut engine, &swapchain_dims)?;
+    let mut compositor = Compositor::init(
+        &mut engine,
+        &swapchain_dims,
+        vk::ImageLayout::GENERAL,
+        vk::ImageLayout::GENERAL,
+    )?;
 
     let mut window_resources = WindowResources::new();
     window_resources.add_image(
@@ -150,7 +155,7 @@ fn main() -> Result<()> {
             (vk::ImageUsageFlags::STORAGE, vk::ImageLayout::GENERAL),
             (vk::ImageUsageFlags::SAMPLED, vk::ImageLayout::GENERAL),
         ],
-        Some(compositor.pass),
+        Some(compositor.load_pass),
     )?;
 
     {
@@ -307,7 +312,7 @@ fn main() -> Result<()> {
         }
 
         if viewer_args.bed_column.is_empty() {
-            let name = 3.to_string();
+            let name = 3i64.to_string();
             column_map.insert(name.into(), 3i64.into());
         }
 

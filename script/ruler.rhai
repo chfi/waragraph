@@ -2,7 +2,7 @@ fn init_ruler(label_space) {
   ui::init_layer("rulers", 4, true);
   ui::allocate_sublayer("rulers", "rect-rgb", "rect");
   ui::allocate_text_sublayer(label_space, "rulers", "text");
-  ui::allocate_sublayer("rulers", "line-rgb", "lines");
+  ui::allocate_sublayer("rulers", "line-rgb", "line");
 }
 
 
@@ -16,6 +16,7 @@ fn pos_to_rect(rect, view, p) {
   rect.x + rect.w * p_
 }
 
+// this one's a mess for now
 fn draw_ruler(label_space, rect, view) {
   let labels = [];
 
@@ -33,7 +34,6 @@ fn draw_ruler(label_space, rect, view) {
 
   let mag = mag.log();
 
-  // let order = 10.0 ** mag.to_int();
   let order = 10.0 ** mag.to_int();
 
   pos.x += 200.0;
@@ -77,14 +77,11 @@ fn draw_ruler(label_space, rect, view) {
   let a0 = 10.0 ** v0.log().to_int();
   let i0 = view.len / a0.to_int();
 
-  // print(`v0: ${v0}, v0.log(): ${v0.log()}, a0: ${a0}, i0: ${i0}`);
-
   for i in i0..(i0+10) {
     let x0 = pos_to_rect(rect, view, i * step);
     let pos = pos + #{ x: x0 };
     let text = `${i * step}`;
     labels.push(label_vertex(pos, text));
-    // let p = #{ x: x0 +
   }
 
   let lines = [];
@@ -104,7 +101,7 @@ fn draw_ruler(label_space, rect, view) {
 
 
   ui::update_sublayer(label_space, "rulers", "text", labels);
-  ui::update_sublayer("rulers", "lines", lines);
+  ui::update_sublayer("rulers", "line", lines);
 }
 
 

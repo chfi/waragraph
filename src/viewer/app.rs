@@ -1173,24 +1173,15 @@ impl ViewerSys {
                 ],
             )
             .unwrap();
-        // let batch = self.draw_labels_.call_raw(engine, ast, args)
 
-        // let labels_batch = (&self.draw_labels)(
-        //     batch_builder,
-        //     size.width as i64,
-        //     size.height as i64,
-        //     label_sets,
-        // )
-        // .unwrap();
         let labels_batch_fn = builder.cast::<BatchBuilder>().build();
-        // let labels_batch_fn = labels_batch.build();
 
         let extent = vk::Extent2D { width, height };
 
         let out_framebuffer =
             *window_resources.indices.framebuffers.get("out").unwrap();
 
-        let comp_batch_fn = compositor.draw(out_framebuffer, extent);
+        let comp_batch_fn = compositor.draw(None, out_framebuffer, extent);
 
         let fg_batch = Box::new(
             move |dev: &Device,
