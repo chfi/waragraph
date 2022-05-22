@@ -119,6 +119,7 @@ pub(super) fn rect_palette_sublayer(
         Some(1),
         vert_input_info,
         None,
+        None,
     )
 }
 
@@ -192,6 +193,7 @@ pub(super) fn text_sublayer(
         Some(6),
         None,
         vert_input_info,
+        None,
         [font_desc_set],
     )
 }
@@ -266,6 +268,7 @@ pub(super) fn rect_rgb_sublayer(
         None,
         vert_input_info,
         None,
+        None,
     )
 }
 
@@ -338,6 +341,7 @@ pub(super) fn line_rgb_sublayer(
         Some(6),
         None,
         vert_input_info,
+        None,
         None,
     )
 }
