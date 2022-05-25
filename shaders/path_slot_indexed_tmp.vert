@@ -7,6 +7,7 @@ layout (location = 2) in uint i_buffer_len;
 layout (location = 0) out vec2 o_uv;
 layout (location = 1) out uint o_buffer_len;
 
+
 layout (push_constant) uniform Input {
   vec2 window_dims;
 } inputs;

@@ -536,6 +536,72 @@ pub fn create_rhai_module(compositor: &Compositor) -> rhai::Module {
         },
     );
 
+    let layers = compositor.layers.clone();
+
+    module.set_native_fn(
+        "update_sublayer",
+        move |layer_name: &str,
+              sublayer_name: &str,
+              vertex_data: rhai::Array,
+              sets: rhai::Array| {
+            let mut layers = layers.write();
+
+            if let Some(layer) = layers.get_mut(layer_name) {
+                if let Some(sublayer) = layer.get_sublayer_mut(sublayer_name) {
+                    let parser =
+                        sublayer.def.parse_rhai_vertex.clone().unwrap();
+
+                    let def_name = sublayer.def_name.clone();
+                    // TODO this only updates the first draw data set for now
+                    let draw_data = sublayer.draw_data_mut().next().unwrap();
+
+                    // need a macro since arrays have fixed length
+                    macro_rules! parse_helper {
+                        ($n:literal) => {{
+                            draw_data.update_sets(
+                                sets.into_iter().filter_map(|val| {
+                                    val.try_cast::<DescSetIx>()
+                                }),
+                            );
+
+                            draw_data.update_vertices_array(
+                                vertex_data.into_iter().filter_map(|val| {
+                                    let map = val.try_cast::<rhai::Map>()?;
+                                    let mut out = [0u8; $n];
+                                    parser(map, &mut out)?;
+                                    Some(out)
+                                }),
+                            )
+                        }};
+                    }
+
+                    let result = match def_name.as_str() {
+                        "line-rgb" => parse_helper!(40),
+                        "rect-rgb" => parse_helper!(32),
+                        "path-slot" => parse_helper!(20),
+                        e => {
+                            return Err(format!(
+                                "unknown sublayer definition: `{}`",
+                                e
+                            )
+                            .into());
+                        }
+                    };
+
+                    if let Err(e) = result {
+                        return Err(
+                            format!("sublayer update error: {:?}", e).into()
+                        );
+                    } else {
+                        return Ok(());
+                    }
+                }
+            }
+
+            Ok(())
+        },
+    );
+
     module
 }
 
@@ -625,7 +691,6 @@ pub mod slot {
             .vertex_attribute_descriptions(&vert_attr_descs);
 
         let vertex_offset = 0;
-        // let vertex_stride = vertex_stride;
 
         let mut def = SublayerDef::new::<([f32; 2], [f32; 2], u32), _>(
             ctx,
