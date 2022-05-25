@@ -1128,6 +1128,7 @@ impl ViewerSys {
                     }
 
                     let slot_set = slot.slot.desc_set();
+
                     desc_map.insert("slot".into(), Dyn::from(slot_set));
                 } else {
                     desc_map.insert("slot".into(), Dyn::UNIT);
@@ -1135,9 +1136,6 @@ impl ViewerSys {
             }
             desc_sets.push(rhai::Dynamic::from(desc_map));
         }
-
-        // desc_sets.extend(self.path_viewer.visible_paths(graph).map(|path| {
-        // }));
 
         let slot_buf_size = self.path_viewer.width;
 

@@ -43,84 +43,13 @@ pub fn add_sublayer_defs(
         let load_pass = res[compositor.load_pass];
         compositor.add_sublayer_defs([
             text_sublayer(ctx, res, font_desc_set, clear_pass, load_pass)?,
-            rect_palette_sublayer(ctx, res, clear_pass, load_pass)?,
             rect_rgb_sublayer(ctx, res, clear_pass, load_pass)?,
             line_rgb_sublayer(ctx, res, clear_pass, load_pass)?,
+            slot::sublayer(ctx, res, clear_pass, load_pass)?,
         ]);
 
         Ok(())
     })
-}
-
-pub(super) fn rect_palette_sublayer(
-    ctx: &VkContext,
-    res: &mut GpuResources,
-    clear_pass: vk::RenderPass,
-    load_pass: vk::RenderPass,
-) -> Result<SublayerDef> {
-    let vert = res.load_shader(
-        "shaders/tri_2d_window.vert.spv",
-        vk::ShaderStageFlags::VERTEX
-            | vk::ShaderStageFlags::FRAGMENT
-            | vk::ShaderStageFlags::COMPUTE,
-    )?;
-    let frag = res.load_shader(
-        "shaders/rect_flat_color.frag.spv",
-        vk::ShaderStageFlags::FRAGMENT,
-    )?;
-
-    let vert = res.insert_shader(vert);
-    let frag = res.insert_shader(frag);
-
-    let vert_binding_desc = vk::VertexInputBindingDescription::builder()
-        .binding(0)
-        .stride(std::mem::size_of::<[f32; 3]>() as u32)
-        .input_rate(vk::VertexInputRate::VERTEX)
-        .build();
-
-    let pos_desc = vk::VertexInputAttributeDescription::builder()
-        .binding(0)
-        .location(0)
-        .format(vk::Format::R32G32_SFLOAT)
-        .offset(0)
-        .build();
-
-    let ix_desc = vk::VertexInputAttributeDescription::builder()
-        .binding(0)
-        .location(1)
-        .format(vk::Format::R32_UINT)
-        .offset(8)
-        .build();
-
-    let vert_binding_descs = [vert_binding_desc];
-    let vert_attr_descs = [pos_desc, ix_desc];
-
-    let vert_input_info = vk::PipelineVertexInputStateCreateInfo::builder()
-        .vertex_binding_descriptions(&vert_binding_descs)
-        .vertex_attribute_descriptions(&vert_attr_descs);
-
-    let vertex_offset = 12;
-    let vertex_stride = 12;
-
-    // VkEngine::set_debug_object_name(
-
-    SublayerDef::new::<([f32; 4], u32), _>(
-        ctx,
-        res,
-        "rect-palette",
-        vert,
-        frag,
-        clear_pass,
-        load_pass,
-        vertex_offset,
-        vertex_stride,
-        false,
-        None,
-        Some(1),
-        vert_input_info,
-        None,
-        None,
-    )
 }
 
 pub(super) fn text_sublayer(
@@ -253,7 +182,7 @@ pub(super) fn rect_rgb_sublayer(
     let vertex_offset = 0;
     let vertex_stride = 32;
 
-    SublayerDef::new::<([f32; 2], [f32; 2], [f32; 4]), _>(
+    let mut def = SublayerDef::new::<([f32; 2], [f32; 2], [f32; 4]), _>(
         ctx,
         res,
         "rect-rgb",
@@ -269,7 +198,34 @@ pub(super) fn rect_rgb_sublayer(
         vert_input_info,
         None,
         None,
-    )
+    )?;
+
+    fn get_cast(map: &rhai::Map, k: &str) -> Option<f32> {
+        let field = map.get(k)?;
+        field
+            .as_float()
+            .ok()
+            .or(field.as_int().ok().map(|v| v as f32))
+    }
+
+    def.set_parser(|map, out| {
+        let x = get_cast(&map, "x")?;
+        let y = get_cast(&map, "y")?;
+        let w = get_cast(&map, "w")?;
+        let h = get_cast(&map, "h")?;
+
+        let r = get_cast(&map, "r")?;
+        let g = get_cast(&map, "g")?;
+        let b = get_cast(&map, "b")?;
+        let a = get_cast(&map, "a")?;
+
+        out[0..8].clone_from_slice([x, y].as_bytes());
+        out[8..16].clone_from_slice([w, h].as_bytes());
+        out[16..32].clone_from_slice([r, g, b, a].as_bytes());
+        Some(())
+    });
+
+    Ok(def)
 }
 
 pub(super) fn line_rgb_sublayer(
@@ -327,7 +283,7 @@ pub(super) fn line_rgb_sublayer(
     let vertex_offset = 0;
     let vertex_stride = vertex_size as usize;
 
-    SublayerDef::new::<([f32; 3], [f32; 3], [f32; 4]), _>(
+    let mut def = SublayerDef::new::<([f32; 3], [f32; 3], [f32; 4]), _>(
         ctx,
         res,
         "line-rgb",
@@ -343,7 +299,41 @@ pub(super) fn line_rgb_sublayer(
         vert_input_info,
         None,
         None,
-    )
+    )?;
+
+    fn get_cast(map: &rhai::Map, k: &str) -> Option<f32> {
+        let field = map.get(k)?;
+        field
+            .as_float()
+            .ok()
+            .or(field.as_int().ok().map(|v| v as f32))
+    }
+
+    def.set_parser(|map, out| {
+        // let map = val.try_cast::<rhai::Map>()?;
+        // let mut out = [0u8; 40];
+
+        let x0 = get_cast(&map, "x0")?;
+        let y0 = get_cast(&map, "y0")?;
+        let x1 = get_cast(&map, "x1")?;
+        let y1 = get_cast(&map, "y1")?;
+
+        let w0 = get_cast(&map, "w0")?;
+        let w1 = get_cast(&map, "w1")?;
+
+        let r = get_cast(&map, "r")?;
+        let g = get_cast(&map, "g")?;
+        let b = get_cast(&map, "b")?;
+        let a = get_cast(&map, "a")?;
+
+        out[0..12].clone_from_slice([x0, y0, w0].as_bytes());
+        out[12..24].clone_from_slice([x1, y1, w1].as_bytes());
+        out[24..40].clone_from_slice([r, g, b, a].as_bytes());
+
+        Some(())
+    });
+
+    Ok(def)
 }
 
 pub fn create_rhai_module(compositor: &Compositor) -> rhai::Module {
@@ -492,100 +482,29 @@ pub fn create_rhai_module(compositor: &Compositor) -> rhai::Module {
         move |layer_name: &str, sublayer_name: &str, data: rhai::Array| {
             let mut layers = layers.write();
 
-            let get_cast = |map: &rhai::Map, k: &str| {
-                let field = map.get(k)?;
-                field
-                    .as_float()
-                    .ok()
-                    .or(field.as_int().ok().map(|v| v as f32))
-            };
-
             if let Some(layer) = layers.get_mut(layer_name) {
                 if let Some(sublayer) = layer.get_sublayer_mut(sublayer_name) {
-                    match sublayer.def_name.as_str() {
-                        "line-rgb" => {
-                            let result = sublayer.update_vertices_array(
+                    let parser =
+                        sublayer.def.parse_rhai_vertex.clone().unwrap();
+
+                    // need a macro since arrays have fixed length
+                    macro_rules! parse_helper {
+                        ($n:literal) => {
+                            sublayer.update_vertices_array(
                                 data.into_iter().filter_map(|val| {
                                     let map = val.try_cast::<rhai::Map>()?;
-
-                                    let mut out = [0u8; 40];
-
-                                    let x0 = get_cast(&map, "x0")?;
-                                    let y0 = get_cast(&map, "y0")?;
-                                    let x1 = get_cast(&map, "x1")?;
-                                    let y1 = get_cast(&map, "y1")?;
-
-                                    let w0 = get_cast(&map, "w0")?;
-                                    let w1 = get_cast(&map, "w1")?;
-
-                                    let r = get_cast(&map, "r")?;
-                                    let g = get_cast(&map, "g")?;
-                                    let b = get_cast(&map, "b")?;
-                                    let a = get_cast(&map, "a")?;
-
-                                    out[0..12].clone_from_slice(
-                                        [x0, y0, w0].as_bytes(),
-                                    );
-                                    out[12..24].clone_from_slice(
-                                        [x1, y1, w1].as_bytes(),
-                                    );
-                                    out[24..40].clone_from_slice(
-                                        [r, g, b, a].as_bytes(),
-                                    );
-
+                                    let mut out = [0u8; $n];
+                                    parser(map, &mut out)?;
                                     Some(out)
                                 }),
-                            );
+                            )
+                        };
+                    }
 
-                            if let Err(e) = result {
-                                return Err(format!(
-                                    "sublayer update error: {:?}",
-                                    e
-                                )
-                                .into());
-                            } else {
-                                return Ok(());
-                            }
-                        }
-                        "rect-rgb" => {
-                            let result = sublayer.update_vertices_array(
-                                data.into_iter().filter_map(|val| {
-                                    let map = val.try_cast::<rhai::Map>()?;
-
-                                    let mut out = [0u8; 32];
-
-                                    let x = get_cast(&map, "x")?;
-                                    let y = get_cast(&map, "y")?;
-                                    let w = get_cast(&map, "w")?;
-                                    let h = get_cast(&map, "h")?;
-
-                                    let r = get_cast(&map, "r")?;
-                                    let g = get_cast(&map, "g")?;
-                                    let b = get_cast(&map, "b")?;
-                                    let a = get_cast(&map, "a")?;
-
-                                    out[0..8]
-                                        .clone_from_slice([x, y].as_bytes());
-                                    out[8..16]
-                                        .clone_from_slice([w, h].as_bytes());
-                                    out[16..32].clone_from_slice(
-                                        [r, g, b, a].as_bytes(),
-                                    );
-
-                                    Some(out)
-                                }),
-                            );
-
-                            if let Err(e) = result {
-                                return Err(format!(
-                                    "sublayer update error: {:?}",
-                                    e
-                                )
-                                .into());
-                            } else {
-                                return Ok(());
-                            }
-                        }
+                    let result = match sublayer.def_name.as_str() {
+                        "line-rgb" => parse_helper!(40),
+                        "rect-rgb" => parse_helper!(32),
+                        "path-slot" => parse_helper!(20),
                         e => {
                             return Err(format!(
                                 "unknown sublayer definition: `{}`",
@@ -593,6 +512,14 @@ pub fn create_rhai_module(compositor: &Compositor) -> rhai::Module {
                             )
                             .into());
                         }
+                    };
+
+                    if let Err(e) = result {
+                        return Err(
+                            format!("sublayer update error: {:?}", e).into()
+                        );
+                    } else {
+                        return Ok(());
                     }
                 }
             }
@@ -604,9 +531,135 @@ pub fn create_rhai_module(compositor: &Compositor) -> rhai::Module {
     module
 }
 
-#[export_module]
-pub mod rhai_module {
+pub mod slot {
 
-    pub type Layer = super::Layer;
-    pub type Sublayer = super::Sublayer;
+    use super::*;
+
+    pub fn vertex_buffer(
+        engine: &mut VkEngine,
+        capacity: usize,
+    ) -> Result<BufferIx> {
+        engine.with_allocators(|ctx, res, alloc| {
+            let mem_loc = gpu_allocator::MemoryLocation::CpuToGpu;
+            let usage = vk::BufferUsageFlags::VERTEX_BUFFER;
+            // | vk::BufferUsageFlags::TRANSFER_SRC
+            // | vk::BufferUsageFlags::TRANSFER_DST;
+            let mut buffer = res.allocate_buffer(
+                ctx,
+                alloc,
+                mem_loc,
+                20,
+                capacity,
+                usage,
+                Some("slot vertex buffer"),
+            )?;
+
+            let buf_ix = res.insert_buffer(buffer);
+            Ok(buf_ix)
+        })
+    }
+
+    pub fn sublayer(
+        ctx: &VkContext,
+        res: &mut GpuResources,
+        clear_pass: vk::RenderPass,
+        load_pass: vk::RenderPass,
+    ) -> Result<SublayerDef> {
+        let vert = res.load_shader(
+            "shaders/path_slot_indexed_tmp.vert.spv",
+            vk::ShaderStageFlags::VERTEX,
+        )?;
+        let frag = res.load_shader(
+            "shaders/path_slot_indexed_tmp.frag.spv",
+            // vk::ShaderStageFlags::FRAGMENT,
+            vk::ShaderStageFlags::VERTEX
+                | vk::ShaderStageFlags::COMPUTE
+                | vk::ShaderStageFlags::FRAGMENT,
+        )?;
+
+        let vert = res.insert_shader(vert);
+        let frag = res.insert_shader(frag);
+
+        let vertex_stride = std::mem::size_of::<[f32; 5]>();
+
+        let vert_binding_desc = vk::VertexInputBindingDescription::builder()
+            .binding(0)
+            .stride(vertex_stride as u32)
+            .input_rate(vk::VertexInputRate::INSTANCE)
+            .build();
+
+        let pos_desc = vk::VertexInputAttributeDescription::builder()
+            .binding(0)
+            .location(0)
+            .format(vk::Format::R32G32_SFLOAT)
+            .offset(0)
+            .build();
+
+        let size_desc = vk::VertexInputAttributeDescription::builder()
+            .binding(0)
+            .location(1)
+            .format(vk::Format::R32G32_SFLOAT)
+            .offset(8)
+            .build();
+
+        let ix_desc = vk::VertexInputAttributeDescription::builder()
+            .binding(0)
+            .location(2)
+            .format(vk::Format::R32_UINT)
+            .offset(16)
+            .build();
+
+        let vert_binding_descs = [vert_binding_desc];
+        let vert_attr_descs = [pos_desc, size_desc, ix_desc];
+
+        let vert_input_info = vk::PipelineVertexInputStateCreateInfo::builder()
+            .vertex_binding_descriptions(&vert_binding_descs)
+            .vertex_attribute_descriptions(&vert_attr_descs);
+
+        let vertex_offset = 0;
+        // let vertex_stride = vertex_stride;
+
+        let mut def = SublayerDef::new::<([f32; 2], [f32; 2], u32), _>(
+            ctx,
+            res,
+            "path-slot",
+            vert,
+            frag,
+            clear_pass,
+            load_pass,
+            vertex_offset,
+            vertex_stride,
+            true,
+            Some(6),
+            None,
+            vert_input_info,
+            None,
+            // [font_desc_set],
+            None,
+        )?;
+
+        fn get_cast(map: &rhai::Map, k: &str) -> Option<f32> {
+            let field = map.get(k)?;
+            field
+                .as_float()
+                .ok()
+                .or(field.as_int().ok().map(|v| v as f32))
+        }
+
+        def.set_parser(|map, out| {
+            let x = get_cast(&map, "x")?;
+            let y = get_cast(&map, "y")?;
+            let w = get_cast(&map, "w")?;
+            let h = get_cast(&map, "h")?;
+
+            let l = map.get("l").and_then(|f| f.as_int().ok())?;
+
+            out[0..8].clone_from_slice([x, y].as_bytes());
+            out[8..16].clone_from_slice([w, h].as_bytes());
+            out[16..20].clone_from_slice([l as u32].as_bytes());
+            Some(())
+        });
+
+        Ok(def)
+    }
 }
