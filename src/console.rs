@@ -151,7 +151,9 @@ impl Console {
                 );
                 out[16..32].clone_from_slice(color.as_bytes());
 
-                sublayer.update_vertices_array(Some(out))?;
+                sublayer.draw_data_mut().try_for_each(|data| {
+                    data.update_vertices_array(Some(out))
+                })?;
             }
 
             if let Some(sublayer) =
@@ -163,7 +165,9 @@ impl Console {
                 bg[16..32]
                     .clone_from_slice([0.85f32, 0.85, 0.85, 1.0].as_bytes());
 
-                sublayer.update_vertices_array_range(0..1, [bg])?;
+                sublayer.draw_data_mut().try_for_each(|data| {
+                    data.update_vertices_array_range(0..1, [bg])
+                })?;
             }
 
             Ok(())

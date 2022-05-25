@@ -448,7 +448,11 @@ pub fn create_rhai_module(compositor: &Compositor) -> rhai::Module {
                                 )?;
 
                             let result =
-                                sublayer.update_vertices_array(vertices);
+                                sublayer.draw_data_mut().try_for_each(|data| {
+                                    data.update_vertices_array(
+                                        vertices.iter().cloned(),
+                                    )
+                                });
 
                             if let Err(e) = result {
                                 return Err(format!(
@@ -487,10 +491,14 @@ pub fn create_rhai_module(compositor: &Compositor) -> rhai::Module {
                     let parser =
                         sublayer.def.parse_rhai_vertex.clone().unwrap();
 
+                    let def_name = sublayer.def_name.clone();
+                    // TODO this only updates the first draw data set for now
+                    let draw_data = sublayer.draw_data_mut().next().unwrap();
+
                     // need a macro since arrays have fixed length
                     macro_rules! parse_helper {
                         ($n:literal) => {
-                            sublayer.update_vertices_array(
+                            draw_data.update_vertices_array(
                                 data.into_iter().filter_map(|val| {
                                     let map = val.try_cast::<rhai::Map>()?;
                                     let mut out = [0u8; $n];
@@ -501,7 +509,7 @@ pub fn create_rhai_module(compositor: &Compositor) -> rhai::Module {
                         };
                     }
 
-                    let result = match sublayer.def_name.as_str() {
+                    let result = match def_name.as_str() {
                         "line-rgb" => parse_helper!(40),
                         "rect-rgb" => parse_helper!(32),
                         "path-slot" => parse_helper!(20),

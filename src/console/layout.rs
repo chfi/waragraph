@@ -199,27 +199,24 @@ impl LabelStacks {
         compositor.with_layer(&self.layer_name, |layer| {
             if let Some(sublayer) = layer.get_sublayer_mut(&self.sublayer_text)
             {
-                sublayer.update_vertices_array(label_x_map.into_iter().map(
-                    |(_, ((s, l), x))| {
-                        //
-                        let color = [0f32, 0.0, 0.0, 1.0];
+                for draw_data in sublayer.draw_data_mut() {
+                    draw_data.update_vertices_array(label_x_map.iter().map(
+                        |(_, &((s, l), x))| {
+                            //
+                            let color = [0f32, 0.0, 0.0, 1.0];
 
-                        let mut out = [0u8; 8 + 8 + 16];
+                            let mut out = [0u8; 8 + 8 + 16];
 
-                        out[0..8].clone_from_slice(
-                            [x, 400.0]
-                                // [slot_offset + (pos.x * slot_width), pos.y]
-                                .as_bytes(),
-                        );
-                        // let x = slot_offset + (pos.x * view_len as f32);
+                            out[0..8].clone_from_slice([x, 400.0].as_bytes());
 
-                        // out[0..8].clone_from_slice([x, pos.y].as_bytes());
-                        out[8..16]
-                            .clone_from_slice([s as u32, l as u32].as_bytes());
-                        out[16..32].clone_from_slice(color.as_bytes());
-                        out
-                    },
-                ));
+                            out[8..16].clone_from_slice(
+                                [s as u32, l as u32].as_bytes(),
+                            );
+                            out[16..32].clone_from_slice(color.as_bytes());
+                            out
+                        },
+                    ));
+                }
 
                 /*
                 self.labels.iter().enumerate().map(|(ix, &(s, l))| {
@@ -595,99 +592,48 @@ impl LabelLayout {
         view_len: usize,
         max_len: usize,
     ) -> Result<()> {
-        // let view_s = (view_len as f32) / (max_len as f32);
-        // let x_scale = slot_width * view_s;
-
-        // let x_offset = slot_offset + (view_offset as f32
-        // let scale = slot_width /
-
         compositor.with_layer(&self.layer_name, |layer| {
-            /*
-            if let Some(sublayer) = layer.get_sublayer_mut(&self.sublayer_text)
-            {
-                sublayer.update_vertices_array(
-                    self.labels.iter().enumerate().map(|(ix, &(s, l))| {
-                        let pos = self.label_pos[ix];
-
-                        let color = if self.label_flag[ix] & 16 == 0 {
-                            [0.0f32, 0.0, 0.0, 1.0]
-                        } else {
-                            [1.0f32, 1.0, 1.0, 1.0]
-                        };
-
-                        let mut out = [0u8; 8 + 8 + 16];
-
-                        let x = (slot_offset + (pos.x * slot_width));
-
-                        out[0..8].clone_from_slice(
-                            [x, pos.y]
-                                // [slot_offset + (pos.x * slot_width), pos.y]
-                                .as_bytes(),
-                        );
-                        // let x = slot_offset + (pos.x * view_len as f32);
-
-                        // out[0..8].clone_from_slice([x, pos.y].as_bytes());
-                        out[8..16]
-                            .clone_from_slice([s as u32, l as u32].as_bytes());
-                        out[16..32].clone_from_slice(color.as_bytes());
-                        out
-                    }),
-                )?;
-            }
-            */
-
             if let Some(sublayer) = layer.get_sublayer_mut(&self.sublayer_rect)
             {
-                /*
-                let w = 4.0 + 8.0 * max_label_len as f32;
-                let h = 4.0 + 8.0 * self.list.len() as f32;
+                sublayer.draw_data_mut().try_for_each(|data| {
+                    data.update_vertices_array(
+                        self.label_flag
+                            .iter()
+                            .enumerate()
+                            .filter(|(ix, flag)| **flag != 0)
+                            .map(|(ix, flags)| {
+                                // let r = (flags & 1 != 0)
+                                //     .then(|| 1.0)
+                                //     .unwrap_or_default();
+                                let r = if flags & 1 != 0 { 0.7 } else { 0.0 };
+                                let g = if flags & 2 != 0 { 0.7 } else { 0.0 };
+                                let b = if flags & 4 != 0 { 0.7 } else { 0.0 };
 
-                let mut bg = [0u8; 8 + 8 + 16];
-                bg[0..8].clone_from_slice([x0, y0].as_bytes());
-                bg[8..16].clone_from_slice([w, h].as_bytes());
-                bg[16..32]
-                    .clone_from_slice([0.85f32, 0.85, 0.85, 1.0].as_bytes());
+                                let color = if self.label_flag[ix] & 16 == 0 {
+                                    [r, g, b, 1.0f32]
+                                } else {
+                                    [1.0, 0.0, 0.0, 1.0]
+                                };
+                                // self.label_flag[ix] |= 16;
+                                let pos = self.label_pos[ix];
 
-                sublayer.update_vertices_array_range(0..1, [bg])?;
-                sublayer.update_vertices_array(Some(bg).into_iter().chain(
-                */
+                                let (_, t_len) = self.labels[ix];
+                                let h = 10.0;
+                                let w = 8.0 * t_len as f32;
+                                // let w =
 
-                sublayer.update_vertices_array(
-                    self.label_flag
-                        .iter()
-                        .enumerate()
-                        .filter(|(ix, flag)| **flag != 0)
-                        .map(|(ix, flags)| {
-                            // let r = (flags & 1 != 0)
-                            //     .then(|| 1.0)
-                            //     .unwrap_or_default();
-                            let r = if flags & 1 != 0 { 0.7 } else { 0.0 };
-                            let g = if flags & 2 != 0 { 0.7 } else { 0.0 };
-                            let b = if flags & 4 != 0 { 0.7 } else { 0.0 };
+                                let x =
+                                    (slot_offset + (pos.x * slot_width)) - 1.0;
+                                let y = pos.y - 1.0;
 
-                            let color = if self.label_flag[ix] & 16 == 0 {
-                                [r, g, b, 1.0f32]
-                            } else {
-                                [1.0, 0.0, 0.0, 1.0]
-                            };
-                            // self.label_flag[ix] |= 16;
-                            let pos = self.label_pos[ix];
-
-                            let (_, t_len) = self.labels[ix];
-                            let h = 10.0;
-                            let w = 8.0 * t_len as f32;
-                            // let w =
-
-                            let x = (slot_offset + (pos.x * slot_width)) - 1.0;
-                            let y = pos.y - 1.0;
-
-                            let mut out = [0u8; 32];
-                            out[0..8].clone_from_slice([x, y].as_bytes());
-                            out[8..16].clone_from_slice([w, h].as_bytes());
-                            out[16..32].clone_from_slice(color.as_bytes());
-                            out
-                        }),
-                )?;
+                                let mut out = [0u8; 32];
+                                out[0..8].clone_from_slice([x, y].as_bytes());
+                                out[8..16].clone_from_slice([w, h].as_bytes());
+                                out[16..32].clone_from_slice(color.as_bytes());
+                                out
+                            }),
+                    )
+                })?;
             }
 
             Ok(())
