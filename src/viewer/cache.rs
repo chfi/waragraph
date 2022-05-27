@@ -69,14 +69,6 @@ where
     // used_rows: roaring::RoaringBitmap,
 }
 
-// impl<K: std::hash::Hash + Eq + std::fmt::Debug> std::fmt::Debug
-//     for BufferCache<K>
-// {
-//     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-//         Ok(())
-//     }
-// }
-
 impl<K: std::hash::Hash + Eq> BufferCache<K> {
     pub fn new(
         // engine: &mut VkEngine,
@@ -159,18 +151,23 @@ impl<K: std::hash::Hash + Eq> BufferCache<K> {
         new_keys: impl IntoIterator<Item = K>,
     ) -> std::result::Result<(), CacheError>
     where
-        K: Clone,
+        K: Clone + std::fmt::Debug,
     {
         let new_keys = new_keys.into_iter().collect::<HashSet<_>>();
         let old_keys = self.row_map.keys().cloned().collect::<HashSet<_>>();
 
-        let to_remove = new_keys.difference(&old_keys);
+        let to_remove = old_keys.difference(&new_keys);
 
         for key in to_remove {
+            eprintln!("unbinding row {:?}", key);
             self.unbind_row(&key);
         }
 
+        eprintln!("in rebind rows, after unbinds");
+        eprintln!("#{:#?}", self);
+
         for key in new_keys {
+            eprintln!("binding row");
             let _ = self.bind_row(key)?;
         }
 
@@ -363,9 +360,9 @@ mod tests {
         assert!(!cache.is_empty());
         assert!(!cache.is_full());
 
-        let r1 = cache.bind_row(k_as[1].clone())?;
-        let r2 = cache.bind_row(k_as[2].clone())?;
-        let r3 = cache.bind_row(k_as[3].clone())?;
+        let _r1 = cache.bind_row(k_as[1].clone())?;
+        let _r2 = cache.bind_row(k_as[2].clone())?;
+        let _r3 = cache.bind_row(k_as[3].clone())?;
 
         assert!(cache.is_full());
 
@@ -376,6 +373,106 @@ mod tests {
         let r4 = cache.bind_row(k_bs[0].clone())?;
 
         assert_eq!(r0, r4);
+
+        eprintln!("{:#?}", cache);
+
+        Ok(())
+    }
+
+    // basically tests the "list scrolling" support provided by the
+    // rebind_rows() method
+    #[test]
+    fn test_bind_iter() -> anyhow::Result<()> {
+        let elem_size = std::mem::size_of::<u32>();
+        let row_size: usize = 8;
+        let row_capacity = 4;
+        let mut cache: BufferCache<(rhai::ImmutableString, usize)> =
+            BufferCache::new(elem_size, row_size, row_capacity);
+
+        assert!(cache.is_empty());
+
+        let n = 4;
+
+        let mut keys = (0..n)
+            .map(|i| (rhai::ImmutableString::from("A"), i))
+            .collect::<Vec<_>>();
+        keys.extend((0..n).map(|i| (rhai::ImmutableString::from("B"), i)));
+
+        cache.rebind_rows(keys[0..4].iter().cloned())?;
+
+        assert!(cache.is_full());
+
+        let r0 = cache.get_range(&keys[0]).unwrap();
+
+        cache.rebind_rows(keys[1..5].iter().cloned())?;
+
+        let r4 = cache.get_range(&keys[4]).unwrap();
+
+        assert_eq!(r0, r4);
+
+        cache.rebind_rows(keys[1..5].iter().cloned())?;
+        let r4 = cache.get_range(&keys[4]).unwrap();
+
+        assert_eq!(r0, r4);
+
+        cache.rebind_rows(keys[4..8].iter().cloned())?;
+
+        let r4 = cache.get_range(&keys[4]).unwrap();
+
+        assert_eq!(r0, r4);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_buffer_write() -> anyhow::Result<()> {
+        let elem_size = std::mem::size_of::<u32>();
+        let row_size: usize = 8;
+        let row_capacity = 4;
+        let mut cache: BufferCache<(rhai::ImmutableString, usize)> =
+            BufferCache::new(elem_size, row_size, row_capacity);
+
+        let mut buffer: Vec<u8> = vec![0u8; cache.buffer_size()];
+
+        let n = 4;
+
+        let mut keys = (0..n)
+            .map(|i| (rhai::ImmutableString::from("A"), i))
+            .collect::<Vec<_>>();
+        keys.extend((0..n).map(|i| (rhai::ImmutableString::from("B"), i)));
+
+        cache.rebind_rows(keys[0..4].iter().cloned())?;
+
+        let data: Vec<Vec<u32>> = (0..(2 * n as u32))
+            .map(|i| {
+                let v = i | (i << 8) | (i << 16) | (i << 24);
+                vec![v; row_size]
+            })
+            .collect::<Vec<_>>();
+
+        // only keys 0-3 inclusive have been bound so this must fail
+        assert!(cache
+            .write_row(
+                &mut buffer,
+                &keys[4],
+                bytemuck::cast_slice(data[4].as_slice())
+            )
+            .is_err());
+
+        for (key, data) in keys.iter().zip(data.iter()).take(4) {
+            eprintln!("{:?} -> {:?}", key, cache.get_range(key));
+            cache.write_row(&mut buffer, key, bytemuck::cast_slice(data))?;
+        }
+
+        eprintln!("{:#?}", cache);
+        eprintln!("{:x?}", buffer);
+
+        cache.rebind_rows(keys[1..5].iter().cloned())?;
+
+        for (key, data) in keys.iter().zip(data.iter()).skip(1).take(4) {
+            eprintln!("{:?} -> {:?}", key, cache.get_range(key));
+            cache.write_row(&mut buffer, key, bytemuck::cast_slice(data))?;
+        }
 
         eprintln!("{:#?}", cache);
 
