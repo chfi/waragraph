@@ -342,25 +342,11 @@ mod tests {
         let mut cache: BufferCache<(rhai::ImmutableString, usize)> =
             BufferCache::new(elem_size, row_size, row_capacity);
 
-        let mut buffer: Vec<u8> = vec![0u8; cache.buffer_size()];
+        // let mut buffer: Vec<u8> = vec![0u8; cache.buffer_size()];
 
         assert!(cache.is_empty());
 
-        let k0 = (rhai::ImmutableString::from("A"), 0usize);
-        let k1 = (rhai::ImmutableString::from("A"), 1usize);
-        let k2 = (rhai::ImmutableString::from("B"), 0usize);
-        let k3 = (rhai::ImmutableString::from("B"), 1usize);
-
-        let r0 = cache.bind_row(k0)?;
-
-        assert!(cache.used_rows() == 0);
-        assert!(!cache.is_empty());
-        assert!(!cache.is_full());
-
-        eprintln!("{:?}", cache);
-
-        /*
-        let n = 8;
+        let n = 4;
 
         let k_as = (0..n)
             .map(|i| (rhai::ImmutableString::from("A"), i))
@@ -369,20 +355,29 @@ mod tests {
             .map(|i| (rhai::ImmutableString::from("B"), i))
             .collect::<Vec<_>>();
 
-        use rand::prelude::*;
+        let r0 = cache.bind_row(k_as[0].clone())?;
 
-        let mut rng = rand::thread_rng();
+        assert!(cache.used_rows() == 1);
+        assert!(cache.used_rows[0]);
+        assert!(!cache.used_rows[1]);
+        assert!(!cache.is_empty());
+        assert!(!cache.is_full());
 
-        let mut keys = k_as.iter().chain(&k_bs).cloned().collect::<Vec<_>>();
-        */
+        let r1 = cache.bind_row(k_as[1].clone())?;
+        let r2 = cache.bind_row(k_as[2].clone())?;
+        let r3 = cache.bind_row(k_as[3].clone())?;
 
-        // keys.append(&mut k_bs);
-        // let keys = k_as.append(&mut k)
+        assert!(cache.is_full());
 
-        // let ka0 = ("AAA", 0);
-        // let ka1
+        assert!(cache.bind_row(k_bs[0].clone()).is_err());
 
-        //
+        cache.unbind_row(&k_as[0]);
+
+        let r4 = cache.bind_row(k_bs[0].clone())?;
+
+        assert_eq!(r0, r4);
+
+        eprintln!("{:#?}", cache);
 
         Ok(())
     }
