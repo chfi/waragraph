@@ -1,6 +1,6 @@
 use std::{
     borrow::Borrow,
-    collections::{BTreeMap, HashMap},
+    collections::{BTreeMap, HashMap, HashSet},
 };
 
 use ash::vk;
@@ -50,6 +50,7 @@ impl std::fmt::Display for CacheError {
 
 impl std::error::Error for CacheError {}
 
+#[derive(Debug, Clone)]
 pub struct BufferCache<K>
 where
     K: std::hash::Hash + Eq,
@@ -68,6 +69,14 @@ where
     // used_rows: roaring::RoaringBitmap,
 }
 
+// impl<K: std::hash::Hash + Eq + std::fmt::Debug> std::fmt::Debug
+//     for BufferCache<K>
+// {
+//     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+//         Ok(())
+//     }
+// }
+
 impl<K: std::hash::Hash + Eq> BufferCache<K> {
     pub fn new(
         // engine: &mut VkEngine,
@@ -85,6 +94,23 @@ impl<K: std::hash::Hash + Eq> BufferCache<K> {
             used_row_count: 0,
             used_rows: vec![false; row_capacity],
         }
+    }
+
+    pub fn used_rows(&self) -> usize {
+        self.used_row_count
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.used_row_count == 0
+    }
+
+    pub fn is_full(&self) -> bool {
+        self.used_row_count >= self.row_capacity
+    }
+
+    /// Returns the size of the total cache, in bytes
+    pub fn buffer_size(&self) -> usize {
+        self.row_capacity * self.row_size * self.elem_size
     }
 
     pub fn clear(&mut self) {
@@ -126,6 +152,29 @@ impl<K: std::hash::Hash + Eq> BufferCache<K> {
         Q: std::hash::Hash + Eq,
     {
         self.row_map.get(k).map(|i| self.range_for_ix(*i))
+    }
+
+    pub fn rebind_rows(
+        &mut self,
+        new_keys: impl IntoIterator<Item = K>,
+    ) -> std::result::Result<(), CacheError>
+    where
+        K: Clone,
+    {
+        let new_keys = new_keys.into_iter().collect::<HashSet<_>>();
+        let old_keys = self.row_map.keys().cloned().collect::<HashSet<_>>();
+
+        let to_remove = new_keys.difference(&old_keys);
+
+        for key in to_remove {
+            self.unbind_row(&key);
+        }
+
+        for key in new_keys {
+            let _ = self.bind_row(key)?;
+        }
+
+        Ok(())
     }
 
     pub fn bind_row(
@@ -185,12 +234,12 @@ impl<K: std::hash::Hash + Eq> BufferCache<K> {
     {
         let elem_count = data.len() / self.elem_size;
 
-        let total_size = self.elem_size * self.row_size * self.row_capacity;
+        let expected_size = self.buffer_size();
 
-        if buffer.len() != total_size {
+        if buffer.len() != self.buffer_size() {
             return Err(CacheError::BufferSizeMismatch {
                 actual: buffer.len(),
-                expected: total_size,
+                expected: expected_size,
             }
             .into());
         }
@@ -212,6 +261,128 @@ impl<K: std::hash::Hash + Eq> BufferCache<K> {
             .ok_or(anyhow!("Buffer cache error: Unbound key {:?}", row))?;
 
         buffer[range].clone_from_slice(data);
+
+        Ok(())
+    }
+}
+
+/// TODO: only GpuToCpu memory locations currently
+pub struct GpuBufferCache<K>
+where
+    K: std::hash::Hash + Eq,
+{
+    name: String,
+
+    usage: vk::BufferUsageFlags,
+    buffer: BufferIx,
+    desc_set: DescSetIx,
+
+    cache: BufferCache<K>,
+}
+
+impl<K: std::hash::Hash + Eq> GpuBufferCache<K> {
+    pub fn new(
+        engine: &mut VkEngine,
+        usage: vk::BufferUsageFlags,
+        name: &str,
+        elem_size: usize,
+        row_size: usize,
+        row_capacity: usize,
+    ) -> Result<Self> {
+        let cache = BufferCache::new(elem_size, row_size, row_capacity);
+
+        let capacity = cache.buffer_size();
+
+        let (buffer, desc_set) =
+            engine.with_allocators(|ctx, res, alloc| {
+                let mem_loc = gpu_allocator::MemoryLocation::CpuToGpu;
+
+                let buffer = res.allocate_buffer(
+                    ctx,
+                    alloc,
+                    mem_loc,
+                    elem_size,
+                    capacity,
+                    usage,
+                    Some(name),
+                )?;
+
+                let buf_ix = res.insert_buffer(buffer);
+
+                let desc_set =
+                    crate::util::allocate_buffer_desc_set(buf_ix, res)?;
+
+                let set_ix = res.insert_desc_set(desc_set);
+
+                Ok((buf_ix, set_ix))
+            })?;
+
+        Ok(Self {
+            name: name.to_string(),
+
+            usage,
+            buffer,
+            desc_set,
+
+            cache,
+        })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+
+    use super::*;
+
+    #[test]
+    fn test_bind_unbind() -> anyhow::Result<()> {
+        let elem_size = std::mem::size_of::<u32>();
+        let row_size = 32;
+        let row_capacity = 4;
+        let mut cache: BufferCache<(rhai::ImmutableString, usize)> =
+            BufferCache::new(elem_size, row_size, row_capacity);
+
+        let mut buffer: Vec<u8> = vec![0u8; cache.buffer_size()];
+
+        assert!(cache.is_empty());
+
+        let k0 = (rhai::ImmutableString::from("A"), 0usize);
+        let k1 = (rhai::ImmutableString::from("A"), 1usize);
+        let k2 = (rhai::ImmutableString::from("B"), 0usize);
+        let k3 = (rhai::ImmutableString::from("B"), 1usize);
+
+        let r0 = cache.bind_row(k0)?;
+
+        assert!(cache.used_rows() == 0);
+        assert!(!cache.is_empty());
+        assert!(!cache.is_full());
+
+        eprintln!("{:?}", cache);
+
+        /*
+        let n = 8;
+
+        let k_as = (0..n)
+            .map(|i| (rhai::ImmutableString::from("A"), i))
+            .collect::<Vec<_>>();
+        let k_bs = (0..n)
+            .map(|i| (rhai::ImmutableString::from("B"), i))
+            .collect::<Vec<_>>();
+
+        use rand::prelude::*;
+
+        let mut rng = rand::thread_rng();
+
+        let mut keys = k_as.iter().chain(&k_bs).cloned().collect::<Vec<_>>();
+        */
+
+        // keys.append(&mut k_bs);
+        // let keys = k_as.append(&mut k)
+
+        // let ka0 = ("AAA", 0);
+        // let ka1
+
+        //
 
         Ok(())
     }
