@@ -22,6 +22,7 @@ use std::sync::Arc;
 pub mod app;
 pub mod gui;
 
+pub mod cache;
 pub mod sampler;
 pub mod slots;
 

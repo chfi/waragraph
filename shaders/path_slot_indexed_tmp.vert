@@ -2,10 +2,10 @@
 
 layout (location = 0) in vec2 i_position;
 layout (location = 1) in vec2 i_size;
-layout (location = 2) in uint i_buffer_len;
+layout (location = 2) in uvec2 i_offset_len;
 
 layout (location = 0) out vec2 o_uv;
-layout (location = 1) out uint o_buffer_len;
+layout (location = 1) out uvec2 o_offset_len;
 
 
 layout (push_constant) uniform Input {
@@ -32,5 +32,5 @@ void main() {
       o_uv = vec2(1.0, 1.0);
   }
 
-  o_buffer_len = i_buffer_len;
+  o_offset_len = i_offset_len;
 }
