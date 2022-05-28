@@ -23,20 +23,20 @@ use std::sync::Arc;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CacheError {
-    OutOfRows,
+    OutOfBlocks,
     ElemSizeMismatch,
-    RowSizeMismatch { actual: usize, expected: usize },
+    BlockSizeMismatch { actual: usize, expected: usize },
     BufferSizeMismatch { actual: usize, expected: usize },
 }
 
 impl std::fmt::Display for CacheError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            CacheError::OutOfRows => {
-                write!(f, "Buffer cache allocation error: Out of rows, need reallocation")
+            CacheError::OutOfBlocks => {
+                write!(f, "Buffer cache allocation error: Out of blocks, need reallocation")
             }
-            CacheError::RowSizeMismatch { actual, expected } => {
-                write!(f, "Buffer cache update error: Data consisted of {} elements, but row expected {}", actual, expected)
+            CacheError::BlockSizeMismatch { actual, expected } => {
+                write!(f, "Buffer cache update error: Data consisted of {} elements, but block expected {}", actual, expected)
             }
             CacheError::ElemSizeMismatch => {
                 write!(f, "Buffer cache update error: Data bytestring not evenly divisible with element size")
@@ -58,14 +58,14 @@ where
     // usage: vk::BufferUsageFlags,
     // buffer: BufferIx,
     // desc_set: DescSetIx,
-    row_map: HashMap<K, usize>,
+    block_map: HashMap<K, usize>,
 
     elem_size: usize,
-    row_size: usize,
+    block_size: usize,
 
-    row_capacity: usize,
-    used_row_count: usize,
-    used_rows: Vec<bool>,
+    block_capacity: usize,
+    used_block_count: usize,
+    used_blocks: Vec<bool>,
     // used_rows: roaring::RoaringBitmap,
 }
 
@@ -73,58 +73,58 @@ impl<K: std::hash::Hash + Eq> BufferCache<K> {
     pub fn new(
         // engine: &mut VkEngine,
         elem_size: usize,
-        row_size: usize,
-        row_capacity: usize,
+        block_size: usize,
+        block_capacity: usize,
     ) -> Self {
         Self {
-            row_map: HashMap::default(),
+            block_map: HashMap::default(),
 
             elem_size,
-            row_size,
+            block_size,
 
-            row_capacity,
-            used_row_count: 0,
-            used_rows: vec![false; row_capacity],
+            block_capacity,
+            used_block_count: 0,
+            used_blocks: vec![false; block_capacity],
         }
     }
 
-    pub fn used_rows(&self) -> usize {
-        self.used_row_count
+    pub fn used_blocks(&self) -> usize {
+        self.used_block_count
     }
 
     pub fn is_empty(&self) -> bool {
-        self.used_row_count == 0
+        self.used_block_count == 0
     }
 
     pub fn is_full(&self) -> bool {
-        self.used_row_count >= self.row_capacity
+        self.used_block_count >= self.block_capacity
     }
 
     /// Returns the size of the total cache, in bytes
     pub fn buffer_size(&self) -> usize {
-        self.row_capacity * self.row_size * self.elem_size
+        self.block_capacity * self.block_size * self.elem_size
     }
 
     pub fn clear(&mut self) {
-        self.row_map.clear();
-        self.used_rows.iter_mut().for_each(|v| *v = false);
-        self.used_row_count = 0;
+        self.block_map.clear();
+        self.used_blocks.iter_mut().for_each(|v| *v = false);
+        self.used_block_count = 0;
     }
 
-    pub fn reallocate(&mut self, new_row_count: usize, new_width: usize) {
+    pub fn reallocate(&mut self, new_block_count: usize, new_width: usize) {
         self.clear();
-        self.used_rows.resize(new_row_count, false);
-        self.row_size = new_width;
+        self.used_blocks.resize(new_block_count, false);
+        self.block_size = new_width;
     }
 
-    pub fn reallocate_rows(&mut self, row_count: usize) {
+    pub fn reallocate_blocks(&mut self, block_count: usize) {
         self.clear();
-        self.used_rows.resize(row_count, false);
+        self.used_blocks.resize(block_count, false);
     }
 
-    pub fn resize_rows(&mut self, new_width: usize) {
+    pub fn resize_blocks(&mut self, new_width: usize) {
         self.clear();
-        self.row_size = new_width;
+        self.block_size = new_width;
     }
 
     pub fn is_bound<Q: ?Sized>(&self, k: &Q) -> bool
@@ -132,14 +132,14 @@ impl<K: std::hash::Hash + Eq> BufferCache<K> {
         K: Borrow<Q>,
         Q: std::hash::Hash + Eq,
     {
-        self.row_map.contains_key(k)
+        self.block_map.contains_key(k)
     }
 
     fn range_for_ix(&self, ix: usize) -> std::ops::Range<usize> {
-        let row_size_b = self.elem_size * self.row_size;
+        let block_size_b = self.elem_size * self.block_size;
 
-        let start = ix * row_size_b;
-        let end = start + row_size_b;
+        let start = ix * block_size_b;
+        let end = start + block_size_b;
 
         start..end
     }
@@ -149,10 +149,10 @@ impl<K: std::hash::Hash + Eq> BufferCache<K> {
         K: Borrow<Q>,
         Q: std::hash::Hash + Eq,
     {
-        self.row_map.get(k).map(|i| self.range_for_ix(*i))
+        self.block_map.get(k).map(|i| self.range_for_ix(*i))
     }
 
-    pub fn rebind_rows(
+    pub fn rebind_blocks(
         &mut self,
         new_keys: impl IntoIterator<Item = K>,
     ) -> std::result::Result<(), CacheError>
@@ -160,27 +160,27 @@ impl<K: std::hash::Hash + Eq> BufferCache<K> {
         K: Clone + std::fmt::Debug,
     {
         let new_keys = new_keys.into_iter().collect::<HashSet<_>>();
-        let old_keys = self.row_map.keys().cloned().collect::<HashSet<_>>();
+        let old_keys = self.block_map.keys().cloned().collect::<HashSet<_>>();
 
         let to_remove = old_keys.difference(&new_keys);
 
         for key in to_remove {
-            eprintln!("unbinding row {:?}", key);
-            self.unbind_row(&key);
+            eprintln!("unbinding block {:?}", key);
+            self.unbind_block(&key);
         }
 
-        eprintln!("in rebind rows, after unbinds");
+        eprintln!("in rebind blocks, after unbinds");
         eprintln!("#{:#?}", self);
 
         for key in new_keys {
-            eprintln!("binding row");
-            let _ = self.bind_row(key)?;
+            eprintln!("binding block");
+            let _ = self.bind_block(key)?;
         }
 
         Ok(())
     }
 
-    pub fn bind_row(
+    pub fn bind_block(
         &mut self,
         k: K,
     ) -> std::result::Result<std::ops::Range<usize>, CacheError> {
@@ -188,33 +188,33 @@ impl<K: std::hash::Hash + Eq> BufferCache<K> {
             return Ok(range);
         }
 
-        let (row_ix, _) = self
-            .used_rows
+        let (block_ix, _) = self
+            .used_blocks
             .iter()
             .enumerate()
             .find(|(_, &v)| !v)
-            .ok_or(CacheError::OutOfRows)?;
+            .ok_or(CacheError::OutOfBlocks)?;
 
-        self.used_rows[row_ix] = true;
+        self.used_blocks[block_ix] = true;
 
-        self.row_map.insert(k, row_ix);
-        self.used_row_count += 1;
+        self.block_map.insert(k, block_ix);
+        self.used_block_count += 1;
 
-        Ok(self.range_for_ix(row_ix))
+        Ok(self.range_for_ix(block_ix))
     }
 
-    pub fn unbind_row<Q: ?Sized>(&mut self, k: &Q) -> Option<()>
+    pub fn unbind_block<Q: ?Sized>(&mut self, k: &Q) -> Option<()>
     where
         K: Borrow<Q>,
         Q: std::hash::Hash + Eq,
     {
-        let row_ix = self.row_map.remove(k)?;
+        let block_ix = self.block_map.remove(k)?;
         debug_assert!(
-            self.used_rows[row_ix],
-            "Buffer cache: Row map entry existed but row was not in use"
+            self.used_blocks[block_ix],
+            "Buffer cache: Block map entry existed but block was not in use"
         );
-        self.used_rows[row_ix] = false;
-        self.used_row_count -= 1;
+        self.used_blocks[block_ix] = false;
+        self.used_block_count -= 1;
         Some(())
     }
 
@@ -222,12 +222,12 @@ impl<K: std::hash::Hash + Eq> BufferCache<K> {
 
     // fn pick_row<Q: ?Sized>(
 
-    pub fn write_row<Q: ?Sized>(
+    pub fn write_block<Q: ?Sized>(
         &mut self,
         buffer: &mut [u8],
         // buffer: &mut BufferRes,
         // res: &mut GpuResources,
-        row: &Q,
+        block: &Q,
         data: &[u8],
         // ) -> std::result::Result<(), CacheError>
     ) -> Result<()>
@@ -251,17 +251,17 @@ impl<K: std::hash::Hash + Eq> BufferCache<K> {
             return Err(CacheError::ElemSizeMismatch.into());
         }
 
-        if elem_count != self.row_size {
-            return Err(CacheError::RowSizeMismatch {
+        if elem_count != self.block_size {
+            return Err(CacheError::BlockSizeMismatch {
                 actual: elem_count,
-                expected: self.row_size,
+                expected: self.block_size,
             }
             .into());
         }
 
         let range = self
-            .get_range(row)
-            .ok_or(anyhow!("Buffer cache error: Unbound key {:?}", row))?;
+            .get_range(block)
+            .ok_or(anyhow!("Buffer cache error: Unbound key {:?}", block))?;
 
         buffer[range].clone_from_slice(data);
 
@@ -289,10 +289,10 @@ impl<K: std::hash::Hash + Eq> GpuBufferCache<K> {
         usage: vk::BufferUsageFlags,
         name: &str,
         elem_size: usize,
-        row_size: usize,
-        row_capacity: usize,
+        block_size: usize,
+        block_capacity: usize,
     ) -> Result<Self> {
-        let cache = BufferCache::new(elem_size, row_size, row_capacity);
+        let cache = BufferCache::new(elem_size, block_size, block_capacity);
 
         let capacity = cache.buffer_size();
 
@@ -343,23 +343,34 @@ impl<K: std::hash::Hash + Eq> GpuBufferCache<K> {
         self.desc_set
     }
 
-    pub fn bind_rows(
+    pub fn bind_blocks(
         &mut self,
         new_keys: impl IntoIterator<Item = K>,
     ) -> std::result::Result<(), CacheError>
     where
         K: Clone + std::fmt::Debug,
     {
-        self.cache.rebind_rows(new_keys)
+        self.cache.rebind_blocks(new_keys)
+    }
+
+    /// keys that haven't been bound are ignored
+    pub fn block_ranges<'a>(
+        &'a self,
+        keys: impl IntoIterator<Item = K> + 'a,
+    ) -> impl Iterator<Item = (K, std::ops::Range<usize>)> + 'a {
+        keys.into_iter().filter_map(|k| {
+            let range = self.cache.get_range(&k)?;
+            Some((k, range))
+        })
     }
 
     pub fn reallocate(
         &mut self,
         engine: &mut VkEngine,
-        new_row_count: usize,
-        new_row_width: usize,
+        new_block_count: usize,
+        new_block_size: usize,
     ) -> anyhow::Result<()> {
-        self.cache.reallocate(new_row_count, new_row_width);
+        self.cache.reallocate(new_block_count, new_block_size);
         let capacity = self.cache.buffer_size();
 
         engine.with_allocators(|ctx, res, alloc| {
@@ -398,10 +409,10 @@ mod tests {
     #[test]
     fn test_bind_unbind() -> anyhow::Result<()> {
         let elem_size = std::mem::size_of::<u32>();
-        let row_size = 32;
-        let row_capacity = 4;
+        let block_size = 32;
+        let block_capacity = 4;
         let mut cache: BufferCache<(rhai::ImmutableString, usize)> =
-            BufferCache::new(elem_size, row_size, row_capacity);
+            BufferCache::new(elem_size, block_size, block_capacity);
 
         // let mut buffer: Vec<u8> = vec![0u8; cache.buffer_size()];
 
@@ -416,25 +427,25 @@ mod tests {
             .map(|i| (rhai::ImmutableString::from("B"), i))
             .collect::<Vec<_>>();
 
-        let r0 = cache.bind_row(k_as[0].clone())?;
+        let r0 = cache.bind_block(k_as[0].clone())?;
 
-        assert!(cache.used_rows() == 1);
-        assert!(cache.used_rows[0]);
-        assert!(!cache.used_rows[1]);
+        assert!(cache.used_blocks() == 1);
+        assert!(cache.used_blocks[0]);
+        assert!(!cache.used_blocks[1]);
         assert!(!cache.is_empty());
         assert!(!cache.is_full());
 
-        let _r1 = cache.bind_row(k_as[1].clone())?;
-        let _r2 = cache.bind_row(k_as[2].clone())?;
-        let _r3 = cache.bind_row(k_as[3].clone())?;
+        let _r1 = cache.bind_block(k_as[1].clone())?;
+        let _r2 = cache.bind_block(k_as[2].clone())?;
+        let _r3 = cache.bind_block(k_as[3].clone())?;
 
         assert!(cache.is_full());
 
-        assert!(cache.bind_row(k_bs[0].clone()).is_err());
+        assert!(cache.bind_block(k_bs[0].clone()).is_err());
 
-        cache.unbind_row(&k_as[0]);
+        cache.unbind_block(&k_as[0]);
 
-        let r4 = cache.bind_row(k_bs[0].clone())?;
+        let r4 = cache.bind_block(k_bs[0].clone())?;
 
         assert_eq!(r0, r4);
 
@@ -444,14 +455,14 @@ mod tests {
     }
 
     // basically tests the "list scrolling" support provided by the
-    // rebind_rows() method
+    // rebind_blocks() method
     #[test]
     fn test_bind_iter() -> anyhow::Result<()> {
         let elem_size = std::mem::size_of::<u32>();
-        let row_size: usize = 8;
-        let row_capacity = 4;
+        let block_size: usize = 8;
+        let block_capacity = 4;
         let mut cache: BufferCache<(rhai::ImmutableString, usize)> =
-            BufferCache::new(elem_size, row_size, row_capacity);
+            BufferCache::new(elem_size, block_size, block_capacity);
 
         assert!(cache.is_empty());
 
@@ -462,24 +473,24 @@ mod tests {
             .collect::<Vec<_>>();
         keys.extend((0..n).map(|i| (rhai::ImmutableString::from("B"), i)));
 
-        cache.rebind_rows(keys[0..4].iter().cloned())?;
+        cache.rebind_blocks(keys[0..4].iter().cloned())?;
 
         assert!(cache.is_full());
 
         let r0 = cache.get_range(&keys[0]).unwrap();
 
-        cache.rebind_rows(keys[1..5].iter().cloned())?;
+        cache.rebind_blocks(keys[1..5].iter().cloned())?;
 
         let r4 = cache.get_range(&keys[4]).unwrap();
 
         assert_eq!(r0, r4);
 
-        cache.rebind_rows(keys[1..5].iter().cloned())?;
+        cache.rebind_blocks(keys[1..5].iter().cloned())?;
         let r4 = cache.get_range(&keys[4]).unwrap();
 
         assert_eq!(r0, r4);
 
-        cache.rebind_rows(keys[4..8].iter().cloned())?;
+        cache.rebind_blocks(keys[4..8].iter().cloned())?;
 
         let r4 = cache.get_range(&keys[4]).unwrap();
 
@@ -491,10 +502,10 @@ mod tests {
     #[test]
     fn test_buffer_write() -> anyhow::Result<()> {
         let elem_size = std::mem::size_of::<u32>();
-        let row_size: usize = 8;
-        let row_capacity = 4;
+        let block_size: usize = 8;
+        let block_capacity = 4;
         let mut cache: BufferCache<(rhai::ImmutableString, usize)> =
-            BufferCache::new(elem_size, row_size, row_capacity);
+            BufferCache::new(elem_size, block_size, block_capacity);
 
         let mut buffer: Vec<u8> = vec![0u8; cache.buffer_size()];
 
@@ -505,18 +516,18 @@ mod tests {
             .collect::<Vec<_>>();
         keys.extend((0..n).map(|i| (rhai::ImmutableString::from("B"), i)));
 
-        cache.rebind_rows(keys[0..4].iter().cloned())?;
+        cache.rebind_blocks(keys[0..4].iter().cloned())?;
 
         let data: Vec<Vec<u32>> = (0..(2 * n as u32))
             .map(|i| {
                 let v = i | (i << 8) | (i << 16) | (i << 24);
-                vec![v; row_size]
+                vec![v; block_size]
             })
             .collect::<Vec<_>>();
 
         // only keys 0-3 inclusive have been bound so this must fail
         assert!(cache
-            .write_row(
+            .write_block(
                 &mut buffer,
                 &keys[4],
                 bytemuck::cast_slice(data[4].as_slice())
@@ -525,17 +536,17 @@ mod tests {
 
         for (key, data) in keys.iter().zip(data.iter()).take(4) {
             eprintln!("{:?} -> {:?}", key, cache.get_range(key));
-            cache.write_row(&mut buffer, key, bytemuck::cast_slice(data))?;
+            cache.write_block(&mut buffer, key, bytemuck::cast_slice(data))?;
         }
 
         eprintln!("{:#?}", cache);
         eprintln!("{:x?}", buffer);
 
-        cache.rebind_rows(keys[1..5].iter().cloned())?;
+        cache.rebind_blocks(keys[1..5].iter().cloned())?;
 
         for (key, data) in keys.iter().zip(data.iter()).skip(1).take(4) {
             eprintln!("{:?} -> {:?}", key, cache.get_range(key));
-            cache.write_row(&mut buffer, key, bytemuck::cast_slice(data))?;
+            cache.write_block(&mut buffer, key, bytemuck::cast_slice(data))?;
         }
 
         eprintln!("{:#?}", cache);
