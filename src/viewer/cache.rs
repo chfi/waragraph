@@ -111,6 +111,12 @@ impl<K: std::hash::Hash + Eq> BufferCache<K> {
         self.used_row_count = 0;
     }
 
+    pub fn reallocate(&mut self, new_row_count: usize, new_width: usize) {
+        self.clear();
+        self.used_rows.resize(new_row_count, false);
+        self.row_size = new_width;
+    }
+
     pub fn reallocate_rows(&mut self, row_count: usize) {
         self.clear();
         self.used_rows.resize(row_count, false);
@@ -272,7 +278,7 @@ where
 
     usage: vk::BufferUsageFlags,
     buffer: BufferIx,
-    desc_set: DescSetIx,
+    pub desc_set: DescSetIx,
 
     cache: BufferCache<K>,
 }
@@ -323,6 +329,64 @@ impl<K: std::hash::Hash + Eq> GpuBufferCache<K> {
 
             cache,
         })
+    }
+
+    pub fn cache(&self) -> &BufferCache<K> {
+        &self.cache
+    }
+
+    pub fn buffer(&self) -> BufferIx {
+        self.buffer
+    }
+
+    pub fn desc_set(&self) -> DescSetIx {
+        self.desc_set
+    }
+
+    pub fn bind_rows(
+        &mut self,
+        new_keys: impl IntoIterator<Item = K>,
+    ) -> std::result::Result<(), CacheError>
+    where
+        K: Clone + std::fmt::Debug,
+    {
+        self.cache.rebind_rows(new_keys)
+    }
+
+    pub fn reallocate(
+        &mut self,
+        engine: &mut VkEngine,
+        new_row_count: usize,
+        new_row_width: usize,
+    ) -> anyhow::Result<()> {
+        self.cache.reallocate(new_row_count, new_row_width);
+        let capacity = self.cache.buffer_size();
+
+        engine.with_allocators(|ctx, res, alloc| {
+            let mem_loc = gpu_allocator::MemoryLocation::CpuToGpu;
+
+            let buffer = res.allocate_buffer(
+                ctx,
+                alloc,
+                mem_loc,
+                self.cache.elem_size,
+                capacity,
+                self.usage,
+                Some(&self.name),
+            )?;
+
+            res.insert_buffer_at(self.buffer, buffer)
+                .into_iter()
+                .try_for_each(|buf| res.free_buffer(ctx, alloc, buf))?;
+
+            let desc_set =
+                crate::util::allocate_buffer_desc_set(self.buffer, res)?;
+            let _ = res.insert_desc_set_at(self.desc_set, desc_set);
+
+            Ok(())
+        })?;
+
+        Ok(())
     }
 }
 
