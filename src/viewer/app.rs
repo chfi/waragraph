@@ -33,6 +33,7 @@ use anyhow::{anyhow, bail, Result};
 
 use zerocopy::{AsBytes, FromBytes};
 
+use super::cache::{GpuBufferCache, UpdateReqMsg};
 use super::{PathViewer, SlotFnCache, SlotUpdateFn};
 use raving::compositor::Compositor;
 
@@ -1292,4 +1293,147 @@ pub fn create_gradient_buffer(
     )?;
 
     Ok(())
+}
+
+pub type SlotFnName = rhai::ImmutableString;
+
+#[derive(Clone)]
+pub struct ListView<T> {
+    values: Vec<T>,
+    offset: usize,
+    len: usize,
+    max: usize,
+}
+
+impl<T> ListView<T> {
+    pub fn new(values: impl IntoIterator<Item = T>) -> Self {
+        let values: Vec<_> = values.into_iter().collect();
+        let max = values.len();
+        let offset = 0;
+        let len = 1.min(max);
+        Self {
+            values,
+            max,
+            offset,
+            len,
+        }
+    }
+
+    pub fn len(&self) -> usize {
+        self.len
+    }
+
+    pub fn visible_rows<'a>(&'a self) -> impl Iterator<Item = &'a T> + 'a {
+        debug_assert!(self.offset + self.len <= self.max);
+        debug_assert!(self.max == self.values.len());
+
+        let s = self.offset;
+        let e = s + self.len;
+        self.values[s..e].iter()
+    }
+
+    pub fn set_offset(&mut self, mut offset: usize) {
+        if offset + self.len > self.max {
+            offset -= (offset + self.len) - self.max;
+        }
+
+        self.offset = offset;
+        debug_assert!(self.offset + self.len <= self.max);
+    }
+
+    pub fn scroll(&mut self, delta: isize) {
+        let mut offset = self.offset as isize;
+
+        let max_offset = (self.max - self.len) as isize;
+        offset = (offset + delta).clamp(0, max_offset);
+
+        self.offset = offset as usize;
+        debug_assert!(self.offset + self.len <= self.max);
+    }
+
+    pub fn resize(&mut self, new_len: usize) {
+        self.len = new_len.min(self.max);
+        // set_offset takes care of moving the offset back for the new
+        // length if needed
+        self.set_offset(self.offset);
+    }
+}
+
+pub struct PathViewerNew {
+    cache: GpuBufferCache<(Path, SlotFnName)>,
+
+    slot_list: ListView<(Path, SlotFnName)>,
+
+    current_view: ViewDiscrete1D,
+    current_width: usize,
+
+    need_refresh: Arc<AtomicCell<bool>>,
+}
+
+impl PathViewerNew {
+    pub fn need_refresh(&self) -> bool {
+        self.need_refresh.load()
+    }
+
+    pub fn force_refresh(&self) {
+        self.need_refresh.store(true);
+    }
+
+    pub fn need_reallocation(&self) -> bool {
+        let needed_len = self.slot_list.len();
+        let available = self.cache.cache().block_capacity();
+
+        let block_size = self.cache.cache().block_size();
+
+        (needed_len > available) || (block_size != self.current_width)
+    }
+
+    pub fn queue_slot_updates(
+        &self,
+        slot_fns: &SlotFnCache,
+        samples: Arc<Vec<(Node, usize)>>,
+        graph: &Arc<Waragraph>,
+    ) -> Result<()> {
+        /*
+        let update_key = self
+            .config
+            .map
+            .read()
+            .get("viz.slot_function")
+            .and_then(|v| v.clone().into_immutable_string().ok())
+            .unwrap_or_else(|| "unknown".into());
+
+        */
+
+        for (path, slot_fn_name) in self.slot_list.visible_rows() {
+            let path = *path;
+
+            let slot_fn = slot_fns
+                .slot_fn_u32
+                .get(slot_fn_name)
+                .ok_or(anyhow!("slot renderer `{}` not found", slot_fn_name))?;
+
+            let key = (path, slot_fn_name.clone());
+
+            let samples = samples.clone();
+            let slot_fn = slot_fn.clone();
+            let width = self.cache.cache().block_size();
+
+            let msg = UpdateReqMsg::new(key, move |key| {
+                let mut buf: Vec<u8> = Vec::with_capacity(samples.len());
+                buf.extend(
+                    (0..width).map(|i| slot_fn(&samples, path, i)).flat_map(
+                        |val| {
+                            let bytes: [u8; 4] = bytemuck::cast(val);
+                            bytes
+                        },
+                    ),
+                );
+
+                Ok(buf)
+            });
+        }
+
+        Ok(())
+    }
 }

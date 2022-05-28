@@ -88,6 +88,14 @@ impl<K: std::hash::Hash + Eq> BufferCache<K> {
         }
     }
 
+    pub fn block_capacity(&self) -> usize {
+        self.block_capacity
+    }
+
+    pub fn block_size(&self) -> usize {
+        self.block_size
+    }
+
     pub fn used_blocks(&self) -> usize {
         self.used_block_count
     }
@@ -155,7 +163,7 @@ impl<K: std::hash::Hash + Eq> BufferCache<K> {
     pub fn rebind_blocks(
         &mut self,
         new_keys: impl IntoIterator<Item = K>,
-    ) -> std::result::Result<(), CacheError>
+    ) -> std::result::Result<Vec<K>, CacheError>
     where
         K: Clone + std::fmt::Debug,
     {
@@ -172,20 +180,26 @@ impl<K: std::hash::Hash + Eq> BufferCache<K> {
         eprintln!("in rebind blocks, after unbinds");
         eprintln!("#{:#?}", self);
 
+        let mut newly_inserted = Vec::new();
         for key in new_keys {
             eprintln!("binding block");
-            let _ = self.bind_block(key)?;
+            if self.bind_block(key)? {
+                newly_inserted.push(key);
+            }
         }
 
-        Ok(())
+        Ok(newly_inserted)
     }
 
+    /// returns `Ok(false)` if the key was already bound, `Ok(true)`
+    /// if the key was freshly bound (and thus the backing buffer
+    /// needs to be updated)
     pub fn bind_block(
         &mut self,
         k: K,
-    ) -> std::result::Result<std::ops::Range<usize>, CacheError> {
+    ) -> std::result::Result<bool, CacheError> {
         if let Some(range) = self.get_range(&k) {
-            return Ok(range);
+            return Ok(false);
         }
 
         let (block_ix, _) = self
@@ -200,7 +214,7 @@ impl<K: std::hash::Hash + Eq> BufferCache<K> {
         self.block_map.insert(k, block_ix);
         self.used_block_count += 1;
 
-        Ok(self.range_for_ix(block_ix))
+        Ok(true)
     }
 
     pub fn unbind_block<Q: ?Sized>(&mut self, k: &Q) -> Option<()>
@@ -269,10 +283,52 @@ impl<K: std::hash::Hash + Eq> BufferCache<K> {
     }
 }
 
+// pub struct UpdateReqMsg<K, T>
+pub struct UpdateReqMsg<K>
+where
+    K: std::hash::Hash + Eq + Send + Sync + 'static,
+    // T: std::hash::Hash + Eq + Send + Sync + 'static,
+    // T: Eq + Send + Sync + 'static,
+{
+    key: K,
+    // payload: T,
+    create_payload: Box<
+        dyn FnOnce(K) -> anyhow::Result<DataMsg<K>> + Send + Sync + 'static,
+    >,
+}
+
+impl<K> UpdateReqMsg<K>
+where
+    K: std::hash::Hash + Eq + Send + Sync + 'static,
+{
+    pub fn new<F>(key: K, f: F) -> Self
+    where
+        F: FnOnce(&K) -> anyhow::Result<Vec<u8>> + Send + Sync + 'static,
+    {
+        let create_payload = Box::new(|key| {
+            let data = f(&key)?;
+            Ok(DataMsg { key, data })
+        });
+
+        Self {
+            key,
+            create_payload,
+        }
+    }
+}
+
+pub struct DataMsg<K>
+where
+    K: std::hash::Hash + Eq + Send + Sync + 'static,
+{
+    key: K,
+    data: Vec<u8>,
+}
+
 /// TODO: only GpuToCpu memory locations currently
 pub struct GpuBufferCache<K>
 where
-    K: std::hash::Hash + Eq,
+    K: std::hash::Hash + Eq + Send + Sync + 'static,
 {
     name: String,
 
@@ -281,9 +337,18 @@ where
     pub desc_set: DescSetIx,
 
     cache: BufferCache<K>,
+
+    update_request_tx: crossbeam::channel::Sender<UpdateReqMsg<K>>,
+    update_request_rx: crossbeam::channel::Receiver<UpdateReqMsg<K>>,
+
+    pub data_msg_tx: crossbeam::channel::Sender<DataMsg<K>>,
+    data_msg_rx: crossbeam::channel::Receiver<DataMsg<K>>,
 }
 
-impl<K: std::hash::Hash + Eq> GpuBufferCache<K> {
+impl<K> GpuBufferCache<K>
+where
+    K: std::hash::Hash + Eq + Send + Sync + 'static,
+{
     pub fn new(
         engine: &mut VkEngine,
         usage: vk::BufferUsageFlags,
@@ -320,6 +385,11 @@ impl<K: std::hash::Hash + Eq> GpuBufferCache<K> {
                 Ok((buf_ix, set_ix))
             })?;
 
+        let (update_request_tx, update_request_rx) =
+            crossbeam::channel::unbounded();
+
+        let (data_msg_tx, data_msg_rx) = crossbeam::channel::unbounded();
+
         Ok(Self {
             name: name.to_string(),
 
@@ -328,7 +398,38 @@ impl<K: std::hash::Hash + Eq> GpuBufferCache<K> {
             desc_set,
 
             cache,
+
+            data_msg_tx,
+            data_msg_rx,
+
+            update_request_tx,
+            update_request_rx,
         })
+    }
+
+    pub fn apply_data_updates(
+        &mut self,
+        res: &mut GpuResources,
+    ) -> anyhow::Result<()>
+    where
+        K: std::fmt::Debug,
+    {
+        let buffer = &mut res[self.buffer];
+
+        let slice = buffer
+            .mapped_slice_mut()
+            .expect("GPU cache buffer must be host-accessible");
+
+        while let Ok(msg) = self.data_msg_rx.try_recv() {
+            let range = self
+                .cache
+                .get_range(&msg.key)
+                .ok_or(anyhow!("GPU cache error: unbound key {:?}", msg.key))?;
+
+            slice[range].clone_from_slice(&msg.data);
+        }
+
+        Ok(())
     }
 
     pub fn cache(&self) -> &BufferCache<K> {
