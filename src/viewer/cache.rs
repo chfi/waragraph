@@ -174,16 +174,11 @@ impl<K: std::hash::Hash + Eq> BufferCache<K> {
         let to_remove = old_keys.difference(&new_keys);
 
         for key in to_remove {
-            eprintln!("unbinding block {:?}", key);
             self.unbind_block(&key);
         }
 
-        eprintln!("in rebind blocks, after unbinds");
-        eprintln!("#{:#?}", self);
-
         let mut newly_inserted = Vec::new();
         for key in new_keys {
-            eprintln!("binding block");
             if self.bind_block(key.clone())? {
                 newly_inserted.push(key);
             }

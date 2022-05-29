@@ -264,7 +264,7 @@ pub struct PathViewer {
 
     pub slots: Arc<RwLock<SlotCache>>,
 
-    sample_buf: Vec<(Node, usize)>,
+    pub sample_buf: Vec<(Node, usize)>,
 
     new_samples: AtomicCell<bool>,
 }

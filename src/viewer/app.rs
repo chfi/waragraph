@@ -1323,7 +1323,8 @@ impl<T> ListView<T> {
         let values: Vec<_> = values.into_iter().collect();
         let max = values.len();
         let offset = 0;
-        let len = 1.min(max);
+        // let len = 1.min(max);
+        let len = 16.min(max);
         Self {
             values,
             max,
@@ -1390,7 +1391,7 @@ impl std::default::Default for SlotState {
 }
 
 pub struct PathViewerNew {
-    cache: GpuBufferCache<(Path, SlotFnName)>,
+    pub cache: GpuBufferCache<(Path, SlotFnName)>,
 
     slot_list: ListView<(Path, SlotFnName)>,
 
@@ -1399,7 +1400,7 @@ pub struct PathViewerNew {
     current_view: ViewDiscrete1D,
     current_width: usize,
 
-    need_refresh: Arc<AtomicCell<bool>>,
+    pub need_refresh: Arc<AtomicCell<bool>>,
 }
 
 impl PathViewerNew {
@@ -1472,10 +1473,12 @@ impl PathViewerNew {
         engine: &mut VkEngine,
         slot_fns: &SlotFnCache,
         samples: Arc<Vec<(Node, usize)>>,
-        // update_tx: &crossbeam::channel::Sender<
-        //     UpdateReqMsg<(Path, SlotFnName)>,
-        // >,
+        buffer_width: usize,
+        view: ViewDiscrete1D,
     ) -> Result<()> {
+        self.current_width = buffer_width;
+        self.current_view = view;
+
         // reallocate and invalidate cache if cache block size doesn't
         // match the width, or if the current slot list view size is
         // greater than the cache block capacity
@@ -1593,6 +1596,7 @@ impl PathViewerNew {
     // update the sublayer's vertex data (must be a slot sublayer)
     // with the currently visible slots
     // slots that are in the process of being updated are skipped
+    //
     pub fn update_slot_sublayer(
         &self,
         sublayer: &mut Sublayer,
@@ -1643,7 +1647,7 @@ impl PathViewerNew {
             )
         };
 
-        let mut vertices: Vec<[u8; 20]> = Vec::new();
+        let mut vertices: Vec<[u8; 24]> = Vec::new();
 
         for (ix, key) in self.slot_list.visible_rows().enumerate() {
             // if the state cell somehow doesn't exist, or shows that
@@ -1661,7 +1665,7 @@ impl PathViewerNew {
 
             let range = self.cache.cache().get_range(key).unwrap();
 
-            let mut vx = [0u8; 20];
+            let mut vx = [0u8; 24];
 
             let x = x0;
             let y = y0 + ix as f32 * yd;
@@ -1676,6 +1680,7 @@ impl PathViewerNew {
         }
 
         sublayer.draw_data_mut().try_for_each(|data| {
+            // TODO update desc sets with buffer and color
             data.update_vertices_array(vertices.iter().copied())
         })?;
 

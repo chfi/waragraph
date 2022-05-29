@@ -362,6 +362,19 @@ bed::load_bed_file(bed_path, bed_name, column_map)
 
     let _update_threads = (0..4)
         .map(|_| {
+            let exec = viewer.new_viewer.cache.data_msg_worker();
+
+            std::thread::spawn(move || loop {
+                if let Err(e) = exec() {
+                    log::error!("Cache data worker error: {:?}", e);
+                }
+            })
+        })
+        .collect::<Vec<_>>();
+
+    /*
+    let _update_threads = (0..4)
+        .map(|_| {
             let input = update_rx.clone();
             let out = slot_tx.clone();
 
@@ -393,6 +406,7 @@ bed::load_bed_file(bed_path, bed_name, column_map)
             })
         })
         .collect::<Vec<_>>();
+    */
 
     let mut prev_frame = std::time::Instant::now();
 
@@ -597,18 +611,6 @@ bed::load_bed_file(bed_path, bed_name, column_map)
                 let mut should_update = false;
                 // viewer.new_viewer.
 
-                {
-                    let slot_fns = viewer.slot_functions.read();
-                    let samples =
-                        Arc::new(viewer.path_viewer.sample_buf.clone());
-                    viewer.new_viewer.update(
-                        &mut engine,
-                        slot_fns,
-                        samples,
-                        update_tx,
-                    )
-                }
-
                 // path-viewer specific, dependent on previous view
                 if viewer.path_viewer.should_update() {
                     let [slot_offset, slot_width] =
@@ -626,9 +628,6 @@ bed::load_bed_file(bed_path, bed_name, column_map)
 
                     let view = viewer.view.load();
                     let range = view.range();
-                    let start = range.start.to_string();
-                    let end = range.end.to_string();
-                    let len = view.len().to_string();
 
                     viewer.path_viewer.sample(&graph, &view);
                 }
@@ -638,6 +637,24 @@ bed::load_bed_file(bed_path, bed_name, column_map)
                         viewer.queue_slot_updates(&graph, &update_tx)
                     {
                         log::error!("PathViewer slot update error: {:?}", e);
+                    }
+                }
+
+                {
+                    let width = viewer.path_viewer.width;
+                    let view = viewer.view.load();
+
+                    let slot_fns = viewer.slot_functions.read();
+                    let samples =
+                        Arc::new(viewer.path_viewer.sample_buf.clone());
+                    if let Err(e) = viewer.new_viewer.update(
+                        &mut engine,
+                        &slot_fns,
+                        samples,
+                        width,
+                        view,
+                    ) {
+                        log::error!("Path viewer update error: {:?}", e);
                     }
                 }
 
