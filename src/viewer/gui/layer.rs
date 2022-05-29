@@ -578,7 +578,7 @@ pub fn create_rhai_module(compositor: &Compositor) -> rhai::Module {
                     let result = match def_name.as_str() {
                         "line-rgb" => parse_helper!(40),
                         "rect-rgb" => parse_helper!(32),
-                        "path-slot" => parse_helper!(20),
+                        "path-slot" => parse_helper!(24),
                         e => {
                             return Err(format!(
                                 "unknown sublayer definition: `{}`",
@@ -654,7 +654,7 @@ pub mod slot {
         let vert = res.insert_shader(vert);
         let frag = res.insert_shader(frag);
 
-        let vertex_stride = std::mem::size_of::<[f32; 5]>();
+        let vertex_stride = std::mem::size_of::<[f32; 6]>();
 
         let vert_binding_desc = vk::VertexInputBindingDescription::builder()
             .binding(0)
@@ -692,7 +692,7 @@ pub mod slot {
 
         let vertex_offset = 0;
 
-        let mut def = SublayerDef::new::<([f32; 2], [f32; 2], u32), _>(
+        let mut def = SublayerDef::new::<([f32; 2], [f32; 2], [u32; 2]), _>(
             ctx,
             res,
             "path-slot",
@@ -725,11 +725,12 @@ pub mod slot {
             let w = get_cast(&map, "w")?;
             let h = get_cast(&map, "h")?;
 
+            let o = map.get("o").and_then(|f| f.as_int().ok())?;
             let l = map.get("l").and_then(|f| f.as_int().ok())?;
 
             out[0..8].clone_from_slice([x, y].as_bytes());
             out[8..16].clone_from_slice([w, h].as_bytes());
-            out[16..20].clone_from_slice([l as u32].as_bytes());
+            out[16..24].clone_from_slice([o as u32, l as u32].as_bytes());
             Some(())
         });
 

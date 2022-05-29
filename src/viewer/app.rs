@@ -1377,8 +1377,6 @@ impl std::default::Default for SlotState {
 }
 
 pub struct PathViewerNew {
-    latest_gen: u64,
-
     cache: GpuBufferCache<(Path, SlotFnName)>,
 
     slot_list: ListView<(Path, SlotFnName)>,
@@ -1540,11 +1538,91 @@ impl PathViewerNew {
     // slots that are in the process of being updated are skipped
     pub fn update_slot_sublayer(
         &self,
-        // res: &mut GpuResources,
-        // engine: &mut VkEngine,
         sublayer: &mut Sublayer,
+        window_dims: [u32; 2],
+        config: &ConfigMap,
     ) -> Result<()> {
-        todo!();
+        let (x0, y0, w, h, yd) = {
+            let map = config.map.read();
+            let get_cast =
+                |m: &rhai::Map, k| m.get(k).unwrap().clone_cast::<i64>();
+            let padding =
+                map.get("layout.padding").unwrap().clone_cast::<i64>();
+            let slot =
+                map.get("layout.slot").unwrap().clone_cast::<rhai::Map>();
+
+            let win_h = window_dims[1] as usize;
+            let y = get_cast(&slot, "y") as usize;
+            let slot_h = (get_cast(&slot, "h") + padding) as usize;
+
+            let label =
+                map.get("layout.label").unwrap().clone_cast::<rhai::Map>();
+
+            let get_cast =
+                |m: &rhai::Map, k| m.get(k).unwrap().clone_cast::<i64>();
+
+            let label_x = get_cast(&label, "x");
+
+            let name_len = get_cast(&map, "layout.max_path_name_len");
+
+            let w = get_cast(&slot, "w");
+
+            let slot_y = get_cast(&slot, "y");
+            let slot_x =
+                get_cast(&slot, "x") + label_x + padding + name_len * 8;
+
+            let slot_w = if w < 0 {
+                (window_dims[0] as i64) + w - slot_x
+            } else {
+                w
+            };
+
+            (
+                slot_x as f32,
+                slot_y as f32,
+                slot_w as f32,
+                slot_h as f32,
+                padding as f32 + slot_h as f32,
+            )
+        };
+
+        let mut vertices: Vec<[u8; 20]> = Vec::new();
+
+        for (ix, key) in self.slot_list.visible_rows().enumerate() {
+            // if the state cell somehow doesn't exist, or shows that
+            // there's probably only garbage data there, simply skip
+            // this row (it'll get drawn when the data's ready)
+            if let Some(state) = self.slot_states.get(key) {
+                if state.load() == SlotState::Unknown {
+                    continue;
+                }
+            } else {
+                continue;
+            }
+
+            // otherwise prepare the vertex data
+
+            let range = self.cache.cache().get_range(key).unwrap();
+
+            let mut vx = [0u8; 20];
+
+            let x = x0;
+            let y = y0 + ix as f32 * yd;
+
+            vx[0..8].clone_from_slice([x, y].as_bytes());
+            vx[8..16].clone_from_slice([w, h].as_bytes());
+            vx[16..24].clone_from_slice(
+                [range.start as u32, range.end as u32].as_bytes(),
+            );
+
+            vertices.push(vx);
+        }
+
+        sublayer.draw_data_mut().try_for_each(|data| {
+            data.update_vertices_array(vertices.iter().copied())
+        })?;
+
+        Ok(())
     }
 
     /*
