@@ -68,6 +68,8 @@ pub struct ViewerSys {
     // pub annotations: BTreeMap<rhai::ImmutableString, Arc<AnnotationSet>>,
     pub annotations:
         Arc<RwLock<BTreeMap<rhai::ImmutableString, Arc<AnnotationSet>>>>,
+
+    pub new_viewer: PathViewerNew,
 }
 
 impl ViewerSys {
@@ -597,6 +599,15 @@ impl ViewerSys {
             [new_frame(), new_frame()]
         };
 
+        // let mut new_viewer = todo!();
+        let new_viewer = PathViewerNew::new(
+            engine,
+            waragraph,
+            view.load(),
+            width as usize,
+            "depth_mean".into(),
+        )?;
+
         let engine =
             Self::create_engine_impl(db, buffers, &arc_module, &slot_module);
 
@@ -626,6 +637,8 @@ impl ViewerSys {
             engine,
 
             slot_rhai_module: slot_module,
+
+            new_viewer,
         })
     }
 
@@ -1390,6 +1403,49 @@ pub struct PathViewerNew {
 }
 
 impl PathViewerNew {
+    pub fn new(
+        engine: &mut VkEngine,
+        graph: &Arc<Waragraph>,
+        current_view: ViewDiscrete1D,
+        current_width: usize,
+        slot_fn_name: rhai::ImmutableString,
+    ) -> Result<Self> {
+        let slot_count = 1024;
+
+        let usage = vk::BufferUsageFlags::STORAGE_BUFFER;
+
+        let elem_size = 4;
+        let block_size = current_width;
+        let block_capacity = slot_count;
+
+        let cache = GpuBufferCache::new(
+            engine,
+            usage,
+            "Path Viewer Slot Cache",
+            elem_size,
+            block_size,
+            block_capacity,
+        )?;
+
+        let slot_list = ListView::new(
+            graph
+                .path_names
+                .left_values()
+                .map(|&path| (path, slot_fn_name.clone())),
+        );
+
+        Ok(Self {
+            cache,
+            slot_list,
+            slot_states: HashMap::default(),
+
+            current_view,
+            current_width,
+
+            need_refresh: Arc::new(false.into()),
+        })
+    }
+
     pub fn need_refresh(&self) -> bool {
         self.need_refresh.load()
     }
@@ -1415,7 +1471,6 @@ impl PathViewerNew {
         &mut self,
         engine: &mut VkEngine,
         slot_fns: &SlotFnCache,
-        graph: &Arc<Waragraph>,
         samples: Arc<Vec<(Node, usize)>>,
         update_tx: &crossbeam::channel::Sender<
             UpdateReqMsg<(Path, SlotFnName)>,
@@ -1443,6 +1498,8 @@ impl PathViewerNew {
 
         // for each visible (Path, SlotFnName) in the slot list
 
+        let need_refresh = self.need_refresh();
+
         for key in self.slot_list.visible_rows() {
             // get the state cell for the slot, creating and inserting
             // a new cell with the Unknown state if the current key
@@ -1469,7 +1526,7 @@ impl PathViewerNew {
             // if there is no entry, it is unknown, or the view or width
             // contained do not match,
 
-            if need_update {
+            if need_update || need_refresh {
                 let (path, slot_fn_name) = key;
 
                 let path = *path;

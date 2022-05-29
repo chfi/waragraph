@@ -20,6 +20,7 @@ use sled::IVec;
 use waragraph::graph::{Node, Path, Waragraph};
 use waragraph::util::{BufferStorage, LabelStorage};
 use waragraph::viewer::app::ViewerSys;
+use waragraph::viewer::cache::UpdateReqMsg;
 use waragraph::viewer::gui::tree_list::{Breadcrumbs, ListPopup, TreeList};
 use waragraph::viewer::{SlotUpdateFn, ViewDiscrete1D};
 use winit::event::{Event, VirtualKeyCode, WindowEvent};
@@ -277,6 +278,10 @@ fn main() -> Result<()> {
         (usize, usize),
         usize,
     );
+
+    let (u_tx, u_rx) = crossbeam::channel::unbounded::<
+        UpdateReqMsg<(Path, rhai::ImmutableString)>,
+    >();
 
     let (update_tx, update_rx) = crossbeam::channel::unbounded::<UpdateMsg>();
 
@@ -590,6 +595,19 @@ bed::load_bed_file(bed_path, bed_name, column_map)
                 }
 
                 let mut should_update = false;
+                // viewer.new_viewer.
+
+                {
+                    let slot_fns = viewer.slot_functions.read();
+                    let samples =
+                        Arc::new(viewer.path_viewer.sample_buf.clone());
+                    viewer.new_viewer.update(
+                        &mut engine,
+                        slot_fns,
+                        samples,
+                        update_tx,
+                    )
+                }
 
                 // path-viewer specific, dependent on previous view
                 if viewer.path_viewer.should_update() {
@@ -654,6 +672,21 @@ bed::load_bed_file(bed_path, bed_name, column_map)
                 // update end
 
                 mouse_clicked = false;
+
+                // prepare the path slot sublayer buffers
+                if let Err(e) = compositor.with_layer("path-slots", |layer| {
+                    if let Some(sublayer) = layer.get_sublayer_mut("slots") {
+                        let window_dims = swapchain_dims.load();
+                        viewer.new_viewer.update_slot_sublayer(
+                            sublayer,
+                            window_dims,
+                            &viewer.config,
+                        )?;
+                    }
+                    Ok(())
+                }) {
+                    log::warn!("path sublayer update error: {:?}", e);
+                }
 
                 if recreate_swapchain_timer.is_none() && !recreate_swapchain {
                     let render_success = match viewer.render(
