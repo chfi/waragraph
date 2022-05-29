@@ -353,7 +353,7 @@ where
 
     // block_state_map: FxHashMap<u64, Arc<AtomicCell<BlockState>>>,
     // block_state_map: FxHashMap<K, Arc<AtomicCell<BlockState>>>,
-    update_request_tx: crossbeam::channel::Sender<UpdateReqMsg<K>>,
+    pub update_request_tx: crossbeam::channel::Sender<UpdateReqMsg<K>>,
     update_request_rx: crossbeam::channel::Receiver<UpdateReqMsg<K>>,
 
     pub data_msg_tx: crossbeam::channel::Sender<DataMsg<K>>,
@@ -364,6 +364,24 @@ impl<K> GpuBufferCache<K>
 where
     K: std::hash::Hash + Eq + Send + Sync + 'static,
 {
+    // returns a closure that can be used in a loop by a worker thread
+    // to consume the update requests
+    //
+    // the closure blocks until an update request is received
+    pub fn data_msg_worker(
+        &self,
+    ) -> Box<dyn Fn() -> anyhow::Result<()> + Send + Sync + 'static> {
+        let in_rx = self.update_request_rx.clone();
+        let out_tx = self.data_msg_tx.clone();
+
+        Box::new(move || {
+            let msg = in_rx.recv()?;
+            let data = (msg.create_payload)(msg.key)?;
+            out_tx.send(data)?;
+            Ok(())
+        })
+    }
+
     pub fn new(
         engine: &mut VkEngine,
         usage: vk::BufferUsageFlags,

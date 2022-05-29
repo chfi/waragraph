@@ -1472,9 +1472,9 @@ impl PathViewerNew {
         engine: &mut VkEngine,
         slot_fns: &SlotFnCache,
         samples: Arc<Vec<(Node, usize)>>,
-        update_tx: &crossbeam::channel::Sender<
-            UpdateReqMsg<(Path, SlotFnName)>,
-        >,
+        // update_tx: &crossbeam::channel::Sender<
+        //     UpdateReqMsg<(Path, SlotFnName)>,
+        // >,
     ) -> Result<()> {
         // reallocate and invalidate cache if cache block size doesn't
         // match the width, or if the current slot list view size is
@@ -1579,7 +1579,7 @@ impl PathViewerNew {
                     },
                 );
 
-                update_tx.send(msg)?;
+                self.cache.update_request_tx.send(msg)?;
             }
         }
 
