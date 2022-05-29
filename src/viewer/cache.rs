@@ -302,13 +302,18 @@ impl<K> UpdateReqMsg<K>
 where
     K: std::hash::Hash + Eq + Send + Sync + 'static,
 {
-    pub fn new<F>(key: K, f: F) -> Self
+    pub fn new<F, G>(key: K, f: F, signal: G) -> Self
     where
         F: FnOnce(&K) -> anyhow::Result<Vec<u8>> + Send + Sync + 'static,
+        G: FnOnce() + Send + Sync + 'static,
     {
         let create_payload = Box::new(|key| {
             let data = f(&key)?;
-            Ok(DataMsg { key, data })
+            Ok(DataMsg {
+                key,
+                data,
+                and_then: Box::new(signal),
+            })
         });
 
         Self {
@@ -324,6 +329,7 @@ where
 {
     key: K,
     data: Vec<u8>,
+    and_then: Option<Box<dyn FnOnce() + Send + Sync + 'static>>,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -437,7 +443,14 @@ where
                 .get_range(&msg.key)
                 .ok_or(anyhow!("GPU cache error: unbound key {:?}", msg.key))?;
 
-            slice[range].clone_from_slice(&msg.data);
+            if range.len() == msg.data.len() {
+                slice[range].clone_from_slice(&msg.data);
+                if let Some(signal) = msg.and_then {
+                    signal();
+                }
+            } else {
+                log::debug!("received data of incorrect width, ignoring");
+            }
         }
 
         Ok(())

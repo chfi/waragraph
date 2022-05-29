@@ -35,7 +35,7 @@ use zerocopy::{AsBytes, FromBytes};
 
 use super::cache::{GpuBufferCache, UpdateReqMsg};
 use super::{PathViewer, SlotFnCache, SlotUpdateFn};
-use raving::compositor::Compositor;
+use raving::compositor::{Compositor, Sublayer};
 
 pub struct ViewerSys {
     pub config: ConfigMap,
@@ -1362,13 +1362,28 @@ impl<T> ListView<T> {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum SlotState {
     Unknown,
-    UpToDate,
+    Updating,
+    Contains {
+        buffer_width: usize,
+        view_offset: usize,
+        view_len: usize,
+    },
+}
+
+#[derive(Debug, Clone)]
+pub struct SlotStates {
+    has_data: bool,
+    current: Arc<AtomicCell<SlotState>>,
 }
 
 pub struct PathViewerNew {
+    latest_gen: u64,
+
     cache: GpuBufferCache<(Path, SlotFnName)>,
 
     slot_list: ListView<(Path, SlotFnName)>,
+
+    slot_states: HashMap<(Path, SlotFnName), SlotStates>,
 
     current_view: ViewDiscrete1D,
     current_width: usize,
@@ -1397,6 +1412,58 @@ impl PathViewerNew {
     // pub fn bind_rows_alloc(&mut self,
     //                        engine: &mut VkEngine,
 
+    // reallocate cache if needed, queue slot updates, and apply ready updates
+    pub fn update(
+        &mut self,
+        engine: &mut VkEngine,
+        graph: &Arc<Waragraph>,
+        samples: Arc<Vec<(Node, usize)>>,
+    ) -> Result<()> {
+        // reallocate and invalidate cache if cache block size doesn't
+        // match the width, or if the current slot list view size is
+        // greater than the cache block capacity
+
+        //// if so, also clear the slot_states map here
+
+        // make sure all entries in the slot list are bound in the cache
+
+        // for each visible (Path, SlotFnName) in the slot list
+
+        //// if the entry has a value in the slot_states map, and
+        ///// if it's up to date with the current view and width, do nothing
+        ///// if it's currently updating, do nothing
+
+        //// if there is no entry, it is unknown, or the view or width
+        //// contained do not match,
+
+        ///// in doing so, create an entry, where the cell value is
+        ///// SlotState::Unknown
+
+        ///// queue up a slot update with the current parameters and
+        ///// samples, for this entry
+
+        ///// set the update signal to update the SlotState with the
+        ///// provided parameters
+
+        // apply the GPU cache data messages, which also updates the
+        // slot_state entries, concurrently
+
+        todo!();
+    }
+
+    // update the sublayer's vertex data (must be a slot sublayer)
+    // with the currently visible slots
+    // slots that are in the process of being updated are skipped
+    pub fn update_slot_sublayer(
+        &self,
+        // res: &mut GpuResources,
+        // engine: &mut VkEngine,
+        sublayer: &mut Sublayer,
+    ) -> Result<()> {
+        todo!();
+    }
+
+    /*
     pub fn prepare_buffers(
         &mut self,
         engine: &mut VkEngine,
@@ -1424,6 +1491,7 @@ impl PathViewerNew {
         // slots that haven't been written to yet are skipped
         todo!();
     }
+    */
 
     fn queue_slot_updates<'a>(
         &'a self,
@@ -1456,19 +1524,28 @@ impl PathViewerNew {
             let slot_fn = slot_fn.clone();
             let width = self.cache.cache().block_size();
 
-            let msg = UpdateReqMsg::new(key, move |key| {
-                let mut buf: Vec<u8> = Vec::with_capacity(samples.len());
-                buf.extend(
-                    (0..width).map(|i| slot_fn(&samples, path, i)).flat_map(
-                        |val| {
-                            let bytes: [u8; 4] = bytemuck::cast(val);
-                            bytes
-                        },
-                    ),
-                );
+            // let slot_state_cell =
 
-                Ok(buf)
-            });
+            let msg = UpdateReqMsg::new(
+                key,
+                move |key| {
+                    let mut buf: Vec<u8> = Vec::with_capacity(samples.len());
+                    buf.extend(
+                        (0..width)
+                            .map(|i| slot_fn(&samples, path, i))
+                            .flat_map(|val| {
+                                let bytes: [u8; 4] = bytemuck::cast(val);
+                                bytes
+                            }),
+                    );
+
+                    Ok(buf)
+                },
+                || {
+                    //
+                    // update the slotstate arc here
+                },
+            );
         }
 
         Ok(())
