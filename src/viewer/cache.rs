@@ -13,6 +13,7 @@ use raving::vk::{
 };
 use rspirv_reflect::DescriptorInfo;
 
+use rustc_hash::FxHashMap;
 use sled::IVec;
 use zerocopy::{AsBytes, FromBytes};
 
@@ -325,6 +326,12 @@ where
     data: Vec<u8>,
 }
 
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum BlockState {
+    Unknown,
+    UpToDate,
+}
+
 /// TODO: only GpuToCpu memory locations currently
 pub struct GpuBufferCache<K>
 where
@@ -337,6 +344,9 @@ where
     pub desc_set: DescSetIx,
 
     cache: BufferCache<K>,
+
+    // block_state_map: FxHashMap<u64, Arc<AtomicCell<BlockState>>>,
+    block_state_map: FxHashMap<K, Arc<AtomicCell<BlockState>>>,
 
     update_request_tx: crossbeam::channel::Sender<UpdateReqMsg<K>>,
     update_request_rx: crossbeam::channel::Receiver<UpdateReqMsg<K>>,
@@ -398,6 +408,7 @@ where
             desc_set,
 
             cache,
+            block_state_map: FxHashMap::default(),
 
             data_msg_tx,
             data_msg_rx,
@@ -451,7 +462,12 @@ where
     where
         K: Clone + std::fmt::Debug,
     {
-        self.cache.rebind_blocks(new_keys)
+        let new_keys = self.cache.rebind_blocks(new_keys)?;
+        for key in new_keys {
+            self.block_state_map
+                .insert(key, Arc::new(BlockState::Unknown.into()));
+        }
+        Ok(())
     }
 
     /// keys that haven't been bound are ignored

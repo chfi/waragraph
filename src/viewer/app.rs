@@ -1359,6 +1359,12 @@ impl<T> ListView<T> {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum SlotState {
+    Unknown,
+    UpToDate,
+}
+
 pub struct PathViewerNew {
     cache: GpuBufferCache<(Path, SlotFnName)>,
 
@@ -1388,8 +1394,40 @@ impl PathViewerNew {
         (needed_len > available) || (block_size != self.current_width)
     }
 
-    pub fn queue_slot_updates(
-        &self,
+    // pub fn bind_rows_alloc(&mut self,
+    //                        engine: &mut VkEngine,
+
+    pub fn prepare_buffers(
+        &mut self,
+        engine: &mut VkEngine,
+        graph: &Arc<Waragraph>,
+        samples: Arc<Vec<(Node, usize)>>,
+    ) -> Result<()> {
+        // reallocate the cache and backing memory if needed
+
+        // bind the visible rows
+
+        // update the newly bound rows (or all rows, if a refresh is forced)
+
+        todo!();
+    }
+
+    pub fn update_slot_sublayer(
+        &mut self,
+        // prob. only need resources
+        engine: &mut VkEngine,
+        sublayer: &mut Sublayer,
+    ) -> Result<()> {
+        // update the sublayer's vertex data (must be a slot sublayer)
+        // with the currently visible slots
+
+        // slots that haven't been written to yet are skipped
+        todo!();
+    }
+
+    fn queue_slot_updates<'a>(
+        &'a self,
+        keys_to_update: impl Iterator<Item = &'a (Path, SlotFnName)>,
         slot_fns: &SlotFnCache,
         samples: Arc<Vec<(Node, usize)>>,
         graph: &Arc<Waragraph>,
@@ -1402,10 +1440,9 @@ impl PathViewerNew {
             .get("viz.slot_function")
             .and_then(|v| v.clone().into_immutable_string().ok())
             .unwrap_or_else(|| "unknown".into());
-
         */
 
-        for (path, slot_fn_name) in self.slot_list.visible_rows() {
+        for (path, slot_fn_name) in keys_to_update {
             let path = *path;
 
             let slot_fn = slot_fns
