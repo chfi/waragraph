@@ -1370,10 +1370,10 @@ pub enum SlotState {
     },
 }
 
-#[derive(Debug, Clone)]
-pub struct SlotStates {
-    has_data: bool,
-    current: Arc<AtomicCell<SlotState>>,
+impl std::default::Default for SlotState {
+    fn default() -> Self {
+        Self::Unknown
+    }
 }
 
 pub struct PathViewerNew {
@@ -1383,7 +1383,7 @@ pub struct PathViewerNew {
 
     slot_list: ListView<(Path, SlotFnName)>,
 
-    slot_states: HashMap<(Path, SlotFnName), SlotStates>,
+    slot_states: HashMap<(Path, SlotFnName), Arc<AtomicCell<SlotState>>>,
 
     current_view: ViewDiscrete1D,
     current_width: usize,
@@ -1416,39 +1416,123 @@ impl PathViewerNew {
     pub fn update(
         &mut self,
         engine: &mut VkEngine,
+        slot_fns: &SlotFnCache,
         graph: &Arc<Waragraph>,
         samples: Arc<Vec<(Node, usize)>>,
+        update_tx: &crossbeam::channel::Sender<
+            UpdateReqMsg<(Path, SlotFnName)>,
+        >,
     ) -> Result<()> {
         // reallocate and invalidate cache if cache block size doesn't
         // match the width, or if the current slot list view size is
         // greater than the cache block capacity
+        let slot_count = self.slot_list.len();
 
-        //// if so, also clear the slot_states map here
+        if slot_count > self.cache.cache().block_capacity()
+            || self.current_width != self.cache.cache().block_size()
+        {
+            self.cache.reallocate(
+                engine,
+                slot_count * 2,
+                self.current_width,
+            )?;
+            self.slot_states.clear();
+        }
 
         // make sure all entries in the slot list are bound in the cache
+        self.cache
+            .bind_blocks(self.slot_list.visible_rows().cloned())?;
 
         // for each visible (Path, SlotFnName) in the slot list
 
-        //// if the entry has a value in the slot_states map, and
-        ///// if it's up to date with the current view and width, do nothing
-        ///// if it's currently updating, do nothing
+        for key in self.slot_list.visible_rows() {
+            // get the state cell for the slot, creating and inserting
+            // a new cell with the Unknown state if the current key
+            // doesn't have a state
+            let cell = self.slot_states.entry(key.clone()).or_default().clone();
 
-        //// if there is no entry, it is unknown, or the view or width
-        //// contained do not match,
+            let need_update = match cell.load() {
+                // if it's currently updating, do nothing
+                SlotState::Updating => false,
+                SlotState::Unknown => true,
+                SlotState::Contains {
+                    buffer_width,
+                    view_offset,
+                    view_len,
+                } => {
+                    // if it's up to date with the current view and
+                    // width, do nothing
+                    buffer_width != self.current_width
+                        || view_offset != self.current_view.offset
+                        || view_len != self.current_view.len
+                }
+            };
 
-        ///// in doing so, create an entry, where the cell value is
-        ///// SlotState::Unknown
+            // if there is no entry, it is unknown, or the view or width
+            // contained do not match,
 
-        ///// queue up a slot update with the current parameters and
-        ///// samples, for this entry
+            if need_update {
+                let (path, slot_fn_name) = key;
 
-        ///// set the update signal to update the SlotState with the
-        ///// provided parameters
+                let path = *path;
+
+                let slot_fn = slot_fns.slot_fn_u32.get(slot_fn_name).ok_or(
+                    anyhow!("slot renderer `{}` not found", slot_fn_name),
+                )?;
+
+                let key = (path, slot_fn_name.clone());
+
+                let samples = samples.clone();
+                let slot_fn = slot_fn.clone();
+                let width = self.cache.cache().block_size();
+
+                // let slot_state_cell =
+
+                let current_width = self.current_width;
+                let current_view = self.current_view;
+                let current_state = cell.load();
+
+                let msg = UpdateReqMsg::new(
+                    key,
+                    // queue up a slot update with the current parameters and
+                    // samples, for this entry
+                    move |key| {
+                        let mut buf: Vec<u8> =
+                            Vec::with_capacity(samples.len());
+                        buf.extend(
+                            (0..width)
+                                .map(|i| slot_fn(&samples, path, i))
+                                .flat_map(|val| {
+                                    let bytes: [u8; 4] = bytemuck::cast(val);
+                                    bytes
+                                }),
+                        );
+
+                        Ok(buf)
+                    },
+                    // set the update signal to update the SlotState with the
+                    // provided parameters
+                    move || {
+                        let _ = cell.compare_exchange(
+                            current_state,
+                            SlotState::Contains {
+                                buffer_width: current_width,
+                                view_offset: current_view.offset(),
+                                view_len: current_view.len(),
+                            },
+                        );
+                    },
+                );
+
+                update_tx.send(msg)?;
+            }
+        }
 
         // apply the GPU cache data messages, which also updates the
         // slot_state entries, concurrently
+        self.cache.apply_data_updates(&mut engine.resources)?;
 
-        todo!();
+        Ok(())
     }
 
     // update the sublayer's vertex data (must be a slot sublayer)

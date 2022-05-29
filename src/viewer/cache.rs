@@ -184,7 +184,7 @@ impl<K: std::hash::Hash + Eq> BufferCache<K> {
         let mut newly_inserted = Vec::new();
         for key in new_keys {
             eprintln!("binding block");
-            if self.bind_block(key)? {
+            if self.bind_block(key.clone())? {
                 newly_inserted.push(key);
             }
         }
@@ -312,7 +312,7 @@ where
             Ok(DataMsg {
                 key,
                 data,
-                and_then: Box::new(signal),
+                and_then: Some(Box::new(signal)),
             })
         });
 
@@ -332,11 +332,11 @@ where
     and_then: Option<Box<dyn FnOnce() + Send + Sync + 'static>>,
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum BlockState {
-    Unknown,
-    UpToDate,
-}
+// #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+// pub enum BlockState {
+//     Unknown,
+//     UpToDate,
+// }
 
 /// TODO: only GpuToCpu memory locations currently
 pub struct GpuBufferCache<K>
@@ -352,8 +352,7 @@ where
     cache: BufferCache<K>,
 
     // block_state_map: FxHashMap<u64, Arc<AtomicCell<BlockState>>>,
-    block_state_map: FxHashMap<K, Arc<AtomicCell<BlockState>>>,
-
+    // block_state_map: FxHashMap<K, Arc<AtomicCell<BlockState>>>,
     update_request_tx: crossbeam::channel::Sender<UpdateReqMsg<K>>,
     update_request_rx: crossbeam::channel::Receiver<UpdateReqMsg<K>>,
 
@@ -414,7 +413,6 @@ where
             desc_set,
 
             cache,
-            block_state_map: FxHashMap::default(),
 
             data_msg_tx,
             data_msg_rx,
@@ -476,10 +474,10 @@ where
         K: Clone + std::fmt::Debug,
     {
         let new_keys = self.cache.rebind_blocks(new_keys)?;
-        for key in new_keys {
-            self.block_state_map
-                .insert(key, Arc::new(BlockState::Unknown.into()));
-        }
+        // for key in new_keys {
+        //     self.block_state_map
+        //         .insert(key, Arc::new(BlockState::Unknown.into()));
+        // }
         Ok(())
     }
 
