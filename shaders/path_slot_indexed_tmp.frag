@@ -24,8 +24,8 @@ layout (push_constant) uniform Input {
 
 
 void main() {
-  uint offset = i_offset_len.x;
-  uint len = i_offset_len.y;
+  uint offset = i_offset_len.x / 4;
+  uint len = i_offset_len.y / 4;
 
   uint ix = offset + uint(floor(i_uv.x * len));
   uint val = data.val[ix];

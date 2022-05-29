@@ -679,7 +679,7 @@ pub mod slot {
         let ix_desc = vk::VertexInputAttributeDescription::builder()
             .binding(0)
             .location(2)
-            .format(vk::Format::R32_UINT)
+            .format(vk::Format::R32G32_UINT)
             .offset(16)
             .build();
 

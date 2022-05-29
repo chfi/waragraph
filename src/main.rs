@@ -360,18 +360,6 @@ bed::load_bed_file(bed_path, bed_name, column_map)
         }
     }
 
-    let _update_threads = (0..4)
-        .map(|_| {
-            let exec = viewer.new_viewer.cache.data_msg_worker();
-
-            std::thread::spawn(move || loop {
-                if let Err(e) = exec() {
-                    log::error!("Cache data worker error: {:?}", e);
-                }
-            })
-        })
-        .collect::<Vec<_>>();
-
     /*
     let _update_threads = (0..4)
         .map(|_| {
@@ -418,6 +406,21 @@ bed::load_bed_file(bed_path, bed_name, column_map)
             exit.store(true);
         })?;
     }
+
+    let _update_threads = (0..4)
+        .map(|_| {
+            let exec = viewer.new_viewer.cache.data_msg_worker();
+            let should_exit = should_exit.clone();
+
+            std::thread::spawn(move || loop {
+                if let Err(e) = exec() {
+                    if !should_exit.load() {
+                        log::error!("Cache data worker error: {:?}", e);
+                    }
+                }
+            })
+        })
+        .collect::<Vec<_>>();
 
     let mut mouse_clicked = false;
 
@@ -566,47 +569,47 @@ bed::load_bed_file(bed_path, bed_name, column_map)
                     }
                 }
 
-                {
-                    let [_, h] = swapchain_dims.load();
+                // {
+                //     let [_, h] = swapchain_dims.load();
 
-                    let vis_count = viewer.visible_slot_count(&graph, h);
+                //     let vis_count = viewer.visible_slot_count(&graph, h);
 
-                    {
-                        let (o, _l) = viewer.path_viewer.row_view.load();
-                        viewer.path_viewer.row_view.store((o, vis_count));
-                    }
+                //     {
+                //         let (o, _l) = viewer.path_viewer.row_view.load();
+                //         viewer.path_viewer.row_view.store((o, vis_count));
+                //     }
 
-                    let cap = viewer.path_viewer.slots.read().capacity();
-                    let slot_width = viewer.path_viewer.width;
+                //     let cap = viewer.path_viewer.slots.read().capacity();
+                //     let slot_width = viewer.path_viewer.width;
 
-                    let diff = vis_count.checked_sub(cap).unwrap_or_default();
-                    if diff > 0 {
-                        log::warn!("allocating {} slots", diff);
-                        viewer.path_viewer.force_update();
-                    }
+                //     let diff = vis_count.checked_sub(cap).unwrap_or_default();
+                //     if diff > 0 {
+                //         log::warn!("allocating {} slots", diff);
+                //         viewer.path_viewer.force_update();
+                //     }
 
-                    let mut slots = viewer.path_viewer.slots.write();
-                    for _ in 0..diff {
-                        let i = slots.capacity();
-                        if let Err(e) = slots.allocate_slot(
-                            &mut engine,
-                            &db,
-                            &mut viewer.labels,
-                            slot_width,
-                        ) {
-                            log::error!("Path slot allocation error: {:?}", e);
-                        }
+                //     let mut slots = viewer.path_viewer.slots.write();
+                //     for _ in 0..diff {
+                //         let i = slots.capacity();
+                //         if let Err(e) = slots.allocate_slot(
+                //             &mut engine,
+                //             &db,
+                //             &mut viewer.labels,
+                //             slot_width,
+                //         ) {
+                //             log::error!("Path slot allocation error: {:?}", e);
+                //         }
 
-                        let name = format!("path-name-{}", i);
-                        viewer
-                            .labels
-                            .allocate_label(&db, &mut engine, &name)
-                            .unwrap();
-                    }
+                //         let name = format!("path-name-{}", i);
+                //         viewer
+                //             .labels
+                //             .allocate_label(&db, &mut engine, &name)
+                //             .unwrap();
+                //     }
 
-                    let paths = viewer.path_viewer.visible_paths(&graph);
-                    slots.bind_paths(paths).unwrap();
-                }
+                //     let paths = viewer.path_viewer.visible_paths(&graph);
+                //     slots.bind_paths(paths).unwrap();
+                // }
 
                 let mut should_update = false;
                 // viewer.new_viewer.
@@ -647,12 +650,19 @@ bed::load_bed_file(bed_path, bed_name, column_map)
                     let slot_fns = viewer.slot_functions.read();
                     let samples =
                         Arc::new(viewer.path_viewer.sample_buf.clone());
+
+                    let [_, window_height] = swapchain_dims.load();
+
+                    let vis_count =
+                        viewer.visible_slot_count(&graph, window_height);
+
                     if let Err(e) = viewer.new_viewer.update(
                         &mut engine,
                         &slot_fns,
                         samples,
                         width,
                         view,
+                        vis_count,
                     ) {
                         log::error!("Path viewer update error: {:?}", e);
                     }
@@ -694,10 +704,13 @@ bed::load_bed_file(bed_path, bed_name, column_map)
                 if let Err(e) = compositor.with_layer("path-slots", |layer| {
                     if let Some(sublayer) = layer.get_sublayer_mut("slots") {
                         let window_dims = swapchain_dims.load();
+                        let slot_fns = viewer.slot_functions.read();
                         viewer.new_viewer.update_slot_sublayer(
                             sublayer,
                             window_dims,
                             &viewer.config,
+                            &slot_fns,
+                            &buffers,
                         )?;
                     }
                     Ok(())

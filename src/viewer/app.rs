@@ -771,10 +771,10 @@ impl ViewerSys {
                             view.reset();
                             update = true;
                         } else if matches!(kc, VK::PageUp) {
-                            self.path_viewer.scroll_up();
+                            self.new_viewer.slot_list.scroll(-1);
                             update = true;
                         } else if matches!(kc, VK::PageDown) {
-                            self.path_viewer.scroll_down();
+                            self.new_viewer.slot_list.scroll(1);
                             update = true;
                         }
                     }
@@ -1475,9 +1475,11 @@ impl PathViewerNew {
         samples: Arc<Vec<(Node, usize)>>,
         buffer_width: usize,
         view: ViewDiscrete1D,
+        row_count: usize,
     ) -> Result<()> {
         self.current_width = buffer_width;
         self.current_view = view;
+        self.slot_list.resize(row_count);
 
         // reallocate and invalidate cache if cache block size doesn't
         // match the width, or if the current slot list view size is
@@ -1544,10 +1546,10 @@ impl PathViewerNew {
                 let slot_fn = slot_fn.clone();
                 let width = self.cache.cache().block_size();
 
-                // let slot_state_cell =
-
                 let current_width = self.current_width;
                 let current_view = self.current_view;
+
+                cell.store(SlotState::Updating);
                 let current_state = cell.load();
 
                 let msg = UpdateReqMsg::new(
@@ -1602,6 +1604,8 @@ impl PathViewerNew {
         sublayer: &mut Sublayer,
         window_dims: [u32; 2],
         config: &ConfigMap,
+        slot_fns: &SlotFnCache,
+        buffer_storage: &BufferStorage,
     ) -> Result<()> {
         let (x0, y0, w, h, yd) = {
             let map = config.map.read();
@@ -1670,107 +1674,31 @@ impl PathViewerNew {
             let x = x0;
             let y = y0 + ix as f32 * yd;
 
+            let offset = range.start as u32;
+            let len = (range.end - range.start) as u32;
+
             vx[0..8].clone_from_slice([x, y].as_bytes());
             vx[8..16].clone_from_slice([w, h].as_bytes());
-            vx[16..24].clone_from_slice(
-                [range.start as u32, range.end as u32].as_bytes(),
-            );
+            vx[16..24].clone_from_slice([offset, len].as_bytes());
 
             vertices.push(vx);
         }
 
+        let data_set = self.cache.desc_set();
+
+        let color_buffer_set = {
+            let name = slot_fns.slot_color.get("depth_mean").unwrap();
+            let buf_id = buffer_storage.get_id(name.as_str()).unwrap();
+            let set = buffer_storage.get_desc_set_ix(buf_id).unwrap();
+            set
+        };
+
+        // TODO handle path name labels
+
         sublayer.draw_data_mut().try_for_each(|data| {
-            // TODO update desc sets with buffer and color
+            data.update_sets([data_set, color_buffer_set]);
             data.update_vertices_array(vertices.iter().copied())
         })?;
-
-        Ok(())
-    }
-
-    /*
-    pub fn prepare_buffers(
-        &mut self,
-        engine: &mut VkEngine,
-        graph: &Arc<Waragraph>,
-        samples: Arc<Vec<(Node, usize)>>,
-    ) -> Result<()> {
-        // reallocate the cache and backing memory if needed
-
-        // bind the visible rows
-
-        // update the newly bound rows (or all rows, if a refresh is forced)
-
-        todo!();
-    }
-
-    pub fn update_slot_sublayer(
-        &mut self,
-        // prob. only need resources
-        engine: &mut VkEngine,
-        sublayer: &mut Sublayer,
-    ) -> Result<()> {
-        // update the sublayer's vertex data (must be a slot sublayer)
-        // with the currently visible slots
-
-        // slots that haven't been written to yet are skipped
-        todo!();
-    }
-    */
-
-    fn queue_slot_updates<'a>(
-        &'a self,
-        keys_to_update: impl Iterator<Item = &'a (Path, SlotFnName)>,
-        slot_fns: &SlotFnCache,
-        samples: Arc<Vec<(Node, usize)>>,
-        graph: &Arc<Waragraph>,
-    ) -> Result<()> {
-        /*
-        let update_key = self
-            .config
-            .map
-            .read()
-            .get("viz.slot_function")
-            .and_then(|v| v.clone().into_immutable_string().ok())
-            .unwrap_or_else(|| "unknown".into());
-        */
-
-        for (path, slot_fn_name) in keys_to_update {
-            let path = *path;
-
-            let slot_fn = slot_fns
-                .slot_fn_u32
-                .get(slot_fn_name)
-                .ok_or(anyhow!("slot renderer `{}` not found", slot_fn_name))?;
-
-            let key = (path, slot_fn_name.clone());
-
-            let samples = samples.clone();
-            let slot_fn = slot_fn.clone();
-            let width = self.cache.cache().block_size();
-
-            // let slot_state_cell =
-
-            let msg = UpdateReqMsg::new(
-                key,
-                move |key| {
-                    let mut buf: Vec<u8> = Vec::with_capacity(samples.len());
-                    buf.extend(
-                        (0..width)
-                            .map(|i| slot_fn(&samples, path, i))
-                            .flat_map(|val| {
-                                let bytes: [u8; 4] = bytemuck::cast(val);
-                                bytes
-                            }),
-                    );
-
-                    Ok(buf)
-                },
-                || {
-                    //
-                    // update the slotstate arc here
-                },
-            );
-        }
 
         Ok(())
     }
