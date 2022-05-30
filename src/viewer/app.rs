@@ -1,6 +1,7 @@
 use bstr::ByteSlice;
 use crossbeam::atomic::AtomicCell;
 use parking_lot::RwLock;
+use raving::compositor::label_space::LabelSpace;
 use raving::script::console::frame::{FrameBuilder, Resolvable};
 use raving::script::console::BatchBuilder;
 use raving::vk::{
@@ -35,7 +36,7 @@ use zerocopy::{AsBytes, FromBytes};
 
 use super::cache::{GpuBufferCache, UpdateReqMsg};
 use super::{PathViewer, SlotFnCache, SlotUpdateFn};
-use raving::compositor::{Compositor, Sublayer};
+use raving::compositor::{Compositor, Layer, Sublayer};
 
 pub struct ViewerSys {
     pub config: ConfigMap,
@@ -45,6 +46,8 @@ pub struct ViewerSys {
     pub path_viewer: PathViewer,
 
     pub slot_functions: Arc<RwLock<SlotFnCache>>,
+
+    pub label_space: LabelSpace,
 
     pub labels: LabelStorage,
     pub label_updates: sled::Subscriber,
@@ -83,6 +86,15 @@ impl ViewerSys {
         width: u32,
         // height: u32,
     ) -> Result<Self> {
+        let mut label_space =
+            LabelSpace::new(engine, "viewer-label-space", 1024 * 1024)?;
+
+        /*
+        for (path, path_name) in &waragraph.path_names {
+            // let prefix_only = waragraph.path_names_prefixes.
+        }
+        */
+
         let mut txt = LabelStorage::new(&db)?;
 
         let slot_count = 16;
@@ -619,6 +631,8 @@ impl ViewerSys {
 
             slot_functions: slot_fns,
             annotations,
+
+            label_space,
 
             labels: txt,
             label_updates,
@@ -1471,12 +1485,15 @@ impl PathViewerNew {
     pub fn update(
         &mut self,
         engine: &mut VkEngine,
+        label_space: &LabelSpace,
         slot_fns: &SlotFnCache,
         samples: Arc<Vec<(Node, usize)>>,
         buffer_width: usize,
         view: ViewDiscrete1D,
         row_count: usize,
     ) -> Result<()> {
+        let _ = label_space.write_buffer(&mut engine.resources);
+
         self.current_width = buffer_width;
         self.current_view = view;
         self.slot_list.resize(row_count);
@@ -1601,7 +1618,9 @@ impl PathViewerNew {
     //
     pub fn update_slot_sublayer(
         &self,
-        sublayer: &mut Sublayer,
+        graph: &Arc<Waragraph>,
+        label_space: &mut LabelSpace,
+        layer: &mut Layer,
         window_dims: [u32; 2],
         config: &ConfigMap,
         slot_fns: &SlotFnCache,
@@ -1693,12 +1712,56 @@ impl PathViewerNew {
             set
         };
 
-        // TODO handle path name labels
+        if let Some(sublayer) = layer.get_sublayer_mut("slots") {
+            sublayer.draw_data_mut().try_for_each(|data| {
+                data.update_sets([data_set, color_buffer_set]);
+                data.update_vertices_array(vertices.iter().copied())
+            })?;
+        }
 
-        sublayer.draw_data_mut().try_for_each(|data| {
-            data.update_sets([data_set, color_buffer_set]);
-            data.update_vertices_array(vertices.iter().copied())
-        })?;
+        /*
+        // TODO handle path name labels
+        if let Some(sublayer) = layer.get_sublayer_mut("slot-labels") {
+            let map = config.map.read();
+
+            let padding =
+                map.get("layout.padding").unwrap().clone_cast::<i64>();
+            let slot =
+                map.get("layout.slot").unwrap().clone_cast::<rhai::Map>();
+            let label =
+                map.get("layout.label").unwrap().clone_cast::<rhai::Map>();
+
+            let get_cast =
+                |m: &rhai::Map, k| m.get(k).unwrap().clone_cast::<i64>();
+
+            let label_x = get_cast(&label, "x");
+            let label_y = get_cast(&label, "y") + get_cast(&slot, "y");
+
+            let name_len = get_cast(&map, "layout.max_path_name_len");
+
+            let slot_x =
+                get_cast(&slot, "x") + label_x + padding + name_len * 8;
+
+            let h = get_cast(&slot, "h");
+
+            let y_delta = padding + h;
+
+            // let mut vertices: Vec<[u8; 32]> = Vec::new();
+
+            sublayer.draw_data_mut().try_for_each(|data| {
+                // data.update_sets([data_set, color_buffer_set]);
+                data.update_vertices_array(
+                    self.slot_list.visible_rows().filter_map(|(path, _)| {
+                        let path_name = graph.path_name(*path)?;
+                        // let path_name = path_name.to_str().ok()?;
+
+                        //
+                    }),
+                )?;
+                Ok(())
+            })?;
+        }
+        */
 
         Ok(())
     }

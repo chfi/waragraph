@@ -182,10 +182,7 @@ impl PathSlotList {
         let paths = graph
             .path_names
             .iter()
-            .map(|(path, name)| {
-                let name_str = name.to_str().unwrap();
-                (*path, rhai::ImmutableString::from(name_str))
-            })
+            .map(|(path, name)| (*path, name.clone()))
             .collect();
 
         let active_list = Vec::new();
@@ -428,10 +425,10 @@ impl PathViewer {
                     let label_id = slot.label_id;
 
                     if path_name.len() < max_len {
-                        let name = format!("{}", path_name.as_bstr());
+                        let name = format!("{}", path_name);
                         txt.set_text_for_id(label_id, &name)?;
                     } else {
-                        let prefix = path_name[..max_len - 3].as_bstr();
+                        let prefix = &path_name[..max_len - 3];
                         let name = format!("{}...", prefix);
                         txt.set_text_for_id(label_id, &name)?;
                     }

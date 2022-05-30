@@ -569,50 +569,7 @@ bed::load_bed_file(bed_path, bed_name, column_map)
                     }
                 }
 
-                // {
-                //     let [_, h] = swapchain_dims.load();
-
-                //     let vis_count = viewer.visible_slot_count(&graph, h);
-
-                //     {
-                //         let (o, _l) = viewer.path_viewer.row_view.load();
-                //         viewer.path_viewer.row_view.store((o, vis_count));
-                //     }
-
-                //     let cap = viewer.path_viewer.slots.read().capacity();
-                //     let slot_width = viewer.path_viewer.width;
-
-                //     let diff = vis_count.checked_sub(cap).unwrap_or_default();
-                //     if diff > 0 {
-                //         log::warn!("allocating {} slots", diff);
-                //         viewer.path_viewer.force_update();
-                //     }
-
-                //     let mut slots = viewer.path_viewer.slots.write();
-                //     for _ in 0..diff {
-                //         let i = slots.capacity();
-                //         if let Err(e) = slots.allocate_slot(
-                //             &mut engine,
-                //             &db,
-                //             &mut viewer.labels,
-                //             slot_width,
-                //         ) {
-                //             log::error!("Path slot allocation error: {:?}", e);
-                //         }
-
-                //         let name = format!("path-name-{}", i);
-                //         viewer
-                //             .labels
-                //             .allocate_label(&db, &mut engine, &name)
-                //             .unwrap();
-                //     }
-
-                //     let paths = viewer.path_viewer.visible_paths(&graph);
-                //     slots.bind_paths(paths).unwrap();
-                // }
-
                 let mut should_update = false;
-                // viewer.new_viewer.
 
                 // path-viewer specific, dependent on previous view
                 if viewer.path_viewer.should_update() {
@@ -658,6 +615,7 @@ bed::load_bed_file(bed_path, bed_name, column_map)
 
                     if let Err(e) = viewer.new_viewer.update(
                         &mut engine,
+                        &mut viewer.label_space,
                         &slot_fns,
                         samples,
                         width,
@@ -702,17 +660,17 @@ bed::load_bed_file(bed_path, bed_name, column_map)
 
                 // prepare the path slot sublayer buffers
                 if let Err(e) = compositor.with_layer("path-slots", |layer| {
-                    if let Some(sublayer) = layer.get_sublayer_mut("slots") {
-                        let window_dims = swapchain_dims.load();
-                        let slot_fns = viewer.slot_functions.read();
-                        viewer.new_viewer.update_slot_sublayer(
-                            sublayer,
-                            window_dims,
-                            &viewer.config,
-                            &slot_fns,
-                            &buffers,
-                        )?;
-                    }
+                    let window_dims = swapchain_dims.load();
+                    let slot_fns = viewer.slot_functions.read();
+                    viewer.new_viewer.update_slot_sublayer(
+                        &graph,
+                        &mut viewer.label_space,
+                        layer,
+                        window_dims,
+                        &viewer.config,
+                        &slot_fns,
+                        &buffers,
+                    )?;
                     Ok(())
                 }) {
                     log::warn!("path sublayer update error: {:?}", e);

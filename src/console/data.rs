@@ -271,7 +271,7 @@ impl AnnotationSet {
                     }
                 }
 
-                if let Some(path) = graph.path_index(path_name.as_bytes()) {
+                if let Some(path) = graph.path_index(path_name) {
                     let offset = graph.path_offset(path);
                     let start = start - offset;
                     let end = end - offset;

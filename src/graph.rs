@@ -183,8 +183,8 @@ pub struct Waragraph {
     pub paths: Vec<CsVecI<u32, u32>>,
 
     // pub path_names: BiBTreeMap<IVec, usize>,
-    pub path_names: BiBTreeMap<Path, Vec<u8>>,
-    pub path_names_prefixes: BTreeMap<Vec<u8>, Path>,
+    pub path_names: BiBTreeMap<Path, rhai::ImmutableString>,
+    pub path_names_prefixes: BiBTreeMap<rhai::ImmutableString, Path>,
     // pub path_names: HashMap<usize, Arc<Vec<u8>>>,
     // pub path_indices: BTreeMap<Arc<Vec<u8>>, usize>,
     // pub path_names: Vec<Vec<u8>>,
@@ -243,7 +243,7 @@ impl Waragraph {
         let d0 = d0_tris.to_csc();
 
         let mut path_names = BiBTreeMap::default();
-        let mut path_names_prefixes = BTreeMap::default();
+        let mut path_names_prefixes = BiBTreeMap::default();
         // let mut path_names = HashMap::default();
 
         let mut path_lens = Vec::new();
@@ -262,8 +262,9 @@ impl Waragraph {
                 dbg!(ix);
                 let path_ix = Path::from(ix);
                 let name = path.path_name.as_bstr();
+                let name_str = name.to_str().unwrap();
 
-                path_names.insert(path_ix, name.as_bytes().into());
+                path_names.insert(path_ix, name_str.into());
 
                 {
                     fn parse_usize(bs: &[u8]) -> Option<usize> {
@@ -283,7 +284,9 @@ impl Waragraph {
                     match (name, range) {
                         (Some(name), Some((from, _to))) => {
                             path_offsets.push(from);
-                            path_names_prefixes.insert(name.to_vec(), path_ix);
+                            let name_str = name.to_str().unwrap();
+                            path_names_prefixes
+                                .insert(name_str.into(), path_ix);
                         }
                         _ => {
                             path_offsets.push(0);
@@ -401,14 +404,14 @@ impl Waragraph {
     }
 
     // pub fn path_name(&self, path: usize) -> Option<&IVec> {
-    pub fn path_name(&self, path: Path) -> Option<&Vec<u8>> {
+    pub fn path_name(&self, path: Path) -> Option<&rhai::ImmutableString> {
         self.path_names.get_by_left(&path)
     }
 
-    pub fn path_index(&self, name: &[u8]) -> Option<Path> {
+    pub fn path_index(&self, name: &str) -> Option<Path> {
         self.path_names
             .get_by_right(name)
-            .or_else(|| self.path_names_prefixes.get(name))
+            .or_else(|| self.path_names_prefixes.get_by_left(name))
             .copied()
     }
 

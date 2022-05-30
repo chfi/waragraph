@@ -97,9 +97,8 @@ pub fn create_graph_module(waragraph: &Arc<Waragraph>) -> rhai::Module {
         let mut index_map = rhai::Map::default();
         let mut names = Vec::new();
         for (&path, name) in waragraph.path_names.iter() {
-            let name = name.to_str().unwrap();
             index_map.insert(name.into(), Dyn::from(path));
-            names.push(Dyn::from(rhai::ImmutableString::from(name)));
+            names.push(Dyn::from(name.clone()));
         }
 
         let path_names = Dyn::from(names);
@@ -113,7 +112,7 @@ pub fn create_graph_module(waragraph: &Arc<Waragraph>) -> rhai::Module {
 
     let graph = waragraph.to_owned();
     module.set_native_fn("get_path", move |name: &str| {
-        some_dyn_or_other!(graph.path_index(name.as_bytes()), Dyn::FALSE)
+        some_dyn_or_other!(graph.path_index(name), Dyn::FALSE)
     });
 
     let graph = waragraph.to_owned();
@@ -125,11 +124,7 @@ pub fn create_graph_module(waragraph: &Arc<Waragraph>) -> rhai::Module {
         move |_ctx, args| {
             graph
                 .path_name(args[0].clone_cast())
-                .and_then(|s| s.to_str().ok())
-                .map_or(Ok(Dyn::FALSE), |s| {
-                    let is = rhai::ImmutableString::from(s);
-                    Ok(Dyn::from(is))
-                })
+                .map_or(Ok(Dyn::FALSE), |s| Ok(Dyn::from(s.clone())))
         },
     );
 

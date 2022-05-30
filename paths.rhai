@@ -132,6 +132,12 @@ fn gui_init(globals, label_space) {
 
   ui::init_layer("lines", 5, true);
   ui::allocate_sublayer("lines", "line-rgb", "lines");
+
+
+  ui::init_layer("path-slots", 20, true);
+  ui::allocate_text_sublayer(label_space, "path-slots", "slot-labels");
+  ui::allocate_sublayer("path-slots", "path-slot", "slots");
+
 }
 
 props.set("prev_slot", false);
