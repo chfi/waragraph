@@ -36,7 +36,7 @@ use zerocopy::{AsBytes, FromBytes};
 
 use super::cache::{GpuBufferCache, UpdateReqMsg};
 use super::{PathViewer, SlotFnCache, SlotUpdateFn};
-use raving::compositor::{Compositor, Layer, Sublayer};
+use raving::compositor::{Compositor, Layer, Sublayer, SublayerAllocMsg};
 
 pub struct ViewerSys {
     pub config: ConfigMap,
@@ -78,6 +78,7 @@ pub struct ViewerSys {
 impl ViewerSys {
     pub fn init(
         engine: &mut VkEngine,
+        compositor: &Compositor,
         waragraph: &Arc<Waragraph>,
         graph_module: &Arc<rhai::Module>,
         db: &sled::Db,
@@ -88,6 +89,22 @@ impl ViewerSys {
     ) -> Result<Self> {
         let mut label_space =
             LabelSpace::new(engine, "viewer-label-space", 1024 * 1024)?;
+
+        {
+            compositor.new_layer("path-slots", 1, true);
+            let text_set = label_space.text_set;
+            let msg = SublayerAllocMsg::new(
+                "path-slots",
+                "slot-labels",
+                "text",
+                &[text_set],
+            );
+            compositor.sublayer_alloc_tx.send(msg)?;
+
+            let msg =
+                SublayerAllocMsg::new("path-slots", "slots", "path-slot", &[]);
+            compositor.sublayer_alloc_tx.send(msg)?;
+        }
 
         /*
         for (path, path_name) in &waragraph.path_names {
@@ -1207,15 +1224,16 @@ impl ViewerSys {
         let out_framebuffer =
             *window_resources.indices.framebuffers.get("out").unwrap();
 
-        let comp_batch_fn = compositor.draw(None, out_framebuffer, extent);
+        let comp_batch_fn =
+            compositor.draw(Some([0.9, 0.9, 0.9]), out_framebuffer, extent);
 
         let fg_batch = Box::new(
             move |dev: &Device,
                   res: &GpuResources,
                   _input: &BatchInput,
                   cmd: vk::CommandBuffer| {
-                fg_batch_fn(dev, res, cmd);
-                labels_batch_fn(dev, res, cmd);
+                // fg_batch_fn(dev, res, cmd);
+                // labels_batch_fn(dev, res, cmd);
                 comp_batch_fn(dev, res, cmd);
             },
         ) as Box<_>;
@@ -1769,7 +1787,8 @@ impl PathViewerNew {
 
                 let mut vx = [0u8; 32];
 
-                let lb_y = lb_y + ix as f32 * y_delta as f32;
+                let lb_y = lb_y + ix as f32 * yd;
+                // let lb_y = lb_y + ix as f32 * y_delta as f32;
 
                 vx[0..8].clone_from_slice([lb_x, lb_y].as_bytes());
                 vx[8..16]

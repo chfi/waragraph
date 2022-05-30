@@ -140,7 +140,7 @@ fn main() -> Result<()> {
     let mut compositor = Compositor::init(
         &mut engine,
         &swapchain_dims,
-        vk::ImageLayout::GENERAL,
+        vk::ImageLayout::UNDEFINED,
         vk::ImageLayout::GENERAL,
     )?;
 
@@ -171,6 +171,7 @@ fn main() -> Result<()> {
 
     let mut viewer = ViewerSys::init(
         &mut engine,
+        &compositor,
         &graph,
         &graph_module,
         &db,
