@@ -159,4 +159,9 @@ pub mod rhai_module {
     pub fn node_to_int(node: Node) -> i64 {
         node.0 as i64
     }
+
+    #[rhai_fn(global, pure)]
+    pub fn to_string(node: &mut Node) -> String {
+        node.to_string()
+    }
 }

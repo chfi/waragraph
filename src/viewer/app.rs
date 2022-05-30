@@ -59,7 +59,6 @@ pub struct ViewerSys {
 
     pub on_resize: RhaiBatchFn2<i64, i64>,
 
-    pub draw_foreground: RhaiBatchFn5<BatchBuilder, rhai::Array, i64, i64, i64>,
     pub copy_to_swapchain:
         Arc<RhaiBatchFn5<BatchBuilder, DescSetIx, rhai::Map, i64, i64>>,
 
@@ -68,7 +67,6 @@ pub struct ViewerSys {
 
     pub slot_rhai_module: Arc<rhai::Module>,
 
-    // pub annotations: BTreeMap<rhai::ImmutableString, Arc<AnnotationSet>>,
     pub annotations:
         Arc<RwLock<BTreeMap<rhai::ImmutableString, Arc<AnnotationSet>>>>,
 
@@ -544,16 +542,6 @@ impl ViewerSys {
                 .expect("error creating gradient buffers");
         });
 
-        // main draw function
-        let draw_foreground = rhai::Func::<
-            (BatchBuilder, rhai::Array, i64, i64, i64),
-            BatchBuilder,
-        >::create_from_ast(
-            Self::create_engine_impl(db, buffers, &arc_module, &slot_module),
-            builder.ast.clone_functions_only(),
-            "foreground",
-        );
-
         let copy_to_swapchain = rhai::Func::<
             (BatchBuilder, DescSetIx, rhai::Map, i64, i64),
             BatchBuilder,
@@ -661,7 +649,6 @@ impl ViewerSys {
 
             on_resize,
 
-            draw_foreground,
             copy_to_swapchain: Arc::new(copy_to_swapchain),
 
             key_binds,
@@ -671,77 +658,6 @@ impl ViewerSys {
 
             new_viewer,
         })
-    }
-
-    pub fn queue_slot_updates(
-        &mut self,
-        graph: &Arc<Waragraph>,
-        update_tx: &crossbeam::channel::Sender<(
-            Arc<Vec<(Node, usize)>>,
-            rhai::ImmutableString,
-            SlotUpdateFn<u32>,
-            Path,
-            (usize, usize),
-            usize,
-        )>,
-    ) -> Result<()> {
-        let slot_fns = self.slot_functions.read();
-
-        let samples = Arc::new(self.path_viewer.sample_buf.clone());
-
-        let update_key = self
-            .config
-            .map
-            .read()
-            .get("viz.slot_function")
-            .and_then(|v| v.clone().into_immutable_string().ok())
-            .unwrap_or_else(|| "unknown".into());
-
-        let def = slot_fns
-            .slot_fn_u32
-            .get("depth_mean")
-            .ok_or(anyhow!("default slot renderer not found"))?;
-
-        let slot_fn =
-            slot_fns.slot_fn_u32.get(&update_key).unwrap_or_else(|| {
-                log::warn!("slot renderer `{}` not found", update_key);
-                def
-            });
-
-        let paths = self.path_viewer.visible_paths(graph);
-
-        let view = self.view.load();
-        let cur_view = Some((view.offset, view.len));
-
-        let view = (view.offset, view.len);
-
-        let mut slots = self.path_viewer.slots.write();
-        for path in paths {
-            // if let Some(slot) = self.path_viewer.slots.get_slot_mut_for(path) {
-            if let Some(slot) = slots.get_slot_mut_for(path) {
-                if !slot.updating.load()
-                    && (slot.view != cur_view
-                        || slot.slot_function != &update_key
-                        || slot.width != Some(self.path_viewer.width))
-                {
-                    let msg = (
-                        samples.clone(),
-                        update_key.clone(),
-                        slot_fn.to_owned(),
-                        path,
-                        view,
-                        self.path_viewer.width,
-                    );
-
-                    slot.width = Some(self.path_viewer.width);
-                    slot.view = Some(view);
-                    update_tx.send(msg)?;
-                    slot.updating.store(true);
-                }
-            }
-        }
-
-        Ok(())
     }
 
     pub fn handle_input(
@@ -1185,39 +1101,10 @@ impl ViewerSys {
         let slot_buf_size = self.path_viewer.width;
 
         let batch_builder = BatchBuilder::default();
-        let fg_batch = (&self.draw_foreground)(
-            batch_builder,
-            desc_sets.clone(),
-            width as i64,
-            height as i64,
-            slot_buf_size as i64,
-        )
-        .unwrap();
-        let fg_batch_fn = fg_batch.build();
-
-        let batch_builder = BatchBuilder::default();
         let mut builder = rhai::Dynamic::from(batch_builder);
         // let labels_batch = self.draw_labels_.call
 
         // self.draw_labels_.call_raw(context, this_ptr, arg_values)
-
-        self.engine
-            .call_fn_raw(
-                &mut rhai::Scope::default(),
-                &self.frame.ast,
-                false,
-                true,
-                "draw_labels",
-                Some(&mut builder),
-                [
-                    rhai::Dynamic::from_int(width as i64),
-                    rhai::Dynamic::from_int(height as i64),
-                    rhai::Dynamic::from_array(label_sets),
-                ],
-            )
-            .unwrap();
-
-        let labels_batch_fn = builder.cast::<BatchBuilder>().build();
 
         let extent = vk::Extent2D { width, height };
 
@@ -1232,8 +1119,6 @@ impl ViewerSys {
                   res: &GpuResources,
                   _input: &BatchInput,
                   cmd: vk::CommandBuffer| {
-                // fg_batch_fn(dev, res, cmd);
-                // labels_batch_fn(dev, res, cmd);
                 comp_batch_fn(dev, res, cmd);
             },
         ) as Box<_>;

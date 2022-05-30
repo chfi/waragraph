@@ -132,12 +132,6 @@ fn gui_init(globals, label_space) {
 
   ui::init_layer("lines", 5, true);
   ui::allocate_sublayer("lines", "line-rgb", "lines");
-
-
-  ui::init_layer("path-slots", 20, true);
-  ui::allocate_text_sublayer(label_space, "path-slots", "slot-labels");
-  ui::allocate_sublayer("path-slots", "path-slot", "slots");
-
 }
 
 props.set("prev_slot", false);
@@ -197,8 +191,6 @@ fn gui_update(globals, label_space, dt) {
   }
   */
 
-  // print(`dt: ${dt}`);
-
   let prev_slot = props.get("prev_slot");
 
   let slot = slot_ix_at_pos(pos);
@@ -223,11 +215,11 @@ fn gui_update(globals, label_space, dt) {
         let node = graph::node_at_pos(bp_pos);
         let path_pos = graph::pos_at_node(path, node);
 
-        let text = `${node.to_int()} - ${path_pos}`;
+        let text = `${node} - ${path_pos}`;
 
         let slot_pos = slot_rect(dims, slot.index);
 
-        let rows = [`Node ${node.to_int()}`];
+        let rows = [`Node ${node}`];
 
 
         // kind of hacky, but this is where the BED-related
@@ -262,8 +254,8 @@ fn gui_update(globals, label_space, dt) {
 
         tooltip::show_tooltip(label_space, pos, rows);
 
-        print(`pos: ${pos} -- node: ${node.to_int()} -- path: ${path_name}, pos: ${path_pos}`);
-        clipboard::set_text(`pos: ${pos} -- node: ${node.to_int()} -- path: ${path_name}, pos: ${path_pos}`);
+        print(`pos: ${pos} -- node: ${node} -- path: ${path_name}, pos: ${path_pos}`);
+        clipboard::set_text(`pos: ${pos} -- node: ${node} -- path: ${path_name}, pos: ${path_pos}`);
       }
     }
 
@@ -271,84 +263,6 @@ fn gui_update(globals, label_space, dt) {
 
   }
 }
-
-
-/*
-fn prepare_legend_icons() {
-  let screen = gui::get_window_size();
-
-  let values = [0.0, 0.5, 1.0, 1.5, 2.0, 3.0, 4.0, 5.0];
-
-  let y_delta = 40;
-
-  let origin = #{ x: 40, y: 80 };
-
-  let rect = origin;
-  rect.w = 16;
-  rect.h = 16;
-
-  let label_origin = origin;
-  label_origin.x += 20;
-  label_origin.y += 4;
-
-  let rects = values.map(|val, ix| {
-    let label = gui::label("main_gui-legend", `legend-slot-${ix}`);
-    let pos = label_origin;
-    pos.y += ix * y_delta;
-    label.position = pos;
-    label.contents = `${val}`;
-    gui::update_label(label);
-
-    let color = value_color_index_map(val);
-
-    let r = rect;
-
-    r.y += ix * y_delta;
-
-    r.c = color;
-
-    r
-  });
-
-  gui::set_rects(this, rects);
-}
-
-fn prepare_legend_window() {
-  let screen = gui::get_window_size();
-
-  let top_left = #{ x: 20, y: 40 };
-
-  // print(screen);
-  let outer = top_left;
-  outer.h = screen.height - 2 * top_left.y;
-  outer.w = screen.width - 2 * top_left.x;
-
-  outer.c = 6;
-  // gui::set_rects(this, [window_outer]);
-
-  let title_bar = outer;
-  title_bar.y += 14;
-  title_bar.h = 2;
-  title_bar.x += 2;
-  title_bar.w -= 4;
-  title_bar.c = 4;
-
-  let main = outer;
-
-  main.y += 2;
-  main.h -= 4;
-  main.x += 2;
-  main.w -= 4;
-  main.c = 6;
-
-  gui::set_rects(this, [outer, main, title_bar]);
-
-  let title = gui::label("main_gui", "title");
-  title.contents = "Help";
-  title.position = #{ x: 24, y: 44 };
-  gui::update_label(title);
-}
-*/
 
 
 
@@ -393,14 +307,12 @@ let norm_sampler_info =
 export let unnorm_sampler = create_sampler(unnorm_sampler_info);
 export let norm_sampler = create_sampler(norm_sampler_info);
 
-export let bg_shader = load_shader("shaders/bg_color.comp.spv",
-                                   vk::ShaderStageFlags::VERTEX | vk::ShaderStageFlags::COMPUTE | vk::ShaderStageFlags::FRAGMENT);
-export let bg_pipeline = create_compute_pipeline(bg_shader);
-
 // text
 
 export let text_shader = load_shader("shaders/text.comp.spv",
-                                     vk::ShaderStageFlags::VERTEX | vk::ShaderStageFlags::COMPUTE | vk::ShaderStageFlags::FRAGMENT);
+                                     vk::ShaderStageFlags::VERTEX
+                                     | vk::ShaderStageFlags::COMPUTE
+                                     | vk::ShaderStageFlags::FRAGMENT);
 export let text_pipeline = create_compute_pipeline(text_shader);
 
 
@@ -468,85 +380,6 @@ fn resize(width, height) {
   init_batch
 }
 
-
-fn foreground(batch, desc_sets, w, h, slot_buf_size) {
-
-  let cfg = viewer::cfg;
-
-  let img = viewer::out_image.get();
-
-  batch.transition_image(img,
-                         vk::AccessFlags::SHADER_WRITE,
-                         vk::PipelineStageFlags::COMPUTE_SHADER
-                         | vk::PipelineStageFlags::FRAGMENT_SHADER,
-                         vk::AccessFlags::SHADER_READ
-                         | vk::AccessFlags::SHADER_WRITE,
-                         vk::PipelineStageFlags::COMPUTE_SHADER,
-                         vk::ImageLayout::UNDEFINED,
-                         vk::ImageLayout::GENERAL);
-
-  // draw background
-  let pc = blob();
-  // background color in push constant
-  pc.append_float(viewer::bg_color.r);
-  pc.append_float(viewer::bg_color.g);
-  pc.append_float(viewer::bg_color.b);
-  pc.append_float(1.0);
-  pc.append_int(w);
-  pc.append_int(h);
-
-  let x_size = 16;
-  let y_size = 16;
-
-  let x_groups = (w / x_size) + w % x_size;
-  let y_groups = (h / y_size) + h % y_size;
-
-  batch.dispatch_compute(viewer::bg_pipeline.get(),
-                         viewer::out_desc_set.get(),
-                         // viewer::bg_desc_set.get(),
-                         pc, x_groups, y_groups, 1);
-
-  // draw paths
-  let dims = #{ width: w, height: h };
-  let colors = slot::get_slot_color_scheme(cfg.get("viz.slot_function"));
-
-  if colors.type_of() == "string" {
-    batch = draw_slots(batch,
-                       dims,
-                       slot_buf_size,
-                       desc_sets,
-                       colors);
-  } else {
-    print("could not find color scheme");
-  }
-
-  batch.transition_image(img,
-                         vk::AccessFlags::SHADER_WRITE,
-                         vk::PipelineStageFlags::COMPUTE_SHADER,
-                         vk::AccessFlags::SHADER_READ
-                         | vk::AccessFlags::SHADER_WRITE,
-                         vk::PipelineStageFlags::COMPUTE_SHADER
-                         | vk::PipelineStageFlags::FRAGMENT_SHADER
-                         | vk::PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT,
-                         vk::ImageLayout::GENERAL,
-                         vk::ImageLayout::GENERAL);
-
-
-
-  // add a memory barrier
-  batch.transition_image(img,
-                         vk::AccessFlags::SHADER_WRITE,
-                         vk::PipelineStageFlags::COMPUTE_SHADER,
-                         vk::AccessFlags::SHADER_READ,
-                         vk::PipelineStageFlags::COMPUTE_SHADER,
-                         vk::ImageLayout::GENERAL,
-                         vk::ImageLayout::GENERAL);
-
-  batch
-}
-
-
-
 export let img_shader =
   load_shader("shaders/copy_image.comp.spv",
               vk::ShaderStageFlags::VERTEX
@@ -606,68 +439,6 @@ fn copy_to_swapchain(batch, source_set, swapchain, w, h) {
 }
 
 
-fn draw_labels(width, height, labels) {
-  let w = width;
-  let h = height;
-
-  let img = viewer::out_image.get();
-  this.transition_image(img,
-                        vk::AccessFlags::SHADER_WRITE
-                        | vk::AccessFlags::COLOR_ATTACHMENT_WRITE,
-                        vk::PipelineStageFlags::COMPUTE_SHADER
-                        // | vk::PipelineStageFlags::FRAGMENT_SHADER
-                        | vk::PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT,
-                        vk::AccessFlags::SHADER_READ
-                        | vk::AccessFlags::SHADER_WRITE,
-                         vk::PipelineStageFlags::COMPUTE_SHADER,
-                         vk::ImageLayout::GENERAL,
-                         vk::ImageLayout::GENERAL);
-
-
-  for label in labels {
-    let pc = blob();
-    pc.append_int(label.x);
-    pc.append_int(label.y);
-    pc.append_int(w);
-    pc.append_int(h);
-
-    pc.append_float(viewer::label_color.r);
-    pc.append_float(viewer::label_color.g);
-    pc.append_float(viewer::label_color.b);
-    pc.append_float(1.0);
-
-    let workgroups = #{ x_groups: label.len,
-                        y_groups: 1,
-                        z_groups: 1 };
-
-    this.dispatch_compute(viewer::text_pipeline.get(),
-                           [viewer::font_desc_set.get(),
-                            label.desc_set,
-                            viewer::out_desc_set.get()],
-                           pc,
-                           workgroups);
-
-
-  }
-
-
-
-  this.transition_image(img,
-                         vk::AccessFlags::SHADER_WRITE,
-                         vk::PipelineStageFlags::COMPUTE_SHADER,
-                        // vk::AccessFlags::SHADER_READ
-                        vk::AccessFlags::SHADER_WRITE
-                        // | vk::AccessFlags::COLOR_ATTACHMENT_READ
-                        | vk::AccessFlags::COLOR_ATTACHMENT_WRITE
-                        // | vk::AccessFlags::HOST_WRITE
-                        | vk::AccessFlags::SHADER_WRITE,
-                        // vk::PipelineStageFlags::COMPUTE_SHADER
-                        vk::PipelineStageFlags::FRAGMENT_SHADER
-                        | vk::PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT,
-                         vk::ImageLayout::GENERAL,
-                         vk::ImageLayout::GENERAL);
-
-}
 
 fn visible_slots(win_height) {
   let cfg = viewer::cfg;
@@ -742,61 +513,4 @@ fn slot_ix_at_pos(pos) {
   // }
 
   return #{ index: i.to_int(), t: t };
-}
-
-fn draw_slots(batch, win_dims, slot_buf_size, slot_desc_sets, color_buffer) {
-  let x_size = 8;
-  let y_size = 8;
-
-  let cfg = viewer::cfg;
-  let slot = cfg.get("layout.slot");
-
-  let slot = slot_rect(win_dims, 0);
-
-  let workgroups = #{ x_groups: (slot.w / x_size) + slot.w % x_size,
-                      y_groups: (slot.h / y_size) + slot.h % y_size,
-                      z_groups: 1 };
-
-  if slot.w > 0 && slot.h > 0 {
-    try {
-      let color_data = get_buffer(color_buffer);
-
-      let vis_count = visible_slots(win_dims.height);
-      if vis_count >= slot_desc_sets.len() {
-        vis_count = slot_desc_sets.len()
-      }
-
-      for ix in 0..vis_count {
-        let desc_sets = slot_desc_sets[ix];
-
-        let slot_set = desc_sets.slot;
-
-        if slot_set.type_of() != "()" {
-          let rect = slot_rect(win_dims, ix);
-          let pc = blob();
-          pc.append_int(rect.x.to_int());
-          pc.append_int(rect.y.to_int());
-          pc.append_int(rect.w.to_int());
-          pc.append_int(rect.h.to_int());
-          pc.append_int(slot_buf_size);
-
-          batch.dispatch_compute(viewer::path_pipeline.get(),
-                                 [slot_set,
-                                  color_data.set,
-                                  viewer::out_desc_set.get()],
-                                 pc,
-                                 workgroups);
-        } else {
-          print("got a () in draw_slots!");
-        }
-
-      }
-    }
-    catch (err)
-    {
-      print(err);
-    }
-  }
-
-  batch
 }

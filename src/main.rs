@@ -361,42 +361,6 @@ bed::load_bed_file(bed_path, bed_name, column_map)
         }
     }
 
-    /*
-    let _update_threads = (0..4)
-        .map(|_| {
-            let input = update_rx.clone();
-            let out = slot_tx.clone();
-
-            std::thread::spawn(move || {
-                let mut buffer = Vec::new();
-
-                loop {
-                    while let Ok((
-                        samples,
-                        slot_fn_name,
-                        slot_fn,
-                        path,
-                        view,
-                        width,
-                    )) = input.recv()
-                    {
-                        buffer.clear();
-                        buffer.extend(
-                            (0..width).map(|i| slot_fn(&samples, path, i)),
-                        );
-
-                        let msg =
-                            (path, slot_fn_name, buffer.clone(), view, width);
-                        if let Err(e) = out.send(msg) {
-                            log::error!("Update thread error: {:?}", e);
-                        }
-                    }
-                }
-            })
-        })
-        .collect::<Vec<_>>();
-    */
-
     let mut prev_frame = std::time::Instant::now();
 
     let should_exit = Arc::new(AtomicCell::new(false));
@@ -585,20 +549,10 @@ bed::load_bed_file(bed_path, bed_name, column_map)
                     );
                     */
 
-                    should_update = true;
-
                     let view = viewer.view.load();
                     let range = view.range();
 
                     viewer.path_viewer.sample(&graph, &view);
-                }
-
-                if viewer.path_viewer.has_new_samples() || should_update {
-                    if let Err(e) =
-                        viewer.queue_slot_updates(&graph, &update_tx)
-                    {
-                        log::error!("PathViewer slot update error: {:?}", e);
-                    }
                 }
 
                 {
