@@ -1719,7 +1719,6 @@ impl PathViewerNew {
             })?;
         }
 
-        /*
         // TODO handle path name labels
         if let Some(sublayer) = layer.get_sublayer_mut("slot-labels") {
             let map = config.map.read();
@@ -1746,22 +1745,44 @@ impl PathViewerNew {
 
             let y_delta = padding + h;
 
-            // let mut vertices: Vec<[u8; 32]> = Vec::new();
+            // let mut label_vertices = Vec::new();
 
+            let mut vertices: Vec<[u8; 32]> = Vec::new();
+
+            let name_len = name_len as usize;
+
+            let lb_x = label_x as f32;
+            let lb_y = label_y as f32;
+
+            // insert path names into the label space
+            for (ix, (path, _)) in self.slot_list.visible_rows().enumerate() {
+                let path_name = graph.path_name(*path).unwrap();
+
+                let text = if path_name.len() < name_len {
+                    format!("{}", path_name)
+                } else {
+                    let prefix = &path_name[..name_len - 3];
+                    format!("{}...", prefix)
+                };
+
+                let (offset, len) = label_space.bounds_for_insert(&text)?;
+
+                let mut vx = [0u8; 32];
+
+                let lb_y = lb_y + ix as f32 * y_delta as f32;
+
+                vx[0..8].clone_from_slice([lb_x, lb_y].as_bytes());
+                vx[8..16]
+                    .clone_from_slice([offset as u32, len as u32].as_bytes());
+                vx[16..32].clone_from_slice([0f32, 0.0, 0.0, 1.0].as_bytes());
+                vertices.push(vx);
+            }
+
+            // upload vertices
             sublayer.draw_data_mut().try_for_each(|data| {
-                // data.update_sets([data_set, color_buffer_set]);
-                data.update_vertices_array(
-                    self.slot_list.visible_rows().filter_map(|(path, _)| {
-                        let path_name = graph.path_name(*path)?;
-                        // let path_name = path_name.to_str().ok()?;
-
-                        //
-                    }),
-                )?;
-                Ok(())
+                data.update_vertices_array(vertices.iter().copied())
             })?;
         }
-        */
 
         Ok(())
     }
