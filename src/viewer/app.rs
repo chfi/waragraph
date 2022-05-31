@@ -1,3 +1,4 @@
+use bimap::BiHashMap;
 use bstr::ByteSlice;
 use crossbeam::atomic::AtomicCell;
 use parking_lot::RwLock;
@@ -747,9 +748,11 @@ impl ViewerSys {
 
         let win_h = window_height as usize;
         let y = get_cast(&slot, "y") as usize;
-        let slot_h = (get_cast(&slot, "h") + padding) as usize;
 
-        let count = (win_h - y) / slot_h;
+        let slot_h = (get_cast(&slot, "h") + padding * 2) as usize;
+
+        let bottom_pad = 16;
+        let count = (win_h - y - bottom_pad) / slot_h;
 
         let path_count = graph.path_names.len();
 
@@ -1307,10 +1310,14 @@ impl std::default::Default for SlotState {
     }
 }
 
+pub type SlotFnVar = usize;
+
 pub struct PathViewerNew {
     pub cache: GpuBufferCache<(Path, SlotFnName)>,
 
-    slot_list: ListView<(Path, SlotFnName)>,
+    slot_fn_vars: BiHashMap<SlotFnVar, SlotFnName>,
+
+    slot_list: ListView<(Path, SlotFnVar)>,
 
     slot_states: HashMap<(Path, SlotFnName), Arc<AtomicCell<SlotState>>>,
 
@@ -1345,15 +1352,21 @@ impl PathViewerNew {
             block_capacity,
         )?;
 
+        let mut slot_fn_vars: BiHashMap<SlotFnVar, SlotFnName> =
+            BiHashMap::new();
+
+        slot_fn_vars.insert(0, "depth_mean".into());
+        // slot_fn_vars.insert(1, "path_primary".into());
+
         let slot_list = ListView::new(
-            graph
-                .path_names
-                .left_values()
-                .map(|&path| (path, slot_fn_name.clone())),
+            graph.path_names.left_values().map(|&path| (path, 0)),
         );
 
         Ok(Self {
             cache,
+
+            slot_fn_vars,
+
             slot_list,
             slot_states: HashMap::default(),
 
@@ -1390,11 +1403,33 @@ impl PathViewerNew {
         engine: &mut VkEngine,
         label_space: &LabelSpace,
         slot_fns: &SlotFnCache,
+        config: &ConfigMap,
         samples: Arc<Vec<(Node, usize)>>,
         buffer_width: usize,
         view: ViewDiscrete1D,
         row_count: usize,
     ) -> Result<()> {
+        // get the active slot functions from the
+        {
+            let map = config.map.read();
+            let primary = map
+                .get("viz.slot_function")
+                .unwrap()
+                .clone_cast::<rhai::ImmutableString>();
+            // let secondary = map
+            //     .get("viz.secondary")
+            //     .unwrap()
+            //     .clone_cast::<rhai::ImmutableString>();
+
+            if Some(&primary) != self.slot_fn_vars.get_by_left(&0) {
+                self.slot_fn_vars.insert(0, primary);
+                self.force_refresh();
+            }
+
+            // self.slot_fn_vars.insert(1, secondary);
+        }
+        // let (primary, secondary) = config.map.read().get
+
         let _ = label_space.write_buffer(&mut engine.resources);
 
         self.current_width = buffer_width;
@@ -1418,45 +1453,51 @@ impl PathViewerNew {
         }
 
         // make sure all entries in the slot list are bound in the cache
-        self.cache
-            .bind_blocks(self.slot_list.visible_rows().cloned())?;
+        self.cache.bind_blocks(self.slot_list.visible_rows().map(
+            |(path, var)| {
+                let slot_fn = self.slot_fn_vars.get_by_left(var).unwrap();
+                (*path, slot_fn.clone())
+            },
+        ))?;
 
         // for each visible (Path, SlotFnName) in the slot list
 
         let need_refresh = self.need_refresh();
 
-        for key in self.slot_list.visible_rows() {
+        for (path, var) in self.slot_list.visible_rows() {
+            let slot_fn = self.slot_fn_vars.get_by_left(var).unwrap();
+            let key = (*path, slot_fn.clone());
+
             // get the state cell for the slot, creating and inserting
             // a new cell with the Unknown state if the current key
             // doesn't have a state
             let cell = self.slot_states.entry(key.clone()).or_default().clone();
 
-            let need_update = match cell.load() {
-                // if it's currently updating, do nothing
-                SlotState::Updating => false,
-                SlotState::Unknown => true,
-                SlotState::Contains {
-                    buffer_width,
-                    view_offset,
-                    view_len,
-                } => {
-                    // if it's up to date with the current view and
-                    // width, do nothing
-                    buffer_width != self.current_width
-                        || view_offset != self.current_view.offset
-                        || view_len != self.current_view.len
-                }
-            };
+            let need_update = need_refresh
+                || match cell.load() {
+                    // if it's currently updating, do nothing
+                    SlotState::Updating => false,
+                    SlotState::Unknown => true,
+                    SlotState::Contains {
+                        buffer_width,
+                        view_offset,
+                        view_len,
+                    } => {
+                        // if it's up to date with the current view and
+                        // width, do nothing
+                        buffer_width != self.current_width
+                            || view_offset != self.current_view.offset
+                            || view_len != self.current_view.len
+                    }
+                };
 
             // if there is no entry, it is unknown, or the view or width
             // contained do not match,
 
-            if need_update || need_refresh {
+            if need_update {
                 let (path, slot_fn_name) = key;
 
-                let path = *path;
-
-                let slot_fn = slot_fns.slot_fn_u32.get(slot_fn_name).ok_or(
+                let slot_fn = slot_fns.slot_fn_u32.get(&slot_fn_name).ok_or(
                     anyhow!("slot renderer `{}` not found", slot_fn_name),
                 )?;
 
@@ -1575,11 +1616,14 @@ impl PathViewerNew {
 
         let mut vertices: Vec<[u8; 24]> = Vec::new();
 
-        for (ix, key) in self.slot_list.visible_rows().enumerate() {
+        for (ix, (path, var)) in self.slot_list.visible_rows().enumerate() {
+            let slot_fn = self.slot_fn_vars.get_by_left(var).unwrap();
+            let key = (*path, slot_fn.clone());
+
             // if the state cell somehow doesn't exist, or shows that
             // there's probably only garbage data there, simply skip
             // this row (it'll get drawn when the data's ready)
-            if let Some(state) = self.slot_states.get(key) {
+            if let Some(state) = self.slot_states.get(&key) {
                 if state.load() == SlotState::Unknown {
                     continue;
                 }
@@ -1589,7 +1633,7 @@ impl PathViewerNew {
 
             // otherwise prepare the vertex data
 
-            let range = self.cache.cache().get_range(key).unwrap();
+            let range = self.cache.cache().get_range(&key).unwrap();
 
             let mut vx = [0u8; 24];
 
@@ -1609,7 +1653,8 @@ impl PathViewerNew {
         let data_set = self.cache.desc_set();
 
         let color_buffer_set = {
-            let name = slot_fns.slot_color.get("depth_mean").unwrap();
+            let slot_fn = self.slot_fn_vars.get_by_left(&0).unwrap();
+            let name = slot_fns.slot_color.get(slot_fn).unwrap();
             let buf_id = buffer_storage.get_id(name.as_str()).unwrap();
             let set = buffer_storage.get_desc_set_ix(buf_id).unwrap();
             set

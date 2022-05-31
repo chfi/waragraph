@@ -532,6 +532,7 @@ bed::load_bed_file(bed_path, bed_name, column_map)
                         &mut engine,
                         &mut viewer.label_space,
                         &slot_fns,
+                        &viewer.config,
                         samples,
                         width,
                         view,
