@@ -270,28 +270,6 @@ fn main() -> Result<()> {
 
     let mut prev_frame_end = std::time::Instant::now();
 
-    // (samples, slot fn name, SlotUpdateFn, Path, view, width)
-    type UpdateMsg = (
-        Arc<Vec<(Node, usize)>>,
-        rhai::ImmutableString,
-        SlotUpdateFn<u32>,
-        Path,
-        (usize, usize),
-        usize,
-    );
-
-    let (u_tx, u_rx) = crossbeam::channel::unbounded::<
-        UpdateReqMsg<(Path, rhai::ImmutableString)>,
-    >();
-
-    let (update_tx, update_rx) = crossbeam::channel::unbounded::<UpdateMsg>();
-
-    // path, data, view, width
-    type SlotMsg =
-        (Path, rhai::ImmutableString, Vec<u32>, (usize, usize), usize);
-
-    let (slot_tx, slot_rx) = crossbeam::channel::unbounded::<SlotMsg>();
-
     match console.eval(&db, &buffers, "viewer::gui_init(globals, label_space)")
     {
         Ok(v) => {
@@ -516,24 +494,6 @@ bed::load_bed_file(bed_path, bed_name, column_map)
                 buffers.allocate_queued(&mut engine).unwrap();
                 buffers.fill_updated_buffers(&mut engine.resources).unwrap();
 
-                while let Ok((path, slot_fn_name, data, view, width)) =
-                    slot_rx.try_recv()
-                {
-                    let slot_ix =
-                        viewer.path_viewer.slots.read().get_slot_ix(path);
-
-                    if let Some(slot_ix) = slot_ix {
-                        viewer.path_viewer.apply_update(
-                            &mut engine.resources,
-                            slot_fn_name,
-                            slot_ix,
-                            &data,
-                            view,
-                            width,
-                        );
-                    }
-                }
-
                 let mut should_update = false;
 
                 // path-viewer specific, dependent on previous view
@@ -578,6 +538,18 @@ bed::load_bed_file(bed_path, bed_name, column_map)
                         vis_count,
                     ) {
                         log::error!("Path viewer update error: {:?}", e);
+
+                        use waragraph::viewer::cache::CacheError;
+
+                        // the above update() call will handle
+                        // reallocation, so any cache errors should
+                        // never reach here, but make sure to crash
+                        // just in case
+                        if let Some(_) =
+                            e.downcast_ref::<CacheError>()
+                        {
+                            panic!("Path viewer slot allocation failure -- this shouldn't happen!");
+                        }
                     }
                 }
 
