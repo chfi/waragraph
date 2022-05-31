@@ -763,6 +763,7 @@ bed::load_bed_file(bed_path, bed_name, column_map)
             Event::LoopDestroyed => {
                 log::debug!("Event::LoopDestroyed");
                 log::debug!("Freeing resources");
+                should_exit.store(true);
 
                 let _ = clipboard;
 

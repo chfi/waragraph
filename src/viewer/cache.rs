@@ -232,7 +232,7 @@ impl<K: std::hash::Hash + Eq> BufferCache<K> {
 
     // fn pick_row<Q: ?Sized>(
 
-    pub fn write_block<Q: ?Sized>(
+    fn write_block<Q: ?Sized>(
         &mut self,
         buffer: &mut [u8],
         // buffer: &mut BufferRes,
@@ -449,18 +449,17 @@ where
             .expect("GPU cache buffer must be host-accessible");
 
         while let Ok(msg) = self.data_msg_rx.try_recv() {
-            let range = self
-                .cache
-                .get_range(&msg.key)
-                .ok_or(anyhow!("GPU cache error: unbound key {:?}", msg.key))?;
-
-            if range.len() == msg.data.len() {
-                slice[range].clone_from_slice(&msg.data);
-                if let Some(signal) = msg.and_then {
-                    signal();
+            if let Some(range) = self.cache.get_range(&msg.key) {
+                if range.len() == msg.data.len() {
+                    slice[range].clone_from_slice(&msg.data);
+                    if let Some(signal) = msg.and_then {
+                        signal();
+                    }
+                } else {
+                    log::debug!("received data of incorrect width, ignoring");
                 }
             } else {
-                log::debug!("received data of incorrect width, ignoring");
+                log::warn!("invalid data update");
             }
         }
 
@@ -487,9 +486,8 @@ where
         K: Clone + std::fmt::Debug,
     {
         let new_keys = self.cache.rebind_blocks(new_keys)?;
-        // for key in new_keys {
-        //     self.block_state_map
-        //         .insert(key, Arc::new(BlockState::Unknown.into()));
+        // if !new_keys.is_empty() {
+        //     log::error!("inserted {} new keys: {:?}", new_keys.len(), new_keys);
         // }
         Ok(())
     }

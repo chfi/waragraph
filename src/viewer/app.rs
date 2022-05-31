@@ -1409,7 +1409,7 @@ impl PathViewerNew {
         view: ViewDiscrete1D,
         row_count: usize,
     ) -> Result<()> {
-        // get the active slot functions from the
+        // get the active slot functions from the rhai config object
         {
             let map = config.map.read();
             let primary = map
@@ -1423,12 +1423,11 @@ impl PathViewerNew {
 
             if Some(&primary) != self.slot_fn_vars.get_by_left(&0) {
                 self.slot_fn_vars.insert(0, primary);
-                self.force_refresh();
+                self.slot_states.clear();
             }
 
             // self.slot_fn_vars.insert(1, secondary);
         }
-        // let (primary, secondary) = config.map.read().get
 
         let _ = label_space.write_buffer(&mut engine.resources);
 
@@ -1444,24 +1443,35 @@ impl PathViewerNew {
         if slot_count > self.cache.cache().block_capacity()
             || self.current_width != self.cache.cache().block_size()
         {
+            let block_cap = self.cache.cache().block_capacity();
+            let new_slot_count = if slot_count > block_cap {
+                slot_count * 2
+            } else {
+                block_cap
+            };
+
             self.cache.reallocate(
                 engine,
-                slot_count * 2,
+                new_slot_count,
                 self.current_width,
             )?;
             self.slot_states.clear();
         }
 
         // make sure all entries in the slot list are bound in the cache
-        self.cache.bind_blocks(self.slot_list.visible_rows().map(
+        let result = self.cache.bind_blocks(self.slot_list.visible_rows().map(
             |(path, var)| {
                 let slot_fn = self.slot_fn_vars.get_by_left(var).unwrap();
                 (*path, slot_fn.clone())
             },
-        ))?;
+        ));
+
+        if let Err(e) = result {
+            log::error!("Cache error: {:#?}", e);
+            Err(e)?;
+        }
 
         // for each visible (Path, SlotFnName) in the slot list
-
         let need_refresh = self.need_refresh();
 
         for (path, var) in self.slot_list.visible_rows() {
@@ -1511,7 +1521,6 @@ impl PathViewerNew {
                 let current_view = self.current_view;
 
                 cell.store(SlotState::Updating);
-                let current_state = cell.load();
 
                 let msg = UpdateReqMsg::new(
                     key,
@@ -1534,14 +1543,23 @@ impl PathViewerNew {
                     // set the update signal to update the SlotState with the
                     // provided parameters
                     move || {
-                        let _ = cell.compare_exchange(
-                            current_state,
-                            SlotState::Contains {
+                        let cur = cell.load();
+
+                        if cur == SlotState::Unknown
+                            || cur == SlotState::Updating
+                        {
+                            cell.store(SlotState::Contains {
                                 buffer_width: current_width,
                                 view_offset: current_view.offset(),
                                 view_len: current_view.len(),
-                            },
-                        );
+                            });
+                        }
+
+                        cell.store(SlotState::Contains {
+                            buffer_width: current_width,
+                            view_offset: current_view.offset(),
+                            view_len: current_view.len(),
+                        });
                     },
                 );
 
