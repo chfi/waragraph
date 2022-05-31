@@ -751,7 +751,8 @@ impl ViewerSys {
 
         let slot_h = (get_cast(&slot, "h") + padding * 2) as usize;
 
-        let bottom_pad = 16;
+        let bottom_pad = get_cast(&map, "layout.list_bottom_pad") as usize;
+
         let count = (win_h - y - bottom_pad) / slot_h;
 
         let path_count = graph.path_names.len();
