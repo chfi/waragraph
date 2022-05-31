@@ -221,11 +221,13 @@ fn gui_update(globals, label_space, dt) {
 
         let rows = [`Node ${node}`];
 
-
         // kind of hacky, but this is where the BED-related
         // `tooltip_data` is consumed (see script/tooltip.rhai)
         try {
           let data_sources = globals.tooltip_data;
+          if data_sources.type_of() != "array" {
+            throw "TooltipNotArray";
+          }
 
           for tooltip in data_sources {
             let row_ix = tooltip.ix_data_source.at(path, node);
@@ -241,7 +243,9 @@ fn gui_update(globals, label_space, dt) {
           }
         }
         catch (e) {
-          print(e);
+          if e != "TooltipNotArray" {
+               print(e);
+          }
         }
 
         if path_name != false {
