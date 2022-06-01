@@ -133,6 +133,9 @@ fn gui_init(globals, label_space) {
 
   ui::init_layer("lines", 5, true);
   ui::allocate_sublayer("lines", "line-rgb", "lines");
+
+  ui::init_layer("edges", 2, true);
+  ui::allocate_sublayer("edges", "line-rgb", "lines");
 }
 
 props.set("prev_slot", false);

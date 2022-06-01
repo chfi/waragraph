@@ -26,6 +26,8 @@ pub mod cache;
 pub mod sampler;
 pub mod slots;
 
+pub mod edges;
+
 pub use sampler::*;
 pub use slots::*;
 
@@ -49,9 +51,9 @@ impl ViewDiscrete1D {
         (p - o) / l
     }
 
-    pub fn screen_x(&self, x_offset: u32, width: u32, pos: usize) -> f32 {
-        let x = x_offset as f32;
-        let w = width as f32;
+    pub fn screen_x(&self, x_offset: f32, width: f32, pos: usize) -> f32 {
+        let x = x_offset;
+        let w = width;
         let t = self.view_pos_norm(pos) as f32;
         x + t * w
     }
