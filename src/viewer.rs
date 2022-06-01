@@ -51,10 +51,10 @@ impl ViewDiscrete1D {
         (p - o) / l
     }
 
-    pub fn screen_x(&self, x_offset: f32, width: f32, pos: usize) -> f32 {
+    pub fn screen_x(&self, x_offset: f64, width: f64, pos: usize) -> f64 {
         let x = x_offset;
         let w = width;
-        let t = self.view_pos_norm(pos) as f32;
+        let t = self.view_pos_norm(pos) as f64;
         x + t * w
     }
 

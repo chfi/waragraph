@@ -712,11 +712,38 @@ bed::load_bed_file(bed_path, bed_name, column_map)
                                 == winit::event::ElementState::Pressed
                             {
                                 if matches!(kc, VK::Space) {
+
+                                    /*
+                                    let [width, height] = swapchain_dims.load();
+                                    let [slot_offset, slot_width] =
+                                        viewer.slot_x_offsets(width);
+
+                                    let y0 = (height - 100) as f32;
+
+                                    let view = viewer.view.load();
+
+                                    compositor.with_layer("edges", |layer| {
+                                        if let Some(sublayer) = layer.get_sublayer_mut("lines") {
+                                            let draw_data = sublayer.draw_data_mut().next().unwrap();
+                                            waragraph::viewer::edges::edge_vertices(
+                                                &graph,
+                                                // "Consensus_1",
+                                                "grch38#chr11:5210736-5521304",
+                                                view,
+                                                slot_offset,
+                                                y0,
+                                                slot_width,
+                                                90.0,
+                                                draw_data).unwrap();
+                                        }
+
+                                        Ok(())
+                                    }).unwrap();
+                                    */
+
+                                    /*
                                     if let Some(labels) = label_stacks.as_mut()
                                     {
-                                        let [width, _] = swapchain_dims.load();
-                                        let [slot_offset, slot_width] =
-                                            viewer.slot_x_offsets(width);
 
                                         labels
                                             .update_layer(
@@ -728,6 +755,7 @@ bed::load_bed_file(bed_path, bed_name, column_map)
                                             )
                                             .unwrap();
                                     }
+                                    */
                                 }
                                 if matches!(kc, VK::Return) {
                                     if let Err(e) = console.handle_input(
