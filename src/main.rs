@@ -475,6 +475,93 @@ bed::load_bed_file(bed_path, bed_name, column_map)
                     }
                 }
 
+
+                // prepare the path slot sublayer buffers
+                if let Err(e) = compositor.with_layer("path-slots", |layer| {
+                    let window_dims = swapchain_dims.load();
+                    let slot_fns = viewer.slot_functions.read();
+                    viewer.new_viewer.update_slot_sublayer(
+                        &graph,
+                        &mut viewer.label_space,
+                        layer,
+                        window_dims,
+                        &viewer.config,
+                        &slot_fns,
+                        &buffers,
+                    )?;
+                    Ok(())
+                }) {
+                    log::warn!("path sublayer update error: {:?}", e);
+                }
+
+
+                {
+                    let globals: Option<rhai::Map> = console.scope.get_value("globals");
+                    let hovered_path =
+                        match viewer.props.map.read().get("hovered_path") {
+                            None => None,
+                            Some(val) => {
+                                if val.type_name() == "waragraph::graph::Path" {
+                                    let path = val.clone_cast::<Path>();
+                                    Some(path)
+                                } else {
+                                    None
+                                }
+                            }
+                        };
+
+
+                    if let Some(path) = hovered_path {
+
+                        if graph.path_name(path).is_some() {
+
+                            let [width, height] = swapchain_dims.load();
+                            let [slot_offset, slot_width] =
+                                viewer.slot_x_offsets(width);
+
+                            let y0 =
+                                viewer
+                                .props
+                                .map
+                                .read()
+                                .get("hovered_slot_y")
+                                .unwrap()
+                                .clone_cast::<i64>();
+
+                            // let y0 = (height - 100) as f32;
+                            let y0 = y0 as f32;
+                            // let yd =
+
+                            // let vis_row_count =
+                            //     viewer.visible_slot_count(&graph, window_height);
+
+
+                            let view = viewer.view.load();
+
+                            compositor.with_layer("edges", |layer| {
+                                if let Some(sublayer) = layer.get_sublayer_mut("lines") {
+                                    let draw_data =
+                                        sublayer.draw_data_mut().next().unwrap();
+
+                                    edge_cache.update_sublayer_data_with_path(
+                                        &graph,
+                                        path,
+                                        view,
+                                        slot_offset as u32,
+                                        y0 as u32,
+                                        slot_width as u32,
+                                        90,
+                                        draw_data).unwrap();
+                                }
+
+                                Ok(())
+                            }).unwrap();
+                        }
+                    }
+
+                }
+
+
                 if let Err(e) = compositor.allocate_sublayers(&mut engine) {
                     log::error!("Compositor error: {:?}", e);
                 }
@@ -601,85 +688,6 @@ bed::load_bed_file(bed_path, bed_name, column_map)
 
                 mouse_clicked = false;
 
-                {
-                    let globals: Option<rhai::Map> = console.scope.get_value("globals");
-                    let hovered_path =
-                        match viewer.props.map.read().get("hovered_path") {
-                            None => None,
-                            Some(val) => {
-                                if val.type_name() == "waragraph::graph::Path" {
-                                    let path = val.clone_cast::<Path>();
-                                    Some(path)
-                                } else {
-                                    None
-                                }
-                            }
-                        };
-
-
-                    if let Some(path) = hovered_path {
-                        let [width, height] = swapchain_dims.load();
-                        let [slot_offset, slot_width] =
-                            viewer.slot_x_offsets(width);
-
-                        let y0 =
-                            viewer
-                            .props
-                            .map
-                            .read()
-                            .get("hovered_slot_y")
-                            .unwrap()
-                            .clone_cast::<i64>();
-
-                        // let y0 = (height - 100) as f32;
-                        let y0 = y0 as f32;
-                        // let yd =
-
-                        // let vis_row_count =
-                        //     viewer.visible_slot_count(&graph, window_height);
-
-
-                        let view = viewer.view.load();
-
-                        compositor.with_layer("edges", |layer| {
-                            if let Some(sublayer) = layer.get_sublayer_mut("lines") {
-                                let draw_data =
-                                    sublayer.draw_data_mut().next().unwrap();
-
-                                edge_cache.update_sublayer_data_with_path(
-                                    &graph,
-                                    path,
-                                    view,
-                                    slot_offset as u32,
-                                    y0 as u32,
-                                    slot_width as u32,
-                                    90,
-                                    draw_data).unwrap();
-                            }
-
-                            Ok(())
-                        }).unwrap();
-                    }
-
-                }
-
-                // prepare the path slot sublayer buffers
-                if let Err(e) = compositor.with_layer("path-slots", |layer| {
-                    let window_dims = swapchain_dims.load();
-                    let slot_fns = viewer.slot_functions.read();
-                    viewer.new_viewer.update_slot_sublayer(
-                        &graph,
-                        &mut viewer.label_space,
-                        layer,
-                        window_dims,
-                        &viewer.config,
-                        &slot_fns,
-                        &buffers,
-                    )?;
-                    Ok(())
-                }) {
-                    log::warn!("path sublayer update error: {:?}", e);
-                }
 
                 if recreate_swapchain_timer.is_none() && !recreate_swapchain {
                     let render_success = match viewer.render(
