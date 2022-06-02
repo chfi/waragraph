@@ -359,10 +359,19 @@ bed::load_bed_file(bed_path, bed_name, column_map)
             let exec = viewer.new_viewer.cache.data_msg_worker();
             let should_exit = should_exit.clone();
 
-            std::thread::spawn(move || loop {
-                if let Err(e) = exec() {
-                    if !should_exit.load() {
-                        log::error!("Cache data worker error: {:?}", e);
+            std::thread::spawn(move || {
+                let mut prev_error = None;
+                loop {
+                    if let Err(e) = exec() {
+                        if !should_exit.load() {
+                            let error =
+                                format!("Cache data worker error: {:?}", e);
+
+                            if prev_error.as_ref() != Some(&error) {
+                                log::warn!("{}", error);
+                                prev_error = Some(error);
+                            }
+                        }
                     }
                 }
             })
