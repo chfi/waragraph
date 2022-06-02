@@ -1602,9 +1602,7 @@ impl PathViewerNew {
             let slot =
                 map.get("layout.slot").unwrap().clone_cast::<rhai::Map>();
 
-            let win_h = window_dims[1] as usize;
-            let y = get_cast(&slot, "y") as usize;
-            let slot_h = (get_cast(&slot, "h") + padding) as usize;
+            let slot_h = get_cast(&slot, "h") as usize;
 
             let label =
                 map.get("layout.label").unwrap().clone_cast::<rhai::Map>();
