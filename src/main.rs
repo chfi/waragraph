@@ -21,6 +21,7 @@ use waragraph::graph::{Node, Path, Waragraph};
 use waragraph::util::{BufferStorage, LabelStorage};
 use waragraph::viewer::app::ViewerSys;
 use waragraph::viewer::cache::UpdateReqMsg;
+use waragraph::viewer::edges::EdgeCache;
 use waragraph::viewer::gui::tree_list::{Breadcrumbs, ListPopup, TreeList};
 use waragraph::viewer::{SlotUpdateFn, ViewDiscrete1D};
 use winit::event::{Event, VirtualKeyCode, WindowEvent};
@@ -98,6 +99,8 @@ fn main() -> Result<()> {
     let graph = Arc::new(Waragraph::from_gfa(&gfa)?);
     let graph_module =
         Arc::new(waragraph::graph::script::create_graph_module(&graph));
+
+    let edge_cache = EdgeCache::new(&graph);
 
     let event_loop: EventLoop<()>;
 
