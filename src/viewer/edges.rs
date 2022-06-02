@@ -1,6 +1,7 @@
+use bimap::BiHashMap;
 use raving::compositor::SublayerDrawData;
 
-use rustc_hash::FxHashSet;
+use rustc_hash::{FxHashMap, FxHashSet};
 
 use anyhow::{anyhow, Result};
 
@@ -9,6 +10,95 @@ use std::sync::Arc;
 use crate::graph::{Node, Path, Strand, Waragraph};
 
 use super::ViewDiscrete1D;
+
+pub struct EdgeCache {
+    // all edges as endpoints (pangenome positions)
+    edge_endpoints: Vec<(usize, usize)>,
+
+    // bitmap is a set of indices into the edge_endpoints
+    path_edges: FxHashMap<Path, roaring::RoaringBitmap>,
+}
+
+impl EdgeCache {
+    pub fn new(graph: &Waragraph) -> Self {
+        let mut seen_edges: BiHashMap<(usize, usize), usize> =
+            BiHashMap::default();
+
+        let mut all_path_edges: FxHashMap<Path, roaring::RoaringBitmap> =
+            FxHashMap::default();
+
+        for path in graph.path_names.left_values() {
+            let mut path_edges = roaring::RoaringBitmap::new();
+
+            let mut steps = graph.path_steps[path.ix()].iter().copied();
+
+            let mut prev_step: Strand = steps.next().unwrap();
+
+            let mut max_dist = std::usize::MIN;
+
+            // map the edge to a pair of node endpoints, depending on
+            // orientation, resulting in a (bp, bp) pair
+            // walk path, for each step, use the two strands as an edge
+            for step in steps {
+                let offset_a = graph.node_pos(prev_step.node());
+                let offset_b = graph.node_pos(step.node());
+
+                let len_a = graph.node_lens[prev_step.node().ix()] as usize;
+                let len_b = graph.node_lens[step.node().ix()] as usize;
+
+                let (p_a, p_b) =
+                    match (prev_step.is_reverse(), step.is_reverse()) {
+                        (false, false) => {
+                            // (a+, b+) := -a+ -> -b+
+                            // use RHS of prev_step, LHS of step
+                            (offset_a + len_a, offset_b)
+                        }
+                        (false, true) => {
+                            // (a+, b-) := -a+ -> +b-
+                            // use RHS of prev_step, RHS of step
+                            (offset_a + len_a, offset_b + len_b)
+                        }
+                        (true, false) => {
+                            // (a-, b+) := +a- -> -b+
+                            // use LHS of prev_step, LHS of step
+                            (offset_a, offset_b)
+                        }
+                        (true, true) => {
+                            // (a-, b-) := +a- -> +b-
+                            // use LHS of prev_step, RHS of step
+                            (offset_a, offset_b + len_b)
+                        }
+                    };
+
+                let diff = (p_a as isize).abs_diff(p_b as isize);
+
+                let min_dist = 1;
+
+                max_dist = max_dist.max(diff);
+
+                if diff > min_dist && !seen_edges.contains_left(&(p_a, p_b)) {
+                    let id = seen_edges.len();
+                    seen_edges.insert((p_a, p_b), id);
+                    path_edges.insert(id as u32);
+                }
+
+                prev_step = step;
+            }
+
+            all_path_edges.insert(*path, path_edges);
+        }
+
+        let mut edges = seen_edges.into_iter().collect::<Vec<_>>();
+        edges.sort_by_key(|(_, i)| *i);
+        let edge_endpoints =
+            edges.into_iter().map(|(e, _)| e).collect::<Vec<_>>();
+
+        Self {
+            edge_endpoints,
+            path_edges: all_path_edges,
+        }
+    }
+}
 
 pub fn edge_vertices(
     // still grabbing the layout from here
