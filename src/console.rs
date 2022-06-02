@@ -176,6 +176,41 @@ impl Console {
         Ok(())
     }
 
+    pub fn call_fn(
+        &mut self,
+        db: &sled::Db,
+        buffers: &BufferStorage,
+        // ast: &rhai::AST,
+        fn_name: &str,
+        this_ptr: Option<&mut rhai::Dynamic>,
+        args: impl AsMut<[rhai::Dynamic]>,
+    ) -> Result<rhai::Dynamic> {
+        let mut engine = create_engine(db, buffers);
+
+        for (name, module) in self.modules.iter() {
+            engine.register_static_module(name, module.clone());
+        }
+
+        let result = engine.call_fn_raw(
+            &mut self.scope,
+            // ast,
+            &self.ast,
+            // false,
+            true,
+            false,
+            fn_name,
+            this_ptr,
+            args,
+        )?;
+
+        Ok(result)
+
+        // match engine.eval_with_scope(scope, script) {
+        //     Ok(result) => Ok(result),
+        //     Err(err) => Err(anyhow!("eval err: {:?}", err)),
+        // }
+    }
+
     pub fn eval(
         &mut self,
         db: &sled::Db,

@@ -21,7 +21,7 @@ use waragraph::graph::{Node, Path, Waragraph};
 use waragraph::util::{BufferStorage, LabelStorage};
 use waragraph::viewer::app::ViewerSys;
 use waragraph::viewer::cache::UpdateReqMsg;
-use waragraph::viewer::edges::EdgeCache;
+use waragraph::viewer::edges::{EdgeCache, EdgeVertexCache};
 use waragraph::viewer::gui::tree_list::{Breadcrumbs, ListPopup, TreeList};
 use waragraph::viewer::{SlotUpdateFn, ViewDiscrete1D};
 use winit::event::{Event, VirtualKeyCode, WindowEvent};
@@ -101,6 +101,7 @@ fn main() -> Result<()> {
         Arc::new(waragraph::graph::script::create_graph_module(&graph));
 
     let edge_cache = EdgeCache::new(&graph);
+    let mut edge_cache = EdgeVertexCache::new(edge_cache);
 
     let event_loop: EventLoop<()>;
 
@@ -591,6 +592,51 @@ bed::load_bed_file(bed_path, bed_name, column_map)
 
                 mouse_clicked = false;
 
+                {
+                    let globals: Option<rhai::Map> = console.scope.get_value("globals");
+                    let hovered_path =
+                        match viewer.props.map.read().get("hovered_path") {
+                            None => None,
+                            Some(val) => {
+                                if val.type_name() == "waragraph::graph::Path" {
+                                    let path = val.clone_cast::<Path>();
+                                    Some(path)
+                                } else {
+                                    None
+                                }
+                            }
+                        };
+
+                    if let Some(path) = hovered_path {
+                        let [width, height] = swapchain_dims.load();
+                        let [slot_offset, slot_width] =
+                            viewer.slot_x_offsets(width);
+                        let y0 = (height - 100) as f32;
+
+                        let view = viewer.view.load();
+
+                        compositor.with_layer("edges", |layer| {
+                            if let Some(sublayer) = layer.get_sublayer_mut("lines") {
+                                let draw_data =
+                                    sublayer.draw_data_mut().next().unwrap();
+
+                                edge_cache.update_sublayer_data_with_path(
+                                    &graph,
+                                    path,
+                                    view,
+                                    slot_offset as u32,
+                                    y0 as u32,
+                                    slot_width as u32,
+                                    90,
+                                    draw_data).unwrap();
+                            }
+
+                            Ok(())
+                        }).unwrap();
+                    }
+
+                }
+
                 // prepare the path slot sublayer buffers
                 if let Err(e) = compositor.with_layer("path-slots", |layer| {
                     let window_dims = swapchain_dims.load();
@@ -716,52 +762,8 @@ bed::load_bed_file(bed_path, bed_name, column_map)
                             if input.state
                                 == winit::event::ElementState::Pressed
                             {
-                                if matches!(kc, VK::Space) {
-
-                                    /*
-                                    let [width, height] = swapchain_dims.load();
-                                    let [slot_offset, slot_width] =
-                                        viewer.slot_x_offsets(width);
-
-                                    let y0 = (height - 100) as f32;
-
-                                    let view = viewer.view.load();
-
-                                    compositor.with_layer("edges", |layer| {
-                                        if let Some(sublayer) = layer.get_sublayer_mut("lines") {
-                                            let draw_data = sublayer.draw_data_mut().next().unwrap();
-                                            waragraph::viewer::edges::edge_vertices(
-                                                &graph,
-                                                // "Consensus_1",
-                                                "grch38#chr11:5210736-5521304",
-                                                view,
-                                                slot_offset,
-                                                y0,
-                                                slot_width,
-                                                90.0,
-                                                draw_data).unwrap();
-                                        }
-
-                                        Ok(())
-                                    }).unwrap();
-                                    */
-
-                                    /*
-                                    if let Some(labels) = label_stacks.as_mut()
-                                    {
-
-                                        labels
-                                            .update_layer(
-                                                &mut compositor,
-                                                &graph,
-                                                viewer.view.load(),
-                                                slot_offset,
-                                                slot_width,
-                                            )
-                                            .unwrap();
-                                    }
-                                    */
-                                }
+                                // if matches!(kc, VK::Space) {
+                                // }
                                 if matches!(kc, VK::Return) {
                                     if let Err(e) = console.handle_input(
                                         &db,

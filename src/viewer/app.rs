@@ -41,6 +41,7 @@ use raving::compositor::{Compositor, Layer, Sublayer, SublayerAllocMsg};
 
 pub struct ViewerSys {
     pub config: ConfigMap,
+    pub props: ConfigMap,
 
     pub view: Arc<AtomicCell<ViewDiscrete1D>>,
 
@@ -197,6 +198,7 @@ impl ViewerSys {
             })?;
 
         let config = builder.module.get_var_value::<ConfigMap>("cfg").unwrap();
+        let props = builder.module.get_var_value::<ConfigMap>("props").unwrap();
 
         {
             let view_ = view.clone();
@@ -631,6 +633,8 @@ impl ViewerSys {
 
         Ok(Self {
             config,
+            props,
+
             view,
 
             path_viewer,

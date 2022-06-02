@@ -160,8 +160,14 @@ fn line(x0, y0, x1, y1) {
  } + rgb(1.0, 0.0, 0.0)
 }
 
-fn gui_update(globals, label_space, dt) {
+props.set("hovered_path", ());
 
+// fn gui_update() {
+//   import "color" as color;
+//   import "script/tooltip" as tooltip;
+//   import "script/ruler" as ruler;
+
+fn gui_update(globals, label_space, dt) {
 
   let props = viewer::props;
   let g_time = props.get("time");
@@ -218,6 +224,12 @@ fn gui_update(globals, label_space, dt) {
         let path_name = path.name();
         let node = graph::node_at_pos(bp_pos);
         let path_pos = graph::pos_at_node(path, node);
+
+        props.set("hovered_path", path);
+
+        // print(path_name);
+
+        // print(globals.hovered_path);
 
         let text = `${node} - ${path_pos}`;
 

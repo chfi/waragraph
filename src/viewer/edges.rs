@@ -49,7 +49,7 @@ impl EdgeVertexCache {
     pub fn update_sublayer_data_with_path(
         &mut self,
         graph: &Waragraph,
-        path_name: &str,
+        path: Path,
         view: ViewDiscrete1D,
         slot_x_offset: u32,
         slot_y_offset: u32,
@@ -58,10 +58,6 @@ impl EdgeVertexCache {
         // should be a "line-rgb"-type sublayer
         sublayer_data: &mut SublayerDrawData,
     ) -> Result<()> {
-        let path = graph
-            .path_index(path_name)
-            .ok_or(anyhow!("Path `{}` not found in edge cache!", path_name))?;
-
         let slot_offset = [slot_x_offset, slot_y_offset];
         let slot_dims = [slot_width, slot_height];
 
@@ -82,7 +78,7 @@ impl EdgeVertexCache {
 
         self.edge_cache.update_sublayer_data_with_path(
             graph,
-            path_name,
+            path,
             view,
             slot_x_offset as f32,
             slot_y_offset as f32,
@@ -190,7 +186,7 @@ impl EdgeCache {
     pub fn update_sublayer_data_with_path(
         &self,
         graph: &Waragraph,
-        path_name: &str,
+        path: Path,
         view: ViewDiscrete1D,
         slot_x_offset: f32,
         slot_y_offset: f32,
@@ -199,10 +195,6 @@ impl EdgeCache {
         // should be a "line-rgb"-type sublayer
         sublayer_data: &mut SublayerDrawData,
     ) -> Result<()> {
-        let path = graph
-            .path_index(path_name)
-            .ok_or(anyhow!("Unknown path!"))?;
-
         let screen_x = |pos: usize| {
             view.screen_x(slot_x_offset as f64, slot_width as f64, pos)
         };
@@ -239,22 +231,12 @@ impl EdgeCache {
 
                     let y1 = y0 + yd;
 
-                    // log::warn!(
-                    //     "p_a: {}, p_b: {}\tx0: {}, x1: {}\ty0: {}, y1: {}",
-                    //     p_a,
-                    //     p_b,
-                    //     x0,
-                    //     x1,
-                    //     y0,
-                    //     y1
-                    // );
-
                     let x0 = x0 as f32;
                     let x1 = x1 as f32;
                     let y0 = y0 as f32;
                     let y1 = y1 as f32;
 
-                    let color = [1f32, 0.0, 0.0, 1.0];
+                    let color = [0f32, 0.0, 0.0, 1.0];
 
                     vx0[0..12]
                         .clone_from_slice(bytemuck::cast_slice(&[x0, y0, 1.0]));
