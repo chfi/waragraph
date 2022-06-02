@@ -548,10 +548,7 @@ impl Waragraph {
         let pos_offset = range.start;
         let len = range.end - range.start;
 
-        let pos_end = pos_offset + len;
-
         let slice = &self.node_sum_lens;
-        let sample_width = len / nsamples;
 
         let sample_point = |p| match slice.binary_search(&p) {
             Ok(i) => i,
@@ -564,12 +561,13 @@ impl Waragraph {
             }
         };
 
-        // let p0 = pos_offset + sample_width / 2;
-        let p0 = pos_offset;
+        let sample_width = len as f64 / nsamples as f64;
+        let p0 = pos_offset as f64;
 
         for i in 0..=nsamples {
-            let p = p0 + i * sample_width;
-            let ix = sample_point(p);
+            let p = (p0 + i as f64 * sample_width) as usize;
+
+            let ix = sample_point(p).min(self.node_sum_lens.len() - 1);
             let offset = self.node_sum_lens[ix];
 
             let node = Node(ix as u32);

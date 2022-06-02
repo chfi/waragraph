@@ -53,9 +53,8 @@ impl ViewDiscrete1D {
 
     pub fn screen_x(&self, x_offset: f64, width: f64, pos: usize) -> f64 {
         let x = x_offset;
-        let w = width;
-        let t = self.view_pos_norm(pos) as f64;
-        x + t * w
+        let fact = width / (self.len as f64);
+        x + (pos as f64 - self.offset as f64) * fact
     }
 
     pub fn as_bytes(&self) -> [u8; 24] {

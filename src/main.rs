@@ -498,6 +498,8 @@ bed::load_bed_file(bed_path, bed_name, column_map)
 
                 // path-viewer specific, dependent on previous view
                 if viewer.path_viewer.should_update() {
+
+                    let [width, height] = swapchain_dims.load();
                     let [slot_offset, slot_width] =
                         viewer.slot_x_offsets(width);
 
