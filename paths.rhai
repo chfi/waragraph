@@ -134,8 +134,9 @@ fn gui_init(globals, label_space) {
   ui::init_layer("lines", 5, true);
   ui::allocate_sublayer("lines", "line-rgb", "lines");
 
-  ui::init_layer("edges", 2, true);
+  ui::init_layer("edges", 10, true);
   ui::allocate_sublayer("edges", "line-rgb", "lines");
+  ui::allocate_sublayer("edges", "rect-rgb", "rects");
 }
 
 props.set("prev_slot", false);
@@ -234,6 +235,8 @@ fn gui_update(globals, label_space, dt) {
         let text = `${node} - ${path_pos}`;
 
         let slot_pos = slot_rect(dims, slot.index);
+
+        props.set("hovered_slot_y", slot_pos.y + slot_pos.h);
 
         let rows = [`Node ${node}`];
 
@@ -505,8 +508,6 @@ fn slot_ix_at_pos(pos) {
 
   let win_dims = ui::get_window_size();
   let rect = slot_rect(win_dims);
-
-  // let vis_count = ((win_dims.height - rect.y) / (rect.h + padding)).to_int();
 
   let yd = rect.h + padding;
   let y0 = rect.y;

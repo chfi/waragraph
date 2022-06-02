@@ -616,11 +616,28 @@ bed::load_bed_file(bed_path, bed_name, column_map)
                             }
                         };
 
+
                     if let Some(path) = hovered_path {
                         let [width, height] = swapchain_dims.load();
                         let [slot_offset, slot_width] =
                             viewer.slot_x_offsets(width);
-                        let y0 = (height - 100) as f32;
+
+                        let y0 =
+                            viewer
+                            .props
+                            .map
+                            .read()
+                            .get("hovered_slot_y")
+                            .unwrap()
+                            .clone_cast::<i64>();
+
+                        // let y0 = (height - 100) as f32;
+                        let y0 = y0 as f32;
+                        // let yd =
+
+                        // let vis_row_count =
+                        //     viewer.visible_slot_count(&graph, window_height);
+
 
                         let view = viewer.view.load();
 

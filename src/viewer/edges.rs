@@ -236,24 +236,26 @@ impl EdgeCache {
                     let y0 = y0 as f32;
                     let y1 = y1 as f32;
 
+                    let w = 1f32;
+
                     let color = [0f32, 0.0, 0.0, 1.0];
 
                     vx0[0..12]
-                        .clone_from_slice(bytemuck::cast_slice(&[x0, y0, 1.0]));
+                        .clone_from_slice(bytemuck::cast_slice(&[x0, y0, w]));
                     vx0[12..24]
-                        .clone_from_slice(bytemuck::cast_slice(&[x0, y1, 1.0]));
+                        .clone_from_slice(bytemuck::cast_slice(&[x0, y1, w]));
                     vx0[24..40].clone_from_slice(bytemuck::cast_slice(&color));
 
                     vx1[0..12]
-                        .clone_from_slice(bytemuck::cast_slice(&[x0, y1, 1.0]));
+                        .clone_from_slice(bytemuck::cast_slice(&[x0, y1, w]));
                     vx1[12..24]
-                        .clone_from_slice(bytemuck::cast_slice(&[x1, y1, 1.0]));
+                        .clone_from_slice(bytemuck::cast_slice(&[x1, y1, w]));
                     vx1[24..40].clone_from_slice(bytemuck::cast_slice(&color));
 
                     vx2[0..12]
-                        .clone_from_slice(bytemuck::cast_slice(&[x1, y1, 1.0]));
+                        .clone_from_slice(bytemuck::cast_slice(&[x1, y1, w]));
                     vx2[12..24]
-                        .clone_from_slice(bytemuck::cast_slice(&[x1, y0, 1.0]));
+                        .clone_from_slice(bytemuck::cast_slice(&[x1, y0, w]));
                     vx2[24..40].clone_from_slice(bytemuck::cast_slice(&color));
 
                     [vx0, vx1, vx2].into_iter()

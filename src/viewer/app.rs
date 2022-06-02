@@ -106,12 +106,6 @@ impl ViewerSys {
             compositor.sublayer_alloc_tx.send(msg)?;
         }
 
-        /*
-        for (path, path_name) in &waragraph.path_names {
-            // let prefix_only = waragraph.path_names_prefixes.
-        }
-        */
-
         let mut txt = LabelStorage::new(&db)?;
 
         let slot_count = 16;
