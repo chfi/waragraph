@@ -108,6 +108,20 @@ bind_key(key::F1, |pressed| {
   }
 });
 
+bind_key(key::F9, |pressed| {
+  if pressed {
+    let scale = slot::get_scale_factor();
+    if scale == 1 {
+      slot::set_scale_factor(2);
+    } else if scale == 2 {
+      slot::set_scale_factor(4);
+    } else {
+      slot::set_scale_factor(1);
+    }
+  }
+
+});
+
 //
 // GUI definition
 //
