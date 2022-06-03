@@ -106,6 +106,18 @@ impl ViewerSys {
             compositor.sublayer_alloc_tx.send(msg)?;
         }
 
+        let view = Arc::new(AtomicCell::new(ViewDiscrete1D::new(
+            waragraph.total_len(),
+        )));
+
+        let new_viewer = PathViewerNew::new(
+            engine,
+            waragraph,
+            view.load(),
+            width as usize,
+            "depth_mean".into(),
+        )?;
+
         let mut txt = LabelStorage::new(&db)?;
 
         let slot_count = 16;
@@ -151,7 +163,7 @@ impl ViewerSys {
                 Ok(())
             });
 
-            let row_view = path_viewer.row_view.clone();
+            let row_view = new_viewer.row_view_latch.clone();
             module.set_native_fn("list_range", move || {
                 let (offset, len) = row_view.load();
                 let o = offset as i64;
@@ -175,10 +187,6 @@ impl ViewerSys {
 
             Arc::new(module)
         };
-
-        let view = Arc::new(AtomicCell::new(ViewDiscrete1D::new(
-            waragraph.total_len(),
-        )));
 
         let mut builder =
             FrameBuilder::from_script_with("paths.rhai", |engine| {
@@ -614,13 +622,6 @@ impl ViewerSys {
         };
 
         // let mut new_viewer = todo!();
-        let new_viewer = PathViewerNew::new(
-            engine,
-            waragraph,
-            view.load(),
-            width as usize,
-            "depth_mean".into(),
-        )?;
 
         let engine =
             Self::create_engine_impl(db, buffers, &arc_module, &slot_module);
@@ -1324,6 +1325,9 @@ pub struct PathViewerNew {
     current_width: usize,
 
     pub need_refresh: Arc<AtomicCell<bool>>,
+
+    row_view_latch: Arc<AtomicCell<(usize, usize)>>,
+    // row_offset: Arc<AtomicCell<usize>>,
 }
 
 impl PathViewerNew {
@@ -1361,6 +1365,8 @@ impl PathViewerNew {
             graph.path_names.left_values().map(|&path| (path, 0)),
         );
 
+        let row_view = (slot_list.offset, slot_list.len);
+
         Ok(Self {
             cache,
 
@@ -1373,6 +1379,8 @@ impl PathViewerNew {
             current_width,
 
             need_refresh: Arc::new(false.into()),
+
+            row_view_latch: Arc::new(row_view.into()),
         })
     }
 
@@ -1438,6 +1446,9 @@ impl PathViewerNew {
         // match the width, or if the current slot list view size is
         // greater than the cache block capacity
         let slot_count = self.slot_list.len();
+
+        self.row_view_latch
+            .store((self.slot_list.offset, self.slot_list.len));
 
         if slot_count > self.cache.cache().block_capacity()
             || self.current_width != self.cache.cache().block_size()

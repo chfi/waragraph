@@ -42,8 +42,9 @@ let grayscale = allocate_vec4_buffer("gradient-grayscale", 256);
 let grayscale_inv = allocate_vec4_buffer("gradient-grayscale-invert", 256);
 {
   let colors = [];
-    colors.push(rgba(64, 0, 0));
-    // colors.push(rgba(255, 0, 0));
+    // colors.push(rgba(64, 0, 0));
+    // colors.push(rgba(255, 255, 255));
+    colors.push(rgba(255, 255, 255));
   for i in 1..256 {
   // for i in 0..256 {
     colors.push(rgba(i, i, i));
