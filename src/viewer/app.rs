@@ -1659,7 +1659,12 @@ impl PathViewerNew {
 
             // otherwise prepare the vertex data
 
-            let range = self.cache.cache().get_range(&key).unwrap();
+            let range = if let Some(range) = self.cache.cache().get_range(&key)
+            {
+                range
+            } else {
+                continue;
+            };
 
             let mut vx = [0u8; 24];
 
