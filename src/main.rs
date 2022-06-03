@@ -614,7 +614,7 @@ bed::load_bed_file(bed_path, bed_name, column_map)
                     let view = viewer.view.load();
                     let range = view.range();
 
-                    viewer.path_viewer.sample(&graph, &view);
+                    viewer.path_viewer.sample(&graph, viewer.new_viewer.view_scale.load(), &view);
                 }
 
                 {

@@ -36,6 +36,8 @@ use crate::{
     util::LabelStorage,
 };
 
+use self::app::ScaleFactor;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ViewDiscrete1D {
     pub max: usize,
@@ -326,9 +328,17 @@ impl PathViewer {
         r
     }
 
-    pub fn sample(&mut self, graph: &Waragraph, view: &ViewDiscrete1D) {
-        if self.width > 0 {
-            graph.sample_node_lengths(self.width, view, &mut self.sample_buf);
+    pub fn sample(
+        &mut self,
+        graph: &Waragraph,
+        scale_factor: ScaleFactor,
+        view: &ViewDiscrete1D,
+    ) {
+        let nsamples = scale_factor.scale(self.width);
+
+        if nsamples > 0 {
+            graph.sample_node_lengths(nsamples, view, &mut self.sample_buf);
+            // graph.sample_node_lengths(self.width, view, &mut self.sample_buf);
             self.new_samples.store(true);
         }
     }

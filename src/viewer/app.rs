@@ -157,6 +157,39 @@ impl ViewerSys {
                 &annotations,
             );
 
+            let view_scale = new_viewer.view_scale.clone();
+            let force_update = path_viewer.force_update_fn();
+            module.set_native_fn("set_scale_factor", move |scale: i64| {
+                let old_scale = view_scale.load();
+
+                let new_scale = match scale {
+                    1 => Ok(ScaleFactor::X1),
+                    2 => Ok(ScaleFactor::X2),
+                    4 => Ok(ScaleFactor::X4),
+                    _ => {
+                        Err("Scale factor must be one of {1, 2, 4}".to_string())
+                    }
+                }?;
+
+                if old_scale != new_scale {
+                    view_scale.store(new_scale);
+                    force_update();
+                }
+
+                Ok(())
+            });
+
+            let view_scale = new_viewer.view_scale.clone();
+            module.set_native_fn("get_scale_factor", move || {
+                let factor = match view_scale.load() {
+                    ScaleFactor::X1 => 1i64,
+                    ScaleFactor::X2 => 2i64,
+                    ScaleFactor::X4 => 4i64,
+                };
+
+                Ok(factor)
+            });
+
             let force_update = path_viewer.force_update_fn();
             module.set_native_fn("force_update", move || {
                 force_update();
@@ -503,7 +536,11 @@ impl ViewerSys {
 
         ////
 
-        path_viewer.sample(waragraph, &view.load());
+        path_viewer.sample(
+            waragraph,
+            new_viewer.view_scale.load(),
+            &view.load(),
+        );
 
         Self::update_labels_impl(&config, &txt, waragraph, &path_viewer);
         // path_viewer.update_labels(&waragraph, &txt)?;
@@ -1023,7 +1060,11 @@ impl ViewerSys {
                 .set_label_pos(b"fps", 0, (height - 12) as u32)
                 .unwrap();
 
-            self.path_viewer.sample(waragraph, &view);
+            self.path_viewer.sample(
+                waragraph,
+                self.new_viewer.view_scale.load(),
+                &view,
+            );
         }
 
         {
@@ -1312,6 +1353,29 @@ impl std::default::Default for SlotState {
 
 pub type SlotFnVar = usize;
 
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum ScaleFactor {
+    X1,
+    X2,
+    X4,
+}
+
+impl ScaleFactor {
+    pub fn scale(&self, v: usize) -> usize {
+        match self {
+            ScaleFactor::X1 => v,
+            ScaleFactor::X2 => v / 2,
+            ScaleFactor::X4 => v / 4,
+        }
+    }
+}
+
+impl std::default::Default for ScaleFactor {
+    fn default() -> Self {
+        Self::X1
+    }
+}
+
 pub struct PathViewerNew {
     pub cache: GpuBufferCache<(Path, SlotFnName)>,
 
@@ -1328,6 +1392,7 @@ pub struct PathViewerNew {
 
     row_view_latch: Arc<AtomicCell<(usize, usize)>>,
     // row_offset: Arc<AtomicCell<usize>>,
+    pub view_scale: Arc<AtomicCell<ScaleFactor>>,
 }
 
 impl PathViewerNew {
@@ -1381,6 +1446,8 @@ impl PathViewerNew {
             need_refresh: Arc::new(false.into()),
 
             row_view_latch: Arc::new(row_view.into()),
+
+            view_scale: Arc::new(ScaleFactor::X1.into()),
         })
     }
 
@@ -1437,6 +1504,12 @@ impl PathViewerNew {
         }
 
         let _ = label_space.write_buffer(&mut engine.resources);
+
+        let buffer_width = match self.view_scale.load() {
+            ScaleFactor::X1 => buffer_width,
+            ScaleFactor::X2 => buffer_width / 2,
+            ScaleFactor::X4 => buffer_width / 4,
+        };
 
         self.current_width = buffer_width;
         self.current_view = view;
