@@ -1,8 +1,3 @@
-use bstr::ByteSlice;
-
-use crate::config::ConfigMap;
-use crate::console::{RhaiBatchFn2, RhaiBatchFn4, RhaiBatchFn5};
-
 use std::collections::{BTreeMap, HashMap};
 
 use std::sync::Arc;
@@ -11,11 +6,7 @@ use parking_lot::RwLock;
 
 use rhai::plugin::*;
 
-use rhai::ImmutableString;
-
 use anyhow::{anyhow, bail, Result};
-
-use zerocopy::{AsBytes, FromBytes};
 
 use crossbeam::atomic::AtomicCell;
 
@@ -42,33 +33,100 @@ impl ListLayout {
     /// Returns the rectangle that will contain the list slots (i.e.
     /// with `side_offsets` taken into account)
     pub fn inner_rect(&self) -> Rect<f32, Pixels> {
-        todo!();
+        let rect = Rect::new(self.origin, self.size);
+        if let Some(offsets) = self.side_offsets {
+            rect.inner_rect(offsets)
+        } else {
+            rect
+        }
+    }
+
+    /// Returns the number of slots that are visible in this layout,
+    /// and the remainder if the slot height isn't evenly divisible
+    /// with the list's inner height.
+    pub fn slot_count(&self) -> (usize, f32) {
+        let inner = self.inner_rect();
+        let slot = self.slot_height.0;
+
+        let count = slot.div_euclid(inner.height());
+        let rem = slot.rem_euclid(inner.height());
+
+        (count as usize, rem)
     }
 
     /// Returns the rectangle for the slot at the given index. If `ix`
     /// is pointing to a slot beyond the available height, `None` is
     /// returned.
     pub fn slot_rect(&self, ix: usize) -> Option<Rect<f32, Pixels>> {
-        todo!();
+        let (count, _) = self.slot_count();
+
+        if ix >= count {
+            return None;
+        }
+
+        let inner = self.inner_rect();
+
+        let mut slot = inner;
+
+        slot.origin.y += ix as f32 * self.slot_height.0;
+        slot.size.height = self.slot_height.0;
+
+        Some(slot)
     }
 
-    // the output can then be mapped to vertices
-    pub fn apply_to_rows<'a, T: 'a>(
+    pub fn slot_at_screen_pos(
         &self,
-        rows: impl Iterator<Item = &'a T> + 'a,
-    ) -> impl Iterator<Item = (usize, Rect<f32, Pixels>, &'a T)> + 'a {
-        todo!();
+        pos: Point2D<f32, Pixels>,
+    ) -> Option<usize> {
+        let inner = self.inner_rect();
+
+        if !inner.contains(pos) {
+            return None;
+        }
+
+        let ix = pos.y.div_euclid(self.slot_height.0) as usize;
+
+        if ix >= self.slot_count().0 {
+            return None;
+        }
+
+        Some(ix)
     }
+
+    pub fn apply_to_rows<'a, T: 'a>(
+        &'a self,
+        rows: impl Iterator<Item = T> + 'a,
+    ) -> impl Iterator<Item = (usize, Rect<f32, Pixels>, T)> + 'a {
+        let (count, _) = self.slot_count();
+
+        // ignore rows that would end up outside the list area
+        rows.take(count).enumerate().map(|(ix, v)| {
+            let rect = self.slot_rect(ix).unwrap();
+            (ix, rect, v)
+        })
+    }
+
+    /*
+    // the output can then be mapped to vertices
+    pub fn apply_to_rows<'a, 'b, T: 'a + 'b>(
+        &'b self,
+        rows: impl Iterator<Item = &'a T> + 'a + 'b,
+    ) -> impl Iterator<Item = (usize, Rect<f32, Pixels>, &'a T)> + 'a + 'b
+    where
+        'b: 'a,
+    {
+        let (count, _) = self.slot_count();
+
+        // let layout = *self;
+
+        // ignore rows that would end up outside the list area
+        rows.take(count).enumerate().map(|(ix, v)| {
+            let rect = self.slot_rect(ix).unwrap();
+            (ix, rect, v)
+        })
+    }
+    */
 }
-
-// impl ListLayout {
-// }
-
-// pub trait Layout {
-//     fn apply<F>(&self, f: F) -> ()
-//     where
-//         F: FnMut();
-// }
 
 #[export_module]
 pub mod rhai_module {
