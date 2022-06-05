@@ -1105,51 +1105,6 @@ impl ViewerSys {
 
         let [width, height] = window_resources.dims();
 
-        let mut label_sets = Vec::new();
-        let mut desc_sets = Vec::new();
-
-        let create_label_map = |id: u64| {
-            let map = self.labels.create_label_rhai_map(id).ok()?;
-            Some(rhai::Dynamic::from_map(map))
-        };
-
-        label_sets.extend(["fps"].into_iter().filter_map(|name| {
-            let id = self.labels.get_label_id(name.as_bytes())?;
-            create_label_map(id)
-        }));
-
-        let slots = self.path_viewer.slots.read();
-        for path in self.path_viewer.visible_paths(graph) {
-            use rhai::Dynamic as Dyn;
-
-            let mut desc_map = rhai::Map::default();
-            if let Some(slot) = slots.get_slot_for(path) {
-                if slot.path == Some(path.into()) {
-                    {
-                        // let label_name = format!("path-name-{}", slot);
-                        if let Some(map) = create_label_map(slot.label_id) {
-                            label_sets.push(map);
-                        }
-                    }
-
-                    let slot_set = slot.slot.desc_set();
-
-                    desc_map.insert("slot".into(), Dyn::from(slot_set));
-                } else {
-                    desc_map.insert("slot".into(), Dyn::UNIT);
-                }
-            }
-            desc_sets.push(rhai::Dynamic::from(desc_map));
-        }
-
-        let slot_buf_size = self.path_viewer.width;
-
-        let batch_builder = BatchBuilder::default();
-        let mut builder = rhai::Dynamic::from(batch_builder);
-        // let labels_batch = self.draw_labels_.call
-
-        // self.draw_labels_.call_raw(context, this_ptr, arg_values)
-
         let extent = vk::Extent2D { width, height };
 
         let out_framebuffer =

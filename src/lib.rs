@@ -6,3 +6,5 @@ pub mod util;
 pub mod viewer;
 
 pub mod cli;
+
+pub mod geometry;
