@@ -1,6 +1,6 @@
 use std::collections::{BTreeMap, HashMap};
 
-use std::ops::Add;
+use std::ops::{Add, Sub};
 use std::sync::Arc;
 
 use parking_lot::RwLock;
@@ -30,13 +30,11 @@ pub type PangenomeScreenScale<T> = Scale<T, PangenomeSpace, ScreenSpace>;
 
 pub type PangenomeView = View1D<Bp>;
 
-fn testin() {
-    let max: Bp = Length::new(10_000);
-
-    // let x: usize = Zero::zero();
-    // let y: Bp = Zero::zero();
-    // let z: Bp = zero();
-    let view = View1D::new(max);
+impl View1D<Bp> {
+    pub fn screen_scale(&self, pixel_len: f64) -> PangenomeScreenScale<f64> {
+        let f = pixel_len / self.len.0 as f64;
+        Scale::new(f)
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -53,7 +51,6 @@ where
 impl<I> View1D<I>
 where
     I: Copy + PartialEq + PartialOrd + Add<Output = I> + euclid::num::Zero,
-    // I: Copy + PartialEq + PartialOrd + NumOps + Zero,
 {
     pub fn new(max: I) -> Self {
         Self {
@@ -89,6 +86,53 @@ where
         assert!(offset + len <= self.max);
         self.offset = offset;
         self.len = len;
+    }
+}
+
+//
+impl<I> View1D<I>
+where
+    I: Copy
+        + PartialEq
+        + PartialOrd
+        + Add<Output = I>
+        + Sub<Output = I>
+        + euclid::num::Zero,
+{
+    pub fn set_offset(&self, new_offset: I) -> Self {
+        let mut new = *self;
+
+        if new_offset + self.len >= self.max {
+            new.offset = self.max - self.len;
+        } else {
+            new.offset = new_offset;
+        }
+
+        new
+    }
+
+    pub fn shift_right(&self, delta: I) -> Self {
+        let mut new = *self;
+
+        if delta + self.offset + self.len >= self.max {
+            new.offset = self.max - self.len;
+        } else {
+            new.offset = self.offset + delta;
+        }
+
+        new
+    }
+
+    pub fn shift_left(&self, delta: I) -> Self {
+        let mut new = *self;
+
+        if delta >= self.offset {
+            new.offset = I::zero();
+        } else {
+            new.offset = self.offset - delta;
+        }
+
+        new
     }
 }
 
