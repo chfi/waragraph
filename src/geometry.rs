@@ -11,6 +11,7 @@ use anyhow::{anyhow, bail, Result};
 use crossbeam::atomic::AtomicCell;
 
 use euclid::*;
+use zerocopy::AsBytes;
 
 // pub enum LayoutInput {
 //     ScalarInt(i32),
@@ -20,7 +21,17 @@ use euclid::*;
 
 pub mod view;
 
-pub struct Pixels {}
+pub struct ScreenSpace;
+pub type ScreenLen = Length<f32, ScreenSpace>;
+pub type ScreenPoint = Point2D<f32, ScreenSpace>;
+pub type ScreenVector = Vector2D<f32, ScreenSpace>;
+pub type ScreenSize = Size2D<f32, ScreenSpace>;
+pub type ScreenRect = Rect<f32, ScreenSpace>;
+pub type ScreenBox2D = Box2D<f32, ScreenSpace>;
+
+pub type PixelsLen = Length<usize, ScreenSpace>;
+
+pub struct Pixels;
 
 #[derive(Clone, Copy)]
 pub struct ListLayout {

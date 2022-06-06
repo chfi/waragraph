@@ -19,6 +19,7 @@ use winit::window::Window;
 
 use crate::config::ConfigMap;
 use crate::console::{RhaiBatchFn2, RhaiBatchFn4, RhaiBatchFn5};
+use crate::geometry::{ScreenPoint, ScreenRect};
 use crate::graph::{Node, Waragraph};
 use crate::util::{BufFmt, BufId, BufferStorage, LabelStorage};
 use crate::viewer::{SlotRenderers, ViewDiscrete1D};
@@ -32,6 +33,69 @@ use anyhow::{anyhow, bail, Result};
 use zerocopy::{AsBytes, FromBytes};
 
 use rhai::plugin::*;
+
+// vertex constructor helpers
+
+pub fn rect_rgba(rect: ScreenRect, rgba: rgb::RGBA<f32>) -> [u8; 32] {
+    let mut out = [0u8; 32];
+
+    let x = rect.min_x();
+    let y = rect.min_y();
+
+    let w = rect.width();
+    let h = rect.height();
+
+    out[0..8].clone_from_slice([x, y].as_bytes());
+    out[8..16].clone_from_slice([w, h].as_bytes());
+    out[16..32].clone_from_slice([rgba.r, rgba.g, rgba.b, rgba.a].as_bytes());
+
+    out
+}
+
+pub fn line_rgba(
+    p0: ScreenPoint,
+    p1: ScreenPoint,
+    rgba: rgb::RGBA<f32>,
+) -> [u8; 40] {
+    line_width_rgba(p0, p1, 0.5, 0.5, rgba)
+}
+
+pub fn line_width_rgba(
+    p0: ScreenPoint,
+    p1: ScreenPoint,
+    w0: f32,
+    w1: f32,
+    rgba: rgb::RGBA<f32>,
+) -> [u8; 40] {
+    let mut out = [0u8; 40];
+
+    out[0..12].clone_from_slice([p0.x, p0.y, w0].as_bytes());
+    out[12..24].clone_from_slice([p1.x, p1.y, w1].as_bytes());
+    out[24..40].clone_from_slice([rgba.r, rgba.g, rgba.b, rgba.a].as_bytes());
+
+    out
+}
+
+pub fn label_at(
+    p: ScreenPoint,
+    text_range: (usize, usize),
+    rgba: rgb::RGBA<f32>,
+) -> [u8; 32] {
+    let mut out = [0u8; 32];
+
+    let x = p.x;
+    let y = p.y;
+
+    let (s, l) = text_range;
+
+    out[0..8].clone_from_slice([x, y].as_bytes());
+    out[8..16].clone_from_slice([s as u32, l as u32].as_bytes());
+    out[16..32].clone_from_slice([rgba.r, rgba.g, rgba.b, rgba.a].as_bytes());
+
+    out
+}
+
+//
 
 pub fn add_sublayer_defs(
     engine: &mut VkEngine,

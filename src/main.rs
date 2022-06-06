@@ -1,4 +1,5 @@
 use crossbeam::atomic::AtomicCell;
+use euclid::{Length, Point2D, Size2D};
 use gfa::gfa::GFA;
 use parking_lot::{Mutex, RwLock};
 
@@ -17,10 +18,12 @@ use ash::vk;
 use flexi_logger::{Duplicate, FileSpec, Logger};
 
 use sled::IVec;
+use waragraph::geometry::ListLayout;
 use waragraph::graph::{Node, Path, Waragraph};
 use waragraph::util::{BufferStorage, LabelStorage};
 use waragraph::viewer::app::ViewerSys;
 use waragraph::viewer::cache::UpdateReqMsg;
+use waragraph::viewer::debug::DebugLayers;
 use waragraph::viewer::edges::{EdgeCache, EdgeVertexCache};
 use waragraph::viewer::gui::tree_list::{Breadcrumbs, ListPopup, TreeList};
 use waragraph::viewer::{SlotUpdateFn, ViewDiscrete1D};
@@ -268,6 +271,18 @@ fn main() -> Result<()> {
         let module = console.modules.get(name).unwrap();
         viewer.engine.register_static_module(name, module.clone());
     }
+
+    /*
+    let mut list_layout = ListLayout {
+        origin: Point2D::new(40.0, 40.0),
+        size: Size2D::new(500.0, 500.0),
+        side_offsets: None,
+        slot_height: Length::new(32.0),
+    };
+
+    let mut debug_layers =
+        DebugLayers::new(&mut engine, &mut compositor, "debug", 200)?;
+    */
 
     let mut recreate_swapchain = false;
     let mut recreate_swapchain_timer: Option<std::time::Instant> = None;

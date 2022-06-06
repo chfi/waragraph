@@ -23,7 +23,7 @@ use crate::console::data::AnnotationSet;
 use crate::console::{
     Console, EvalResult, RhaiBatchFn2, RhaiBatchFn4, RhaiBatchFn5,
 };
-use crate::geometry::view::{ScreenPoint, ScreenRect};
+use crate::geometry::{ScreenPoint, ScreenRect};
 use crate::graph::{Node, Path, Waragraph};
 use crate::util::{BufFmt, BufferStorage, LabelStorage};
 use crate::viewer::{SlotRenderers, ViewDiscrete1D};
@@ -38,6 +38,7 @@ use zerocopy::{AsBytes, FromBytes};
 
 use raving::compositor::{Compositor, Layer, Sublayer, SublayerAllocMsg};
 
+#[derive(Debug, Clone)]
 pub enum Shape {
     Rect(ScreenRect),
     Line {
@@ -50,21 +51,16 @@ pub enum Shape {
     },
 }
 
-pub struct Style {
-    color: [f32; 4],
-}
-
-struct DebugLayer {
-    // rects: Vec<Rect>,
-    // lines: Vec<Line>,
-    // labels: Vec<Label>,
-}
+// pub struct DebugLayer {
+//     id: usize,
+//     shapes: Vec<Shape>,
+// }
 
 pub struct DebugLayers {
     pub name_prefix: String,
     // pub layers: Vec<rhai::ImmutableString>,
     pub layer_names: FxHashMap<usize, rhai::ImmutableString>,
-
+    // pub layers: HashMap<rhai::ImmutableString, DebugLayer>,
     label_space: LabelSpace,
 
     next_layer_id: usize,
@@ -97,6 +93,7 @@ impl DebugLayers {
             label_space,
             name_prefix,
             layer_names: FxHashMap::default(),
+            // layers: HashMap::default(),
             next_layer_id: 0,
         };
 
@@ -111,6 +108,8 @@ impl DebugLayers {
 
         Ok(())
     }
+
+    // pub fn update_layer_from
 
     pub fn create_layer(
         &mut self,
@@ -127,6 +126,15 @@ impl DebugLayers {
         compositor.new_layer(&layer_name, depth, true);
 
         self.layer_names.insert(layer_id, layer_name.clone());
+
+        // self.layers.insert(
+        //     layer_name.clone(),
+        //     DebugLayer {
+        //         id: layer_id,
+        //         shapes: Vec::new(),
+        //     },
+        // );
+
         self.next_layer_id += 1;
 
         let text_set = self.label_space.text_set;
