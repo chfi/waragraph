@@ -134,7 +134,99 @@ where
 
         new
     }
+
+    /// Returns a new `View1D<I>` with the same offset but a new length.
+    pub fn resize_from_left(&self, new_len: I) -> Self {
+        if self.offset + new_len >= self.max {
+            Self {
+                len: self.max - self.offset,
+                ..*self
+            }
+        } else {
+            Self {
+                len: new_len,
+                ..*self
+            }
+        }
+    }
+
+    pub fn resize_around<X>(&self, p: I, new_len: I) -> Self
+    where
+        I: std::ops::Div<Output = X> + std::ops::Mul<X>,
+        X: ToPrimitive,
+    {
+        if new_len > self.len {
+            // "zooming out"
+            let fact = new_len / self.len;
+
+            // let f_a = p / self.len;
+            // let f_b = p / new_len;
+
+            todo!();
+        } else if new_len < self.len {
+            // "zooming in"
+            let fact = self.len / new_len;
+
+            todo!();
+        } else {
+            *self
+        }
+    }
+
+    /*
+    /// Returns a new `View1D<I>` by resizing this view while keeping the right-hand side fixed.
+    pub fn resize_from_right(&self, new_len: I) -> Self {
+    }
+    */
 }
+
+/*
+impl<I> View1D<I>
+where
+    I: Copy
+        + PartialEq
+        + PartialOrd
+        + Add<Output = I>
+        + Sub<Output = I>
+        + euclid::num::Zero,
+{
+    pub fn set_offset(&self, new_offset: I) -> Self {
+        let mut new = *self;
+
+        if new_offset + self.len >= self.max {
+            new.offset = self.max - self.len;
+        } else {
+            new.offset = new_offset;
+        }
+
+        new
+    }
+
+    pub fn shift_right(&self, delta: I) -> Self {
+        let mut new = *self;
+
+        if delta + self.offset + self.len >= self.max {
+            new.offset = self.max - self.len;
+        } else {
+            new.offset = self.offset + delta;
+        }
+
+        new
+    }
+
+    pub fn shift_left(&self, delta: I) -> Self {
+        let mut new = *self;
+
+        if delta >= self.offset {
+            new.offset = I::zero();
+        } else {
+            new.offset = self.offset - delta;
+        }
+
+        new
+    }
+}
+*/
 
 /*
 pub type PgView = View1D_<usize, PangenomeSpace>;
