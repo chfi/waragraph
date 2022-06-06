@@ -18,6 +18,8 @@ use euclid::*;
 //     ScalarFloat(f32),
 // }
 
+pub mod view;
+
 pub struct Pixels {}
 
 #[derive(Clone, Copy)]
