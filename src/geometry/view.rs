@@ -24,6 +24,10 @@ pub struct PangenomeSpace;
 pub struct ScreenSpace;
 pub type ScreenLen = Length<f32, ScreenSpace>;
 pub type ScreenPoint = Point2D<f32, ScreenSpace>;
+pub type ScreenVector = Vector2D<f32, ScreenSpace>;
+pub type ScreenSize = Size2D<f32, ScreenSpace>;
+pub type ScreenRect = Rect<f32, ScreenSpace>;
+pub type ScreenBox2D = Box2D<f32, ScreenSpace>;
 
 pub type PixelsLen = Length<usize, ScreenSpace>;
 

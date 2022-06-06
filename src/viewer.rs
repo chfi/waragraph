@@ -28,6 +28,8 @@ pub mod slots;
 
 pub mod edges;
 
+pub mod debug;
+
 pub use sampler::*;
 pub use slots::*;
 
