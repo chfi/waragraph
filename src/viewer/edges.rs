@@ -236,7 +236,7 @@ impl EdgeCache {
                     let y0 = y0 as f32;
                     let y1 = y1 as f32;
 
-                    let w = 1f32;
+                    let w = 0.5f32;
 
                     let color = [0f32, 0.0, 0.0, 1.0];
 
