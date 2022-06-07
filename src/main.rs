@@ -371,7 +371,7 @@ bed::load_bed_file(bed_path, bed_name, column_map)
 
     let _update_threads = (0..4)
         .map(|_| {
-            let exec = viewer.new_viewer.cache.data_msg_worker();
+            let exec = viewer.path_viewer.cache.data_msg_worker();
             let should_exit = should_exit.clone();
 
             std::thread::spawn(move || {
@@ -394,8 +394,6 @@ bed::load_bed_file(bed_path, bed_name, column_map)
         .collect::<Vec<_>>();
 
     let mut mouse_clicked = false;
-
-    let mut layout_update_since = 0.0;
 
     event_loop.run(move |event, _, control_flow| {
         *control_flow = winit::event_loop::ControlFlow::Poll;
@@ -495,7 +493,7 @@ bed::load_bed_file(bed_path, bed_name, column_map)
                 if let Err(e) = compositor.with_layer("path-slots", |layer| {
                     let window_dims = swapchain_dims.load();
                     let slot_fns = viewer.slot_functions.read();
-                    viewer.new_viewer.update_slot_sublayer(
+                    viewer.path_viewer.update_slot_sublayer(
                         &graph,
                         &mut viewer.label_space,
                         layer,
@@ -612,11 +610,9 @@ bed::load_bed_file(bed_path, bed_name, column_map)
                 let mut should_update = false;
 
                 // path-viewer specific, dependent on previous view
-                if viewer.path_viewer.should_update() {
+                /*
+                if viewer.path_viewer.need_refresh() {
 
-                    let [width, height] = swapchain_dims.load();
-                    let [slot_offset, slot_width] =
-                        viewer.slot_x_offsets(width);
 
                     /*
                     label_layout.reset_for_view(
@@ -629,28 +625,34 @@ bed::load_bed_file(bed_path, bed_name, column_map)
                     let view = viewer.view.load();
                     let range = view.range();
 
-                    viewer.path_viewer.sample(&graph, viewer.new_viewer.view_scale.load(), &view);
+                    viewer.path_viewer.sample(&graph, viewer.path_viewer.view_scale.load(), &view);
                 }
+                */
 
                 {
-                    let width = viewer.path_viewer.width;
+                    // let width = viewer.path_viewer.current_width;
+
+
                     let view = viewer.view.load();
 
                     let slot_fns = viewer.slot_functions.read();
-                    let samples =
-                        Arc::new(viewer.path_viewer.sample_buf.clone());
 
-                    let [_, window_height] = swapchain_dims.load();
+                    let [win_width, win_height] = swapchain_dims.load();
+
+                    let [slot_offset, slot_width] =
+                        viewer.slot_x_offsets(win_width);
 
                     let vis_count =
-                        viewer.visible_slot_count(&graph, window_height);
+                        viewer.visible_slot_count(&graph, win_height);
 
-                    if let Err(e) = viewer.new_viewer.update(
+                    let width = slot_width as usize;
+
+                    if let Err(e) = viewer.path_viewer.update(
                         &mut engine,
+                        &graph,
                         &mut viewer.label_space,
                         &slot_fns,
                         &viewer.config,
-                        samples,
                         width,
                         view,
                         vis_count,
@@ -669,34 +671,6 @@ bed::load_bed_file(bed_path, bed_name, column_map)
                             panic!("Path viewer slot allocation failure -- this shouldn't happen!");
                         }
                     }
-                }
-
-                // TODO: should only be called when the view has
-                // scrolled, but it should also update whenever the
-                // label layout changes, and there's currently no way
-                // to check just for that
-                viewer.update_labels(&graph);
-
-                // handle sled-based label updates
-                // TODO: currently console relies on this to render
-                let mut updates: HashMap<IVec, IVec> = HashMap::default();
-
-                while let Ok(ev) =
-                    viewer.label_updates.next_timeout(Duration::from_micros(10))
-                {
-                    match ev {
-                        sled::Event::Insert { key, value } => {
-                            updates.insert(key, value);
-                        }
-                        _ => (),
-                    }
-                }
-
-                for (key, value) in updates {
-                    viewer
-                        .labels
-                        .update(&mut engine.resources, &key, &value)
-                        .unwrap();
                 }
 
                 // update end
@@ -725,11 +699,15 @@ bed::load_bed_file(bed_path, bed_name, column_map)
                     }
 
                     let ft = prev_frame_end.elapsed().as_secs_f64();
+
+                    /*
                     let fps = (1.0 / ft) as u32;
                     viewer
                         .labels
                         .set_text_for(b"fps", &fps.to_string())
                         .unwrap();
+                    */
+
                     prev_frame_end = std::time::Instant::now();
                 }
             }

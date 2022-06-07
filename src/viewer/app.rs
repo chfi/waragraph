@@ -38,7 +38,7 @@ use zerocopy::{AsBytes, FromBytes};
 
 use super::cache::{GpuBufferCache, UpdateReqMsg};
 use super::gui::layer::label_at;
-use super::{PathViewer, SlotFnCache, SlotUpdateFn};
+use super::{SlotFnCache, SlotUpdateFn};
 use raving::compositor::{Compositor, Layer, Sublayer, SublayerAllocMsg};
 
 pub struct ViewerSys {
@@ -47,14 +47,10 @@ pub struct ViewerSys {
 
     pub view: Arc<AtomicCell<ViewDiscrete1D>>,
 
-    pub path_viewer: PathViewer,
-
+    // pub path_viewer: PathViewer,
     pub slot_functions: Arc<RwLock<SlotFnCache>>,
 
     pub label_space: LabelSpace,
-
-    pub labels: LabelStorage,
-    pub label_updates: sled::Subscriber,
 
     // buffers: BufferStorage,
     pub frame_resources: [FrameResources; 2],
@@ -74,7 +70,7 @@ pub struct ViewerSys {
     pub annotations:
         Arc<RwLock<BTreeMap<rhai::ImmutableString, Arc<AnnotationSet>>>>,
 
-    pub new_viewer: PathViewerNew,
+    pub path_viewer: PathViewer,
 }
 
 impl ViewerSys {
@@ -112,7 +108,7 @@ impl ViewerSys {
             waragraph.total_len(),
         )));
 
-        let new_viewer = PathViewerNew::new(
+        let mut path_viewer = PathViewer::new(
             engine,
             waragraph,
             view.load(),
@@ -120,19 +116,7 @@ impl ViewerSys {
             "depth_mean".into(),
         )?;
 
-        let mut txt = LabelStorage::new(&db)?;
-
         let slot_count = 16;
-        let mut path_viewer = PathViewer::new(
-            engine,
-            &db,
-            &mut txt,
-            width as usize,
-            slot_count,
-            waragraph.paths.len(),
-        )?;
-
-        let label_updates = txt.tree.watch_prefix(b"t:");
 
         let key_binds: FxHashMap<VirtualKeyCode, rhai::FnPtr> =
             Default::default();
@@ -159,8 +143,8 @@ impl ViewerSys {
                 &annotations,
             );
 
-            let view_scale = new_viewer.view_scale.clone();
-            let force_update = path_viewer.force_update_fn();
+            let view_scale = path_viewer.view_scale.clone();
+            let need_refresh = path_viewer.need_refresh.clone();
             module.set_native_fn("set_scale_factor", move |scale: i64| {
                 let old_scale = view_scale.load();
 
@@ -175,13 +159,13 @@ impl ViewerSys {
 
                 if old_scale != new_scale {
                     view_scale.store(new_scale);
-                    force_update();
+                    need_refresh.store(true);
                 }
 
                 Ok(())
             });
 
-            let view_scale = new_viewer.view_scale.clone();
+            let view_scale = path_viewer.view_scale.clone();
             module.set_native_fn("get_scale_factor", move || {
                 let factor = match view_scale.load() {
                     ScaleFactor::X1 => 1i64,
@@ -192,32 +176,18 @@ impl ViewerSys {
                 Ok(factor)
             });
 
-            let force_update = path_viewer.force_update_fn();
+            let need_refresh = path_viewer.need_refresh.clone();
             module.set_native_fn("force_update", move || {
-                force_update();
+                need_refresh.store(true);
                 Ok(())
             });
 
-            let row_view = new_viewer.row_view_latch.clone();
+            let row_view = path_viewer.row_view_latch.clone();
             module.set_native_fn("list_range", move || {
                 let (offset, len) = row_view.load();
                 let o = offset as i64;
                 let l = len as i64;
                 Ok(o..l)
-            });
-
-            let slot_cache = path_viewer.slots.clone();
-
-            module.set_native_fn("get_path_in_slot", move |slot_ix: i64| {
-                let cache = slot_cache.read();
-
-                if let Some(path) =
-                    cache.slots.get(slot_ix as usize).and_then(|s| s.path)
-                {
-                    Ok(rhai::Dynamic::from(path))
-                } else {
-                    Ok(rhai::Dynamic::FALSE)
-                }
             });
 
             Arc::new(module)
@@ -244,19 +214,19 @@ impl ViewerSys {
                 .set_native_fn("get_view", move || Ok(view_.load()));
 
             let view_ = view.clone();
-            let should_update = path_viewer.force_update_cell().clone();
+            let need_refresh = path_viewer.need_refresh.clone();
             builder.module.set_native_fn(
                 "set_view",
                 move |new: ViewDiscrete1D| {
                     if new != view_.load() {
-                        should_update.store(true);
+                        need_refresh.store(true);
                     }
                     view_.store(new);
                     Ok(())
                 },
             );
 
-            let should_update = path_viewer.force_update_cell().clone();
+            let need_refresh = path_viewer.need_refresh.clone();
             let view_ = view.clone();
             builder.module.set_raw_fn(
                 "with_view",
@@ -275,7 +245,7 @@ impl ViewerSys {
 
                     if let Some(view) = view.try_cast::<ViewDiscrete1D>() {
                         if old_view != view {
-                            should_update.store(true);
+                            need_refresh.store(true);
                             view_.store(view);
                         }
                         Ok(())
@@ -288,21 +258,9 @@ impl ViewerSys {
             );
         }
 
-        // builder.module.set_native_fn(name, func)
-
-        log::warn!("Config: {:?}", config);
+        log::debug!("Config: {:?}", config);
 
         let arc_module = Arc::new(builder.module.clone());
-
-        // kind of a temporary hack; the console should be a fully
-        // separate system, but right now it's using the viewer label
-        // system for rendering
-        // txt.allocate_label(&db, engine, "console")?;
-        // txt.set_label_pos(b"console", 4, 4)?;
-        // txt.set_text_for(b"console", "")?;
-
-        txt.allocate_label(&db, engine, "fps")?;
-        txt.set_label_pos(b"fps", 0, 580)?;
 
         // prefix sum loop count
 
@@ -540,12 +498,9 @@ impl ViewerSys {
 
         path_viewer.sample(
             waragraph,
-            new_viewer.view_scale.load(),
+            path_viewer.view_scale.load(),
             &view.load(),
         );
-
-        Self::update_labels_impl(&config, &txt, waragraph, &path_viewer);
-        // path_viewer.update_labels(&waragraph, &txt)?;
 
         let out_image = *window_resources.indices.images.get("out").unwrap();
         let out_view =
@@ -660,8 +615,6 @@ impl ViewerSys {
             [new_frame(), new_frame()]
         };
 
-        // let mut new_viewer = todo!();
-
         let engine =
             Self::create_engine_impl(db, buffers, &arc_module, &slot_module);
 
@@ -671,15 +624,11 @@ impl ViewerSys {
 
             view,
 
-            path_viewer,
-
+            // path_viewer,
             slot_functions: slot_fns,
             annotations,
 
             label_space,
-
-            labels: txt,
-            label_updates,
 
             // buffers,
             frame_resources,
@@ -695,7 +644,7 @@ impl ViewerSys {
 
             slot_rhai_module: slot_module,
 
-            new_viewer,
+            path_viewer,
         })
     }
 
@@ -745,10 +694,11 @@ impl ViewerSys {
                             update = true;
                             assert_eq!(pre_len, view.len());
                         } else if matches!(kc, VK::Up) {
-                            if view.len() > self.path_viewer.width {
+                            if view.len() > self.path_viewer.current_width {
                                 view.resize((len - len / 9) as usize);
                             }
-                            view.len = view.len.max(self.path_viewer.width);
+                            view.len =
+                                view.len.max(self.path_viewer.current_width);
                             update = true;
                         } else if matches!(kc, VK::Down) {
                             view.resize((len + len / 10) as usize);
@@ -757,17 +707,17 @@ impl ViewerSys {
                             view.reset();
                             update = true;
                         } else if matches!(kc, VK::PageUp) {
-                            self.new_viewer.slot_list.scroll(-1);
+                            self.path_viewer.slot_list.scroll(-1);
                             update = true;
                         } else if matches!(kc, VK::PageDown) {
-                            self.new_viewer.slot_list.scroll(1);
+                            self.path_viewer.slot_list.scroll(1);
                             update = true;
                         }
                     }
 
                     self.view.store(view);
 
-                    self.path_viewer.update.fetch_or(update);
+                    self.path_viewer.need_refresh.fetch_or(update);
                 }
             }
             _ => (),
@@ -822,51 +772,6 @@ impl ViewerSys {
         };
 
         [slot_x as f32, slot_w as f32]
-    }
-
-    fn update_labels_impl(
-        config: &ConfigMap,
-        labels: &LabelStorage,
-        waragraph: &Arc<Waragraph>,
-        path_viewer: &PathViewer,
-    ) {
-        let map = config.map.read();
-
-        let padding = map.get("layout.padding").unwrap().clone_cast::<i64>();
-        let slot = map.get("layout.slot").unwrap().clone_cast::<rhai::Map>();
-        let label = map.get("layout.label").unwrap().clone_cast::<rhai::Map>();
-
-        let get_cast = |m: &rhai::Map, k| m.get(k).unwrap().clone_cast::<i64>();
-
-        let label_x = get_cast(&label, "x");
-        let label_y = get_cast(&label, "y") + get_cast(&slot, "y");
-
-        let name_len = get_cast(&map, "layout.max_path_name_len");
-
-        let slot_x = get_cast(&slot, "x") + label_x + padding + name_len * 8;
-
-        let h = get_cast(&slot, "h");
-
-        let y_delta = padding + h;
-
-        path_viewer
-            .update_labels(
-                waragraph,
-                labels,
-                [label_x as u32, label_y as u32],
-                y_delta as u32,
-                name_len as u8,
-            )
-            .unwrap();
-    }
-
-    pub fn update_labels(&self, waragraph: &Arc<Waragraph>) {
-        Self::update_labels_impl(
-            &self.config,
-            &self.labels,
-            waragraph,
-            &self.path_viewer,
-        )
     }
 
     pub fn create_queued_slot_fns(
@@ -1043,14 +948,12 @@ impl ViewerSys {
                     alloc,
                 )?;
 
-                self.path_viewer.resize(ctx, res, alloc, slot_width, 0u32)?;
-
                 Ok(())
             })
             .unwrap();
 
         {
-            let slot_width = self.path_viewer.width;
+            let slot_width = self.path_viewer.current_width;
             let mut view = self.view.load();
 
             if view.len < slot_width {
@@ -1058,13 +961,9 @@ impl ViewerSys {
                 self.view.store(view);
             }
 
-            self.labels
-                .set_label_pos(b"fps", 0, (height - 12) as u32)
-                .unwrap();
-
             self.path_viewer.sample(
                 waragraph,
-                self.new_viewer.view_scale.load(),
+                self.path_viewer.view_scale.load(),
                 &view,
             );
         }
@@ -1333,7 +1232,7 @@ impl std::default::Default for ScaleFactor {
     }
 }
 
-pub struct PathViewerNew {
+pub struct PathViewer {
     pub cache: GpuBufferCache<(Path, SlotFnName)>,
 
     slot_fn_vars: BiHashMap<SlotFnVar, SlotFnName>,
@@ -1343,16 +1242,19 @@ pub struct PathViewerNew {
     slot_states: HashMap<(Path, SlotFnName), Arc<AtomicCell<SlotState>>>,
 
     current_view: ViewDiscrete1D,
-    current_width: usize,
+    pub current_width: usize,
 
     pub need_refresh: Arc<AtomicCell<bool>>,
 
     row_view_latch: Arc<AtomicCell<(usize, usize)>>,
     // row_offset: Arc<AtomicCell<usize>>,
     pub view_scale: Arc<AtomicCell<ScaleFactor>>,
+
+    pub sample_buf: Arc<Vec<(Node, usize)>>,
+    new_samples: AtomicCell<bool>,
 }
 
-impl PathViewerNew {
+impl PathViewer {
     pub fn new(
         engine: &mut VkEngine,
         graph: &Arc<Waragraph>,
@@ -1405,7 +1307,31 @@ impl PathViewerNew {
             row_view_latch: Arc::new(row_view.into()),
 
             view_scale: Arc::new(ScaleFactor::X1.into()),
+
+            sample_buf: Arc::new(Vec::new()),
+
+            new_samples: false.into(),
         })
+    }
+
+    pub fn sample(
+        &mut self,
+        graph: &Waragraph,
+        scale_factor: ScaleFactor,
+        view: &ViewDiscrete1D,
+    ) {
+        let nsamples = scale_factor.scale(self.current_width);
+
+        let sample_buf = Arc::make_mut(&mut self.sample_buf);
+
+        if nsamples > 0 {
+            graph.sample_node_lengths(nsamples, view, sample_buf);
+            self.new_samples.store(true);
+        }
+    }
+
+    pub fn has_new_samples(&self) -> bool {
+        self.new_samples.load()
     }
 
     pub fn need_refresh(&self) -> bool {
@@ -1432,10 +1358,10 @@ impl PathViewerNew {
     pub fn update(
         &mut self,
         engine: &mut VkEngine,
+        graph: &Arc<Waragraph>,
         label_space: &LabelSpace,
         slot_fns: &SlotFnCache,
         config: &ConfigMap,
-        samples: Arc<Vec<(Node, usize)>>,
         buffer_width: usize,
         view: ViewDiscrete1D,
         row_count: usize,
@@ -1467,6 +1393,10 @@ impl PathViewerNew {
             ScaleFactor::X2 => buffer_width / 2,
             ScaleFactor::X4 => buffer_width / 4,
         };
+
+        if self.current_width != buffer_width || self.current_view != view {
+            self.need_refresh.store(true);
+        }
 
         self.current_width = buffer_width;
         self.current_view = view;
@@ -1514,6 +1444,12 @@ impl PathViewerNew {
         // for each visible (Path, SlotFnName) in the slot list
         let need_refresh = self.need_refresh();
 
+        if need_refresh {
+            self.sample(graph, self.view_scale.load(), &view);
+        }
+
+        let has_new_samples = self.has_new_samples();
+
         for (path, var) in self.slot_list.visible_rows() {
             let slot_fn = self.slot_fn_vars.get_by_left(var).unwrap();
             let key = (*path, slot_fn.clone());
@@ -1523,8 +1459,9 @@ impl PathViewerNew {
             // doesn't have a state
             let cell = self.slot_states.entry(key.clone()).or_default().clone();
 
-            let need_update = need_refresh
+            let need_update = has_new_samples
                 || match cell.load() {
+                    // let need_update = match cell.load() {
                     // if it's currently updating, do nothing
                     SlotState::Updating => false,
                     SlotState::Unknown => true,
@@ -1535,6 +1472,8 @@ impl PathViewerNew {
                     } => {
                         // if it's up to date with the current view and
                         // width, do nothing
+                        // need_refresh
+                        // || buffer_width != self.current_width
                         buffer_width != self.current_width
                             || view_offset != self.current_view.offset
                             || view_len != self.current_view.len
@@ -1553,7 +1492,7 @@ impl PathViewerNew {
 
                 let key = (path, slot_fn_name.clone());
 
-                let samples = samples.clone();
+                let samples = self.sample_buf.clone();
                 let slot_fn = slot_fn.clone();
                 let width = self.cache.cache().block_size();
 
@@ -1606,6 +1545,9 @@ impl PathViewerNew {
                 self.cache.update_request_tx.send(msg)?;
             }
         }
+
+        self.need_refresh.store(false);
+        self.new_samples.store(false);
 
         // apply the GPU cache data messages, which also updates the
         // slot_state entries, concurrently
