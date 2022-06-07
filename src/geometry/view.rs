@@ -26,6 +26,14 @@ where
     len: Length<I, U>,
 }
 
+impl View1D<usize, PangenomeSpace> {
+    /// Returns the scaling factor for the provided pixel width
+    pub fn screen_scale(&self, width: usize) -> PangenomeScreenScale<f32> {
+        let scale = width as f32 / self.len.0 as f32;
+        Scale::new(scale)
+    }
+}
+
 impl<I: Clone + PartialOrd, U> Clone for View1D<I, U> {
     fn clone(&self) -> Self {
         Self {
