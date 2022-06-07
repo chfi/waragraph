@@ -1459,26 +1459,25 @@ impl PathViewer {
             // doesn't have a state
             let cell = self.slot_states.entry(key.clone()).or_default().clone();
 
-            let need_update = has_new_samples
-                || match cell.load() {
-                    // let need_update = match cell.load() {
-                    // if it's currently updating, do nothing
-                    SlotState::Updating => false,
-                    SlotState::Unknown => true,
-                    SlotState::Contains {
-                        buffer_width,
-                        view_offset,
-                        view_len,
-                    } => {
-                        // if it's up to date with the current view and
-                        // width, do nothing
-                        // need_refresh
-                        // || buffer_width != self.current_width
-                        buffer_width != self.current_width
-                            || view_offset != self.current_view.offset
-                            || view_len != self.current_view.len
-                    }
-                };
+            let need_update = match cell.load() {
+                // let need_update = match cell.load() {
+                // if it's currently updating, do nothing
+                SlotState::Updating => false,
+                SlotState::Unknown => true,
+                SlotState::Contains {
+                    buffer_width,
+                    view_offset,
+                    view_len,
+                } => {
+                    // if it's up to date with the current view and
+                    // width, do nothing
+                    // need_refresh
+                    // || buffer_width != self.current_width
+                    buffer_width != self.current_width
+                        || view_offset != self.current_view.offset
+                        || view_len != self.current_view.len
+                }
+            };
 
             // if there is no entry, it is unknown, or the view or width
             // contained do not match,

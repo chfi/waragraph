@@ -108,6 +108,8 @@ bind_key(key::F1, |pressed| {
   }
 });
 
+/*
+// disabled since it's broken for now
 bind_key(key::F9, |pressed| {
   if pressed {
     let scale = slot::get_scale_factor();
@@ -119,8 +121,8 @@ bind_key(key::F9, |pressed| {
       slot::set_scale_factor(1);
     }
   }
-
 });
+*/
 
 //
 // GUI definition
