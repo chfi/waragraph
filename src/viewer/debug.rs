@@ -1,42 +1,14 @@
-use bimap::BiHashMap;
-use bstr::ByteSlice;
-use crossbeam::atomic::AtomicCell;
-use parking_lot::RwLock;
 use raving::compositor::label_space::LabelSpace;
-use raving::script::console::frame::{FrameBuilder, Resolvable};
-use raving::script::console::BatchBuilder;
-use raving::vk::{
-    BatchInput, BufferIx, DescSetIx, FrameResources, GpuResources, VkEngine,
-};
+use raving::vk::VkEngine;
 
-use raving::vk::resource::WindowResources;
-
-use ash::{vk, Device};
-
-use rhai::plugin::RhaiResult;
 use rustc_hash::FxHashMap;
-use winit::event::VirtualKeyCode;
-use winit::window::Window;
 
-use crate::config::ConfigMap;
-use crate::console::data::AnnotationSet;
-use crate::console::{
-    Console, EvalResult, RhaiBatchFn2, RhaiBatchFn4, RhaiBatchFn5,
-};
 use crate::geometry::{ScreenPoint, ScreenRect};
-use crate::graph::{Node, Path, Waragraph};
-use crate::util::{BufFmt, BufferStorage, LabelStorage};
-use crate::viewer::{SlotRenderers, ViewDiscrete1D};
 
-use std::collections::{BTreeMap, HashMap};
-
-use std::sync::Arc;
-
+#[allow(unused_imports)]
 use anyhow::{anyhow, bail, Result};
 
-use zerocopy::{AsBytes, FromBytes};
-
-use raving::compositor::{Compositor, Layer, Sublayer, SublayerAllocMsg};
+use raving::compositor::{Compositor, SublayerAllocMsg};
 
 #[derive(Debug, Clone)]
 pub enum Shape {
@@ -64,10 +36,6 @@ pub struct DebugLayers {
     label_space: LabelSpace,
 
     next_layer_id: usize,
-    // pub rect_name: rhai::ImmutableString,
-    // pub text_name: rhai::ImmutableString,
-    // pub line_name: rhai::ImmutableString,
-    // pub rect_layers: Vec<(usize, Vec<
 }
 
 impl DebugLayers {

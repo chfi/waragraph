@@ -1,26 +1,12 @@
 use std::{
     borrow::Borrow,
-    collections::{BTreeMap, HashMap, HashSet},
+    collections::{HashMap, HashSet},
 };
 
 use ash::vk;
-use bimap::BiHashMap;
-use gpu_allocator::vulkan::Allocator;
-use parking_lot::RwLock;
-use raving::vk::{
-    context::VkContext, descriptor::DescriptorLayoutInfo, BufferIx, BufferRes,
-    DescSetIx, GpuResources, VkEngine,
-};
-use rspirv_reflect::DescriptorInfo;
-
-use rustc_hash::FxHashMap;
-use sled::IVec;
-use zerocopy::{AsBytes, FromBytes};
+use raving::vk::{BufferIx, DescSetIx, GpuResources, VkEngine};
 
 use anyhow::{anyhow, Result};
-
-use crossbeam::atomic::AtomicCell;
-use std::sync::Arc;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CacheError {

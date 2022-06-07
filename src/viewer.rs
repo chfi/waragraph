@@ -1,44 +1,16 @@
-use std::collections::{BTreeMap, HashMap};
-
-use ash::vk;
-use bimap::BiHashMap;
-use bstr::ByteSlice;
-use gpu_allocator::vulkan::Allocator;
-use parking_lot::RwLock;
-use raving::vk::{
-    context::VkContext, descriptor::DescriptorLayoutInfo, BufferIx, BufferRes,
-    DescSetIx, GpuResources, VkEngine,
-};
-use rspirv_reflect::DescriptorInfo;
-
-use sled::IVec;
-use zerocopy::{AsBytes, FromBytes};
-
-use anyhow::{anyhow, Result};
-
-use crossbeam::atomic::AtomicCell;
-use std::sync::Arc;
+use zerocopy::FromBytes;
 
 pub mod app;
 pub mod gui;
 
 pub mod cache;
-pub mod sampler;
 pub mod slots;
 
 pub mod edges;
 
 pub mod debug;
 
-pub use sampler::*;
 pub use slots::*;
-
-use crate::{
-    graph::{Node, Path, Waragraph},
-    util::LabelStorage,
-};
-
-use self::app::ScaleFactor;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ViewDiscrete1D {
@@ -163,13 +135,4 @@ impl ViewDiscrete1D {
             self.offset = mid - new_hl;
         }
     }
-
-    /*
-    pub fn resize_around(&mut self, origin: usize, delta: isize) {
-        // make sure the origin is actually within the current view? how?
-
-        let range = self.range();
-        let origin = origin.clamp(range.start, range.end - 1);
-    }
-    */
 }

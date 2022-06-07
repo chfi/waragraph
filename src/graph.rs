@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, HashMap};
+use std::collections::BTreeMap;
 
 use ash::vk;
 use bimap::BiBTreeMap;
@@ -8,7 +8,6 @@ use gpu_allocator::vulkan::Allocator;
 use raving::vk::{context::VkContext, BufferIx, GpuResources, VkEngine};
 use rustc_hash::FxHashMap;
 
-use sled::IVec;
 use thunderdome::{Arena, Index};
 
 use sprs::{CsMatI, CsVecI, TriMatI};
@@ -20,8 +19,6 @@ use crossbeam::atomic::AtomicCell;
 use ndarray::prelude::*;
 
 use anyhow::{anyhow, bail, Result};
-
-use rhai::plugin::*;
 
 pub mod script;
 

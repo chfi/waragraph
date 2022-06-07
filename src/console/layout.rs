@@ -1,48 +1,20 @@
-use std::{
-    collections::{BTreeMap, HashMap},
-    io::BufReader,
-    num::NonZeroU32,
-};
+use std::collections::HashMap;
 
-use ash::vk;
-use bstr::ByteSlice;
-use gfa::gfa::GFA;
-use gpu_allocator::vulkan::Allocator;
-use parking_lot::RwLock;
 use raving::compositor::{label_space::LabelSpace, Compositor};
-use raving::{
-    script::console::BatchBuilder,
-    vk::{context::VkContext, BufferIx, GpuResources, VkEngine},
-};
-use rustc_hash::FxHashMap;
+use raving::vk::VkEngine;
 
-use sled::IVec;
-use thunderdome::{Arena, Index};
-
-use sprs::{CsMatI, CsVecI, TriMatI};
-use zerocopy::{AsBytes, FromBytes};
+use zerocopy::AsBytes;
 
 use std::sync::Arc;
 
-use crossbeam::atomic::AtomicCell;
-
-use ndarray::prelude::*;
-
-use anyhow::{anyhow, bail, Result};
-
-use bstr::ByteSlice as BstrByteSlice;
+use anyhow::Result;
 
 use crate::{
-    graph::{Node, Path, Waragraph},
-    util::{BufFmt, BufId, BufMeta, BufferStorage, LabelStorage},
-    viewer::{DataSource, SlotFnCache, ViewDiscrete1D},
+    graph::{Node, Waragraph},
+    viewer::ViewDiscrete1D,
 };
 
 use rhai::plugin::*;
-
-use lazy_static::lazy_static;
-
-use rand::prelude::*;
 
 use nalgebra::{point, vector, Point2, Vector2};
 

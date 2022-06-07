@@ -1,46 +1,25 @@
 use std::{
     collections::{BTreeMap, HashMap},
     io::BufReader,
-    num::NonZeroU32,
 };
 
-use ash::vk;
-use bstr::ByteSlice;
 use coitrees::IntervalNode;
-use gfa::gfa::GFA;
-use gpu_allocator::vulkan::Allocator;
 use parking_lot::RwLock;
-use raving::{
-    script::{console::BatchBuilder, EvalResult},
-    vk::{context::VkContext, BufferIx, GpuResources, VkEngine},
-};
+use raving::script::EvalResult;
 use rustc_hash::FxHashMap;
-
-use sled::IVec;
-use thunderdome::{Arena, Index};
-
-use sprs::{CsMatI, CsVecI, TriMatI};
-use zerocopy::{AsBytes, FromBytes};
 
 use std::sync::Arc;
 
-use crossbeam::atomic::AtomicCell;
-
-use ndarray::prelude::*;
-
-use anyhow::{anyhow, bail, Result};
+use anyhow::{anyhow, Result};
 
 use bstr::ByteSlice as BstrByteSlice;
 
 use crate::{
     graph::{Node, Path, Waragraph},
-    util::{BufFmt, BufId, BufMeta, BufferStorage, LabelStorage},
-    viewer::{DataSource, SlotFnCache, ViewDiscrete1D},
+    viewer::{DataSource, SlotFnCache},
 };
 
 use rhai::plugin::*;
-
-use lazy_static::lazy_static;
 
 #[derive(Clone)]
 pub enum BedColumn {

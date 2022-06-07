@@ -1,40 +1,19 @@
-use std::collections::{BTreeMap, HashMap};
-
 use std::ops::{Add, Sub};
-use std::sync::Arc;
-
-use parking_lot::RwLock;
-
-use rhai::plugin::*;
-
-use anyhow::{anyhow, bail, Result};
-
-use crossbeam::atomic::AtomicCell;
 
 use euclid::*;
 
-use num_traits::{
-    one, zero, AsPrimitive, FromPrimitive, Num, NumOps, One, ToPrimitive,
-};
+// use num_traits::{
+//     one, zero, AsPrimitive, FromPrimitive, Num, NumOps, One, ToPrimitive,
+// };
 
 use super::ScreenSpace;
 
 #[derive(Debug)]
 pub struct PangenomeSpace;
-// pub type Bp = Length<usize, PangenomeSpace>;
 
 pub type PangenomeScreenScale<T> = Scale<T, PangenomeSpace, ScreenSpace>;
 
 pub type PangenomeView = View1D<usize, PangenomeSpace>;
-
-/*
-impl View1D<Bp> {
-    pub fn screen_scale(&self, pixel_len: f64) -> PangenomeScreenScale<f64> {
-        let f = pixel_len / self.len.0 as f64;
-        Scale::new(f)
-    }
-}
-*/
 
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct View1D<I, U = UnknownUnit>
@@ -157,7 +136,7 @@ where
         new
     }
 
-    /// Returns a new `View1D<I>` with the same offset but a new length.
+    /// Returns a new `View1D` with the same offset but a new length.
     pub fn resize_from_left(&self, new_len: I) -> Self {
         let new_len = Length::new(new_len);
         if self.offset + new_len >= self.max {

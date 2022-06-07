@@ -1,23 +1,4 @@
-use bstr::ByteSlice;
-
-use crate::config::ConfigMap;
-use crate::console::{RhaiBatchFn2, RhaiBatchFn4, RhaiBatchFn5};
-
-use std::collections::{BTreeMap, HashMap};
-
-use std::sync::Arc;
-
-use parking_lot::RwLock;
-
 use rhai::plugin::*;
-
-use rhai::ImmutableString;
-
-use anyhow::{anyhow, bail, Result};
-
-use zerocopy::{AsBytes, FromBytes};
-
-use crossbeam::atomic::AtomicCell;
 
 #[export_module]
 pub mod rhai_module {

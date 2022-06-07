@@ -1,17 +1,12 @@
 use std::collections::{BTreeMap, HashMap};
 
 use ash::vk;
-use bstr::ByteSlice;
 use gpu_allocator::vulkan::Allocator;
 use raving::vk::{
-    context::VkContext, descriptor::DescriptorLayoutInfo, BufferIx, BufferRes,
-    DescSetIx, GpuResources, VkEngine,
+    context::VkContext, BufferIx, BufferRes, DescSetIx, GpuResources, VkEngine,
 };
-use rspirv_reflect::DescriptorInfo;
 
 use rustc_hash::{FxHashMap, FxHashSet};
-use sprs::CsVecI;
-use zerocopy::{AsBytes, FromBytes};
 
 use anyhow::{anyhow, Result};
 

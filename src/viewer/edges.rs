@@ -2,15 +2,13 @@ use bimap::BiHashMap;
 use euclid::Point2D;
 use raving::compositor::SublayerDrawData;
 
-use rustc_hash::{FxHashMap, FxHashSet};
+use rustc_hash::FxHashMap;
 
-use anyhow::{anyhow, Result};
-
-use std::sync::Arc;
+use anyhow::Result;
 
 use crate::{
     geometry::ScreenPoint,
-    graph::{Node, Path, Strand, Waragraph},
+    graph::{Path, Strand, Waragraph},
 };
 
 use super::{gui::layer::line_width_rgba, ViewDiscrete1D};

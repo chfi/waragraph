@@ -1,5 +1,4 @@
 use crossbeam::atomic::AtomicCell;
-use euclid::{Length, Point2D, Size2D};
 use gfa::gfa::GFA;
 use parking_lot::{Mutex, RwLock};
 
@@ -9,37 +8,26 @@ use raving::script::console::frame::Resolvable;
 use raving::vk::{DescSetIx, VkEngine, WindowResources};
 
 use waragraph::cli::ViewerArgs;
-use waragraph::console::data::{AnnotationSet, BedColumn};
-use waragraph::console::layout::{LabelLayout, LabelStacks};
+use waragraph::console::layout::LabelStacks;
 use waragraph::console::{Console, ConsoleInput};
 
 use ash::vk;
 
 use flexi_logger::{Duplicate, FileSpec, Logger};
 
-use sled::IVec;
 use waragraph::geometry::ListLayout;
-use waragraph::graph::{Node, Path, Waragraph};
-use waragraph::util::{BufferStorage, LabelStorage};
+use waragraph::graph::{Path, Waragraph};
+use waragraph::util::BufferStorage;
 use waragraph::viewer::app::ViewerSys;
-use waragraph::viewer::cache::UpdateReqMsg;
 use waragraph::viewer::debug::DebugLayers;
 use waragraph::viewer::edges::{EdgeCache, EdgeVertexCache};
-use waragraph::viewer::gui::tree_list::{Breadcrumbs, ListPopup, TreeList};
-use waragraph::viewer::{SlotUpdateFn, ViewDiscrete1D};
+use waragraph::viewer::gui::tree_list::{Breadcrumbs, ListPopup};
 use winit::event::{Event, VirtualKeyCode, WindowEvent};
 use winit::{event_loop::EventLoop, window::WindowBuilder};
 
-use std::collections::HashMap;
-
 use std::sync::Arc;
-use std::time::Duration;
 
-use anyhow::{anyhow, Result};
-
-use rand::prelude::*;
-
-fn main() -> Result<()> {
+fn main() -> anyhow::Result<()> {
     let viewer_args: ViewerArgs = argh::from_env();
 
     // disable sled logging
@@ -607,32 +595,8 @@ bed::load_bed_file(bed_path, bed_name, column_map)
                 buffers.allocate_queued(&mut engine).unwrap();
                 buffers.fill_updated_buffers(&mut engine.resources).unwrap();
 
-                let mut should_update = false;
-
-                // path-viewer specific, dependent on previous view
-                /*
-                if viewer.path_viewer.need_refresh() {
-
-
-                    /*
-                    label_layout.reset_for_view(
-                        &mut rng,
-                        &viewer.view.load(),
-                        slot_width,
-                    );
-                    */
-
-                    let view = viewer.view.load();
-                    let range = view.range();
-
-                    viewer.path_viewer.sample(&graph, viewer.path_viewer.view_scale.load(), &view);
-                }
-                */
 
                 {
-                    // let width = viewer.path_viewer.current_width;
-
-
                     let view = viewer.view.load();
 
                     let slot_fns = viewer.slot_functions.read();

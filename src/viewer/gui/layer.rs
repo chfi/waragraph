@@ -1,38 +1,19 @@
-use crossbeam::atomic::AtomicCell;
 use parking_lot::RwLock;
 use raving::compositor::label_space::LabelSpace;
 use raving::vk::context::VkContext;
-use raving::vk::{
-    BufferIx, DescSetIx, FramebufferIx, GpuResources, PipelineIx, RenderPassIx,
-    ShaderIx, VkEngine,
-};
+use raving::vk::{BufferIx, DescSetIx, GpuResources, VkEngine};
 
 use raving::compositor::*;
-use raving::vk::resource::WindowResources;
 
-use ash::{vk, Device};
+use ash::vk;
 
-use rhai::plugin::RhaiResult;
-use rustc_hash::{FxHashMap, FxHashSet};
-use winit::event::VirtualKeyCode;
-use winit::window::Window;
-
-use crate::config::ConfigMap;
-use crate::console::{RhaiBatchFn2, RhaiBatchFn4, RhaiBatchFn5};
 use crate::geometry::{ScreenPoint, ScreenRect};
-use crate::graph::{Node, Waragraph};
-use crate::util::{BufFmt, BufId, BufferStorage, LabelStorage};
-use crate::viewer::{SlotRenderers, ViewDiscrete1D};
-
-use std::collections::{BTreeMap, HashMap};
 
 use std::sync::Arc;
 
-use anyhow::{anyhow, bail, Result};
+use anyhow::Result;
 
-use zerocopy::{AsBytes, FromBytes};
-
-use rhai::plugin::*;
+use zerocopy::AsBytes;
 
 // vertex constructor helpers
 

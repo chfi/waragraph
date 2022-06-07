@@ -1,14 +1,8 @@
-use std::collections::BTreeMap;
-use std::collections::HashMap;
-use std::str::FromStr;
 use std::sync::Arc;
 
 use bstr::ByteSlice;
-use parking_lot::RwLock;
 
 use rhai::plugin::*;
-
-use rhai::ImmutableString;
 
 use rhai::Dynamic as Dyn;
 // use rhai::Dynamic::{FALSE, TRUE, UNIT};

@@ -1,10 +1,5 @@
 use ash::vk;
-use gpu_allocator::vulkan::Allocator;
-use raving::vk::{
-    context::VkContext, descriptor::DescriptorLayoutInfo, BufferIx, BufferRes,
-    DescSetIx, GpuResources, VkEngine,
-};
-use rspirv_reflect::DescriptorInfo;
+use raving::vk::{BufferIx, DescSetIx, GpuResources, VkEngine};
 
 use rustc_hash::FxHashMap;
 use sled::{

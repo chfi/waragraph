@@ -1,27 +1,18 @@
-use std::{collections::HashMap, num::NonZeroU32, path::PathBuf};
+use std::collections::HashMap;
 
-use ash::vk;
 use bstr::ByteSlice;
-use gfa::gfa::GFA;
-use gpu_allocator::vulkan::Allocator;
-use nalgebra::Vector2;
 use raving::{
     compositor::{label_space::LabelSpace, Compositor, SublayerAllocMsg},
     script::console::BatchBuilder,
-    vk::{context::VkContext, BufferIx, GpuResources, VkEngine},
+    vk::{GpuResources, VkEngine},
 };
-use rustc_hash::FxHashMap;
 
 use sled::IVec;
 use smartstring::SmartString;
-use thunderdome::{Arena, Index};
 
-use sprs::{CsMatI, CsVecI, TriMatI};
 use zerocopy::{AsBytes, FromBytes};
 
 use std::sync::Arc;
-
-use crossbeam::atomic::AtomicCell;
 
 use ndarray::prelude::*;
 
@@ -29,10 +20,7 @@ use anyhow::{anyhow, bail, Result};
 
 use bstr::ByteSlice as BstrByteSlice;
 
-use crate::{
-    util::{BufFmt, BufId, BufMeta, BufferStorage, LabelStorage},
-    viewer::ViewDiscrete1D,
-};
+use crate::util::{BufFmt, BufId, BufMeta, BufferStorage};
 
 use lazy_static::lazy_static;
 
@@ -193,9 +181,7 @@ impl Console {
 
         let result = engine.call_fn_raw(
             &mut self.scope,
-            // ast,
             &self.ast,
-            // false,
             true,
             false,
             fn_name,
@@ -204,11 +190,6 @@ impl Console {
         )?;
 
         Ok(result)
-
-        // match engine.eval_with_scope(scope, script) {
-        //     Ok(result) => Ok(result),
-        //     Err(err) => Err(anyhow!("eval err: {:?}", err)),
-        // }
     }
 
     pub fn eval(

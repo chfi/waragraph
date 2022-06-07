@@ -1,13 +1,12 @@
 use bimap::BiHashMap;
-use bstr::ByteSlice;
 use crossbeam::atomic::AtomicCell;
 use euclid::Point2D;
 use parking_lot::RwLock;
 use raving::compositor::label_space::LabelSpace;
-use raving::script::console::frame::{FrameBuilder, Resolvable};
+use raving::script::console::frame::FrameBuilder;
 use raving::script::console::BatchBuilder;
 use raving::vk::{
-    BatchInput, BufferIx, DescSetIx, FrameResources, GpuResources, VkEngine,
+    BatchInput, DescSetIx, FrameResources, GpuResources, VkEngine,
 };
 
 use raving::vk::resource::WindowResources;
@@ -21,25 +20,23 @@ use winit::window::Window;
 
 use crate::config::ConfigMap;
 use crate::console::data::AnnotationSet;
-use crate::console::{
-    Console, EvalResult, RhaiBatchFn2, RhaiBatchFn4, RhaiBatchFn5,
-};
+use crate::console::{Console, RhaiBatchFn2, RhaiBatchFn5};
 use crate::graph::{Node, Path, Waragraph};
-use crate::util::{BufFmt, BufferStorage, LabelStorage};
-use crate::viewer::{SlotRenderers, ViewDiscrete1D};
+use crate::util::{BufFmt, BufferStorage};
+use crate::viewer::ViewDiscrete1D;
 
 use std::collections::{BTreeMap, HashMap};
 
 use std::sync::Arc;
 
-use anyhow::{anyhow, bail, Result};
+use anyhow::{anyhow, Result};
 
-use zerocopy::{AsBytes, FromBytes};
+use zerocopy::AsBytes;
 
 use super::cache::{GpuBufferCache, UpdateReqMsg};
 use super::gui::layer::label_at;
-use super::{SlotFnCache, SlotUpdateFn};
-use raving::compositor::{Compositor, Layer, Sublayer, SublayerAllocMsg};
+use super::SlotFnCache;
+use raving::compositor::{Compositor, Layer, SublayerAllocMsg};
 
 pub struct ViewerSys {
     pub config: ConfigMap,
@@ -108,15 +105,8 @@ impl ViewerSys {
             waragraph.total_len(),
         )));
 
-        let mut path_viewer = PathViewer::new(
-            engine,
-            waragraph,
-            view.load(),
-            width as usize,
-            "depth_mean".into(),
-        )?;
-
-        let slot_count = 16;
+        let mut path_viewer =
+            PathViewer::new(engine, waragraph, view.load(), width as usize)?;
 
         let key_binds: FxHashMap<VirtualKeyCode, rhai::FnPtr> =
             Default::default();
@@ -439,7 +429,7 @@ impl ViewerSys {
                 waragraph,
                 "has_node",
                 |acc, val| acc + val,
-                |path, v| {
+                |_path, v| {
                     if v < 0.5 {
                         8
                     } else {
@@ -480,19 +470,6 @@ impl ViewerSys {
             .write()
             .slot_color
             .insert("node_id".into(), "gradient-colorbrewer-spectral".into());
-
-        let cmap = color_map.clone();
-        let slot_fn_loop_mid = slot_fns
-            .read()
-            .slot_fn_mid_u32("depth", move |v| (&cmap)(v as f32))
-            .unwrap();
-
-        /*
-        slot_fns
-            .write()
-            .slot_fn_u32
-            .insert("depth_mid".into(), slot_fn_loop_mid);
-        */
 
         ////
 
@@ -653,10 +630,8 @@ impl ViewerSys {
         console: &Console,
         event: &winit::event::WindowEvent<'_>,
     ) {
-        use winit::event::{VirtualKeyCode, WindowEvent};
-
         match event {
-            WindowEvent::KeyboardInput { input, .. } => {
+            winit::event::WindowEvent::KeyboardInput { input, .. } => {
                 if let Some(kc) = input.virtual_keycode {
                     use VirtualKeyCode as VK;
 
@@ -772,131 +747,6 @@ impl ViewerSys {
         };
 
         [slot_x as f32, slot_w as f32]
-    }
-
-    pub fn create_queued_slot_fns(
-        &mut self,
-        db: &sled::Db,
-        buffers: &BufferStorage,
-        console: &Console,
-    ) -> Result<()> {
-        let queued =
-            std::mem::take(&mut self.slot_functions.write().slot_fn_queue);
-
-        for new in queued {
-            let mut engine = console.create_engine(db, buffers);
-            let ast = console.ast.clone();
-            engine.set_optimization_level(rhai::OptimizationLevel::Full);
-
-            let mut slot_fns = self.slot_functions.write();
-
-            type DataFn = Box<
-                dyn Fn(Path, Node) -> Option<rhai::Dynamic>
-                    + Send
-                    + Sync
-                    + 'static,
-            >;
-            // type DataFn =
-            // Box<dyn Fn(Path, Node) -> Option<rhai::Dynamic> + 'static>;
-
-            let name = new.name.clone();
-
-            let data_sources = new
-                .data_sources
-                .into_iter()
-                .map(|(ty, name)| {
-                    if ty == std::any::TypeId::of::<u32>() {
-                        let f = slot_fns
-                            .data_sources_u32
-                            .get(&name)
-                            .unwrap()
-                            .clone();
-
-                        Box::new(
-                            move |path: Path, node: Node| -> Option<rhai::Dynamic> {
-                                f(path, node).map(|i| rhai::Dynamic::from_int(i as i64))
-                            },
-                        ) as DataFn
-                    } else if ty == std::any::TypeId::of::<f32>() {
-                        let f = slot_fns
-                            .data_sources_f32
-                            .get(&name)
-                            .unwrap()
-                            .clone();
-                        Box::new(
-                            move |path: Path, node: Node| -> Option<rhai::Dynamic> {
-                                f(path, node).map(rhai::Dynamic::from_float)
-                            },
-                        ) as DataFn
-                    } else if ty == std::any::TypeId::of::<i64>() {
-                        let f = slot_fns
-                            .data_sources_i64
-                            .get(&name)
-                            .unwrap()
-                            .clone();
-                        Box::new(
-                            move |path: Path, node: Node| -> Option<rhai::Dynamic> {
-                                f(path, node).map(rhai::Dynamic::from_int)
-                            },
-                        )as DataFn
-                    } else if ty == std::any::TypeId::of::<rhai::Dynamic>() {
-                        let f = slot_fns
-                            .data_sources_dyn
-                            .get(&name)
-                            .unwrap()
-                            .clone();
-                        Box::new(
-                            move |path: Path, node: Node| -> Option<rhai::Dynamic> {
-                                f(path, node)
-                            },
-                        )as DataFn
-                    } else {
-                        unreachable!();
-                    }
-                })
-                .collect::<Vec<_>>();
-
-            let slot_fn = move |samples: &[(Node, usize)],
-                                path: Path,
-                                sample_ix: usize| {
-                let left_ix = sample_ix.min(samples.len() - 1);
-                let right_ix = (sample_ix + 1).min(samples.len() - 1);
-
-                let (left, _offset) = samples[left_ix];
-                let (right, _offset) = samples[right_ix];
-
-                let l: u32 = left.into();
-                let r: u32 = right.into();
-
-                let node = l + (r - l) / 2;
-
-                let args = data_sources
-                    .iter()
-                    .map(|ds| {
-                        if let Some(val) = ds(path, node.into()) {
-                            val
-                        } else {
-                            rhai::Dynamic::UNIT
-                        }
-                    })
-                    .collect::<Vec<_>>();
-
-                let result: EvalResult<i64> =
-                    new.fn_ptr.call(&engine, &ast, args);
-
-                match result {
-                    Ok(v) => v as u32,
-                    Err(e) => {
-                        log::error!("rhai data source error: {:?}", e);
-                        0
-                    }
-                }
-            };
-
-            slot_fns.slot_fn_u32.insert(name, Arc::new(slot_fn));
-        }
-
-        Ok(())
     }
 
     pub fn resize(
@@ -1260,7 +1110,6 @@ impl PathViewer {
         graph: &Arc<Waragraph>,
         current_view: ViewDiscrete1D,
         current_width: usize,
-        slot_fn_name: rhai::ImmutableString,
     ) -> Result<Self> {
         let slot_count = 1024;
 
@@ -1447,8 +1296,6 @@ impl PathViewer {
         if need_refresh {
             self.sample(graph, self.view_scale.load(), &view);
         }
-
-        let has_new_samples = self.has_new_samples();
 
         for (path, var) in self.slot_list.visible_rows() {
             let slot_fn = self.slot_fn_vars.get_by_left(var).unwrap();
