@@ -1,4 +1,5 @@
 use bimap::BiHashMap;
+use euclid::Point2D;
 use raving::compositor::SublayerDrawData;
 
 use rustc_hash::{FxHashMap, FxHashSet};
@@ -7,9 +8,12 @@ use anyhow::{anyhow, Result};
 
 use std::sync::Arc;
 
-use crate::graph::{Node, Path, Strand, Waragraph};
+use crate::{
+    geometry::ScreenPoint,
+    graph::{Node, Path, Strand, Waragraph},
+};
 
-use super::ViewDiscrete1D;
+use super::{gui::layer::line_width_rgba, ViewDiscrete1D};
 
 pub struct EdgeCache {
     // all edges as endpoints (pangenome positions)
@@ -215,10 +219,6 @@ impl EdgeCache {
                 .iter()
                 .map(|i| self.edge_endpoints[i as usize])
                 .flat_map(|(p_a, p_b)| {
-                    let mut vx0 = [0u8; 40];
-                    let mut vx1 = [0u8; 40];
-                    let mut vx2 = [0u8; 40];
-
                     let x0 = screen_x(p_a);
                     let x1 = screen_x(p_b);
                     let y0 = slot_y_offset as f64;
@@ -236,27 +236,19 @@ impl EdgeCache {
                     let y0 = y0 as f32;
                     let y1 = y1 as f32;
 
-                    let w = 0.5f32;
+                    // let w = 0.5f32;
+                    let w = 1f32;
 
-                    let color = [0f32, 0.0, 0.0, 1.0];
+                    let color = rgb::RGBA::new(0f32, 0.0, 0.0, 1.0);
 
-                    vx0[0..12]
-                        .clone_from_slice(bytemuck::cast_slice(&[x0, y0, w]));
-                    vx0[12..24]
-                        .clone_from_slice(bytemuck::cast_slice(&[x0, y1, w]));
-                    vx0[24..40].clone_from_slice(bytemuck::cast_slice(&color));
+                    let p0: ScreenPoint = Point2D::new(x0, y0);
+                    let p1: ScreenPoint = Point2D::new(x0, y1);
+                    let p2: ScreenPoint = Point2D::new(x1, y1);
+                    let p3: ScreenPoint = Point2D::new(x1, y0);
 
-                    vx1[0..12]
-                        .clone_from_slice(bytemuck::cast_slice(&[x0, y1, w]));
-                    vx1[12..24]
-                        .clone_from_slice(bytemuck::cast_slice(&[x1, y1, w]));
-                    vx1[24..40].clone_from_slice(bytemuck::cast_slice(&color));
-
-                    vx2[0..12]
-                        .clone_from_slice(bytemuck::cast_slice(&[x1, y1, w]));
-                    vx2[12..24]
-                        .clone_from_slice(bytemuck::cast_slice(&[x1, y0, w]));
-                    vx2[24..40].clone_from_slice(bytemuck::cast_slice(&color));
+                    let vx0 = line_width_rgba(p0, p1, w, w, color);
+                    let vx1 = line_width_rgba(p1, p2, w, w, color);
+                    let vx2 = line_width_rgba(p2, p3, w, w, color);
 
                     [vx0, vx1, vx2].into_iter()
                 }),

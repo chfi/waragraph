@@ -1,6 +1,7 @@
 use bimap::BiHashMap;
 use bstr::ByteSlice;
 use crossbeam::atomic::AtomicCell;
+use euclid::Point2D;
 use parking_lot::RwLock;
 use raving::compositor::label_space::LabelSpace;
 use raving::script::console::frame::{FrameBuilder, Resolvable};
@@ -36,6 +37,7 @@ use anyhow::{anyhow, bail, Result};
 use zerocopy::{AsBytes, FromBytes};
 
 use super::cache::{GpuBufferCache, UpdateReqMsg};
+use super::gui::layer::label_at;
 use super::{PathViewer, SlotFnCache, SlotUpdateFn};
 use raving::compositor::{Compositor, Layer, Sublayer, SublayerAllocMsg};
 
@@ -1772,18 +1774,15 @@ impl PathViewerNew {
                     format!("{}...", prefix)
                 };
 
-                let (offset, len) = label_space.bounds_for_insert(&text)?;
-
-                let mut vx = [0u8; 32];
+                let bounds = label_space.bounds_for_insert(&text)?;
 
                 let lb_y = lb_y + ix as f32 * yd;
-                // let lb_y = lb_y + ix as f32 * y_delta as f32;
 
-                vx[0..8].clone_from_slice([lb_x, lb_y].as_bytes());
-                vx[8..16]
-                    .clone_from_slice([offset as u32, len as u32].as_bytes());
-                vx[16..32].clone_from_slice([0f32, 0.0, 0.0, 1.0].as_bytes());
-                vertices.push(vx);
+                vertices.push(label_at(
+                    Point2D::new(lb_x, lb_y),
+                    bounds,
+                    rgb::RGBA::new(0.0, 0.0, 0.0, 1.0),
+                ));
             }
 
             // upload vertices
