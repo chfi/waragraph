@@ -28,10 +28,10 @@ pub enum Shape {
     },
 }
 
-#[derive(Debug, Clone, Copy)]
-pub struct Style {
-    stroke: rgb::RGBA<f32>,
-    fill: Option<rgb::RGBA<f32>>,
+impl From<ScreenRect> for Shape {
+    fn from(r: ScreenRect) -> Self {
+        Shape::Rect(r)
+    }
 }
 
 impl Shape {
@@ -50,6 +50,35 @@ impl Shape {
         Shape::Label {
             p,
             text: text.into(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct Style {
+    stroke: Option<rgb::RGBA<f32>>,
+    fill: Option<rgb::RGBA<f32>>,
+}
+
+impl Style {
+    pub fn stroke(color: rgb::RGBA<f32>) -> Self {
+        Style {
+            stroke: Some(color),
+            fill: None,
+        }
+    }
+
+    pub fn fill(color: rgb::RGBA<f32>) -> Self {
+        Style {
+            stroke: None,
+            fill: Some(color),
+        }
+    }
+
+    pub fn stroke_fill(stroke: rgb::RGBA<f32>, fill: rgb::RGBA<f32>) -> Self {
+        Style {
+            stroke: Some(stroke),
+            fill: Some(fill),
         }
     }
 }
@@ -112,7 +141,7 @@ impl DebugLayers {
         &mut self,
         compositor: &mut Compositor,
         layer: usize,
-        shapes: impl IntoIterator<Item = (Shape, rgb::RGBA<f32>)>,
+        shapes: impl IntoIterator<Item = (Shape, Style)>,
     ) -> Result<()> {
         let layer_name = self.layer_names.get(&layer).unwrap();
 
@@ -120,16 +149,47 @@ impl DebugLayers {
         let mut lines: Vec<[u8; 40]> = Vec::new();
         let mut texts: Vec<[u8; 32]> = Vec::new();
 
-        for (shape, color) in shapes {
+        for (shape, style) in shapes {
             match shape {
-                Shape::Rect(rect) => rects.push(rect_rgba(rect, color)),
+                Shape::Rect(rect) => {
+                    if let Some(stroke) = style.stroke {
+                        let w = rect.size.width;
+                        let h = rect.size.height;
+
+                        let p0 = rect.origin;
+                        let p1 = p0 + vec2(w, 0.0);
+                        let p2 = p0 + vec2(w, h);
+                        let p3 = p0 + vec2(0.0, h);
+
+                        for (a, b) in [(p0, p1), (p1, p2), (p2, p3), (p3, p0)] {
+                            lines.push(line_width_rgba(a, b, 0.5, 0.5, stroke))
+                        }
+                    }
+
+                    if let Some(fill) = style.fill {
+                        rects.push(rect_rgba(rect, fill))
+                    }
+                }
                 Shape::Line { p0, p1, width } => {
-                    lines.push(line_width_rgba(p0, p1, width, width, color))
+                    if let Some(stroke) = style.stroke {
+                        lines
+                            .push(line_width_rgba(p0, p1, width, width, stroke))
+                    }
                 }
                 Shape::Label { p, text } => {
-                    let bounds =
-                        self.label_space.bounds_for_insert(text.as_str())?;
-                    texts.push(label_at(p, bounds, color));
+                    if let Some(stroke) = style.stroke {
+                        let bounds = self
+                            .label_space
+                            .bounds_for_insert(text.as_str())?;
+                        texts.push(label_at(p, bounds, stroke));
+                    }
+
+                    if let Some(fill) = style.fill {
+                        let h = 8f32;
+                        let w = (text.len() * 8) as f32;
+
+                        rects.push(rect_rgba(rect(p.x, p.y, w, h), fill));
+                    }
                 }
             }
         }
@@ -177,14 +237,6 @@ impl DebugLayers {
         compositor.new_layer(&layer_name, depth, true);
 
         self.layer_names.insert(layer_id, layer_name.clone());
-
-        // self.layers.insert(
-        //     layer_name.clone(),
-        //     DebugLayer {
-        //         id: layer_id,
-        //         shapes: Vec::new(),
-        //     },
-        // );
 
         self.next_layer_id += 1;
 

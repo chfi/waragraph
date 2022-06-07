@@ -1,4 +1,5 @@
 use crossbeam::atomic::AtomicCell;
+use euclid::{point2, size2, Length};
 use gfa::gfa::GFA;
 use parking_lot::{Mutex, RwLock};
 
@@ -260,12 +261,14 @@ fn main() -> anyhow::Result<()> {
         viewer.engine.register_static_module(name, module.clone());
     }
 
-    // let mut list_layout = ListLayout {
-    //     origin: Point2D::new(40.0, 40.0),
-    //     size: Size2D::new(500.0, 500.0),
-    //     side_offsets: None,
-    //     slot_height: Length::new(32.0),
-    // };
+    let mut list_layout = ListLayout {
+        origin: point2(40.0, 40.0),
+        // origin: Point2D::new(40.0, 40.0),
+        size: size2(500.0, 500.0),
+        // size: Size2D::new(500.0, 500.0),
+        side_offsets: None,
+        slot_height: Length::new(32.0),
+    };
 
     let mut debug_layers =
         DebugLayers::new(&mut engine, &mut compositor, "debug", 200)?;
@@ -278,20 +281,28 @@ fn main() -> anyhow::Result<()> {
     let debug_layer_id = 0usize;
 
     {
-        use waragraph::viewer::debug::Shape;
+        use waragraph::viewer::debug::{Shape, Style};
 
         let color = |r: f32, g, b| rgb::RGBA::new(r, g, b, 1.0);
 
+        /*
         let shapes = [
             (
                 Shape::rect(100.0, 100.0, 300.0, 200.0),
-                color(0.7, 0.2, 0.2),
+                Style::stroke_fill(color(1.0, 0.0, 0.0), color(0.6, 0.1, 0.1)),
             ),
             (
                 Shape::label(120.0, 120.0, "hello world"),
-                color(0.0, 0.0, 0.0),
+                Style::stroke_fill(color(0.0, 0.0, 0.0), color(0.9, 0.9, 0.9)),
             ),
         ];
+        */
+
+        let rows = 0..10usize;
+
+        let shapes = list_layout.apply_to_rows(rows).map(|(_, r, v)| {
+            (Shape::from(r), Style::stroke(color(1.0, 0.0, 0.0)))
+        });
 
         debug_layers.fill_layer(&mut compositor, debug_layer_id, shapes)?;
 
