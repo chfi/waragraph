@@ -1,6 +1,7 @@
 use std::ops::{Add, Sub};
 
 use euclid::*;
+use num_traits::{FromPrimitive, ToPrimitive};
 
 // use num_traits::{
 //     one, zero, AsPrimitive, FromPrimitive, Num, NumOps, One, ToPrimitive,
@@ -177,6 +178,7 @@ where
         let mut new = *self;
         new.len = new_len;
 
+        /*
         if new_len > self.len {
             // "zooming out"
             let fact = nl_f / ol_f;
@@ -188,16 +190,18 @@ where
             new.shift_left(rev_delta)
         } else if new_len < self.len {
             // "zooming in"
-            let fact = ol_f / nl_f;
+            // let fact = ol_f / nl_f;
+            let fact = nl_f / nl_f;
             let rev_delta = I::from_f64(fact * p_f).unwrap();
 
             dbg!(fact);
             // dbg!(rev_delta);
 
-            new.shift_left(rev_delta)
+            new.shift_right(rev_delta)
         } else {
             *self
         }
+        */
     }
     */
 
@@ -218,10 +222,39 @@ mod tests {
         let view: PangenomeView = View1D::new(10_000);
 
         // let zoomed = view.resize_around(5_000, 5_000);
-        let zoomed = view.resize_from_left(5_000);
+        // let zoomed = view.resize_from_left(5_000);
+
+        let resize_from_right = |view: PangenomeView, new_len: usize| {
+            if view.len.0 >= new_len {
+                let diff = view.len.0 - new_len;
+                let new = view.resize_from_left(new_len);
+                new.shift_right(diff)
+            } else {
+                let diff = new_len - view.len.0;
+                let new = view.resize_from_left(new_len);
+                new.shift_left(diff)
+            }
+        };
+
+        // let resize_around = |view: PangenomeView, around: usize, new_len| {
+        // }
+
+        let zoomed0 = view.resize_from_left(5_000);
+        let zoomed1 = resize_from_right(view, 5_000);
+
+        let zoomed_out = resize_from_right(zoomed0, 6000);
+
+        let translated = zoomed0.shift_right(3_000);
+
+        let t_zoom = resize_from_right(translated, 6000);
+        // let zoomed = view.resize_around(5_000, 500);
 
         eprintln!("original: {:?}", view);
-        eprintln!("zoomed:   {:?}", zoomed);
+        eprintln!("zoomed0:   {:?}", zoomed0);
+        eprintln!("zoomed1:   {:?}", zoomed1);
+        eprintln!("zoomed_out:   {:?}", zoomed_out);
+        eprintln!("translated:   {:?}", translated);
+        eprintln!("t_zoom:   {:?}", t_zoom);
 
         assert!(false);
 
