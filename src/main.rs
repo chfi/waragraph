@@ -265,15 +265,10 @@ fn main() -> anyhow::Result<()> {
     // let padding = 2f32;
 
     let mut list_layout = ListLayout {
-        // origin: point2(40.0, 40.0),
-        origin: point2(0.0, 36.0),
-        // origin: Point2D::new(40.0, 40.0),
+        origin: point2(0.0, 0.0),
         size: size2(500.0, 1000.0),
-        // size: Size2D::new(500.0, 500.0),
-        side_offsets: None,
-        // side_offsets: Some(SideOffsets2D::new(padding, 0.0, padding, 0.0)),
+        side_offsets: Some(SideOffsets2D::new(36.0, 10.0, 100.0, 14.0)),
         slot_height: Length::new(18.0),
-        // slot_height: Length::new(16.0),
     };
 
     let mut debug_layers =
@@ -284,6 +279,7 @@ fn main() -> anyhow::Result<()> {
     }
 
     let debug_layer_id = 0usize;
+    let debug_layer_fps_id = debug_layers.create_layer(&mut compositor, 210)?;
 
     let mut recreate_swapchain = false;
     let mut recreate_swapchain_timer: Option<std::time::Instant> = None;
@@ -395,6 +391,8 @@ bed::load_bed_file(bed_path, bed_name, column_map)
         .collect::<Vec<_>>();
 
     let mut mouse_clicked = false;
+
+    let mut last_fps = 0;
 
     event_loop.run(move |event, _, control_flow| {
         *control_flow = winit::event_loop::ControlFlow::Poll;
@@ -613,17 +611,26 @@ bed::load_bed_file(bed_path, bed_name, column_map)
 
                     let [win_width, win_height] = swapchain_dims.load();
 
+                    list_layout.size = size2(win_width as f32, win_height as f32);
+
+                    /*
                     let (mx, my) = waragraph::input::get_mouse_pos();
                     let mpos = point2(mx as f32, my as f32);
-
-                    list_layout.size = size2(win_width as f32, win_height as f32 - 36.0 - 100.0);
 
                     let color = |r: f32, g, b| rgb::RGBA::new(r, g, b, 1.0);
                     let color_a = |r: f32, g, b, a| rgb::RGBA::new(r, g, b, a);
 
                     let rows = viewer.path_viewer.slot_list.visible_rows();
 
-                    let partition = 8.0 * 14.0 + 14.0;
+                    // let rows = 0..100;
+
+                    let partition = 8.0 * 14.0;
+
+                    let bg_rect = list_layout.inner_rect();
+
+
+                    // let bg = Some((Shape::from(bg_rect), Style::fill(color_a(0.0, 0.0, 1.0, 0.6))));
+                    let bg: Option<(Shape, Style)> = None;
 
                     let shapes = list_layout.apply_to_rows(rows).flat_map(|(_, r, v)| {
 
@@ -661,7 +668,30 @@ bed::load_bed_file(bed_path, bed_name, column_map)
 
                     });
 
-                    debug_layers.fill_layer(&mut compositor, debug_layer_id, shapes).unwrap();
+                    debug_layers.fill_layer(
+                        &mut compositor,
+                        debug_layer_id,
+                        bg.into_iter().chain(shapes)
+                    ).unwrap();
+                    */
+
+                    let fps_str = last_fps.to_string();
+
+                    let r: ScreenRect = euclid::rect(4.0,
+                                                     win_height as f32 - 12.0,
+                                                     8.0 * fps_str.len() as f32,
+                                                     8.0);
+
+                    let shapes = [
+                        (Shape::label(r.origin.x, r.origin.y, &fps_str),
+                         Style::stroke(rgb::RGBA::new(0.0, 0.0, 0.0, 1.0)))
+                    ];
+
+                    debug_layers.fill_layer(
+                        &mut compositor,
+                        debug_layer_fps_id,
+                        shapes
+                    ).unwrap();
 
                     debug_layers.update(&mut engine).unwrap();
                 }
@@ -735,13 +765,9 @@ bed::load_bed_file(bed_path, bed_name, column_map)
 
                     let ft = prev_frame_end.elapsed().as_secs_f64();
 
-                    /*
-                    let fps = (1.0 / ft) as u32;
-                    viewer
-                        .labels
-                        .set_text_for(b"fps", &fps.to_string())
-                        .unwrap();
-                    */
+                    let fps = (1.0 / ft) as usize;
+                    last_fps = fps;
+
 
                     prev_frame_end = std::time::Instant::now();
                 }

@@ -1370,15 +1370,15 @@ impl PathViewer {
                     move || {
                         let cur = cell.load();
 
-                        if cur == SlotState::Unknown
-                            || cur == SlotState::Updating
-                        {
-                            cell.store(SlotState::Contains {
-                                buffer_width: current_width,
-                                view_offset: current_view.offset(),
-                                view_len: current_view.len(),
-                            });
-                        }
+                        // if cur == SlotState::Unknown
+                        //     || cur == SlotState::Updating
+                        // {
+                        //     cell.store(SlotState::Contains {
+                        //         buffer_width: current_width,
+                        //         view_offset: current_view.offset(),
+                        //         view_len: current_view.len(),
+                        //     });
+                        // }
 
                         cell.store(SlotState::Contains {
                             buffer_width: current_width,
@@ -1467,9 +1467,32 @@ impl PathViewer {
             // if the state cell somehow doesn't exist, or shows that
             // there's probably only garbage data there, simply skip
             // this row (it'll get drawn when the data's ready)
+            //
+            // TODO: it still renders garbage when resizing
             if let Some(state) = self.slot_states.get(&key) {
-                if state.load() == SlotState::Unknown {
-                    continue;
+                let state = state.load();
+                match state {
+                    SlotState::Unknown => {
+                        // log::warn!("Unknown, skipping slot {}", ix);
+                        continue;
+                    }
+                    SlotState::Updating => {
+                        // log::warn!("Updating, skipping slot {}", ix);
+                        continue;
+                    }
+                    SlotState::Contains {
+                        buffer_width,
+                        view_offset,
+                        view_len,
+                    } => {
+                        if buffer_width != self.current_width
+                            || view_offset != self.current_view.offset()
+                            || view_len != self.current_view.len()
+                        {
+                            // log::warn!("Incorrect key, skipping slot {}", ix);
+                            continue;
+                        }
+                    }
                 }
             } else {
                 continue;

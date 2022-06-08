@@ -98,12 +98,12 @@ impl ListLayout {
         rows: impl Iterator<Item = T> + 'a,
     ) -> impl Iterator<Item = (usize, Rect<f32, ScreenSpace>, T)> + 'a {
         let (count, rem) = self.slot_count();
-        log::warn!("apply_to_rows slot count: {}, {}", count, rem);
+        // log::warn!("apply_to_rows slot count: {}, {}", count, rem);
 
         // ignore rows that would end up outside the list area
         rows.take(count).enumerate().map(|(ix, v)| {
             let rect = self.slot_rect(ix).unwrap();
-            log::warn!("apply_to_rows: {} -> {:?}", ix, rect);
+            // log::warn!("apply_to_rows: {} -> {:?}", ix, rect);
             (ix, rect, v)
         })
     }
