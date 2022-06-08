@@ -201,7 +201,6 @@ where
             let new = self.resize_from_left(new_len);
             new.shift_right(I::from_f64(diff).unwrap())
         } else {
-            // let diff = new_len - self.len.0;
             let diff = t * (new_len - self.len.0).to_f64().unwrap();
             let new = self.resize_from_left(new_len);
             new.shift_left(I::from_f64(diff).unwrap())

@@ -1,4 +1,5 @@
 use crossbeam::atomic::AtomicCell;
+use euclid::SideOffsets2D;
 use euclid::{point2, size2, Length};
 use gfa::gfa::GFA;
 use parking_lot::{Mutex, RwLock};
@@ -261,13 +262,18 @@ fn main() -> anyhow::Result<()> {
         viewer.engine.register_static_module(name, module.clone());
     }
 
+    // let padding = 2f32;
+
     let mut list_layout = ListLayout {
-        origin: point2(40.0, 40.0),
+        // origin: point2(40.0, 40.0),
+        origin: point2(0.0, 36.0),
         // origin: Point2D::new(40.0, 40.0),
-        size: size2(500.0, 500.0),
+        size: size2(500.0, 1000.0),
         // size: Size2D::new(500.0, 500.0),
         side_offsets: None,
-        slot_height: Length::new(32.0),
+        // side_offsets: Some(SideOffsets2D::new(padding, 0.0, padding, 0.0)),
+        slot_height: Length::new(18.0),
+        // slot_height: Length::new(16.0),
     };
 
     let mut debug_layers =
@@ -277,38 +283,7 @@ fn main() -> anyhow::Result<()> {
         log::error!("Compositor error: {:?}", e);
     }
 
-    /*
     let debug_layer_id = 0usize;
-
-    {
-        use waragraph::viewer::debug::{Shape, Style};
-
-        let color = |r: f32, g, b| rgb::RGBA::new(r, g, b, 1.0);
-
-        /*
-        let shapes = [
-            (
-                Shape::rect(100.0, 100.0, 300.0, 200.0),
-                Style::stroke_fill(color(1.0, 0.0, 0.0), color(0.6, 0.1, 0.1)),
-            ),
-            (
-                Shape::label(120.0, 120.0, "hello world"),
-                Style::stroke_fill(color(0.0, 0.0, 0.0), color(0.9, 0.9, 0.9)),
-            ),
-        ];
-        */
-
-        let rows = 0..10usize;
-
-        let shapes = list_layout.apply_to_rows(rows).map(|(_, r, v)| {
-            (Shape::from(r), Style::stroke(color(1.0, 0.0, 0.0)))
-        });
-
-        debug_layers.fill_layer(&mut compositor, debug_layer_id, shapes)?;
-
-        debug_layers.update(&mut engine)?;
-    }
-    */
 
     let mut recreate_swapchain = false;
     let mut recreate_swapchain_timer: Option<std::time::Instant> = None;
@@ -632,6 +607,33 @@ bed::load_bed_file(bed_path, bed_name, column_map)
                 // handle sled-based buffer updates
                 buffers.allocate_queued(&mut engine).unwrap();
                 buffers.fill_updated_buffers(&mut engine.resources).unwrap();
+
+                {
+                    use waragraph::viewer::debug::{Shape, Style};
+
+                    let [win_width, win_height] = swapchain_dims.load();
+
+                    list_layout.size = size2(win_width as f32, win_height as f32 - 36.0 - 100.0);
+
+                    let color = |r: f32, g, b| rgb::RGBA::new(r, g, b, 1.0);
+                    let color_a = |r: f32, g, b, a| rgb::RGBA::new(r, g, b, a);
+
+                    let rows = viewer.path_viewer.slot_list.visible_rows();
+
+                    let shapes = list_layout.apply_to_rows(rows).map(|(_, r, v)| {
+                        (
+                            Shape::from(r),
+                            Style::stroke_fill(
+                                color(1.0, 0.0, 0.0),
+                                color_a(0.7, 0.1, 0.1, 0.3),
+                            ),
+                        )
+                    });
+
+                    debug_layers.fill_layer(&mut compositor, debug_layer_id, shapes).unwrap();
+
+                    debug_layers.update(&mut engine).unwrap();
+                }
 
 
                 {

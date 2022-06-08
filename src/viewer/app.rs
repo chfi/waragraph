@@ -1087,7 +1087,7 @@ pub struct PathViewer {
 
     slot_fn_vars: BiHashMap<SlotFnVar, SlotFnName>,
 
-    slot_list: ListView<(Path, SlotFnVar)>,
+    pub slot_list: ListView<(Path, SlotFnVar)>,
 
     slot_states: HashMap<(Path, SlotFnName), Arc<AtomicCell<SlotState>>>,
 
