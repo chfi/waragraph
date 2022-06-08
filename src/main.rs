@@ -608,26 +608,38 @@ bed::load_bed_file(bed_path, bed_name, column_map)
 
                 {
                     use waragraph::viewer::debug::{Shape, Style};
+                    use waragraph::geometry::LayoutElement;
 
                     let [win_width, win_height] = swapchain_dims.load();
 
-                    list_layout.size = size2(win_width as f32, win_height as f32);
+                    list_layout.size =
+                        size2(win_width as f32, win_height as f32);
 
                     /*
-                    let (mx, my) = waragraph::input::get_mouse_pos();
-                    let mpos = point2(mx as f32, my as f32);
-
                     let color = |r: f32, g, b| rgb::RGBA::new(r, g, b, 1.0);
                     let color_a = |r: f32, g, b, a| rgb::RGBA::new(r, g, b, a);
 
-                    let rows = viewer.path_viewer.slot_list.visible_rows();
-
-                    // let rows = 0..100;
-
                     let partition = 8.0 * 14.0;
+                    let rows = viewer.path_viewer.slot_list.visible_rows();
 
                     let bg_rect = list_layout.inner_rect();
 
+                    let (mx, my) = waragraph::input::get_mouse_pos();
+                    let mpos = point2(mx as f32, my as f32);
+
+                    let mouse_rect = list_layout
+                        .apply_to_rows(rows)
+                        .find_map(|(i, r, v)| {
+                        let [_, r] = r.split_hor(partition);
+                        r.contains(mpos)
+                            .then(||
+                                  (Shape::from(r),
+                                   Style::fill(
+                                       rgb::RGBA::new(1.0, 0.0, 0.0, 1.0))))
+
+                    });
+
+                    let rows = viewer.path_viewer.slot_list.visible_rows();
 
                     // let bg = Some((Shape::from(bg_rect), Style::fill(color_a(0.0, 0.0, 1.0, 0.6))));
                     let bg: Option<(Shape, Style)> = None;
@@ -638,12 +650,7 @@ bed::load_bed_file(bed_path, bed_name, column_map)
                         let c1 = color_a(0.1, 0.7, 0.1, 0.3);
                         let c2 = color_a(0.8, 0.8, 0.8, 0.7);
 
-                        let mut r0 = r;
-                        r0.size.width = partition;
-
-                        let mut r1 = r;
-                        r1.origin.x += partition;
-                        r1.size.width -= partition;
+                        let [r0, r1] = r.split_hor(partition);
 
                         let mouse_color = |r: ScreenRect, c| {
                             r.contains(mpos).then(|| c2).unwrap_or(c)
@@ -671,7 +678,10 @@ bed::load_bed_file(bed_path, bed_name, column_map)
                     debug_layers.fill_layer(
                         &mut compositor,
                         debug_layer_id,
-                        bg.into_iter().chain(shapes)
+                        bg
+                            .into_iter()
+                            .chain(shapes)
+                            .chain(mouse_rect)
                     ).unwrap();
                     */
 

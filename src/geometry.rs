@@ -20,6 +20,67 @@ pub type ScreenSize = Size2D<f32, ScreenSpace>;
 pub type ScreenRect = Rect<f32, ScreenSpace>;
 pub type ScreenBox2D = Box2D<f32, ScreenSpace>;
 
+/// Basically a helper trait for adding methods to Rect, for now
+pub trait LayoutElement: Sized {
+    fn split_hor(self, at: f32) -> [Self; 2];
+    fn split_ver(self, at: f32) -> [Self; 2];
+
+    fn partitions_hor<const N: usize>(self) -> [Self; N];
+    fn partitions_ver<const N: usize>(self) -> [Self; N];
+}
+
+impl<U> LayoutElement for Rect<f32, U> {
+    fn split_hor(self, at: f32) -> [Self; 2] {
+        let mut r0 = self;
+        r0.size.width = at;
+
+        let mut r1 = self;
+        r1.origin.x += at;
+        r1.size.width -= at;
+
+        [r0, r1]
+    }
+
+    fn split_ver(self, at: f32) -> [Self; 2] {
+        let mut r0 = self;
+        r0.size.height = at;
+
+        let mut r1 = self;
+        r1.origin.y += at;
+        r1.size.height -= at;
+
+        [r0, r1]
+    }
+
+    fn partitions_hor<const N: usize>(self) -> [Self; N] {
+        let mut out = [self; N];
+
+        let mut r0 = self;
+        r0.size.width = self.width() / N as f32;
+
+        for (i, rect) in out.iter_mut().enumerate() {
+            rect.origin.x += r0.size.width * i as f32;
+            rect.size.width = r0.size.width;
+        }
+
+        out
+    }
+
+    fn partitions_ver<const N: usize>(self) -> [Self; N] {
+        let mut out = [self; N];
+
+        let mut r0 = self;
+        r0.size.height = self.height() / N as f32;
+
+        for (i, rect) in out.iter_mut().enumerate() {
+            rect.origin.y += r0.size.height * i as f32;
+            rect.size.height = r0.size.height;
+        }
+
+        out
+    }
+}
+
 #[derive(Clone, Copy)]
 pub struct ListLayout {
     pub origin: Point2D<f32, ScreenSpace>,
