@@ -9,7 +9,7 @@ use num_traits::{FromPrimitive, ToPrimitive};
 
 use super::ScreenSpace;
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct PangenomeSpace;
 
 pub type PangenomeScreenScale<T> = Scale<T, PangenomeSpace, ScreenSpace>;
@@ -58,6 +58,21 @@ where
             offset: Length::new(I::zero()),
             len: max,
         }
+    }
+
+    pub fn new_with(max: I, offset: I, len: I) -> Option<Self>
+    where
+        I: Ord,
+    {
+        if offset < I::zero() || offset > max || offset + len > max {
+            return None;
+        }
+
+        Some(Self {
+            max: Length::new(max),
+            offset: Length::new(offset),
+            len: Length::new(len),
+        })
     }
 
     pub fn offset(&self) -> Length<I, U> {
@@ -161,55 +176,39 @@ where
         }
     }
 
-    /*
-    pub fn resize_around(&self, p: I, new_len: I) -> Self
-    where
-        I: ToPrimitive + FromPrimitive,
-    {
-        let p_f = p.to_f64().unwrap();
-        let ol_f = self.len.0.to_f64().unwrap();
-        let nl_f = new_len.to_f64().unwrap();
-
-        let new_len = Length::new(new_len);
-
-        dbg!(p_f);
-
-        // let mut new = self.shift_right(p);
-        let mut new = *self;
-        new.len = new_len;
-
-        /*
-        if new_len > self.len {
-            // "zooming out"
-            let fact = nl_f / ol_f;
-            let rev_delta = I::from_f64(fact * p_f).unwrap();
-
-            dbg!(fact);
-            // dbg!(rev_delta);
-
-            new.shift_left(rev_delta)
-        } else if new_len < self.len {
-            // "zooming in"
-            // let fact = ol_f / nl_f;
-            let fact = nl_f / nl_f;
-            let rev_delta = I::from_f64(fact * p_f).unwrap();
-
-            dbg!(fact);
-            // dbg!(rev_delta);
-
-            new.shift_right(rev_delta)
-        } else {
-            *self
-        }
-        */
-    }
-    */
-
-    /*
-    /// Returns a new `View1D<I>` by resizing this view while keeping the right-hand side fixed.
     pub fn resize_from_right(&self, new_len: I) -> Self {
+        if self.len.0 >= new_len {
+            let diff = self.len.0 - new_len;
+            let new = self.resize_from_left(new_len);
+            new.shift_right(diff)
+        } else {
+            let diff = new_len - self.len.0;
+            let new = self.resize_from_left(new_len);
+            new.shift_left(diff)
+        }
     }
-    */
+
+    pub fn resize_around(&self, around: I, new_len: I) -> Self
+    where
+        I: ToPrimitive + FromPrimitive + Ord,
+    {
+        let around = around.clamp(self.offset.0, self.offset.0 + self.len.0);
+        let t = (around - self.offset.0).to_f64().unwrap()
+            / self.len.0.to_f64().unwrap();
+
+        let new = if self.len.0 >= new_len {
+            let diff = t * (self.len.0 - new_len).to_f64().unwrap();
+            let new = self.resize_from_left(new_len);
+            new.shift_right(I::from_f64(diff).unwrap())
+        } else {
+            // let diff = new_len - self.len.0;
+            let diff = t * (new_len - self.len.0).to_f64().unwrap();
+            let new = self.resize_from_left(new_len);
+            new.shift_left(I::from_f64(diff).unwrap())
+        };
+
+        new
+    }
 }
 
 #[cfg(test)]
@@ -218,81 +217,63 @@ mod tests {
 
     #[test]
     fn test_view_zoom() -> anyhow::Result<()> {
-        // let mut view: PangenomeView = View1D::new(1_000_000);
         let view: PangenomeView = View1D::new(10_000);
 
-        // let zoomed = view.resize_around(5_000, 5_000);
-        // let zoomed = view.resize_from_left(5_000);
+        let zoomed0 = view.resize_from_left(5_000);
 
-        let resize_from_right = |view: PangenomeView, new_len: usize| {
-            if view.len.0 >= new_len {
-                let diff = view.len.0 - new_len;
-                let new = view.resize_from_left(new_len);
-                new.shift_right(diff)
-            } else {
-                let diff = new_len - view.len.0;
-                let new = view.resize_from_left(new_len);
-                new.shift_left(diff)
-            }
+        let new_view = |offset: usize, len: usize| {
+            View1D::new_with(10_000, offset, len).unwrap()
         };
 
-        let zoomed0 = view.resize_from_left(5_000);
-        let zoomed1 = resize_from_right(view, 5_000);
+        assert_eq!(zoomed0, new_view(0, 5_000));
 
-        let zoomed_out = resize_from_right(zoomed0, 6000);
+        let zoomed1 = view.resize_from_right(5_000);
+
+        assert_eq!(zoomed1, new_view(5_000, 5_000));
+
+        let zoomed_out = zoomed0.resize_from_right(6_000);
+
+        assert_eq!(zoomed_out, new_view(0, 6_000));
 
         let translated = zoomed0.shift_right(3_000);
 
-        let t_zoom = resize_from_right(translated, 6000);
-        let t_zoom2 = t_zoom.resize_from_left(6500);
-        // let zoomed = view.resize_around(5_000, 500);
+        assert_eq!(translated, new_view(3_000, 5_000));
 
-        eprintln!("original: {:?}", view);
-        eprintln!("zoomed0:   {:?}", zoomed0);
-        eprintln!("zoomed1:   {:?}", zoomed1);
-        eprintln!("zoomed_out:   {:?}", zoomed_out);
-        eprintln!("translated:   {:?}", translated);
-        eprintln!("t_zoom:   {:?}", t_zoom);
-        eprintln!("t_zoom2:   {:?}", t_zoom2);
+        let t_zoom = translated.resize_from_right(6_000);
+        let t_zoom2 = t_zoom.resize_from_left(6_500);
 
-        let resize_around =
-            |view: PangenomeView, around: usize, new_len: usize| {
-                let around =
-                    around.clamp(view.offset.0, view.offset.0 + view.len.0);
-                let t = (around - view.offset.0) as f64 / view.len.0 as f64;
+        assert_eq!(t_zoom, new_view(2_000, 6_000));
+        assert_eq!(t_zoom2, new_view(2_000, 6_500));
 
-                let new = if view.len.0 >= new_len {
-                    let diff = t * (view.len.0 - new_len) as f64;
-                    let new = view.resize_from_left(new_len);
-                    new.shift_right(diff as usize)
-                } else {
-                    // let diff = new_len - view.len.0;
-                    let diff = t * (new_len - view.len.0) as f64;
-                    let new = view.resize_from_left(new_len);
-                    new.shift_left(diff as usize)
-                };
+        // eprintln!("original: {:?}", view);
+        // eprintln!("zoomed0:   {:?}", zoomed0);
+        // eprintln!("zoomed1:   {:?}", zoomed1);
+        // eprintln!("zoomed_out:   {:?}", zoomed_out);
+        // eprintln!("translated:   {:?}", translated);
+        // eprintln!("t_zoom:   {:?}", t_zoom);
+        // eprintln!("t_zoom2:   {:?}", t_zoom2);
 
-                let t_ = (around - new.offset.0) as f64 / new.len.0 as f64;
-
-                eprintln!("t:  {}", t);
-                eprintln!("t': {}", t_);
-
-                new
-            };
-
-        let t_zoom3 = resize_around(translated, 4000, 6000);
-        let t_zoom4 = resize_around(t_zoom3, 3000, 3000);
-        let t_zoom5 = resize_around(t_zoom4, 3000, 3000);
+        let t_zoom3 = translated.resize_around(4_000, 6_000);
+        let t_zoom4 = t_zoom3.resize_around(3_000, 3_000);
+        let t_zoom5 = t_zoom4.resize_around(3_000, 3_000);
 
         assert_eq!(t_zoom4, t_zoom5);
 
-        let t_zoom5 = resize_around(t_zoom4, 3000, 3000);
+        let t_zoom5 = t_zoom4.resize_around(4_000, 3_300);
+        let t_zoom6 = t_zoom5.resize_around(4_000, 3_000);
 
-        eprintln!("t_zoom3:   {:?}", t_zoom3);
-        eprintln!("t_zoom4:   {:?}", t_zoom4);
-        eprintln!("t_zoom5:   {:?}", t_zoom5);
+        // eprintln!("t_zoom3:   {:?}", t_zoom3);
+        // eprintln!("t_zoom4:   {:?}", t_zoom4);
+        // eprintln!("t_zoom5:   {:?}", t_zoom5);
+        // eprintln!("t_zoom6:   {:?}", t_zoom6);
 
-        assert!(false);
+        assert_eq!(t_zoom4, t_zoom6);
+
+        assert_eq!(t_zoom3, new_view(2_800, 6_000));
+        assert_eq!(t_zoom4, new_view(2_900, 3_000));
+
+        assert_eq!(t_zoom5, new_view(2_791, 3_300));
+        assert_eq!(t_zoom6, new_view(2_900, 3_000));
 
         Ok(())
     }
