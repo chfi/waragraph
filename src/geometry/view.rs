@@ -236,9 +236,6 @@ mod tests {
             }
         };
 
-        // let resize_around = |view: PangenomeView, around: usize, new_len| {
-        // }
-
         let zoomed0 = view.resize_from_left(5_000);
         let zoomed1 = resize_from_right(view, 5_000);
 
@@ -247,6 +244,7 @@ mod tests {
         let translated = zoomed0.shift_right(3_000);
 
         let t_zoom = resize_from_right(translated, 6000);
+        let t_zoom2 = t_zoom.resize_from_left(6500);
         // let zoomed = view.resize_around(5_000, 500);
 
         eprintln!("original: {:?}", view);
@@ -255,6 +253,44 @@ mod tests {
         eprintln!("zoomed_out:   {:?}", zoomed_out);
         eprintln!("translated:   {:?}", translated);
         eprintln!("t_zoom:   {:?}", t_zoom);
+        eprintln!("t_zoom2:   {:?}", t_zoom2);
+
+        let resize_around =
+            |view: PangenomeView, around: usize, new_len: usize| {
+                let around =
+                    around.clamp(view.offset.0, view.offset.0 + view.len.0);
+                let t = (around - view.offset.0) as f64 / view.len.0 as f64;
+
+                let new = if view.len.0 >= new_len {
+                    let diff = t * (view.len.0 - new_len) as f64;
+                    let new = view.resize_from_left(new_len);
+                    new.shift_right(diff as usize)
+                } else {
+                    // let diff = new_len - view.len.0;
+                    let diff = t * (new_len - view.len.0) as f64;
+                    let new = view.resize_from_left(new_len);
+                    new.shift_left(diff as usize)
+                };
+
+                let t_ = (around - new.offset.0) as f64 / new.len.0 as f64;
+
+                eprintln!("t:  {}", t);
+                eprintln!("t': {}", t_);
+
+                new
+            };
+
+        let t_zoom3 = resize_around(translated, 4000, 6000);
+        let t_zoom4 = resize_around(t_zoom3, 3000, 3000);
+        let t_zoom5 = resize_around(t_zoom4, 3000, 3000);
+
+        assert_eq!(t_zoom4, t_zoom5);
+
+        let t_zoom5 = resize_around(t_zoom4, 3000, 3000);
+
+        eprintln!("t_zoom3:   {:?}", t_zoom3);
+        eprintln!("t_zoom4:   {:?}", t_zoom4);
+        eprintln!("t_zoom5:   {:?}", t_zoom5);
 
         assert!(false);
 
