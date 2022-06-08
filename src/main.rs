@@ -17,7 +17,7 @@ use ash::vk;
 
 use flexi_logger::{Duplicate, FileSpec, Logger};
 
-use waragraph::geometry::ListLayout;
+use waragraph::geometry::{ListLayout, ScreenRect};
 use waragraph::graph::{Path, Waragraph};
 use waragraph::util::BufferStorage;
 use waragraph::viewer::app::ViewerSys;
@@ -613,6 +613,9 @@ bed::load_bed_file(bed_path, bed_name, column_map)
 
                     let [win_width, win_height] = swapchain_dims.load();
 
+                    let (mx, my) = waragraph::input::get_mouse_pos();
+                    let mpos = point2(mx as f32, my as f32);
+
                     list_layout.size = size2(win_width as f32, win_height as f32 - 36.0 - 100.0);
 
                     let color = |r: f32, g, b| rgb::RGBA::new(r, g, b, 1.0);
@@ -620,14 +623,42 @@ bed::load_bed_file(bed_path, bed_name, column_map)
 
                     let rows = viewer.path_viewer.slot_list.visible_rows();
 
-                    let shapes = list_layout.apply_to_rows(rows).map(|(_, r, v)| {
-                        (
-                            Shape::from(r),
+                    let partition = 8.0 * 14.0 + 14.0;
+
+                    let shapes = list_layout.apply_to_rows(rows).flat_map(|(_, r, v)| {
+
+                        let c0 = color_a(0.7, 0.1, 0.1, 0.3);
+                        let c1 = color_a(0.1, 0.7, 0.1, 0.3);
+                        let c2 = color_a(0.8, 0.8, 0.8, 0.7);
+
+                        let mut r0 = r;
+                        r0.size.width = partition;
+
+                        let mut r1 = r;
+                        r1.origin.x += partition;
+                        r1.size.width -= partition;
+
+                        let mouse_color = |r: ScreenRect, c| {
+                            r.contains(mpos).then(|| c2).unwrap_or(c)
+                        };
+
+                        let col_0 = mouse_color(r0, c0);
+                        let col_1 = mouse_color(r1, c1);
+
+                        [
+                            (
+                            Shape::from(r0),
                             Style::stroke_fill(
-                                color(1.0, 0.0, 0.0),
-                                color_a(0.7, 0.1, 0.1, 0.3),
+                                color(1.0, 0.0, 0.0), col_0
                             ),
-                        )
+                        ),
+                            (
+                            Shape::from(r1),
+                            Style::stroke_fill(
+                                color(0.0, 1.0, 0.0), col_1
+                            ),
+                        )]
+
                     });
 
                     debug_layers.fill_layer(&mut compositor, debug_layer_id, shapes).unwrap();
