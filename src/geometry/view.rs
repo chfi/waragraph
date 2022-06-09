@@ -1,4 +1,4 @@
-use std::ops::{Add, Sub};
+use std::ops::{Add, Div, Sub};
 
 use euclid::*;
 use num_traits::{FromPrimitive, ToPrimitive};
@@ -87,6 +87,12 @@ where
         self.max
     }
 
+    // /// If needed, translates the view
+    // pub fn normalize(&mut self)
+    //     where I: Sub<Output = I>
+    // {
+    // }
+
     pub fn is_valid(&self) -> bool {
         self.len.0 > euclid::num::Zero::zero()
             && (self.offset + self.len <= self.max)
@@ -170,6 +176,32 @@ where
     }
 
     #[must_use]
+    pub fn resize_mid(&self, new_len: I) -> Self
+    where
+        I: Div<Output = I> + ToPrimitive + FromPrimitive + Ord,
+        // + Add<Output = I>
+    {
+        let mut new = *self;
+
+        let new_len = new_len.clamp(I::from_usize(1).unwrap(), new.max.0);
+
+        let mid = new.offset.0 + (new.len.0 / I::from_usize(2).unwrap());
+
+        let new_hl = new_len / I::from_usize(2).unwrap();
+
+        new.len = Length::new(new_len);
+        if new_hl > mid {
+            new.offset = Length::new(I::zero());
+        } else if mid + new_hl > self.max.0 {
+            new.offset = Length::new(self.max.0 - new_len);
+        } else {
+            new.offset = Length::new(mid - new_hl);
+        }
+
+        new
+    }
+
+    #[must_use]
     /// Returns a new `View1D` with the same offset but a new length.
     pub fn resize_from_left(&self, new_len: I) -> Self {
         let new_len = Length::new(new_len);
@@ -231,6 +263,11 @@ mod tests {
     use super::*;
 
     #[test]
+    fn test_centered_zoom() -> anyhow::Result<()> {
+        Ok(())
+    }
+
+    #[test]
     fn test_view_zoom() -> anyhow::Result<()> {
         let view: PangenomeView = View1D::new(10_000);
 
@@ -240,25 +277,25 @@ mod tests {
             View1D::new_with(10_000, offset, len).unwrap()
         };
 
-        assert_eq!(zoomed0, new_view(0, 5_000));
+        // assert_eq!(zoomed0, new_view(0, 5_000));
 
         let zoomed1 = view.resize_from_right(5_000);
 
-        assert_eq!(zoomed1, new_view(5_000, 5_000));
+        // assert_eq!(zoomed1, new_view(5_000, 5_000));
 
         let zoomed_out = zoomed0.resize_from_right(6_000);
 
-        assert_eq!(zoomed_out, new_view(0, 6_000));
+        // assert_eq!(zoomed_out, new_view(0, 6_000));
 
         let translated = zoomed0.shift_right(3_000);
 
-        assert_eq!(translated, new_view(3_000, 5_000));
+        // assert_eq!(translated, new_view(3_000, 5_000));
 
         let t_zoom = translated.resize_from_right(6_000);
         let t_zoom2 = t_zoom.resize_from_left(6_500);
 
-        assert_eq!(t_zoom, new_view(2_000, 6_000));
-        assert_eq!(t_zoom2, new_view(2_000, 6_500));
+        // assert_eq!(t_zoom, new_view(2_000, 6_000));
+        // assert_eq!(t_zoom2, new_view(2_000, 6_500));
 
         // eprintln!("original: {:?}", view);
         // eprintln!("zoomed0:   {:?}", zoomed0);
@@ -272,23 +309,7 @@ mod tests {
         let t_zoom4 = t_zoom3.resize_around(3_000, 3_000);
         let t_zoom5 = t_zoom4.resize_around(3_000, 3_000);
 
-        assert_eq!(t_zoom4, t_zoom5);
-
-        let t_zoom5 = t_zoom4.resize_around(4_000, 3_300);
-        let t_zoom6 = t_zoom5.resize_around(4_000, 3_000);
-
-        // eprintln!("t_zoom3:   {:?}", t_zoom3);
-        // eprintln!("t_zoom4:   {:?}", t_zoom4);
-        // eprintln!("t_zoom5:   {:?}", t_zoom5);
-        // eprintln!("t_zoom6:   {:?}", t_zoom6);
-
-        assert_eq!(t_zoom4, t_zoom6);
-
-        assert_eq!(t_zoom3, new_view(2_800, 6_000));
-        assert_eq!(t_zoom4, new_view(2_900, 3_000));
-
-        assert_eq!(t_zoom5, new_view(2_791, 3_300));
-        assert_eq!(t_zoom6, new_view(2_900, 3_000));
+        assert!(false);
 
         Ok(())
     }

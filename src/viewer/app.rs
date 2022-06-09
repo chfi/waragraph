@@ -669,17 +669,28 @@ impl ViewerSys {
                             update = true;
                         } else if matches!(kc, VK::Up) {
                             if view.len().0 > self.path_viewer.current_width {
-                                view = view.resize_around(
-                                    view_mid.0,
-                                    (len - len / 9) as usize,
+                                view =
+                                    view.resize_mid((len - len / 9) as usize);
+                            }
+
+                            if view.len().0 <= self.path_viewer.current_width {
+                                view.set(
+                                    view.offset().0,
+                                    self.path_viewer.current_width,
                                 );
                             }
+
+                            // view.len =
+                            //     view.len.max(self.path_viewer.current_width);
+
                             update = true;
                         } else if matches!(kc, VK::Down) {
-                            view = view.resize_around(
-                                view_mid.0,
-                                (len + len / 10) as usize,
-                            );
+                            view = view.resize_mid((len + len / 10) as usize);
+
+                            // view = view.resize_around(
+                            //     view_mid.0,
+                            //     (len + len / 10) as usize,
+                            // );
                             update = true;
                         } else if matches!(kc, VK::Escape) {
                             view.reset();

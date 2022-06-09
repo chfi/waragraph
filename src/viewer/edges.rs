@@ -197,11 +197,11 @@ impl EdgeCache {
         // should be a "line-rgb"-type sublayer
         sublayer_data: &mut SublayerDrawData,
     ) -> Result<()> {
+        let screen_scale = view.screen_scale(slot_width as usize);
+
         let screen_x = |pos: usize| {
             let x = slot_x_offset as f64;
-            let width = slot_width as f64;
-            let fact = width / (view.len().0 as f64);
-            x + (pos as f64 - view.offset().0 as f64) * fact
+            x + (pos as f64 - view.offset().0 as f64) * screen_scale.0 as f64
         };
 
         let max_dist = *self.max_edge_length.get(&path).unwrap();
