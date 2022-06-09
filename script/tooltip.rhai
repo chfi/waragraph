@@ -76,6 +76,24 @@ fn show_tooltip(label_space, pos, list) {
     if max_len < text.len() {
       max_len = text.len();
     }
+  }
+
+  let t_w = 8.0 * max_len;
+
+  let height = labels.len().to_float() * 8.0;
+  let width = t_w + 4.0;
+
+  if x0 + width > dims.width {
+    x0 = dims.width - width - 1.0;
+  }
+
+  if y0 + height > dims.height {
+    y0 = dims.height - height - 1.0;
+  }
+
+
+  for (val, ix) in list {
+    let text = `${val}`;
 
     let x = x0 + 1.0;
     let y = y0 + row_h * ix;
@@ -86,11 +104,6 @@ fn show_tooltip(label_space, pos, list) {
 
     labels.push(label);
   }
-
-  let t_w = 8.0 * max_len;
-
-  let height = labels.len().to_float() * 8.0;
-  let width = t_w + 4.0;
 
   let col0 = rgb(0.85, 0.85, 0.85);
   let col1 = rgb(0.75, 0.75, 0.75);
