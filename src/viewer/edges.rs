@@ -7,11 +7,11 @@ use rustc_hash::FxHashMap;
 use anyhow::Result;
 
 use crate::{
-    geometry::ScreenPoint,
+    geometry::{view::PangenomeView, ScreenPoint},
     graph::{Path, Strand, Waragraph},
 };
 
-use super::{gui::layer::line_width_rgba, ViewDiscrete1D};
+use super::gui::layer::line_width_rgba;
 
 pub struct EdgeCache {
     // all edges as endpoints (pangenome positions)
@@ -25,7 +25,7 @@ pub struct EdgeCache {
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 struct ParamCache {
-    view: ViewDiscrete1D,
+    view: PangenomeView,
 
     // u32 instead of f32 here since this will compared for equality
     slot_offset: [u32; 2],
@@ -52,7 +52,7 @@ impl EdgeVertexCache {
         &mut self,
         graph: &Waragraph,
         path: Path,
-        view: ViewDiscrete1D,
+        view: PangenomeView,
         slot_x_offset: u32,
         slot_y_offset: u32,
         slot_width: u32,
@@ -189,7 +189,7 @@ impl EdgeCache {
         &self,
         graph: &Waragraph,
         path: Path,
-        view: ViewDiscrete1D,
+        view: PangenomeView,
         slot_x_offset: f32,
         slot_y_offset: f32,
         slot_width: f32,
@@ -198,7 +198,10 @@ impl EdgeCache {
         sublayer_data: &mut SublayerDrawData,
     ) -> Result<()> {
         let screen_x = |pos: usize| {
-            view.screen_x(slot_x_offset as f64, slot_width as f64, pos)
+            let x = slot_x_offset as f64;
+            let width = slot_width as f64;
+            let fact = width / (view.len().0 as f64);
+            x + (pos as f64 - view.offset().0 as f64) * fact
         };
 
         let max_dist = *self.max_edge_length.get(&path).unwrap();

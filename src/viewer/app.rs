@@ -21,9 +21,9 @@ use winit::window::Window;
 use crate::config::ConfigMap;
 use crate::console::data::AnnotationSet;
 use crate::console::{Console, RhaiBatchFn2, RhaiBatchFn5};
+use crate::geometry::view::PangenomeView;
 use crate::graph::{Node, Path, Waragraph};
 use crate::util::{BufFmt, BufferStorage};
-use crate::viewer::ViewDiscrete1D;
 
 use std::collections::{BTreeMap, HashMap};
 
@@ -42,7 +42,7 @@ pub struct ViewerSys {
     pub config: ConfigMap,
     pub props: ConfigMap,
 
-    pub view: Arc<AtomicCell<ViewDiscrete1D>>,
+    pub view: Arc<AtomicCell<PangenomeView>>,
 
     // pub path_viewer: PathViewer,
     pub slot_functions: Arc<RwLock<SlotFnCache>>,
@@ -101,7 +101,7 @@ impl ViewerSys {
             compositor.sublayer_alloc_tx.send(msg)?;
         }
 
-        let view = Arc::new(AtomicCell::new(ViewDiscrete1D::new(
+        let view = Arc::new(AtomicCell::new(PangenomeView::new(
             waragraph.total_len(),
         )));
 
@@ -207,7 +207,7 @@ impl ViewerSys {
             let need_refresh = path_viewer.need_refresh.clone();
             builder.module.set_native_fn(
                 "set_view",
-                move |new: ViewDiscrete1D| {
+                move |new: PangenomeView| {
                     if new != view_.load() {
                         need_refresh.store(true);
                     }
@@ -233,7 +233,7 @@ impl ViewerSys {
                         return Err(e);
                     }
 
-                    if let Some(view) = view.try_cast::<ViewDiscrete1D>() {
+                    if let Some(view) = view.try_cast::<PangenomeView>() {
                         if old_view != view {
                             need_refresh.store(true);
                             view_.store(view);
@@ -638,7 +638,8 @@ impl ViewerSys {
                     let mut view = self.view.load();
 
                     let pre_len = view.len();
-                    let len = view.len() as isize;
+                    let len = view.len().0;
+                    let view_mid = view.offset() + view.len() / 2;
 
                     let mut update = false;
 
@@ -661,22 +662,24 @@ impl ViewerSys {
 
                     if pressed {
                         if matches!(kc, VK::Left) {
-                            view.translate(-len / 10);
+                            view = view.shift_left(len / 10);
                             update = true;
-                            assert_eq!(pre_len, view.len());
                         } else if matches!(kc, VK::Right) {
-                            view.translate(len / 10);
+                            view = view.shift_right(len / 10);
                             update = true;
-                            assert_eq!(pre_len, view.len());
                         } else if matches!(kc, VK::Up) {
-                            if view.len() > self.path_viewer.current_width {
-                                view.resize((len - len / 9) as usize);
+                            if view.len().0 > self.path_viewer.current_width {
+                                view = view.resize_around(
+                                    view_mid.0,
+                                    (len - len / 9) as usize,
+                                );
                             }
-                            view.len =
-                                view.len.max(self.path_viewer.current_width);
                             update = true;
                         } else if matches!(kc, VK::Down) {
-                            view.resize((len + len / 10) as usize);
+                            view = view.resize_around(
+                                view_mid.0,
+                                (len + len / 10) as usize,
+                            );
                             update = true;
                         } else if matches!(kc, VK::Escape) {
                             view.reset();
@@ -806,8 +809,8 @@ impl ViewerSys {
             let slot_width = self.path_viewer.current_width;
             let mut view = self.view.load();
 
-            if view.len < slot_width {
-                view.len = slot_width;
+            if view.len().0 < slot_width {
+                view.len().0 = slot_width;
                 self.view.store(view);
             }
 
@@ -1091,7 +1094,7 @@ pub struct PathViewer {
 
     slot_states: HashMap<(Path, SlotFnName), Arc<AtomicCell<SlotState>>>,
 
-    current_view: ViewDiscrete1D,
+    current_view: PangenomeView,
     pub current_width: usize,
 
     pub need_refresh: Arc<AtomicCell<bool>>,
@@ -1108,7 +1111,7 @@ impl PathViewer {
     pub fn new(
         engine: &mut VkEngine,
         graph: &Arc<Waragraph>,
-        current_view: ViewDiscrete1D,
+        current_view: PangenomeView,
         current_width: usize,
     ) -> Result<Self> {
         let slot_count = 1024;
@@ -1167,7 +1170,7 @@ impl PathViewer {
         &mut self,
         graph: &Waragraph,
         scale_factor: ScaleFactor,
-        view: &ViewDiscrete1D,
+        view: &PangenomeView,
     ) {
         let nsamples = scale_factor.scale(self.current_width);
 
@@ -1212,7 +1215,7 @@ impl PathViewer {
         slot_fns: &SlotFnCache,
         config: &ConfigMap,
         buffer_width: usize,
-        view: ViewDiscrete1D,
+        view: PangenomeView,
         row_count: usize,
     ) -> Result<()> {
         // get the active slot functions from the rhai config object
@@ -1321,8 +1324,8 @@ impl PathViewer {
                     // need_refresh
                     // || buffer_width != self.current_width
                     buffer_width != self.current_width
-                        || view_offset != self.current_view.offset
-                        || view_len != self.current_view.len
+                        || view_offset != self.current_view.offset().0
+                        || view_len != self.current_view.len().0
                 }
             };
 
@@ -1370,21 +1373,21 @@ impl PathViewer {
                     move || {
                         let cur = cell.load();
 
-                        // if cur == SlotState::Unknown
-                        //     || cur == SlotState::Updating
-                        // {
-                        //     cell.store(SlotState::Contains {
-                        //         buffer_width: current_width,
-                        //         view_offset: current_view.offset(),
-                        //         view_len: current_view.len(),
-                        //     });
-                        // }
+                        if cur == SlotState::Unknown
+                            || cur == SlotState::Updating
+                        {
+                            cell.store(SlotState::Contains {
+                                buffer_width: current_width,
+                                view_offset: current_view.offset().0,
+                                view_len: current_view.len().0,
+                            });
+                        }
 
-                        cell.store(SlotState::Contains {
-                            buffer_width: current_width,
-                            view_offset: current_view.offset(),
-                            view_len: current_view.len(),
-                        });
+                        // cell.store(SlotState::Contains {
+                        //     buffer_width: current_width,
+                        //     view_offset: current_view.offset().0,
+                        //     view_len: current_view.len().0,
+                        // });
                     },
                 );
 
@@ -1476,23 +1479,7 @@ impl PathViewer {
                         // log::warn!("Unknown, skipping slot {}", ix);
                         continue;
                     }
-                    SlotState::Updating => {
-                        // log::warn!("Updating, skipping slot {}", ix);
-                        continue;
-                    }
-                    SlotState::Contains {
-                        buffer_width,
-                        view_offset,
-                        view_len,
-                    } => {
-                        if buffer_width != self.current_width
-                            || view_offset != self.current_view.offset()
-                            || view_len != self.current_view.len()
-                        {
-                            // log::warn!("Incorrect key, skipping slot {}", ix);
-                            continue;
-                        }
-                    }
+                    _ => (),
                 }
             } else {
                 continue;

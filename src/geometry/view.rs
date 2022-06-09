@@ -16,7 +16,7 @@ pub type PangenomeScreenScale<T> = Scale<T, PangenomeSpace, ScreenSpace>;
 
 pub type PangenomeView = View1D<usize, PangenomeSpace>;
 
-#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, PartialEq, Eq, Hash)]
 pub struct View1D<I, U = UnknownUnit>
 where
     I: Clone + PartialOrd,
@@ -111,13 +111,16 @@ where
 
 impl<I, U> View1D<I, U>
 where
+    U: std::fmt::Debug,
     I: Copy
         + PartialEq
         + PartialOrd
+        + std::fmt::Debug
         + Add<Output = I>
         + Sub<Output = I>
         + num_traits::Zero,
 {
+    #[must_use]
     pub fn set_offset(&self, new_offset: I) -> Self {
         let mut new = self.to_owned();
 
@@ -132,7 +135,9 @@ where
         new
     }
 
+    #[must_use]
     pub fn shift_right(&self, delta: I) -> Self {
+        log::warn!("shift right by {:?}", delta);
         let mut new = *self;
 
         let delta = Length::new(delta);
@@ -142,11 +147,14 @@ where
         } else {
             new.offset = self.offset + delta;
         }
+        log::warn!("new offset: {:?}", new.offset);
 
         new
     }
 
+    #[must_use]
     pub fn shift_left(&self, delta: I) -> Self {
+        log::warn!("shift left by {:?}", delta);
         let mut new = *self;
 
         let delta = Length::new(delta);
@@ -156,10 +164,12 @@ where
         } else {
             new.offset = self.offset - delta;
         }
+        log::warn!("new offset: {:?}", new.offset);
 
         new
     }
 
+    #[must_use]
     /// Returns a new `View1D` with the same offset but a new length.
     pub fn resize_from_left(&self, new_len: I) -> Self {
         let new_len = Length::new(new_len);
@@ -176,6 +186,7 @@ where
         }
     }
 
+    #[must_use]
     pub fn resize_from_right(&self, new_len: I) -> Self {
         if self.len.0 >= new_len {
             let diff = self.len.0 - new_len;
@@ -188,10 +199,14 @@ where
         }
     }
 
+    #[must_use]
     pub fn resize_around(&self, around: I, new_len: I) -> Self
     where
         I: ToPrimitive + FromPrimitive + Ord,
     {
+        log::warn!("resize_around: {:?}", self);
+        log::warn!("resize around {:?} -> {:?}", around, new_len);
+
         let around = around.clamp(self.offset.0, self.offset.0 + self.len.0);
         let t = (around - self.offset.0).to_f64().unwrap()
             / self.len.0.to_f64().unwrap();
@@ -205,6 +220,7 @@ where
             let new = self.resize_from_left(new_len);
             new.shift_left(I::from_f64(diff).unwrap())
         };
+        log::warn!("after: {:?}", new);
 
         new
     }

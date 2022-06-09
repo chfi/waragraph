@@ -615,7 +615,7 @@ bed::load_bed_file(bed_path, bed_name, column_map)
                     list_layout.size =
                         size2(win_width as f32, win_height as f32);
 
-                    /*
+
                     let color = |r: f32, g, b| rgb::RGBA::new(r, g, b, 1.0);
                     let color_a = |r: f32, g, b, a| rgb::RGBA::new(r, g, b, a);
 
@@ -675,6 +675,7 @@ bed::load_bed_file(bed_path, bed_name, column_map)
 
                     });
 
+                    /*
                     debug_layers.fill_layer(
                         &mut compositor,
                         debug_layer_id,

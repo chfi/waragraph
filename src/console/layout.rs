@@ -9,10 +9,8 @@ use std::sync::Arc;
 
 use anyhow::Result;
 
-use crate::{
-    graph::{Node, Waragraph},
-    viewer::ViewDiscrete1D,
-};
+use crate::geometry::view::PangenomeView;
+use crate::graph::{Node, Waragraph};
 
 use rhai::plugin::*;
 
@@ -89,13 +87,13 @@ impl LabelStacks {
         &self,
         compositor: &mut Compositor,
         graph: &Arc<Waragraph>,
-        view: ViewDiscrete1D,
+        view: PangenomeView,
         slot_offset: f32,
         slot_width: f32,
     ) -> Result<()> {
-        let start = graph.node_at_pos(view.offset).unwrap();
+        let start = graph.node_at_pos(view.offset().0).unwrap();
 
-        let view_right = (view.offset + view.len).min(view.max - 1);
+        let view_right = (view.offset().0 + view.len().0).min(view.max().0 - 1);
 
         let end = graph.node_at_pos(view_right).unwrap();
 
@@ -106,8 +104,8 @@ impl LabelStacks {
         view_set.insert_range(s..e);
 
         let pos_to_x = |p: usize| -> f32 {
-            let x0 = view.offset as f64;
-            let v_len = view.len as f64;
+            let x0 = view.offset().0 as f64;
+            let v_len = view.len().0 as f64;
             let x_p = ((p as f64) - x0) / v_len;
             let w_len = slot_width as f64;
             ((slot_offset as f64) + (w_len * x_p)) as f32
@@ -438,14 +436,14 @@ impl LabelLayout {
     pub fn reset_for_view<R: rand::Rng>(
         &mut self,
         rng: &mut R,
-        view: &ViewDiscrete1D,
+        view: &PangenomeView,
         layout_width: f32,
     ) {
         log::warn!("resetting layout!");
         self.layout_width = layout_width;
 
-        let view_scale = (view.max as f32) / view.len as f32;
-        let offset = (view.offset as f32) / view.max as f32;
+        let view_scale = (view.max().0 as f32) / view.len().0 as f32;
+        let offset = (view.offset().0 as f32) / view.max().0 as f32;
 
         for (i, anchor) in self.label_anchors.iter().enumerate() {
             let (_, t_len) = self.labels[i];

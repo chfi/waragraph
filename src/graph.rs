@@ -20,9 +20,9 @@ use ndarray::prelude::*;
 
 use anyhow::{anyhow, bail, Result};
 
-pub mod script;
+use crate::geometry::view::PangenomeView;
 
-use crate::viewer::ViewDiscrete1D;
+pub mod script;
 
 #[repr(transparent)]
 #[derive(
@@ -536,14 +536,15 @@ impl Waragraph {
         nsamples: usize,
         // pos_offset: usize,
         // len: usize,
-        view: &ViewDiscrete1D,
+        view: &PangenomeView,
         out: &mut Vec<(Node, usize)>,
     ) {
         out.clear();
 
-        let range = view.range();
-        let pos_offset = range.start;
-        let len = range.end - range.start;
+        let start = view.offset().0;
+        let len = view.len().0;
+
+        let pos_offset = start;
 
         let slice = &self.node_sum_lens;
 
