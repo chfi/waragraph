@@ -32,7 +32,7 @@ cfg.set("viz.slot_function", "depth_mean");
 // TODO: the slot offset should be derived from the label length, but
 // i'm not sure where to put the logic
 // for now it's best to just change these values as needed
-cfg.set("layout.slot", #{ x: 0, y: 36, w: -10, h: 16 });
+cfg.set("layout.slot", #{ x: 0, y: 36, w: -10, h: 18 });
 cfg.set("layout.list_bottom_pad", 100);
 cfg.set("layout.label", #{ x: 14, y: 2 });
 cfg.set("layout.max_path_name_len", 14);

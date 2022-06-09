@@ -1245,7 +1245,6 @@ impl PathViewer {
         let [win_width, win_height] = win_dims;
 
         let mut layout = self.list_layout.load();
-        layout.size = size2(win_width as f32, win_height as f32);
         self.list_layout.store(layout);
 
         // get the active slot functions from the rhai config object
@@ -1265,8 +1264,10 @@ impl PathViewer {
                 self.slot_states.clear();
             }
 
-            // self.slot_fn_vars.insert(1, secondary);
-        }
+            let size = size2(win_width as f32, win_height as f32);
+            let layout = ListLayout::from_config_map(config, size).unwrap();
+            self.list_layout.store(layout);
+        };
 
         let _ = label_space.write_buffer(&mut engine.resources);
 

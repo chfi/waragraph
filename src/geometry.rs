@@ -2,6 +2,8 @@ use rhai::plugin::*;
 
 use euclid::*;
 
+use crate::config::ConfigMap;
+
 // pub enum LayoutInput {
 //     ScalarInt(i32),
 //     ScalarUInt(u32),
@@ -92,6 +94,44 @@ pub struct ListLayout {
 }
 
 impl ListLayout {
+    pub fn from_config_map(
+        config: &ConfigMap,
+        size: ScreenSize,
+    ) -> Option<Self> {
+        let map = config.map.read();
+        let get_cast = |m: &rhai::Map, k| m.get(k).unwrap().clone_cast::<i64>();
+
+        let label = map.get("layout.label").unwrap().clone_cast::<rhai::Map>();
+        let slot = map.get("layout.slot").unwrap().clone_cast::<rhai::Map>();
+
+        let bottom_pad = get_cast(&map, "layout.list_bottom_pad") as usize;
+
+        let label_x = get_cast(&label, "x") as f32;
+
+        let slot_y = get_cast(&slot, "y") as f32;
+        let slot_w = get_cast(&slot, "w") as f32;
+        let slot_h = get_cast(&slot, "h") as f32;
+
+        let origin = point2(0.0, 0.0);
+
+        let top = slot_y;
+        let right = -slot_w;
+        let bottom = bottom_pad as f32;
+        let left = label_x;
+
+        let side_offsets = Some(SideOffsets2D::new(top, right, bottom, left));
+
+        let slot_height = Length::new(slot_h as f32);
+
+        Some(Self {
+            origin,
+            size,
+            side_offsets,
+
+            slot_height,
+        })
+    }
+
     /// Returns the rectangle that will contain the list slots (i.e.
     /// with `side_offsets` taken into account)
     pub fn inner_rect(&self) -> Rect<f32, ScreenSpace> {
