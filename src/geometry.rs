@@ -232,6 +232,54 @@ impl ListLayout {
     */
 }
 
+#[derive(Clone)]
+pub struct CachedListLayout {
+    list_layout: ListLayout,
+    cached_slots: Vec<ScreenRect>,
+}
+
+impl CachedListLayout {
+    pub fn from_layout(layout: &ListLayout) -> Self {
+        let mut res = Self {
+            list_layout: *layout,
+            cached_slots: Vec::with_capacity(layout.slot_count().0),
+        };
+
+        res.refresh();
+
+        res
+    }
+
+    pub fn set_layout(&mut self, list_layout: ListLayout) {
+        self.list_layout = list_layout;
+        self.refresh();
+    }
+
+    pub fn with_layout_mut<F>(&mut self, f: F)
+    where
+        F: FnOnce(&mut ListLayout),
+    {
+        f(&mut self.list_layout);
+        self.refresh();
+    }
+
+    pub fn apply_to_rows<'a, T: 'a>(
+        &'a self,
+        rows: impl Iterator<Item = T> + 'a,
+    ) -> impl Iterator<Item = (usize, Rect<f32, ScreenSpace>, T)> + 'a {
+        rows.zip(self.cached_slots.iter())
+            .enumerate()
+            .map(|(ix, (val, rect))| (ix, *rect, val))
+    }
+
+    fn refresh(&mut self) {
+        self.cached_slots.clear();
+        let layout = &self.list_layout;
+        self.cached_slots
+            .extend(layout.apply_to_rows(0..).map(|(_, rect, _)| rect))
+    }
+}
+
 #[export_module]
 pub mod rhai_module {
     //

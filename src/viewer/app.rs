@@ -22,7 +22,9 @@ use crate::config::ConfigMap;
 use crate::console::data::AnnotationSet;
 use crate::console::{Console, RhaiBatchFn2, RhaiBatchFn5};
 use crate::geometry::view::PangenomeView;
-use crate::geometry::{LayoutElement, ListLayout, ScreenSpace};
+use crate::geometry::{
+    CachedListLayout, LayoutElement, ListLayout, ScreenSideOffsets, ScreenSpace,
+};
 use crate::graph::{Node, Path, Waragraph};
 use crate::util::{BufFmt, BufferStorage};
 
@@ -1097,8 +1099,18 @@ impl std::default::Default for ScaleFactor {
     }
 }
 
+#[derive(Clone, Copy)]
+pub struct PathListLayout {
+    base: ListLayout,
+
+    max_label_len: usize,
+    label_pad: ScreenSideOffsets,
+    slot_pad: ScreenSideOffsets,
+}
+
 pub struct PathViewer {
     pub list_layout: Arc<AtomicCell<ListLayout>>,
+    cached_list_layout: CachedListLayout,
 
     pub cache: GpuBufferCache<(Path, SlotFnName)>,
 
@@ -1164,8 +1176,11 @@ impl PathViewer {
             slot_height: Length::new(18.0),
         };
 
+        let cached_list_layout = CachedListLayout::from_layout(&list_layout);
+
         Ok(Self {
             list_layout: Arc::new(list_layout.into()),
+            cached_list_layout,
 
             cache,
 
@@ -1244,9 +1259,6 @@ impl PathViewer {
     ) -> Result<()> {
         let [win_width, win_height] = win_dims;
 
-        let mut layout = self.list_layout.load();
-        self.list_layout.store(layout);
-
         // get the active slot functions from the rhai config object
         {
             let map = config.map.read();
@@ -1267,6 +1279,7 @@ impl PathViewer {
             let size = size2(win_width as f32, win_height as f32);
             let layout = ListLayout::from_config_map(config, size).unwrap();
             self.list_layout.store(layout);
+            self.cached_list_layout.set_layout(layout);
         };
 
         let _ = label_space.write_buffer(&mut engine.resources);
@@ -1470,7 +1483,7 @@ impl PathViewer {
 
         let mut vertices: Vec<[u8; 24]> = Vec::new();
 
-        let layout = self.list_layout.load();
+        let layout = &self.cached_list_layout;
 
         for (_ix, rect, (path, var)) in
             layout.apply_to_rows(self.slot_list.visible_rows())

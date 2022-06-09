@@ -478,16 +478,6 @@ fn copy_to_swapchain(batch, source_set, swapchain, w, h) {
 }
 
 
-
-fn visible_slots(win_height) {
-  let cfg = viewer::cfg;
-  let slot = cfg.get("layout.slot");
-  let padding = cfg.get("layout.padding");
-
-  ((win_height - slot.y) / (slot.h + padding)).to_int()
-}
-
-
 fn slot_rect(win_dims, slot_ix) {
   let cfg = viewer::cfg;
   let slot = cfg.get("layout.slot");
