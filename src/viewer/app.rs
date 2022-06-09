@@ -1,6 +1,6 @@
 use bimap::BiHashMap;
 use crossbeam::atomic::AtomicCell;
-use euclid::Point2D;
+use euclid::{point2, size2, Length, Point2D, SideOffsets2D};
 use parking_lot::RwLock;
 use raving::compositor::label_space::LabelSpace;
 use raving::script::console::frame::FrameBuilder;
@@ -22,6 +22,7 @@ use crate::config::ConfigMap;
 use crate::console::data::AnnotationSet;
 use crate::console::{Console, RhaiBatchFn2, RhaiBatchFn5};
 use crate::geometry::view::PangenomeView;
+use crate::geometry::{LayoutElement, ListLayout, ScreenSpace};
 use crate::graph::{Node, Path, Waragraph};
 use crate::util::{BufFmt, BufferStorage};
 
@@ -34,7 +35,7 @@ use anyhow::{anyhow, Result};
 use zerocopy::AsBytes;
 
 use super::cache::{GpuBufferCache, UpdateReqMsg};
-use super::gui::layer::label_at;
+use super::gui::layer::{label_at, path_slot};
 use super::SlotFnCache;
 use raving::compositor::{Compositor, Layer, SublayerAllocMsg};
 
@@ -1097,6 +1098,8 @@ impl std::default::Default for ScaleFactor {
 }
 
 pub struct PathViewer {
+    pub list_layout: Arc<AtomicCell<ListLayout>>,
+
     pub cache: GpuBufferCache<(Path, SlotFnName)>,
 
     slot_fn_vars: BiHashMap<SlotFnVar, SlotFnName>,
@@ -1154,7 +1157,16 @@ impl PathViewer {
 
         let row_view = (slot_list.offset, slot_list.len);
 
+        let list_layout = ListLayout {
+            origin: point2(0.0, 0.0),
+            size: size2(256.0, 256.0),
+            side_offsets: Some(SideOffsets2D::new(36.0, 10.0, 100.0, 14.0)),
+            slot_height: Length::new(18.0),
+        };
+
         Ok(Self {
+            list_layout: Arc::new(list_layout.into()),
+
             cache,
 
             slot_fn_vars,
@@ -1221,6 +1233,7 @@ impl PathViewer {
     pub fn update(
         &mut self,
         engine: &mut VkEngine,
+        win_dims: [u32; 2],
         graph: &Arc<Waragraph>,
         label_space: &LabelSpace,
         slot_fns: &SlotFnCache,
@@ -1229,6 +1242,12 @@ impl PathViewer {
         view: PangenomeView,
         row_count: usize,
     ) -> Result<()> {
+        let [win_width, win_height] = win_dims;
+
+        let mut layout = self.list_layout.load();
+        layout.size = size2(win_width as f32, win_height as f32);
+        self.list_layout.store(layout);
+
         // get the active slot functions from the rhai config object
         {
             let map = config.map.read();
@@ -1425,56 +1444,36 @@ impl PathViewer {
         graph: &Arc<Waragraph>,
         label_space: &mut LabelSpace,
         layer: &mut Layer,
-        window_dims: [u32; 2],
         config: &ConfigMap,
         slot_fns: &SlotFnCache,
         buffer_storage: &BufferStorage,
     ) -> Result<()> {
-        let (x0, y0, w, h, yd) = {
+        let (slot_partition_x, name_len) = {
             let map = config.map.read();
-            let get_cast =
-                |m: &rhai::Map, k| m.get(k).unwrap().clone_cast::<i64>();
             let padding =
                 map.get("layout.padding").unwrap().clone_cast::<i64>();
-            let slot =
-                map.get("layout.slot").unwrap().clone_cast::<rhai::Map>();
-
-            let slot_h = get_cast(&slot, "h") as usize;
-
-            let label =
-                map.get("layout.label").unwrap().clone_cast::<rhai::Map>();
 
             let get_cast =
                 |m: &rhai::Map, k| m.get(k).unwrap().clone_cast::<i64>();
-
-            let label_x = get_cast(&label, "x");
 
             let name_len = get_cast(&map, "layout.max_path_name_len");
 
-            let w = get_cast(&slot, "w");
+            let slot_x = padding + name_len * 8;
 
-            let slot_y = get_cast(&slot, "y");
-            let slot_x =
-                get_cast(&slot, "x") + label_x + padding + name_len * 8;
-
-            let slot_w = if w < 0 {
-                (window_dims[0] as i64) + w - slot_x
-            } else {
-                w
-            };
-
-            (
-                slot_x as f32,
-                slot_y as f32,
-                slot_w as f32,
-                slot_h as f32,
-                padding as f32 + slot_h as f32,
-            )
+            (slot_x as f32, name_len as usize)
         };
+
+        let slot_ver_offsets =
+            SideOffsets2D::<f32, ScreenSpace>::new(1.0f32, 0.0, 1.0, 0.0);
+        let label_offsets = SideOffsets2D::new(2.0, 0.0, 0.0, 0.0);
 
         let mut vertices: Vec<[u8; 24]> = Vec::new();
 
-        for (ix, (path, var)) in self.slot_list.visible_rows().enumerate() {
+        let layout = self.list_layout.load();
+
+        for (_ix, rect, (path, var)) in
+            layout.apply_to_rows(self.slot_list.visible_rows())
+        {
             let slot_fn = self.slot_fn_vars.get_by_left(var).unwrap();
             let key = (*path, slot_fn.clone());
 
@@ -1497,7 +1496,6 @@ impl PathViewer {
             }
 
             // otherwise prepare the vertex data
-
             let range = if let Some(range) = self.cache.cache().get_range(&key)
             {
                 range
@@ -1505,19 +1503,15 @@ impl PathViewer {
                 continue;
             };
 
-            let mut vx = [0u8; 24];
+            let [_left, right] = rect.split_hor(slot_partition_x);
 
-            let x = x0;
-            let y = y0 + ix as f32 * yd;
+            let right = right.inner_rect(slot_ver_offsets);
 
-            let offset = range.start as u32;
-            let len = (range.end - range.start) as u32;
-
-            vx[0..8].clone_from_slice([x, y].as_bytes());
-            vx[8..16].clone_from_slice([w, h].as_bytes());
-            vx[16..24].clone_from_slice([offset, len].as_bytes());
-
-            vertices.push(vx);
+            vertices.push(path_slot(
+                right,
+                range.start,
+                range.end - range.start,
+            ));
         }
 
         let data_set = self.cache.desc_set();
@@ -1539,41 +1533,13 @@ impl PathViewer {
 
         // TODO handle path name labels
         if let Some(sublayer) = layer.get_sublayer_mut("slot-labels") {
-            let map = config.map.read();
-
-            let padding =
-                map.get("layout.padding").unwrap().clone_cast::<i64>();
-            let slot =
-                map.get("layout.slot").unwrap().clone_cast::<rhai::Map>();
-            let label =
-                map.get("layout.label").unwrap().clone_cast::<rhai::Map>();
-
-            let get_cast =
-                |m: &rhai::Map, k| m.get(k).unwrap().clone_cast::<i64>();
-
-            let label_x = get_cast(&label, "x");
-            let label_y = get_cast(&label, "y") + get_cast(&slot, "y");
-
-            let name_len = get_cast(&map, "layout.max_path_name_len");
-
-            let slot_x =
-                get_cast(&slot, "x") + label_x + padding + name_len * 8;
-
-            let h = get_cast(&slot, "h");
-
-            let y_delta = padding + h;
-
-            // let mut label_vertices = Vec::new();
-
             let mut vertices: Vec<[u8; 32]> = Vec::new();
 
-            let name_len = name_len as usize;
-
-            let lb_x = label_x as f32;
-            let lb_y = label_y as f32;
-
             // insert path names into the label space
-            for (ix, (path, _)) in self.slot_list.visible_rows().enumerate() {
+            for (_ix, rect, (path, _var)) in
+                layout.apply_to_rows(self.slot_list.visible_rows())
+            {
+                // for (ix, (path, _)) in self.slot_list.visible_rows().enumerate() {
                 let path_name = graph.path_name(*path).unwrap();
 
                 let text = if path_name.len() < name_len {
@@ -1585,10 +1551,11 @@ impl PathViewer {
 
                 let bounds = label_space.bounds_for_insert(&text)?;
 
-                let lb_y = lb_y + ix as f32 * yd;
+                let [left, _right] = rect.split_hor(slot_partition_x);
+                let left = left.inner_rect(label_offsets);
 
                 vertices.push(label_at(
-                    Point2D::new(lb_x, lb_y),
+                    left.origin,
                     bounds,
                     rgb::RGBA::new(0.0, 0.0, 0.0, 1.0),
                 ));

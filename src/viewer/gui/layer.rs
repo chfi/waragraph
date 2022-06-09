@@ -76,6 +76,22 @@ pub fn label_at(
     out
 }
 
+pub fn path_slot(rect: ScreenRect, offset: usize, len: usize) -> [u8; 24] {
+    let mut out = [0u8; 24];
+
+    let p = rect.origin;
+    let s = rect.size;
+
+    let offset = offset as u32;
+    let len = len as u32;
+
+    out[0..8].clone_from_slice([p.x, p.y].as_bytes());
+    out[8..16].clone_from_slice([s.width, s.height].as_bytes());
+    out[16..24].clone_from_slice([offset, len].as_bytes());
+
+    out
+}
+
 //
 
 pub fn add_sublayer_defs(

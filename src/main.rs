@@ -264,13 +264,6 @@ fn main() -> anyhow::Result<()> {
 
     // let padding = 2f32;
 
-    let mut list_layout = ListLayout {
-        origin: point2(0.0, 0.0),
-        size: size2(500.0, 1000.0),
-        side_offsets: Some(SideOffsets2D::new(36.0, 10.0, 100.0, 14.0)),
-        slot_height: Length::new(18.0),
-    };
-
     let mut debug_layers =
         DebugLayers::new(&mut engine, &mut compositor, "debug", 200)?;
 
@@ -490,13 +483,11 @@ bed::load_bed_file(bed_path, bed_name, column_map)
 
                 // prepare the path slot sublayer buffers
                 if let Err(e) = compositor.with_layer("path-slots", |layer| {
-                    let window_dims = swapchain_dims.load();
                     let slot_fns = viewer.slot_functions.read();
                     viewer.path_viewer.update_slot_sublayer(
                         &graph,
                         &mut viewer.label_space,
                         layer,
-                        window_dims,
                         &viewer.config,
                         &slot_fns,
                         &buffers,
@@ -608,13 +599,12 @@ bed::load_bed_file(bed_path, bed_name, column_map)
 
                 {
                     use waragraph::viewer::debug::{Shape, Style};
+
+                    let [_win_width, win_height] = swapchain_dims.load();
+
+                    /*
                     use waragraph::geometry::LayoutElement;
-
-                    let [win_width, win_height] = swapchain_dims.load();
-
-                    list_layout.size =
-                        size2(win_width as f32, win_height as f32);
-
+                    let list_layout = viewer.path_viewer.list_layout.load();
 
                     let color = |r: f32, g, b| rgb::RGBA::new(r, g, b, 1.0);
                     let color_a = |r: f32, g, b, a| rgb::RGBA::new(r, g, b, a);
@@ -675,7 +665,7 @@ bed::load_bed_file(bed_path, bed_name, column_map)
 
                     });
 
-                    /*
+
                     debug_layers.fill_layer(
                         &mut compositor,
                         debug_layer_id,
@@ -725,6 +715,7 @@ bed::load_bed_file(bed_path, bed_name, column_map)
 
                     if let Err(e) = viewer.path_viewer.update(
                         &mut engine,
+                        swapchain_dims.load(),
                         &graph,
                         &mut viewer.label_space,
                         &slot_fns,
