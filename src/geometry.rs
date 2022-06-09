@@ -18,7 +18,8 @@ pub type ScreenPoint = Point2D<f32, ScreenSpace>;
 pub type ScreenVector = Vector2D<f32, ScreenSpace>;
 pub type ScreenSize = Size2D<f32, ScreenSpace>;
 pub type ScreenRect = Rect<f32, ScreenSpace>;
-pub type ScreenBox2D = Box2D<f32, ScreenSpace>;
+pub type ScreenSideOffsets = SideOffsets2D<f32, ScreenSpace>;
+// pub type ScreenBox2D = Box2D<f32, ScreenSpace>;
 
 /// Basically a helper trait for adding methods to Rect, for now
 pub trait LayoutElement: Sized {
@@ -195,9 +196,139 @@ impl ListLayout {
 pub mod rhai_module {
     //
 
-    pub type Point2DF = euclid::Point2D<f32, euclid::UnknownUnit>;
-    pub type Point2DI = euclid::Point2D<i64, euclid::UnknownUnit>;
+    // pub type Point2DF = euclid::Point2D<f32, euclid::UnknownUnit>;
+    // pub type Point2DI = euclid::Point2D<i64, euclid::UnknownUnit>;
 
-    pub type Vec2DF = euclid::Vector2D<f32, euclid::UnknownUnit>;
-    pub type Vec2DI = euclid::Vector2D<i64, euclid::UnknownUnit>;
+    // pub type Vec2DF = euclid::Vector2D<f32, euclid::UnknownUnit>;
+    // pub type Vec2DI = euclid::Vector2D<i64, euclid::UnknownUnit>;
+
+    use euclid::{point2, rect, size2};
+
+    use crate::console::EvalResult;
+
+    pub type ScreenPoint = super::ScreenPoint;
+    pub type ScreenSize = super::ScreenSize;
+    pub type ScreenVector = super::ScreenVector;
+    pub type ScreenRect = super::ScreenRect;
+    pub type ScreenSideOffsets = super::ScreenSideOffsets;
+
+    #[rhai_fn(global, return_raw, name = "point_from_map")]
+    pub fn screen_point_from_map(
+        map: &mut rhai::Map,
+    ) -> EvalResult<ScreenPoint> {
+        let res = map.get("x").and_then(|x| {
+            let y = map.get("y")?;
+
+            let x = x.as_float().ok()?;
+            let y = y.as_float().ok()?;
+
+            Some((x, y))
+        });
+
+        if let Some((x, y)) = res {
+            Ok(point2(x, y))
+        } else {
+            Err("Map must have `x` and `y` float fields".into())
+        }
+    }
+
+    #[rhai_fn(global, return_raw, name = "size_from_map")]
+    pub fn screen_size_from_map(map: &mut rhai::Map) -> EvalResult<ScreenSize> {
+        let res = map.get("width").and_then(|w| {
+            let h = map.get("height")?;
+
+            let w = w.as_float().ok()?;
+            let h = h.as_float().ok()?;
+
+            Some((w, h))
+        });
+
+        if let Some((w, h)) = res {
+            Ok(size2(w, h))
+        } else {
+            Err("Map must have `width` and `height` float fields".into())
+        }
+    }
+
+    /*
+    #[rhai_fn(global, return_raw, name = "rect_from_map")]
+    pub fn screen_rect_from_map(map: &mut rhai::Map) -> EvalResult<ScreenRect> {
+        let res = map.get("origin").and_then(|origin| {
+            let size = map.get("size")?;
+
+            let o_lock = origin.read_lock::<rhai::Map>()?;
+
+            let origin = origin.as_float().ok()?;
+            let size = size.as_float().ok()?;
+
+            Some((origin, size))
+        });
+
+        if let Some((origin, size)) = res {
+            Ok(ScreenRect { origin, size })
+        } else {
+            Err("Map must have `origin` and `size` geometry fields".into())
+        }
+    }
+    */
+
+    #[rhai_fn(global, pure, get = "x")]
+    pub fn screen_point_get_x(p: &mut ScreenPoint) -> f32 {
+        p.x
+    }
+
+    #[rhai_fn(global, pure, get = "y")]
+    pub fn screen_point_get_y(p: &mut ScreenPoint) -> f32 {
+        p.y
+    }
+
+    #[rhai_fn(global, set = "x")]
+    pub fn screen_point_set_x(p: &mut ScreenPoint, x: f32) {
+        p.x = x;
+    }
+
+    #[rhai_fn(global, set = "y")]
+    pub fn screen_point_set_y(p: &mut ScreenPoint, y: f32) {
+        p.y = y;
+    }
+
+    #[rhai_fn(global, pure, get = "top")]
+    pub fn screen_offsets_get_top(s: &mut ScreenSideOffsets) -> f32 {
+        s.top
+    }
+
+    #[rhai_fn(global, pure, get = "right")]
+    pub fn screen_offsets_get_right(s: &mut ScreenSideOffsets) -> f32 {
+        s.right
+    }
+
+    #[rhai_fn(global, pure, get = "bottom")]
+    pub fn screen_offsets_get_bottom(s: &mut ScreenSideOffsets) -> f32 {
+        s.bottom
+    }
+
+    #[rhai_fn(global, pure, get = "left")]
+    pub fn screen_offsets_get_left(s: &mut ScreenSideOffsets) -> f32 {
+        s.left
+    }
+
+    #[rhai_fn(global, set = "top")]
+    pub fn screen_offsets_set_top(s: &mut ScreenSideOffsets, v: f32) {
+        s.top = v;
+    }
+
+    #[rhai_fn(global, set = "right")]
+    pub fn screen_offsets_set_right(s: &mut ScreenSideOffsets, v: f32) {
+        s.right = v;
+    }
+
+    #[rhai_fn(global, set = "bottom")]
+    pub fn screen_offsets_set_bottom(s: &mut ScreenSideOffsets, v: f32) {
+        s.bottom = v;
+    }
+
+    #[rhai_fn(global, set = "left")]
+    pub fn screen_offsets_set_left(s: &mut ScreenSideOffsets, v: f32) {
+        s.left = v;
+    }
 }
