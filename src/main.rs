@@ -17,6 +17,7 @@ use ash::vk;
 
 use flexi_logger::{Duplicate, FileSpec, Logger};
 
+use waragraph::geometry::dynamics::CurveLayout;
 use waragraph::geometry::{ListLayout, ScreenRect};
 use waragraph::graph::{Path, Waragraph};
 use waragraph::util::BufferStorage;
@@ -354,6 +355,14 @@ bed::load_bed_file(bed_path, bed_name, column_map)
         }
     }
 
+    /*
+    let mut curve_layout = {
+        let rect = euclid::rect(100.0f32, 100.0, 500.0, 500.0);
+        let layout = waragraph::geometry::dynamics::loop_layout(rect);
+        layout
+    };
+    */
+
     let mut prev_frame = std::time::Instant::now();
 
     let should_exit = Arc::new(AtomicCell::new(false));
@@ -399,6 +408,20 @@ bed::load_bed_file(bed_path, bed_name, column_map)
         match event {
             Event::MainEventsCleared => {
                 let delta_time = prev_frame.elapsed().as_secs_f32();
+
+                if let Err(e) = compositor.allocate_sublayers(&mut engine) {
+                    log::error!("Compositor error: {:?}", e);
+                }
+
+                if let Err(e) = compositor.write_layers(&mut engine.resources) {
+                    log::error!("Compositor error: {:?}", e);
+                }
+
+                /*
+                if let Err(e) = curve_layout.update_layer(&mut compositor, "curve") {
+                    log::error!("Curve layout update error: {:?}", e);
+                }
+                */
 
                 /*
                 layout_update_since += delta_time;
@@ -570,14 +593,6 @@ bed::load_bed_file(bed_path, bed_name, column_map)
 
                 }
 
-
-                if let Err(e) = compositor.allocate_sublayers(&mut engine) {
-                    log::error!("Compositor error: {:?}", e);
-                }
-
-                if let Err(e) = compositor.write_layers(&mut engine.resources) {
-                    log::error!("Compositor error: {:?}", e);
-                }
 
                 // console scope updates
                 {
