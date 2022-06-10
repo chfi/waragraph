@@ -57,6 +57,26 @@ pub fn line_width_rgba(
     out
 }
 
+pub fn line_width_rgba2(
+    p0: ScreenPoint,
+    p1: ScreenPoint,
+    w0: f32,
+    w1: f32,
+    rgba0: rgb::RGBA<f32>,
+    rgba1: rgb::RGBA<f32>,
+) -> [u8; 56] {
+    let mut out = [0u8; 56];
+
+    out[0..12].clone_from_slice([p0.x, p0.y, w0].as_bytes());
+    out[12..24].clone_from_slice([p1.x, p1.y, w1].as_bytes());
+    out[24..40]
+        .clone_from_slice([rgba0.r, rgba0.g, rgba0.b, rgba0.a].as_bytes());
+    out[40..56]
+        .clone_from_slice([rgba1.r, rgba1.g, rgba1.b, rgba1.a].as_bytes());
+
+    out
+}
+
 pub fn label_at(
     p: ScreenPoint,
     text_range: (usize, usize),
@@ -447,7 +467,7 @@ pub(super) fn line_rgb_2_sublayer(
 
     let color1_desc = vk::VertexInputAttributeDescription::builder()
         .binding(0)
-        .location(2)
+        .location(3)
         .format(vk::Format::R32G32B32A32_SFLOAT)
         .offset(40)
         .build();
@@ -514,7 +534,7 @@ pub(super) fn line_rgb_2_sublayer(
         out[0..12].clone_from_slice([x0, y0, w0].as_bytes());
         out[12..24].clone_from_slice([x1, y1, w1].as_bytes());
         out[24..40].clone_from_slice([r0, g0, b0, a0].as_bytes());
-        out[24..40].clone_from_slice([r1, g1, b1, a1].as_bytes());
+        out[40..56].clone_from_slice([r1, g1, b1, a1].as_bytes());
 
         Some(())
     });

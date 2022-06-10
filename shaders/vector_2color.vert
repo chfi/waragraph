@@ -3,7 +3,7 @@
 layout (location = 0) in vec3 p0;
 layout (location = 1) in vec3 p1;
 layout (location = 2) in vec4 color0;
-layout (location = 3) in vec4 color0;
+layout (location = 3) in vec4 color1;
 
 layout (location = 0) out vec4 o_color;
 
@@ -28,18 +28,20 @@ void main() {
   if (i == 0 || i == 5) {
     pos =
       (2.0 * a / inputs.window_dims) - vec2(1.0);
+    o_color = color0;
   } else if (i == 1) {
     pos =
       (2.0 * b / inputs.window_dims) - vec2(1.0);
+    o_color = color1;
   } else if (i == 2 || i == 3) {
     pos =
       (2.0 * c / inputs.window_dims) - vec2(1.0);
+    o_color = color1;
   } else {
     pos =
       (2.0 * d / inputs.window_dims) - vec2(1.0);
+    o_color = color0;
   }
 
   gl_Position = vec4(pos, 0.0, 1.0);
-
-  o_color = color;
 }

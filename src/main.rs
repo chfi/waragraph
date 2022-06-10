@@ -215,11 +215,17 @@ fn main() -> anyhow::Result<()> {
         .scope
         .push_constant("label_space", label_space.clone());
 
-    waragraph::viewer::gui::layer::add_sublayer_defs(
+    if let Err(e) = waragraph::viewer::gui::layer::add_sublayer_defs(
         &mut engine,
         &mut compositor,
         font_desc_set,
-    )?;
+    ) {
+        log::error!(
+            "Error when initializing compositor sublayer definitions: {:?}",
+            e
+        );
+        std::process::exit(1);
+    }
 
     let popup_list =
         ListPopup::new(&mut engine, &mut compositor, "popup", 300.0, 100.0)?;
