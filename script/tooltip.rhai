@@ -80,7 +80,7 @@ fn show_tooltip(label_space, pos, list) {
 
   let t_w = 8.0 * max_len;
 
-  let height = labels.len().to_float() * 8.0;
+  let height = total_height;
   let width = t_w + 4.0;
 
   if x0 + width > dims.width {
