@@ -510,21 +510,6 @@ bed::load_bed_file(bed_path, bed_name, column_map)
                 }
 
 
-                // prepare the path slot sublayer buffers
-                if let Err(e) = compositor.with_layer("path-slots", |layer| {
-                    let slot_fns = viewer.slot_functions.read();
-                    viewer.path_viewer.update_slot_sublayer(
-                        &graph,
-                        &mut viewer.label_space,
-                        layer,
-                        &viewer.config,
-                        &slot_fns,
-                        &buffers,
-                    )?;
-                    Ok(())
-                }) {
-                    log::warn!("path sublayer update error: {:?}", e);
-                }
 
 
                 {
@@ -759,6 +744,29 @@ bed::load_bed_file(bed_path, bed_name, column_map)
                             panic!("Path viewer slot allocation failure -- this shouldn't happen!");
                         }
                     }
+                }
+
+
+                // prepare the path slot sublayer buffers
+                if let Err(e) = compositor.with_layer("path-slots", |layer| {
+                    let mouse_pos = {
+                        let (x, y) = waragraph::input::get_mouse_pos();
+                        point2(x as f32, y as f32)
+                    };
+
+                    let slot_fns = viewer.slot_functions.read();
+                    viewer.path_viewer.update_slot_sublayer(
+                        &graph,
+                        &mut viewer.label_space,
+                        layer,
+                        &viewer.config,
+                        &slot_fns,
+                        &buffers,
+                        mouse_pos,
+                    )?;
+                    Ok(())
+                }) {
+                    log::warn!("path sublayer update error: {:?}", e);
                 }
 
                 // update end

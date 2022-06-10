@@ -23,7 +23,8 @@ use crate::console::data::AnnotationSet;
 use crate::console::{Console, RhaiBatchFn2, RhaiBatchFn5};
 use crate::geometry::view::PangenomeView;
 use crate::geometry::{
-    CachedListLayout, LayoutElement, ListLayout, ScreenSideOffsets, ScreenSpace,
+    CachedListLayout, LayoutElement, ListLayout, ScreenPoint, ScreenRect,
+    ScreenSideOffsets, ScreenSpace,
 };
 use crate::graph::{Node, Path, Waragraph};
 use crate::util::{BufFmt, BufferStorage};
@@ -1131,6 +1132,23 @@ pub struct PathViewer {
 
     pub sample_buf: Arc<Vec<(Node, usize)>>,
     new_samples: AtomicCell<bool>,
+
+    ui_state: PathUIState,
+}
+
+#[derive(Clone, Copy)]
+struct PathRowUIState {
+    path: Path,
+    name_rect: ScreenRect,
+    data_rect: ScreenRect,
+    annot_rect: Option<ScreenRect>,
+}
+
+#[derive(Default, Clone)]
+struct PathUIState {
+    hovered_path_row: Option<PathRowUIState>,
+    hovered_path_pos: Option<usize>,
+    hovered_path_name: bool,
 }
 
 impl PathViewer {
@@ -1201,6 +1219,8 @@ impl PathViewer {
             sample_buf: Arc::new(Vec::new()),
 
             new_samples: false.into(),
+
+            ui_state: PathUIState::default(),
         })
     }
 
@@ -1253,11 +1273,17 @@ impl PathViewer {
         label_space: &LabelSpace,
         slot_fns: &SlotFnCache,
         config: &ConfigMap,
+        props: &ConfigMap,
         buffer_width: usize,
         view: PangenomeView,
         row_count: usize,
     ) -> Result<()> {
         let [win_width, win_height] = win_dims;
+
+        {
+            let mut props = props.map.write();
+            props.insert("ui_state", rhai::Dynamic::from(self.ui_state));
+        }
 
         // get the active slot functions from the rhai config object
         {
@@ -1454,13 +1480,14 @@ impl PathViewer {
     // slots that are in the process of being updated are skipped
     //
     pub fn update_slot_sublayer(
-        &self,
+        &mut self,
         graph: &Arc<Waragraph>,
         label_space: &mut LabelSpace,
         layer: &mut Layer,
         config: &ConfigMap,
         slot_fns: &SlotFnCache,
         buffer_storage: &BufferStorage,
+        mouse_pos: ScreenPoint,
     ) -> Result<()> {
         let (slot_partition_x, name_len) = {
             let map = config.map.read();
@@ -1484,6 +1511,8 @@ impl PathViewer {
         let mut vertices: Vec<[u8; 24]> = Vec::new();
 
         let layout = &self.cached_list_layout;
+
+        let mut any_hovered = false;
 
         for (_ix, rect, (path, var)) in
             layout.apply_to_rows(self.slot_list.visible_rows())
@@ -1517,15 +1546,36 @@ impl PathViewer {
                 continue;
             };
 
-            let [_left, right] = rect.split_hor(slot_partition_x);
+            let [left, right] = rect.split_hor(slot_partition_x);
 
             let right = right.inner_rect(slot_ver_offsets);
+
+            {
+                let in_left = left.contains(mouse_pos);
+                let in_right = right.contains(mouse_pos);
+
+                let ui_state = &mut self.ui_state;
+
+                if in_left || in_right {
+                    any_hovered = true;
+                }
+
+                if in_left {
+                    ui_state.hovered_path_name = true;
+                } else if in_right {
+                    //
+                }
+            }
 
             vertices.push(path_slot(
                 right,
                 range.start,
                 range.end - range.start,
             ));
+        }
+
+        if !any_hovered {
+            self.ui_state = Default::default();
         }
 
         let data_set = self.cache.desc_set();
@@ -1582,5 +1632,43 @@ impl PathViewer {
         }
 
         Ok(())
+    }
+}
+
+use rhai::plugin::*;
+
+#[export_module]
+mod ui_state {
+    use crate::graph::Path;
+
+    pub type PathUIState = super::PathUIState;
+    pub type PathRowUIState = super::PathRowUIState;
+
+    #[rhai_fn(pure, global, get = "path")]
+    pub fn row_get_path(row: &mut PathRowUIState) -> Path {
+        row.path
+    }
+
+    #[rhai_fn(pure, global, get = "path_row")]
+    pub fn get_path_row(state: &mut PathUIState) -> rhai::Dynamic {
+        if let Some(state) = state.hovered_path_row {
+            rhai::Dynamic::from(state)
+        } else {
+            rhai::Dynamic::UNIT
+        }
+    }
+
+    #[rhai_fn(pure, global, get = "path_pos")]
+    pub fn get_path_pos(state: &mut PathUIState) -> rhai::Dynamic {
+        if let Some(pos) = state.hovered_path_pos {
+            rhai::Dynamic::from_int(pos as i64)
+        } else {
+            rhai::Dynamic::UNIT
+        }
+    }
+
+    #[rhai_fn(pure, global, get = "on_path_name")]
+    pub fn is_path_name_hovered(state: &mut PathUIState) -> bool {
+        state.hovered_path_name
     }
 }
