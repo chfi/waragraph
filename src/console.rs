@@ -447,6 +447,10 @@ pub fn append_to_engine(db: &sled::Db, engine: &mut rhai::Engine) {
     engine.register_static_module("mouse", MOUSE_MODULE.clone());
     engine.register_static_module("view", VIEW_MODULE.clone());
 
+    engine.register_global_module(
+        crate::viewer::app::PATH_UI_STATE_MODULE.clone(),
+    );
+
     // utility functions used in color.rhai
     engine.register_fn("rgba", |r: f32, g: f32, b: f32, a: f32| [r, g, b, a]);
     engine.register_fn("rgba", |r: i64, g: i64, b: i64, a: i64| {

@@ -1136,19 +1136,21 @@ pub struct PathViewer {
     ui_state: PathUIState,
 }
 
-#[derive(Clone, Copy)]
-struct PathRowUIState {
+#[derive(Debug, Clone, Copy)]
+pub struct PathRowUIState {
     path: Path,
     name_rect: ScreenRect,
     data_rect: ScreenRect,
-    annot_rect: Option<ScreenRect>,
 }
 
-#[derive(Default, Clone)]
-struct PathUIState {
+#[derive(Debug, Default, Clone)]
+pub struct PathUIState {
     hovered_path_row: Option<PathRowUIState>,
     hovered_path_pos: Option<usize>,
     hovered_path_name: bool,
+
+    pangenome_pos: Option<usize>,
+    hovered_node: Option<Node>,
 }
 
 impl PathViewer {
@@ -1282,7 +1284,10 @@ impl PathViewer {
 
         {
             let mut props = props.map.write();
-            props.insert("ui_state", rhai::Dynamic::from(self.ui_state));
+            props.insert(
+                "ui_state".into(),
+                rhai::Dynamic::from(self.ui_state.clone()),
+            );
         }
 
         // get the active slot functions from the rhai config object
@@ -1558,12 +1563,35 @@ impl PathViewer {
 
                 if in_left || in_right {
                     any_hovered = true;
+                    let path_row = PathRowUIState {
+                        path: *path,
+                        name_rect: left,
+                        data_rect: right,
+                    };
+                    ui_state.hovered_path_row = Some(path_row);
                 }
 
                 if in_left {
                     ui_state.hovered_path_name = true;
                 } else if in_right {
-                    //
+                    let x0 = right.min_x();
+                    let l = right.width();
+
+                    let mx = mouse_pos.x - x0;
+                    let t = mx / l;
+
+                    let view = self.current_view;
+                    let pos =
+                        view.offset().0 + (t * view.len().0 as f32) as usize;
+
+                    ui_state.pangenome_pos = Some(pos);
+
+                    if let Some(node) = graph.node_at_pos(pos) {
+                        ui_state.hovered_node = Some(node);
+                        if let Some(pos) = graph.path_pos_at_node(*path, node) {
+                            ui_state.hovered_path_pos = Some(pos);
+                        }
+                    }
                 }
             }
 
@@ -1637,8 +1665,15 @@ impl PathViewer {
 
 use rhai::plugin::*;
 
+lazy_static::lazy_static! {
+    pub static ref PATH_UI_STATE_MODULE: Arc<rhai::Module> = {
+        let module = rhai::exported_module!(ui_state);
+        Arc::new(module)
+    };
+}
+
 #[export_module]
-mod ui_state {
+pub mod ui_state {
     use crate::graph::Path;
 
     pub type PathUIState = super::PathUIState;
@@ -1670,5 +1705,23 @@ mod ui_state {
     #[rhai_fn(pure, global, get = "on_path_name")]
     pub fn is_path_name_hovered(state: &mut PathUIState) -> bool {
         state.hovered_path_name
+    }
+
+    #[rhai_fn(pure, global, get = "pos")]
+    pub fn get_pangenome_pos(state: &mut PathUIState) -> rhai::Dynamic {
+        if let Some(pos) = state.pangenome_pos {
+            rhai::Dynamic::from_int(pos as i64)
+        } else {
+            rhai::Dynamic::UNIT
+        }
+    }
+
+    #[rhai_fn(pure, global, get = "node")]
+    pub fn get_hovered_node(state: &mut PathUIState) -> rhai::Dynamic {
+        if let Some(node) = state.hovered_node {
+            rhai::Dynamic::from(node)
+        } else {
+            rhai::Dynamic::UNIT
+        }
     }
 }

@@ -218,6 +218,23 @@ fn gui_update(globals, label_space, dt) {
   }
   */
 
+  let ui = props.get("ui_state");
+
+  // print(`${ui.type_of()}`);
+
+  if ui.type_of() == "PathUIState" {
+
+    let row_state = ui.path_row;
+    // let row_state = path_row(ui_state);
+    // let row_state = ui_state.path_row;
+    print(`row_state: ${row_state.type_of()}`);
+    // print(`path: ${ui_state.path_row()}`);
+    // print(`name hovered: ${ui_state.on_path_name()}`);
+    // print(`name hovered: ${ui.state.on_path_name()}`);
+    //
+  }
+
+  /*
   let prev_slot = props.get("prev_slot");
 
   let slot = slot_ix_at_pos(pos);
@@ -301,6 +318,7 @@ fn gui_update(globals, label_space, dt) {
     props.set("prev_slot", slot);
 
   }
+  */
 }
 
 

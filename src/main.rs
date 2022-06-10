@@ -183,6 +183,7 @@ fn main() -> anyhow::Result<()> {
     console.ast = Arc::new(viewer.frame.ast.clone_functions_only());
 
     console.scope.set_value("cfg", viewer.config.clone());
+    console.scope.set_value("props", viewer.props.clone());
     console
         .modules
         .insert("viewer".into(), viewer.rhai_module.clone());
@@ -726,6 +727,7 @@ bed::load_bed_file(bed_path, bed_name, column_map)
                         &mut viewer.label_space,
                         &slot_fns,
                         &viewer.config,
+                        &viewer.props,
                         width,
                         view,
                         vis_count,
