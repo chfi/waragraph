@@ -106,6 +106,7 @@ pub fn add_sublayer_defs(
             text_sublayer(ctx, res, font_desc_set, clear_pass, load_pass)?,
             rect_rgb_sublayer(ctx, res, clear_pass, load_pass)?,
             line_rgb_sublayer(ctx, res, clear_pass, load_pass)?,
+            line_rgb_2_sublayer(ctx, res, clear_pass, load_pass)?,
             slot::sublayer(ctx, res, clear_pass, load_pass)?,
         ]);
 
@@ -390,6 +391,130 @@ pub(super) fn line_rgb_sublayer(
         out[0..12].clone_from_slice([x0, y0, w0].as_bytes());
         out[12..24].clone_from_slice([x1, y1, w1].as_bytes());
         out[24..40].clone_from_slice([r, g, b, a].as_bytes());
+
+        Some(())
+    });
+
+    Ok(def)
+}
+
+pub(super) fn line_rgb_2_sublayer(
+    ctx: &VkContext,
+    res: &mut GpuResources,
+    clear_pass: vk::RenderPass,
+    load_pass: vk::RenderPass,
+) -> Result<SublayerDef> {
+    let vert = res.load_shader(
+        "shaders/vector_2color.vert.spv",
+        vk::ShaderStageFlags::VERTEX,
+    )?;
+    let frag = res.load_shader(
+        "shaders/vector.frag.spv",
+        vk::ShaderStageFlags::FRAGMENT,
+    )?;
+
+    let vert = res.insert_shader(vert);
+    let frag = res.insert_shader(frag);
+
+    let vertex_size = std::mem::size_of::<[f32; 14]>() as u32;
+
+    let vert_binding_desc = vk::VertexInputBindingDescription::builder()
+        .binding(0)
+        .stride(vertex_size)
+        .input_rate(vk::VertexInputRate::INSTANCE)
+        .build();
+
+    let p0_desc = vk::VertexInputAttributeDescription::builder()
+        .binding(0)
+        .location(0)
+        .format(vk::Format::R32G32B32_SFLOAT)
+        .offset(0)
+        .build();
+
+    let p1_desc = vk::VertexInputAttributeDescription::builder()
+        .binding(0)
+        .location(1)
+        .format(vk::Format::R32G32B32_SFLOAT)
+        .offset(12)
+        .build();
+
+    let color0_desc = vk::VertexInputAttributeDescription::builder()
+        .binding(0)
+        .location(2)
+        .format(vk::Format::R32G32B32A32_SFLOAT)
+        .offset(24)
+        .build();
+
+    let color1_desc = vk::VertexInputAttributeDescription::builder()
+        .binding(0)
+        .location(2)
+        .format(vk::Format::R32G32B32A32_SFLOAT)
+        .offset(40)
+        .build();
+
+    let vert_binding_descs = [vert_binding_desc];
+    let vert_attr_descs = [p0_desc, p1_desc, color0_desc, color1_desc];
+
+    let vert_input_info = vk::PipelineVertexInputStateCreateInfo::builder()
+        .vertex_binding_descriptions(&vert_binding_descs)
+        .vertex_attribute_descriptions(&vert_attr_descs);
+
+    let vertex_offset = 0;
+    let vertex_stride = vertex_size as usize;
+
+    let mut def =
+        SublayerDef::new::<([f32; 3], [f32; 3], [f32; 4], [f32; 4]), _>(
+            ctx,
+            res,
+            "line-rgb-2",
+            vert,
+            frag,
+            clear_pass,
+            load_pass,
+            vertex_offset,
+            vertex_stride,
+            true,
+            Some(6),
+            None,
+            vert_input_info,
+            None,
+            None,
+        )?;
+
+    fn get_cast(map: &rhai::Map, k: &str) -> Option<f32> {
+        let field = map.get(k)?;
+        field
+            .as_float()
+            .ok()
+            .or(field.as_int().ok().map(|v| v as f32))
+    }
+
+    def.set_parser(|map, out| {
+        // let map = val.try_cast::<rhai::Map>()?;
+        // let mut out = [0u8; 40];
+
+        let x0 = get_cast(&map, "x0")?;
+        let y0 = get_cast(&map, "y0")?;
+        let x1 = get_cast(&map, "x1")?;
+        let y1 = get_cast(&map, "y1")?;
+
+        let w0 = get_cast(&map, "w0")?;
+        let w1 = get_cast(&map, "w1")?;
+
+        let r0 = get_cast(&map, "r0")?;
+        let g0 = get_cast(&map, "g0")?;
+        let b0 = get_cast(&map, "b0")?;
+        let a0 = get_cast(&map, "a0")?;
+
+        let r1 = get_cast(&map, "r1")?;
+        let g1 = get_cast(&map, "g1")?;
+        let b1 = get_cast(&map, "b1")?;
+        let a1 = get_cast(&map, "a1")?;
+
+        out[0..12].clone_from_slice([x0, y0, w0].as_bytes());
+        out[12..24].clone_from_slice([x1, y1, w1].as_bytes());
+        out[24..40].clone_from_slice([r0, g0, b0, a0].as_bytes());
+        out[24..40].clone_from_slice([r1, g1, b1, a1].as_bytes());
 
         Some(())
     });
