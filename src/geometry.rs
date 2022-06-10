@@ -10,6 +10,8 @@ use crate::config::ConfigMap;
 //     ScalarFloat(f32),
 // }
 
+pub mod dynamics;
+
 pub mod view;
 
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]

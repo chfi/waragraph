@@ -273,10 +273,6 @@ mod tests {
 
         let zoomed0 = view.resize_from_left(5_000);
 
-        let new_view = |offset: usize, len: usize| {
-            View1D::new_with(10_000, offset, len).unwrap()
-        };
-
         // assert_eq!(zoomed0, new_view(0, 5_000));
 
         let zoomed1 = view.resize_from_right(5_000);
