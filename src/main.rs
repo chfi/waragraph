@@ -869,7 +869,6 @@ bed::load_bed_file(bed_path, bed_name, column_map)
                             && state == winit::event::ElementState::Pressed
                             && !mouse_clicked
                         {
-                            log::error!("mouse clicked!");
                             mouse_clicked = true;
                         }
                     }

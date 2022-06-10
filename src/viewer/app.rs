@@ -1519,6 +1519,13 @@ impl PathViewer {
 
         let mut any_hovered = false;
 
+        let ui_state = &mut self.ui_state;
+
+        // resetting some stuff
+        ui_state.pangenome_pos = None;
+        ui_state.hovered_path_pos = None;
+        ui_state.hovered_node = None;
+
         for (_ix, rect, (path, var)) in
             layout.apply_to_rows(self.slot_list.visible_rows())
         {
@@ -1559,8 +1566,6 @@ impl PathViewer {
                 let in_left = left.contains(mouse_pos);
                 let in_right = right.contains(mouse_pos);
 
-                let ui_state = &mut self.ui_state;
-
                 if in_left || in_right {
                     any_hovered = true;
                     let path_row = PathRowUIState {
@@ -1588,9 +1593,8 @@ impl PathViewer {
 
                     if let Some(node) = graph.node_at_pos(pos) {
                         ui_state.hovered_node = Some(node);
-                        if let Some(pos) = graph.path_pos_at_node(*path, node) {
-                            ui_state.hovered_path_pos = Some(pos);
-                        }
+                        ui_state.hovered_path_pos =
+                            graph.path_pos_at_node(*path, node);
                     }
                 }
             }

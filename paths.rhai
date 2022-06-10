@@ -220,107 +220,64 @@ fn gui_update(globals, label_space, dt) {
 
   let ui = props.get("ui_state");
 
-  // print(`${ui.type_of()}`);
-
   if ui.type_of() == "PathUIState" {
 
+    let rows = [];
     let row_state = ui.path_row;
-    // let row_state = path_row(ui_state);
-    // let row_state = ui_state.path_row;
-    print(`row_state: ${row_state.type_of()}`);
-    // print(`path: ${ui_state.path_row()}`);
-    // print(`name hovered: ${ui_state.on_path_name()}`);
-    // print(`name hovered: ${ui.state.on_path_name()}`);
-    //
-  }
 
-  /*
-  let prev_slot = props.get("prev_slot");
+    if row_state.type_of() == "PathRowUIState" {
 
-  let slot = slot_ix_at_pos(pos);
+      let path = row_state.path;
 
-  if slot == false {
-    remove_tooltip();
-  }
+      let path_pos = ui.path_pos;
+      let on_name = ui.on_path_name;
+      let pan_pos = ui.pos;
 
-  if prev_slot != slot {
+      let hovered_node = ui.node;
 
-    if slot.type_of() != "bool" {
-      let list_range = slot::list_range();
-      let path = graph::path(slot.index + list_range.start);
+      let path_name = path.name();
 
-      let offset = view.offset.to_float();
-      let len = view.len.to_float();
-
-      let bp_pos = (slot.t * len + offset).to_int();
-
-      if path.type_of() == "Path" {
-        let path_name = path.name();
-        let node = graph::node_at_pos(bp_pos);
-        let path_pos = graph::pos_at_node(path, node);
-
-        props.set("hovered_path", path);
-
-        // print(path_name);
-
-        // print(globals.hovered_path);
-
-        let text = `${node} - ${path_pos}`;
-
-        let slot_pos = slot_rect(dims, slot.index);
-
-        props.set("hovered_slot_y", slot_pos.y + slot_pos.h);
-
-        let rows = [`Node ${node}`];
-
-        // kind of hacky, but this is where the BED-related
-        // `tooltip_data` is consumed (see script/tooltip.rhai)
-        try {
-          let data_sources = globals.tooltip_data;
-          if data_sources.type_of() != "array" {
-            throw "TooltipNotArray";
-          }
-
-          for tooltip in data_sources {
-            let row_ix = tooltip.ix_data_source.at(path, node);
-            if row_ix.type_of() == "i64" {
-
-              let val = tooltip.bed.get_record_field(row_ix, tooltip.col);
-
-              let text = `${tooltip.name} ${val}`;
-              rows.push(text);
-
-              print(val);
-            }
-          }
-        }
-        catch (e) {
-          if e != "TooltipNotArray" {
-               print(e);
-          }
-        }
-
-        if path_name != false {
-          rows.push(`Path ${path_name}`);
-
-          if path_pos != false {
-            rows.push(` Pos ${path_pos}`);
-          }
-        }
-
-        tooltip::show_tooltip(label_space, pos, rows);
-
-        print(`pos: ${pos} -- node: ${node} -- path: ${path_name}, pos: ${path_pos}`);
-        clipboard::set_text(`pos: ${pos} -- node: ${node} -- path: ${path_name}, pos: ${path_pos}`);
+      if hovered_node != () {
+        rows.push(`Node ${hovered_node}`);
       }
+
+      try {
+        let data_sources = globals.tooltip_data;
+        if data_sources.type_of() != "array" {
+          throw "TooltipNotArray";
+        }
+
+        for tooltip in data_sources {
+          let row_ix = tooltip.ix_data_source.at(path, hovered_node);
+          if row_ix.type_of() == "i64" {
+
+            let val = tooltip.bed.get_record_field(row_ix, tooltip.col);
+
+            let text = `${tooltip.name} ${val}`;
+            rows.push(text);
+          }
+        }
+      }
+      catch (e) {
+        if e != "TooltipNotArray" {
+          print(e);
+        }
+      }
+
+      rows.push(`Path ${path_name}`);
+
+      if path_pos != () {
+        rows.push(` Pos ${path_pos}`);
+      }
+
+      tooltip::show_tooltip(label_space, pos, rows);
+
+    } else {
+      remove_tooltip();
     }
-
-    props.set("prev_slot", slot);
-
   }
-  */
-}
 
+}
 
 
 //
