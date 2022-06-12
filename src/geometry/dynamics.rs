@@ -21,6 +21,8 @@ use anyhow::Result;
 
 use ndarray::prelude::*;
 
+pub mod verlet;
+
 #[derive(Debug, Clone)]
 pub struct CurveLayout {
     vertices: Vec<ScreenPoint>,

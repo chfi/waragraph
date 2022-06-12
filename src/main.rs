@@ -4,6 +4,7 @@ use euclid::{point2, size2, Length};
 use gfa::gfa::GFA;
 use parking_lot::{Mutex, RwLock};
 
+use rand::Rng;
 use raving::compositor::label_space::LabelSpace;
 use raving::compositor::Compositor;
 use raving::script::console::frame::Resolvable;
@@ -17,6 +18,7 @@ use ash::vk;
 
 use flexi_logger::{Duplicate, FileSpec, Logger};
 
+use waragraph::geometry::dynamics::verlet::{Entity, VerletSolver};
 use waragraph::geometry::dynamics::CurveLayout;
 use waragraph::geometry::{ListLayout, ScreenRect};
 use waragraph::graph::{Path, Waragraph};
@@ -364,6 +366,16 @@ bed::load_bed_file(bed_path, bed_name, column_map)
     };
     */
 
+    let mut verlet = VerletSolver::default();
+
+    let mut rng = rand::thread_rng();
+
+    for _ in 0..10 {
+        let x = rng.gen_range(0..500) as f32;
+        let y = rng.gen_range(0..500) as f32;
+        verlet.entities.push(Entity::new(x, y));
+    }
+
     let mut prev_frame = std::time::Instant::now();
 
     let should_exit = Arc::new(AtomicCell::new(false));
@@ -412,6 +424,13 @@ bed::load_bed_file(bed_path, bed_name, column_map)
 
                 if let Err(e) = compositor.allocate_sublayers(&mut engine) {
                     log::error!("Compositor error: {:?}", e);
+                }
+
+
+                verlet.update(delta_time);
+
+                if let Err(e) = verlet.update_layer(&mut compositor, "verlet") {
+                    log::error!("Verlet layer update error: {:?}", e);
                 }
 
                 if let Err(e) = compositor.write_layers(&mut engine.resources) {

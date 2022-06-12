@@ -153,6 +153,13 @@ fn gui_init(globals, label_space) {
   ui::init_layer("edges", 10, true);
   ui::allocate_sublayer("edges", "line-rgb", "lines");
   ui::allocate_sublayer("edges", "rect-rgb", "rects");
+
+  // ui::toggle_layer("path-slots", false);
+
+  ui::init_layer("verlet", 50, false);
+  ui::allocate_sublayer("verlet", "rect-rgb", "rects");
+  ui::allocate_sublayer("verlet", "line-rgb", "lines");
+  ui::allocate_sublayer("verlet", "line-rgb-2", "lines-2");
 }
 
 props.set("prev_slot", false);
