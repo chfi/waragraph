@@ -32,6 +32,8 @@ use winit::{event_loop::EventLoop, window::WindowBuilder};
 
 use std::sync::Arc;
 
+use rand::prelude::*;
+
 fn main() -> anyhow::Result<()> {
     let viewer_args: ViewerArgs = argh::from_env();
 
@@ -366,17 +368,72 @@ bed::load_bed_file(bed_path, bed_name, column_map)
     };
     */
 
-    let mut verlet = VerletSolver::default();
+    let mut verlet = VerletSolver::new(width, height);
 
     let mut rng = rand::thread_rng();
 
-    for _ in 0..10 {
-        let x = rng.gen_range(0..500) as f32;
-        let y = rng.gen_range(0..500) as f32;
-        verlet.entities.push(Entity::new(x, y));
+    let vn = 10;
+
+    for i in 0..vn {
+        use palette::{FromColor, Hue, IntoColor, Lch, Srgb};
+        let lch_color: Lch = Srgb::new(0.9, 0.2, 0.3).into_color();
+        let c0 = Srgb::from_color(lch_color.shift_hue(30.0 * i as f32));
+
+        let color = rgb::RGBA::new(c0.red, c0.green, c0.blue, 1.0);
+
+        let x = rng.gen_range(100..400) as f32;
+        let y = rng.gen_range(100..400) as f32;
+
+        verlet.entities.push(Entity::new(x, y, color));
     }
 
+    {
+        let mut attempts = 0;
+        loop {
+            if verlet.links.len() > 4 || attempts > 1000 {
+                break;
+            }
+
+            let i = rng.gen_range(0..10);
+
+            let mut j = rng.gen_range(0..10);
+
+            while i == j {
+                j = rng.gen_range(0..10);
+            }
+
+            let a = verlet.entities[i];
+            let b = verlet.entities[j];
+
+            let dist = (a.pos - b.pos).length();
+
+            if dist < 200.0 {
+                verlet.links.push(((i, j), dist + 10.0));
+            }
+
+            attempts += 1;
+        }
+
+        verlet.stop();
+    }
+
+    // {
+    //     let mut indices: Vec<usize> = (0..10).collect();
+    //     indices.shuffle(&mut rng);
+
+    //     for x in 0..5 {
+    //         let y = x + 5;
+
+    //         let i = indices[x];
+    //         let j = indices[y];
+
+    //         verlet.links.push(((i, j), 200.0));
+    //     }
+    // }
+
     let mut prev_frame = std::time::Instant::now();
+
+    let start_time = std::time::Instant::now();
 
     let should_exit = Arc::new(AtomicCell::new(false));
 
@@ -426,8 +483,18 @@ bed::load_bed_file(bed_path, bed_name, column_map)
                     log::error!("Compositor error: {:?}", e);
                 }
 
+                {
+                    let [width, height] = swapchain_dims.load();
+                    verlet.bounds =
+                        // ScreenRect::new(point2(0.0, 0.0),
+                        ScreenRect::new(point2(50.0, 50.0),
+                                        size2((width - 100) as f32,
+                                              (height - 100) as f32));
+                }
 
-                verlet.update(delta_time);
+                if start_time.elapsed().as_secs_f32() > 2.0 {
+                    verlet.update(delta_time);
+                }
 
                 if let Err(e) = verlet.update_layer(&mut compositor, "verlet") {
                     log::error!("Verlet layer update error: {:?}", e);
