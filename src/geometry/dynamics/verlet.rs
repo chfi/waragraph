@@ -36,6 +36,25 @@ pub struct Entity {
     pub color: rgb::RGBA<f32>,
 }
 
+#[derive(Clone, Copy)]
+pub struct RailStep {
+    pub p0: Point,
+    pub p1: Point,
+}
+
+#[derive(Clone)]
+pub struct Rail {
+    pub steps: Vec<RailStep>,
+}
+
+#[derive(Clone)]
+pub struct RailLink {
+    pub ent_ix: usize,
+    pub rail_ix: usize,
+
+    pub length: f32,
+}
+
 impl Entity {
     pub fn rect(&self) -> Rect {
         Rect::new(self.pos, self.size)
@@ -84,6 +103,10 @@ pub struct VerletSolver {
 
     pub links: Vec<((usize, usize), f32)>,
 
+    pub rails: Vec<Rail>,
+
+    pub rail_links: Vec<RailLink>,
+
     pub bounds: Rect,
 }
 
@@ -94,7 +117,9 @@ impl VerletSolver {
         Self {
             entities: Vec::new(),
             bounds,
+            rails: Vec::new(),
             links: Vec::new(),
+            rail_links: Vec::new(),
         }
     }
 
@@ -122,6 +147,56 @@ impl VerletSolver {
 
     pub fn apply_constraints(&mut self) {
         let n = self.entities.len();
+
+        for link in self.rail_links.iter() {
+            let mut ent = self.entities[link.ent_ix];
+            let rail = &self.rails[link.rail_ix];
+
+            let step = rail.steps.first().unwrap();
+
+            let step0 = self.rails[link.rail_ix].steps.first().unwrap();
+            let stepn = self.rails[link.rail_ix].steps.last().unwrap();
+
+            let p = ent.rect().center();
+
+            let mut min_p: Point = step0.p0;
+            let mut min_d = step0.p0.distance_to(p);
+
+            for &step in self.rails[link.rail_ix].steps.iter() {
+                let pa = step.p0;
+                let pb = step.p1;
+
+                let da = pa.distance_to(p);
+                let db = pb.distance_to(p);
+
+                let (d, p) = if da < db { (da, pa) } else { (db, pb) };
+
+                if d < min_d {
+                    min_d = d;
+                    min_p = p;
+                }
+            }
+
+            let un_tan = step.p1 - step.p0;
+
+            let tan = un_tan / un_tan.length();
+
+            let p = ent.rect().center();
+            let v = step.p0 - p;
+            let dist = v.length();
+
+            if min_d > link.length {
+                let delta = min_d - link.length;
+
+                let v = min_p - p;
+
+                let n = v / v.length();
+
+                ent.pos += n * delta * 0.5;
+            }
+
+            self.entities[link.ent_ix] = ent;
+        }
 
         for ent in self.entities.iter_mut() {
             let bounds = self.bounds;
@@ -151,7 +226,6 @@ impl VerletSolver {
             }
         }
 
-        /*
         for &((i, j), len) in self.links.iter() {
             let mut a = self.entities[i];
             let mut b = self.entities[j];
@@ -176,7 +250,6 @@ impl VerletSolver {
             self.entities[i] = a;
             self.entities[j] = b;
         }
-        */
     }
 
     pub fn solve_collisions(&mut self) {
@@ -220,24 +293,6 @@ impl VerletSolver {
                         }
                     }
 
-                    // if dx > dy {
-                    //     if p.x > q.x {
-                    //         a.pos.x -= dx;
-                    //         b.pos.x += dx;
-                    //     } else {
-                    //         a.pos.x += dx;
-                    //         b.pos.x -= dx;
-                    //     }
-                    // } else {
-                    //     if p.y > q.y {
-                    //         a.pos.y -= dy;
-                    //         b.pos.y += dy;
-                    //     } else {
-                    //         a.pos.y += dy;
-                    //         b.pos.y -= dy;
-                    //     }
-                    // }
-
                     self.entities[i] = a;
                     self.entities[j] = b;
                 }
@@ -275,16 +330,83 @@ impl VerletSolver {
                         e.to_vertex()
                     }),
                 )?;
-                /*
-                sublayer_data.update_vertices_array(self.e_to_v.iter().map(
-                    |(i, j)| {
-                        let a = self.vertices[*i];
-                        let b = self.vertices[*j];
+            }
 
-                        line_width_rgba(a, b, w, w, color)
-                    },
-                ));
-                */
+            if let Some(sublayer_data) = layer
+                .get_sublayer_mut(line_sublayer)
+                .and_then(|s| s.draw_data_mut().next())
+            {
+                sublayer_data.update_vertices_array(
+                    self.rails
+                        .iter()
+                        .flat_map(|rail| {
+                            rail.steps.iter().map(|step| {
+                                line_width_rgba(
+                                    step.p0,
+                                    step.p1,
+                                    1.0,
+                                    1.0,
+                                    rgb::RGBA::new(1.0, 0.0, 0.0, 1.0),
+                                )
+                            })
+                        })
+                        .chain(self.rail_links.iter().flat_map(|link| {
+                            let ent = self.entities[link.ent_ix];
+
+                            let p = ent.rect().center();
+
+                            let step0 =
+                                self.rails[link.rail_ix].steps.first().unwrap();
+                            let stepn =
+                                self.rails[link.rail_ix].steps.last().unwrap();
+
+                            let mut min_p: Point = step0.p0;
+                            let mut min_d = step0.p0.distance_to(p);
+
+                            for &step in self.rails[link.rail_ix].steps.iter() {
+                                let pa = step.p0;
+                                let pb = step.p1;
+
+                                let da = pa.distance_to(p);
+                                let db = pb.distance_to(p);
+
+                                let (d, p) =
+                                    if da < db { (da, pa) } else { (db, pb) };
+
+                                if d < min_d {
+                                    min_d = d;
+                                    min_p = p;
+                                }
+                            }
+
+                            let p0 = step0.p0;
+                            let p1 = stepn.p1;
+
+                            [
+                                line_width_rgba(
+                                    p,
+                                    min_p,
+                                    1.0,
+                                    1.0,
+                                    rgb::RGBA::new(1.0, 0.0, 0.0, 1.0),
+                                ),
+                                // line_width_rgba(
+                                //     p,
+                                //     p0,
+                                //     1.0,
+                                //     1.0,
+                                //     rgb::RGBA::new(1.0, 0.0, 0.0, 1.0),
+                                // ),
+                                // line_width_rgba(
+                                //     p,
+                                //     p1,
+                                //     1.0,
+                                //     1.0,
+                                //     rgb::RGBA::new(1.0, 0.0, 0.0, 1.0),
+                                // ),
+                            ]
+                        })),
+                )?;
             }
 
             if let Some(sublayer_data) = layer
@@ -295,12 +417,6 @@ impl VerletSolver {
                     |&((i, j), tgt_len)| {
                         let a = self.entities[i];
                         let b = self.entities[j];
-
-                        // let d_a = o[*i];
-                        // let d_b = o[*j];
-                        // let d_a = vx_vals[*i];
-                        // let d_b = vx_vals[*j];
-
                         let p = a.rect().center();
                         let q = b.rect().center();
 
@@ -318,46 +434,8 @@ impl VerletSolver {
                         let w = 1.0;
 
                         line_width_rgba2(p, q, w, w, color, color)
-
-                        // let c0 =
-                        //     Srgb::from_color(lch_color.shift_hue(d_a * 200.0));
-                        // let c1 =
-                        //     Srgb::from_color(lch_color.shift_hue(d_b * 200.0));
-
-                        // let color0 =
-                        //     rgb::RGBA::new(c0.red, c0.green, c0.blue, 1.0);
-                        // let color1 =
-                        //     rgb::RGBA::new(c1.red, c1.green, c1.blue, 1.0);
-
-                        // line_width_rgba2(a, b, w, w, color0, color1)
                     },
                 ))?;
-
-                /*
-                sublayer_data.update_vertices_array(self.e_to_v.iter().map(
-                    |(i, j)| {
-                        let a = self.vertices[*i];
-                        let b = self.vertices[*j];
-
-                        let d_a = o[*i];
-                        let d_b = o[*j];
-                        // let d_a = vx_vals[*i];
-                        // let d_b = vx_vals[*j];
-
-                        let c0 =
-                            Srgb::from_color(lch_color.shift_hue(d_a * 200.0));
-                        let c1 =
-                            Srgb::from_color(lch_color.shift_hue(d_b * 200.0));
-
-                        let color0 =
-                            rgb::RGBA::new(c0.red, c0.green, c0.blue, 1.0);
-                        let color1 =
-                            rgb::RGBA::new(c1.red, c1.green, c1.blue, 1.0);
-
-                        line_width_rgba2(a, b, w, w, color0, color1)
-                    },
-                ));
-                */
             }
 
             Ok(())

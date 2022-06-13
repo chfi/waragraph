@@ -18,9 +18,11 @@ use ash::vk;
 
 use flexi_logger::{Duplicate, FileSpec, Logger};
 
-use waragraph::geometry::dynamics::verlet::{Entity, VerletSolver};
+use waragraph::geometry::dynamics::verlet::{
+    Entity, Rail, RailLink, RailStep, VerletSolver,
+};
 use waragraph::geometry::dynamics::CurveLayout;
-use waragraph::geometry::{ListLayout, ScreenRect};
+use waragraph::geometry::{ListLayout, ScreenPoint, ScreenRect};
 use waragraph::graph::{Path, Waragraph};
 use waragraph::util::BufferStorage;
 use waragraph::viewer::app::ViewerSys;
@@ -360,19 +362,47 @@ bed::load_bed_file(bed_path, bed_name, column_map)
         }
     }
 
-    /*
-    let mut curve_layout = {
-        let rect = euclid::rect(100.0f32, 100.0, 500.0, 500.0);
-        let layout = waragraph::geometry::dynamics::loop_layout(rect);
-        layout
-    };
-    */
-
     let mut verlet = VerletSolver::new(width, height);
+
+    /*
+    let color = rgb::RGBA::new(1.0, 0.3, 0.4, 1.0);
+    verlet.entities.push(Entity::new(350.0, 120.0, color));
+
+    let mut rail = Rail { steps: Vec::new() };
+    let mut prev_step: Option<ScreenPoint> = None;
+
+    for i in 0..24 {
+        let t = i as f32 / 12.0;
+
+        let x0 = 100.0;
+        let y0 = 250.0;
+
+        let xi = x0 + i as f32 * 25.0;
+        let yi = y0 + (t * 5.0).sin() * 80.0;
+
+        let p1 = point2(xi, yi);
+
+        // rail.push(RailStep { p0:
+
+        if let Some(p0) = prev_step {
+            rail.steps.push(RailStep { p0, p1 });
+        }
+
+        prev_step = Some(p1);
+    }
+
+    verlet.rails.push(rail);
+
+    verlet.rail_links.push(RailLink {
+        ent_ix: 0,
+        rail_ix: 0,
+
+        length: 150.0,
+    });
 
     let mut rng = rand::thread_rng();
 
-    let vn = 10;
+    let vn = 4;
 
     for i in 0..vn {
         use palette::{FromColor, Hue, IntoColor, Lch, Srgb};
@@ -384,6 +414,7 @@ bed::load_bed_file(bed_path, bed_name, column_map)
         let x = rng.gen_range(100..400) as f32;
         let y = rng.gen_range(100..400) as f32;
 
+        let color = rgb::RGBA::new(c0.red, c0.green, c0.blue, 1.0);
         verlet.entities.push(Entity::new(x, y, color));
     }
 
@@ -394,12 +425,12 @@ bed::load_bed_file(bed_path, bed_name, column_map)
                 break;
             }
 
-            let i = rng.gen_range(0..10);
+            let i = rng.gen_range(0..vn);
 
-            let mut j = rng.gen_range(0..10);
+            let mut j = rng.gen_range(0..vn);
 
             while i == j {
-                j = rng.gen_range(0..10);
+                j = rng.gen_range(0..vn);
             }
 
             let a = verlet.entities[i];
@@ -416,20 +447,7 @@ bed::load_bed_file(bed_path, bed_name, column_map)
 
         verlet.stop();
     }
-
-    // {
-    //     let mut indices: Vec<usize> = (0..10).collect();
-    //     indices.shuffle(&mut rng);
-
-    //     for x in 0..5 {
-    //         let y = x + 5;
-
-    //         let i = indices[x];
-    //         let j = indices[y];
-
-    //         verlet.links.push(((i, j), 200.0));
-    //     }
-    // }
+    */
 
     let mut prev_frame = std::time::Instant::now();
 
