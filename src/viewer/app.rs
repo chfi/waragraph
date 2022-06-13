@@ -1133,24 +1133,24 @@ pub struct PathViewer {
     pub sample_buf: Arc<Vec<(Node, usize)>>,
     new_samples: AtomicCell<bool>,
 
-    ui_state: PathUIState,
+    pub ui_state: PathUIState,
 }
 
 #[derive(Debug, Clone, Copy)]
 pub struct PathRowUIState {
-    path: Path,
-    name_rect: ScreenRect,
-    data_rect: ScreenRect,
+    pub path: Path,
+    pub name_rect: ScreenRect,
+    pub data_rect: ScreenRect,
 }
 
 #[derive(Debug, Default, Clone)]
 pub struct PathUIState {
-    hovered_path_row: Option<PathRowUIState>,
-    hovered_path_pos: Option<usize>,
-    hovered_path_name: bool,
+    pub hovered_path_row: Option<PathRowUIState>,
+    pub hovered_path_pos: Option<usize>,
+    pub hovered_path_name: bool,
 
-    pangenome_pos: Option<usize>,
-    hovered_node: Option<Node>,
+    pub pangenome_pos: Option<usize>,
+    pub hovered_node: Option<Node>,
 }
 
 impl PathViewer {

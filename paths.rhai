@@ -266,8 +266,10 @@ fn gui_update(globals, label_space, dt) {
         }
       }
       catch (e) {
-        if e != "TooltipNotArray" {
-          print(e);
+        if e.type_of() == "string" {
+           if e != "TooltipNotArray" {
+             print(e);
+           }
         }
       }
 

@@ -633,30 +633,14 @@ bed::load_bed_file(bed_path, bed_name, column_map)
                         };
 
 
-                    if let Some(path) = hovered_path {
+                    if let Some(state) = viewer.path_viewer.ui_state.hovered_path_row {
+                        let path = state.path;
 
                         if graph.path_name(path).is_some() {
+                            let rect = state.data_rect;
 
-                            let [width, height] = swapchain_dims.load();
-                            let [slot_offset, slot_width] =
-                                viewer.slot_x_offsets(width);
-
-                            let y0 =
-                                viewer
-                                .props
-                                .map
-                                .read()
-                                .get("hovered_slot_y")
-                                .unwrap()
-                                .clone_cast::<i64>();
-
-                            // let y0 = (height - 100) as f32;
-                            let y0 = y0 as f32;
-                            // let yd =
-
-                            // let vis_row_count =
-                            //     viewer.visible_slot_count(&graph, window_height);
-
+                            let x0 = rect.min_x();
+                            let y0 = rect.max_y();
 
                             let view = viewer.view.load();
 
@@ -669,9 +653,9 @@ bed::load_bed_file(bed_path, bed_name, column_map)
                                         &graph,
                                         path,
                                         view,
-                                        slot_offset as u32,
+                                        x0 as u32,
                                         y0 as u32,
-                                        slot_width as u32,
+                                        rect.width() as u32,
                                         90,
                                         draw_data).unwrap();
                                 }
@@ -679,7 +663,9 @@ bed::load_bed_file(bed_path, bed_name, column_map)
                                 Ok(())
                             }).unwrap();
                         }
+
                     }
+
 
                 }
 
