@@ -24,6 +24,7 @@ use waragraph::geometry::dynamics::verlet::{
 use waragraph::geometry::dynamics::CurveLayout;
 use waragraph::geometry::{ListLayout, ScreenPoint, ScreenRect};
 use waragraph::graph::{Path, Waragraph};
+use waragraph::text::TextCache;
 use waragraph::util::BufferStorage;
 use waragraph::viewer::app::ViewerSys;
 use waragraph::viewer::debug::DebugLayers;
@@ -362,6 +363,49 @@ bed::load_bed_file(bed_path, bed_name, column_map)
         }
     }
 
+    let mut text_cache = TextCache::new(&mut engine, &compositor)?;
+
+    {
+        use glyph_brush::{
+            ab_glyph::FontArc, BrushAction, BrushError, GlyphBrushBuilder,
+            HorizontalAlign, Layout, Section, Text,
+        };
+
+        let t0 = Text::new("this is some text at 16px");
+        let t1 = Text::new("hello world at 20px!!").with_scale(20.0);
+        // let t2 = Text::new("24px: ABCDEFGHIJKLMNOPQRSTUVWXYZ").with_scale(24.0);
+        let t2 = Text::new("24px: abcdefghijkhlmnopqrstuvxyz").with_scale(24.0);
+
+        let s0 = Section::default()
+            .with_screen_position((100.0, 100.0))
+            // .with_layout(Layout::default().h_align(HorizontalAlign::Center))
+            // .with_bounds((80.0, 20.0))
+            .add_text(t0);
+
+        text_cache.queue(s0);
+
+        // text_cache.process_queued(&mut engine, &mut compositor)?;
+
+        log::error!("AND AGAIN");
+
+        let s1 = Section::default()
+            .with_screen_position((100.0, 200.0))
+            .add_text(t1);
+
+        let s2 = Section::default()
+            .with_screen_position((100.0, 250.0))
+            .add_text(t2);
+        // .add_text(Text::new("yeah hello world!!!!!"));
+
+        text_cache.queue(s1);
+        text_cache.queue(s2);
+
+        text_cache.process_queued(&mut engine, &mut compositor)?;
+    }
+
+    text_cache.upload_data(&mut engine)?;
+    dbg!();
+
     let mut verlet = VerletSolver::new(width, height);
 
     waragraph::geometry::dynamics::verlet::add_test_data(&mut verlet);
@@ -416,6 +460,11 @@ bed::load_bed_file(bed_path, bed_name, column_map)
 
                 if let Err(e) = compositor.allocate_sublayers(&mut engine) {
                     log::error!("Compositor error: {:?}", e);
+                }
+
+                if let Err(e) =
+                    text_cache.update_layer(&mut compositor, "command-palette", "glyphs") {
+                    log::error!("Text layer update error: {:?}", e);
                 }
 
                 {

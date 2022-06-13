@@ -324,6 +324,11 @@ impl TextCache {
             "/dejavu-fonts-ttf-2.37/ttf/DejaVuSansMono.ttf"
         )))?;
 
+        let _dejavu_bold = FontArc::try_from_slice(include_bytes!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/dejavu-fonts-ttf-2.37/ttf/DejaVuSansMono-Bold.ttf"
+        )))?;
+
         let glyph_brush: GlyphBrush<GlyphVx> =
             GlyphBrushBuilder::using_font(dejavu).build();
 
@@ -336,28 +341,14 @@ impl TextCache {
         log::error!("glyph_brush texture dimensions: {:?}", (width, height));
 
         let sampler = {
-            let unnorm_sampler_info = vk::SamplerCreateInfo::builder()
-                .mag_filter(vk::Filter::NEAREST)
-                .min_filter(vk::Filter::NEAREST)
-                .address_mode_u(vk::SamplerAddressMode::REPEAT)
-                .address_mode_v(vk::SamplerAddressMode::REPEAT)
-                .address_mode_w(vk::SamplerAddressMode::REPEAT)
-                .anisotropy_enable(false)
-                .mipmap_mode(vk::SamplerMipmapMode::NEAREST)
-                .mip_lod_bias(0.0)
-                .min_lod(0.0)
-                .max_lod(1.0)
-                .unnormalized_coordinates(true)
-                .build();
-
             let norm_sampler_info = vk::SamplerCreateInfo::builder()
-                .mag_filter(vk::Filter::NEAREST)
-                .min_filter(vk::Filter::NEAREST)
+                .mag_filter(vk::Filter::LINEAR)
+                .min_filter(vk::Filter::LINEAR)
                 .address_mode_u(vk::SamplerAddressMode::REPEAT)
                 .address_mode_v(vk::SamplerAddressMode::REPEAT)
                 .address_mode_w(vk::SamplerAddressMode::REPEAT)
                 .anisotropy_enable(false)
-                .mipmap_mode(vk::SamplerMipmapMode::NEAREST)
+                .mipmap_mode(vk::SamplerMipmapMode::LINEAR)
                 .mip_lod_bias(0.0)
                 .min_lod(0.0)
                 .max_lod(1.0)
@@ -477,7 +468,7 @@ impl TextCache {
                     size: src_s,
                 };
 
-                let color = rgb::RGBA::new(1.0f32, 0.0, 0.0, 1.0);
+                let color = rgb::RGBA::new(0.0f32, 0.0, 0.0, 1.0);
 
                 let w = pixel.width();
                 let h = pixel.height();
@@ -534,7 +525,7 @@ pub(crate) fn glyph_sublayer(
 
     let vert_binding_desc = vk::VertexInputBindingDescription::builder()
         .binding(0)
-        .stride(std::mem::size_of::<[f32; 8]>() as u32)
+        .stride(vertex_stride as u32)
         .input_rate(vk::VertexInputRate::INSTANCE)
         .build();
 

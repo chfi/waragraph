@@ -20,30 +20,35 @@ layout (push_constant) uniform Input {
 void main() {
   uint i = gl_VertexIndex % 6;
 
-  float width = glyph_size.x / inputs.window_dims.x;
-  float height = glyph_size.y / inputs.window_dims.y;
+  vec2 dims = 2.0 * glyph_size / inputs.window_dims;
+  // vec2 dims = glyph_size / inputs.window_dims;
+
+  float width = dims.x;
+  float height = dims.y;
+
   vec2 origin = (2.0 * glyph_position / inputs.window_dims) - vec2(1.0);
 
   gl_Position = vec4(origin, 0.0, 1.0);
   o_uv = vec2(0, 0);
 
-  /*
+
   if (i == 0) {
+    // top left
       gl_Position = vec4(origin, 0.0, 1.0);
-      o_uv = vec2(0, 0);
+      o_uv = uv_pos;
   } else if (i == 1 || i == 4) {
-      float x = 8.0 * text_offset.y;
+    // top right
       gl_Position = vec4(origin + vec2(width, 0), 0.0, 1.0);
-      o_uv = vec2(x, 0);
+      o_uv = uv_pos + vec2(uv_size.x, 0);
   } else if (i == 2 || i == 3) {
+    // bottom right
       gl_Position = vec4(origin + vec2(0, height), 0.0, 1.0);
-      o_uv = vec2(0, 8.0);
+      o_uv = uv_pos + vec2(0, uv_size.y);
   } else {
-      float x = 8.0 * text_offset.y;
+    // bottom left
       gl_Position = vec4(origin + vec2(width, height), 0.0, 1.0);
-      o_uv = vec2(x, 8.0);
+      o_uv = uv_pos + uv_size;
   }
-  */
 
   o_color = i_color;
 }
