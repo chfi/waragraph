@@ -3,8 +3,8 @@
 layout (location = 0) in vec2 glyph_position;
 layout (location = 1) in vec2 glyph_size;
 
-layout (location = 2) in vec2 uv_min;
-layout (location = 3) in vec2 uv_max;
+layout (location = 2) in vec2 uv_pos;
+layout (location = 3) in vec2 uv_size;
 
 layout (location = 4) in vec4 i_color;
 
@@ -12,12 +12,6 @@ layout (location = 4) in vec4 i_color;
 layout (location = 0) out vec2 o_uv;
 layout (location = 1) out vec4 o_color;
 
-/*
-layout (set = 0, binding = 0) readonly buffer Colors {
-  uint len;
-  vec4 colors[];
-} colors;
-*/
 
 layout (push_constant) uniform Input {
   vec2 window_dims;
