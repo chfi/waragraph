@@ -364,90 +364,7 @@ bed::load_bed_file(bed_path, bed_name, column_map)
 
     let mut verlet = VerletSolver::new(width, height);
 
-    /*
-    let color = rgb::RGBA::new(1.0, 0.3, 0.4, 1.0);
-    verlet.entities.push(Entity::new(350.0, 120.0, color));
-
-    let mut rail = Rail { steps: Vec::new() };
-    let mut prev_step: Option<ScreenPoint> = None;
-
-    for i in 0..24 {
-        let t = i as f32 / 12.0;
-
-        let x0 = 100.0;
-        let y0 = 250.0;
-
-        let xi = x0 + i as f32 * 25.0;
-        let yi = y0 + (t * 5.0).sin() * 80.0;
-
-        let p1 = point2(xi, yi);
-
-        // rail.push(RailStep { p0:
-
-        if let Some(p0) = prev_step {
-            rail.steps.push(RailStep { p0, p1 });
-        }
-
-        prev_step = Some(p1);
-    }
-
-    verlet.rails.push(rail);
-
-    verlet.rail_links.push(RailLink {
-        ent_ix: 0,
-        rail_ix: 0,
-
-        length: 150.0,
-    });
-
-    let mut rng = rand::thread_rng();
-
-    let vn = 4;
-
-    for i in 0..vn {
-        use palette::{FromColor, Hue, IntoColor, Lch, Srgb};
-        let lch_color: Lch = Srgb::new(0.9, 0.2, 0.3).into_color();
-        let c0 = Srgb::from_color(lch_color.shift_hue(30.0 * i as f32));
-
-        let color = rgb::RGBA::new(c0.red, c0.green, c0.blue, 1.0);
-
-        let x = rng.gen_range(100..400) as f32;
-        let y = rng.gen_range(100..400) as f32;
-
-        let color = rgb::RGBA::new(c0.red, c0.green, c0.blue, 1.0);
-        verlet.entities.push(Entity::new(x, y, color));
-    }
-
-    {
-        let mut attempts = 0;
-        loop {
-            if verlet.links.len() > 4 || attempts > 1000 {
-                break;
-            }
-
-            let i = rng.gen_range(0..vn);
-
-            let mut j = rng.gen_range(0..vn);
-
-            while i == j {
-                j = rng.gen_range(0..vn);
-            }
-
-            let a = verlet.entities[i];
-            let b = verlet.entities[j];
-
-            let dist = (a.pos - b.pos).length();
-
-            if dist < 200.0 {
-                verlet.links.push(((i, j), dist + 10.0));
-            }
-
-            attempts += 1;
-        }
-
-        verlet.stop();
-    }
-    */
+    waragraph::geometry::dynamics::verlet::add_test_data(&mut verlet);
 
     let mut prev_frame = std::time::Instant::now();
 
@@ -504,7 +421,6 @@ bed::load_bed_file(bed_path, bed_name, column_map)
                 {
                     let [width, height] = swapchain_dims.load();
                     verlet.bounds =
-                        // ScreenRect::new(point2(0.0, 0.0),
                         ScreenRect::new(point2(50.0, 50.0),
                                         size2((width - 100) as f32,
                                               (height - 100) as f32));
@@ -521,46 +437,6 @@ bed::load_bed_file(bed_path, bed_name, column_map)
                 if let Err(e) = compositor.write_layers(&mut engine.resources) {
                     log::error!("Compositor error: {:?}", e);
                 }
-
-                /*
-                if let Err(e) = curve_layout.update_layer(&mut compositor, "curve") {
-                    log::error!("Curve layout update error: {:?}", e);
-                }
-                */
-
-                /*
-                layout_update_since += delta_time;
-
-                if layout_update_since > 0.05 {
-
-
-                    let [width, _] = swapchain_dims.load();
-
-                    let [slot_offset, slot_width] =
-                        viewer.slot_x_offsets(width);
-
-                    let view = viewer.view.load();
-
-                    label_layout.step(slot_width, layout_update_since);
-
-                    label_layout
-                        .update_layer(
-                            &mut compositor,
-                            slot_offset,
-                            slot_width,
-                            view.offset,
-                            view.len,
-                            view.max,
-                        )
-                        .unwrap();
-
-                    let _ = label_layout
-                        .label_space
-                        .write_buffer(&mut engine.resources);
-
-                    layout_update_since = 0.0;
-                }
-                */
 
                 prev_frame = std::time::Instant::now();
 
@@ -618,21 +494,6 @@ bed::load_bed_file(bed_path, bed_name, column_map)
 
 
                 {
-                    let globals: Option<rhai::Map> = console.scope.get_value("globals");
-                    let hovered_path =
-                        match viewer.props.map.read().get("hovered_path") {
-                            None => None,
-                            Some(val) => {
-                                if val.type_name() == "waragraph::graph::Path" {
-                                    let path = val.clone_cast::<Path>();
-                                    Some(path)
-                                } else {
-                                    None
-                                }
-                            }
-                        };
-
-
                     if let Some(state) = viewer.path_viewer.ui_state.hovered_path_row {
                         let path = state.path;
 

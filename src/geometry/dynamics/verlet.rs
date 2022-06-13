@@ -25,6 +25,95 @@ pub type Vec2 = ScreenVector;
 pub type Rect = ScreenRect;
 pub type Size = ScreenSize;
 
+pub fn add_test_data(verlet: &mut VerletSolver) {
+    use rand::prelude::*;
+
+    let mut rng = rand::thread_rng();
+
+    let color = rgb::RGBA::new(1.0, 0.3, 0.4, 1.0);
+    verlet.entities.push(Entity::new(350.0, 120.0, color));
+
+    let mut rail = Rail { steps: Vec::new() };
+    let mut prev_step: Option<ScreenPoint> = None;
+
+    for i in 0..24 {
+        let t = i as f32 / 12.0;
+
+        let x0 = 100.0;
+        let y0 = 250.0;
+
+        let xi = x0 + i as f32 * 25.0;
+        let yi = y0 + (t * 5.0).sin() * 80.0;
+
+        let p1 = point2(xi, yi);
+
+        // rail.push(RailStep { p0:
+
+        if let Some(p0) = prev_step {
+            rail.steps.push(RailStep { p0, p1 });
+        }
+
+        prev_step = Some(p1);
+    }
+
+    verlet.rails.push(rail);
+
+    verlet.rail_links.push(RailLink {
+        ent_ix: 0,
+        rail_ix: 0,
+
+        length: 150.0,
+    });
+
+    let mut rng = rand::thread_rng();
+
+    let vn = 4;
+
+    for i in 0..vn {
+        use palette::{FromColor, Hue, IntoColor, Lch, Srgb};
+        let lch_color: Lch = Srgb::new(0.9, 0.2, 0.3).into_color();
+        let c0 = Srgb::from_color(lch_color.shift_hue(30.0 * i as f32));
+
+        let color = rgb::RGBA::new(c0.red, c0.green, c0.blue, 1.0);
+
+        let x = rng.gen_range(100..400) as f32;
+        let y = rng.gen_range(100..400) as f32;
+
+        let color = rgb::RGBA::new(c0.red, c0.green, c0.blue, 1.0);
+        verlet.entities.push(Entity::new(x, y, color));
+    }
+
+    {
+        let mut attempts = 0;
+        loop {
+            if verlet.links.len() > 4 || attempts > 1000 {
+                break;
+            }
+
+            let i = rng.gen_range(0..vn);
+
+            let mut j = rng.gen_range(0..vn);
+
+            while i == j {
+                j = rng.gen_range(0..vn);
+            }
+
+            let a = verlet.entities[i];
+            let b = verlet.entities[j];
+
+            let dist = (a.pos - b.pos).length();
+
+            if dist < 200.0 {
+                verlet.links.push(((i, j), dist + 10.0));
+            }
+
+            attempts += 1;
+        }
+
+        verlet.stop();
+    }
+}
+
 #[derive(Clone, Copy)]
 pub struct Entity {
     // pub prev_origin: Point,
