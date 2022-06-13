@@ -128,6 +128,7 @@ pub fn add_sublayer_defs(
             line_rgb_sublayer(ctx, res, clear_pass, load_pass)?,
             line_rgb_2_sublayer(ctx, res, clear_pass, load_pass)?,
             slot::sublayer(ctx, res, clear_pass, load_pass)?,
+            crate::text::glyph_sublayer(ctx, res, clear_pass, load_pass)?,
         ]);
 
         Ok(())
