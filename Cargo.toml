@@ -13,6 +13,8 @@ gfa = { version = "0.10" }
 raving = { git = "https://github.com/chfi/raving" }
 # raving = { path = "../vkengine" }
 
+glyph_brush = "0.7"
+
 smartstring = "^1"
 smallvec = "1.8.0"
 sprs = "0.11"
