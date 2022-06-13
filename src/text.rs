@@ -11,7 +11,7 @@ use raving::vk::context::VkContext;
 use raving::vk::descriptor::DescriptorLayoutInfo;
 use raving::vk::{
     BufferIx, DescSetIx, GpuResources, ImageIx, ImageViewIx, PipelineIx,
-    VkEngine,
+    SamplerIx, VkEngine,
 };
 
 use raving::compositor::*;
@@ -37,15 +37,16 @@ pub struct TextCache {
     pub brush: GlyphBrush<GlyphVx>,
 
     cache_data: Vec<u8>,
+    glyph_vertices: Vec<GlyphVx>,
 
-    /*
     pub cache_img: ImageIx,
     pub cache_img_view: ImageViewIx,
     pub cache_texture_set: DescSetIx,
-    */
+
     layout_info: DescriptorLayoutInfo,
     set_info: BTreeMap<u32, DescriptorInfo>,
-    // sampler: SamplerIx,
+
+    sampler: SamplerIx,
 }
 
 impl TextCache {
@@ -53,16 +54,177 @@ impl TextCache {
         vk::Format::R8_UNORM
     }
 
-    /*
     fn allocate_cache_data(
         engine: &mut VkEngine,
         layout_info: &DescriptorLayoutInfo,
         set_info: &BTreeMap<u32, DescriptorInfo>,
+        sampler: vk::Sampler,
         format: vk::Format,
         width: u32,
         height: u32,
     ) -> Result<(ImageIx, ImageViewIx, DescSetIx)> {
         let result = engine.with_allocators(|ctx, res, alloc| {
+            let usage = vk::ImageUsageFlags::TRANSFER_DST
+                | vk::ImageUsageFlags::SAMPLED
+                | vk::ImageUsageFlags::STORAGE;
+
+            let name = format!("TextCache:{},{}:image", width, height);
+
+            let image_res = res.allocate_image(
+                ctx,
+                alloc,
+                width,
+                height,
+                format,
+                usage,
+                Some(&name),
+            )?;
+
+            let image_view = image_res.create_image_view(ctx)?;
+
+            let image_ix = res.insert_image(image_res);
+
+            let layout = vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL;
+
+            let desc_set = res.allocate_desc_set_raw(
+                layout_info,
+                set_info,
+                |res, desc_builder| {
+                    let info = vk::DescriptorImageInfo::builder()
+                        .image_layout(layout)
+                        .image_view(image_view)
+                        // .sampler(sampler)
+                        .build();
+
+                    let sampler_info = vk::DescriptorImageInfo::builder()
+                        .sampler(sampler)
+                        .build();
+
+                    desc_builder.bind_image(0, &[sampler_info]);
+                    desc_builder.bind_image(1, &[info]);
+
+                    Ok(())
+                },
+            )?;
+
+            let view_ix = res.insert_image_view(image_view);
+            let set_ix = res.insert_desc_set(desc_set);
+
+            Ok((image_ix, view_ix, set_ix))
+        })?;
+
+        engine.submit_queue_fn(|ctx, res, alloc, cmd| {
+            let src_access_mask = vk::AccessFlags::empty();
+            let src_stage_mask = vk::PipelineStageFlags::TOP_OF_PIPE;
+
+            let dst_access_mask = vk::AccessFlags::TRANSFER_WRITE;
+            let dst_stage_mask = vk::PipelineStageFlags::TRANSFER;
+
+            let (image_ix, _, _) = result;
+            let image = &res[image_ix];
+
+            VkEngine::transition_image(
+                cmd,
+                ctx.device(),
+                image.image,
+                src_access_mask,
+                src_stage_mask,
+                dst_access_mask,
+                dst_stage_mask,
+                vk::ImageLayout::UNDEFINED,
+                vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL,
+            );
+
+            Ok(())
+        })?;
+
+        Ok(result)
+    }
+
+    pub fn upload_data(&mut self, engine: &mut VkEngine) -> Result<()> {
+        log::warn!("uploading glyph data");
+
+        let staging = engine.submit_queue_fn(|ctx, res, alloc, cmd| {
+            let image = &mut res[self.cache_img];
+
+            // transition image to TRANSFER_DST_OPTIMAL
+
+            let src_access_mask = vk::AccessFlags::empty();
+            let src_stage_mask = vk::PipelineStageFlags::TOP_OF_PIPE;
+
+            let dst_access_mask = vk::AccessFlags::TRANSFER_WRITE;
+            let dst_stage_mask = vk::PipelineStageFlags::TRANSFER;
+
+            VkEngine::transition_image(
+                cmd,
+                ctx.device(),
+                image.image,
+                src_access_mask,
+                src_stage_mask,
+                dst_access_mask,
+                dst_stage_mask,
+                vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL,
+                vk::ImageLayout::TRANSFER_DST_OPTIMAL,
+            );
+
+            let layout = vk::ImageLayout::TRANSFER_DST_OPTIMAL;
+            let staging = image.fill_from_pixels(
+                ctx.device(),
+                ctx,
+                alloc,
+                self.cache_data.iter().copied(),
+                1,
+                layout,
+                cmd,
+            )?;
+
+            // transition image back to SHADER_READ_ONLY_OPTIMAL
+
+            let src_access_mask = vk::AccessFlags::TRANSFER_WRITE;
+            let src_stage_mask = vk::PipelineStageFlags::TRANSFER;
+
+            let dst_access_mask = vk::AccessFlags::SHADER_READ;
+            let dst_stage_mask = vk::PipelineStageFlags::FRAGMENT_SHADER;
+
+            VkEngine::transition_image(
+                cmd,
+                ctx.device(),
+                image.image,
+                src_access_mask,
+                src_stage_mask,
+                dst_access_mask,
+                dst_stage_mask,
+                vk::ImageLayout::TRANSFER_DST_OPTIMAL,
+                vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL,
+            );
+
+            // let tex_dims = self.brush.texture_dimensions();
+
+            // let image = {};
+            // let staging =
+
+            // if needed, recreate the image (and update the descriptor set)
+
+            //
+            Ok(staging)
+        })?;
+
+        engine.resources.free_buffer(
+            &engine.context,
+            &mut engine.allocator,
+            staging,
+        )?;
+
+        Ok(())
+    }
+
+    pub fn reallocate(
+        &mut self,
+        engine: &mut VkEngine,
+        compositor: &Compositor,
+    ) -> Result<()> {
+        /*
+        engine.with_allocators(|ctx, res, alloc| {
             let usage = vk::ImageUsageFlags::TRANSFER_DST
                 | vk::ImageUsageFlags::SAMPLED
                 | vk::ImageUsageFlags::STORAGE;
@@ -100,16 +262,41 @@ impl TextCache {
                 },
             )?;
 
-            //
+            let view_ix = res.insert_image_view(image_view);
+            let set_ix = res.insert_desc_set(desc_set);
 
-            //
+            // Ok((image_ix, view_ix, set_ix))
+
+            Ok(())
+        })?;
+        */
+
+        Ok(())
+    }
+
+    pub fn update_layer(
+        &self,
+        compositor: &mut Compositor,
+        layer_name: &str,
+        sublayer_name: &str,
+    ) -> Result<()> {
+        compositor.with_layer(layer_name, |layer| {
+            if let Some(sublayer_data) = layer
+                .get_sublayer_mut(sublayer_name)
+                .and_then(|sub| sub.draw_data_mut().next())
+            {
+                sublayer_data.update_vertices_array(
+                    self.glyph_vertices.iter().copied(),
+                )?;
+
+                let desc_set = self.cache_texture_set;
+                let new_sets = [desc_set];
+                sublayer_data.update_sets(new_sets);
+            }
+
+            Ok(())
         })?;
 
-        Ok(result)
-    }
-    */
-
-    fn upload_cache(&self, engine: &mut VkEngine, data: &[u8]) -> Result<()> {
         Ok(())
     }
 
@@ -142,11 +329,45 @@ impl TextCache {
 
         let (width, height) = glyph_brush.texture_dimensions();
 
-        let capacity = width * height;
+        let capacity = (width * height) as usize;
 
         let cache_data = vec![0u8; capacity];
 
         log::error!("glyph_brush texture dimensions: {:?}", (width, height));
+
+        let sampler = {
+            let unnorm_sampler_info = vk::SamplerCreateInfo::builder()
+                .mag_filter(vk::Filter::NEAREST)
+                .min_filter(vk::Filter::NEAREST)
+                .address_mode_u(vk::SamplerAddressMode::REPEAT)
+                .address_mode_v(vk::SamplerAddressMode::REPEAT)
+                .address_mode_w(vk::SamplerAddressMode::REPEAT)
+                .anisotropy_enable(false)
+                .mipmap_mode(vk::SamplerMipmapMode::NEAREST)
+                .mip_lod_bias(0.0)
+                .min_lod(0.0)
+                .max_lod(1.0)
+                .unnormalized_coordinates(true)
+                .build();
+
+            let norm_sampler_info = vk::SamplerCreateInfo::builder()
+                .mag_filter(vk::Filter::NEAREST)
+                .min_filter(vk::Filter::NEAREST)
+                .address_mode_u(vk::SamplerAddressMode::REPEAT)
+                .address_mode_v(vk::SamplerAddressMode::REPEAT)
+                .address_mode_w(vk::SamplerAddressMode::REPEAT)
+                .anisotropy_enable(false)
+                .mipmap_mode(vk::SamplerMipmapMode::NEAREST)
+                .mip_lod_bias(0.0)
+                .min_lod(0.0)
+                .max_lod(1.0)
+                .unnormalized_coordinates(false)
+                .build();
+
+            engine
+                .resources
+                .insert_sampler(&engine.context, norm_sampler_info)?
+        };
 
         let (layout_info, set_info) = {
             let sublayer_def = compositor.sublayer_defs.get("glyph").expect("error: `glyph` sublayer not found, has the sublayer definition been added?");
@@ -167,26 +388,30 @@ impl TextCache {
             (layout_info, set_info)
         };
 
-        /*
         let (cache_img, cache_img_view, cache_texture_set) =
             Self::allocate_cache_data(
                 engine,
                 &layout_info,
                 &set_info,
+                engine.resources[sampler],
                 Self::cache_format(),
                 width,
                 height,
             )?;
-        */
 
         Ok(Self {
             brush: glyph_brush,
+            cache_data,
+            glyph_vertices: Vec::new(),
 
-            // cache_img,
-            // cache_img_view,
-            // cache_texture_set,
+            cache_img,
+            cache_img_view,
+            cache_texture_set,
+
             layout_info,
             set_info,
+
+            sampler,
         })
     }
 
@@ -200,36 +425,86 @@ impl TextCache {
         self.brush.queue(section);
     }
 
-    pub fn process_queued(&mut self, engine: &mut VkEngine) -> Result<()> {
+    pub fn process_queued(
+        &mut self,
+        engine: &mut VkEngine,
+        compositor: &mut Compositor,
+    ) -> Result<()> {
         log::error!("processing queued sections");
 
-        let mut glyphs_to_upload = Vec::new();
+        // let mut glyphs_to_upload = Vec::new();
 
-        self.brush.process_queued(
+        let result = self.brush.process_queued(
             |rect, tex_data| {
-                //
+                log::warn!("received rect: {:?}", rect);
+                log::warn!("tex_data len: {}", tex_data.len());
+
+                let [tex_x0, tex_y0] = rect.min;
+                let tex_w = rect.width();
+                let tex_h = rect.height();
+
+                for row_i in 0..tex_h {
+                    let data_row_ix = (tex_w * row_i) as usize;
+                    let data_row_end = data_row_ix + tex_w as usize;
+                    let row = &tex_data[data_row_ix..data_row_end];
+
+                    let tgt_row = (tex_y0 + row_i) as usize;
+                    let tgt_col = tex_x0 as usize;
+                    let width = tex_w as usize;
+                    let tgt_row_ix = width * tgt_row + tgt_col;
+                    let tgt_row_end = tgt_row_ix + tex_w as usize;
+
+                    self.cache_data[tgt_row_ix..tgt_row_end]
+                        .clone_from_slice(row);
+                }
             },
             |glyph_vx| {
-                //
+                let tex = glyph_vx.tex_coords;
+                let pixel = glyph_vx.pixel_coords;
+
+                let dst_p: ScreenPoint = point2(pixel.min.x, pixel.min.y);
+                let src_p: ScreenPoint = point2(tex.min.x, tex.min.y);
+
+                let dst_s: ScreenSize = size2(pixel.width(), pixel.height());
+                let src_s: ScreenSize = size2(tex.width(), tex.height());
+
+                let dst = ScreenRect {
+                    origin: dst_p,
+                    size: dst_s,
+                };
+                let src = ScreenRect {
+                    origin: src_p,
+                    size: src_s,
+                };
+
+                let color = rgb::RGBA::new(1.0f32, 0.0, 0.0, 1.0);
+
+                let w = pixel.width();
+                let h = pixel.height();
+
+                log::warn!("processing glyph: {:?}", glyph_vx);
+
+                glyph_vertex(dst, src, color)
             },
-        )?;
+        );
 
-        /*
-        engine.submit_queue_fn(|ctx, res, alloc, cmd| {
-            let tex_dims = self.brush.texture_dimensions();
-
-            // let image = {};
-
-            // create a staging buffer
-            // fill it with the pixel data from self.cache_data
-
-            // if needed, recreate the image (and update the descriptor set)
-
-            //
-        })?;
-        */
-
-        log::warn!("results: {:?}", result);
+        match result {
+            Ok(BrushAction::Draw(vertices)) => {
+                log::warn!("updating glyphs with {} vertices", vertices.len());
+                self.glyph_vertices = vertices;
+            }
+            Ok(BrushAction::ReDraw) => {
+                log::warn!("redraw glyphs")
+            }
+            Err(BrushError::TextureTooSmall { suggested }) => {
+                let (x, y) = suggested;
+                let capacity = (x * y) as usize;
+                self.cache_data.resize(capacity, 0u8);
+                self.glyph_vertices.clear();
+                log::warn!("reallocate glyph cache");
+                todo!("need to reallocate!");
+            }
+        }
 
         Ok(())
     }
