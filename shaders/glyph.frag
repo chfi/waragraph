@@ -15,27 +15,9 @@ layout (push_constant) uniform Input {
 void main() {
   float alpha = texture(sampler2D(u_image_in, u_sampler), i_uv).r;
 
-
-  vec4 nbors = textureGather(sampler2D(u_image_in, u_sampler), i_uv, 0);
-
-  float nbor_alpha = (nbors.r + nbors.g + nbors.b + nbors.a) / 4.0;
-
-  float a = 0.8 * alpha + 0.2 * nbor_alpha;
-
-  // if (a > 0.0) {
-  //   vec3 base = i_color.rgb * a;
-  //   f_color = vec4(base, 1.0);
-  // } else {
-  //   f_color = vec4(0.0);
-  // }
-
-  if (alpha > 0.0) {
-    // vec3 base = i_color.rgb * alpha;
-    vec3 base = i_color.rgb * a;
-    // vec3 base = i_color.rgb * (1.0 - alpha);
-    // f_color = vec4(base, 1.0 - alpha);
-    // f_color = vec4(base, alpha);
-    f_color = vec4(base, a);
+  if (alpha > 0.1) {
+    vec3 base = i_color.rgb * alpha;
+    f_color = vec4(base, alpha);
   } else {
     f_color = vec4(0.0);
   }

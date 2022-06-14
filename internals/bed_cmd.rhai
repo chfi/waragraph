@@ -1,19 +1,30 @@
 set_name("BED");
 set_desc("BED & Annotations");
 
-/// This is a doc
-/// comment!!!
+/*
+/// Load a BED file
 ///
-/// @path: PathBuf
-fn another_command(path) {
-  print("yes hello");
+/// @bed_path: PathBuf
+fn another_command(bed_path) {
+  import "script/bed" as bed;
+  bed::load_bed_file(bed_path)
+}
+*/
+
+/// Load a BED file
+///
+/// @bed_path: PathBuf
+fn load_bed(bed_path) {
+  import "script/bed" as bed;
+  bed::load_bed_file(bed_path,
+                     "betaglobin",
+                     #{ "name": 3 })
 }
 
-fn load_bed() {
-  import "script/bed" as bed;
-  let result = bed::load_bed_file("betaglobin.bed",
-                                    "betaglobin",
-                                 #{ "name": 3 });
+/// This is a zero-arity command
+fn command_test() {
+  print("hello world");
+  return 13;
 }
 
 /*

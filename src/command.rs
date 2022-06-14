@@ -9,7 +9,9 @@ use raving::compositor::Compositor;
 use rhai::plugin::*;
 
 use crate::{
-    geometry::ScreenPoint, text::TextCache, viewer::gui::layer::rect_rgba,
+    geometry::{LayoutElement, ScreenPoint, ScreenRect, ScreenSideOffsets},
+    text::TextCache,
+    viewer::gui::layer::rect_rgba,
 };
 
 #[derive(Default, Clone)]
@@ -240,15 +242,36 @@ impl CommandPalette {
         Ok(())
     }
 
+    // TODO
+    pub fn window_rect(&self) -> ScreenRect {
+        let bg_rect = euclid::rect(80.0, 80.0, 500.0, 500.0);
+        bg_rect
+    }
+
     pub fn queue_glyphs(&self, text_cache: &mut TextCache) -> Result<()> {
         use glyph_brush::{Section, Text};
 
-        // log::warn!("text: {}", self.input_buffer);
-        let text = Text::new(&self.input_buffer).with_scale(20.0);
+        // let input_rect = euclid::rect(self.offset.x
+
+        let window = self.window_rect();
+
+        let [top, bottom] = window.split_ver(window.height() * 0.15);
+
+        let pad = ScreenSideOffsets::new(8.0, 8.0, 8.0, 8.0);
+
+        let top = top.inner_rect(pad);
+        let bottom = bottom.inner_rect(pad);
+
+        let input_scale = 24.0;
+        let input_text = Text::new(&self.input_buffer).with_scale(input_scale);
+
+        let rect = top.inner_rect(pad);
+
+        let pos = (rect.min_x(), rect.min_y());
 
         let section = Section::default()
-            .with_screen_position((self.offset.x, self.offset.y))
-            .add_text(text);
+            .with_screen_position(pos)
+            .add_text(input_text);
 
         text_cache.queue(section);
 
@@ -274,11 +297,23 @@ impl CommandPalette {
                 .get_sublayer_mut(rect_sublayer)
                 .and_then(|s| s.draw_data_mut().next())
             {
-                // let bg_rect = euclid::rect(80.0, 80.0, 500.0, 500.0);
-                // let color = rgb::RGBA::new(0.75, 0.75, 0.75, 1.0);
-                // sublayer_data
-                //     .update_vertices_array(Some(rect_rgba(bg_rect, color)));
-                //
+                let bg_rect = self.window_rect();
+
+                let color_bg = rgb::RGBA::new(0.6, 0.6, 0.6, 1.0);
+                let color_fg = rgb::RGBA::new(0.75, 0.75, 0.75, 1.0);
+
+                let pad = ScreenSideOffsets::new(8.0, 8.0, 8.0, 8.0);
+
+                let [top, bottom] = bg_rect.split_ver(bg_rect.height() * 0.15);
+
+                let base = vec![
+                    rect_rgba(bg_rect, color_bg),
+                    rect_rgba(top.inner_rect(pad), color_fg),
+                    rect_rgba(bottom.inner_rect(pad), color_fg),
+                ];
+
+                sublayer_data.update_vertices_array(base)?;
+                // .update_vertices_array(Some(rect_rgba(bg_rect, color)))?;
             }
 
             Ok(())

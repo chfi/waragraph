@@ -41,11 +41,11 @@ void main() {
       gl_Position = vec4(origin + vec2(width, 0), 0.0, 1.0);
       o_uv = uv_pos + vec2(uv_size.x, 0);
   } else if (i == 2 || i == 3) {
-    // bottom right
+    // bottom left
       gl_Position = vec4(origin + vec2(0, height), 0.0, 1.0);
       o_uv = uv_pos + vec2(0, uv_size.y);
   } else {
-    // bottom left
+    // bottom right
       gl_Position = vec4(origin + vec2(width, height), 0.0, 1.0);
       o_uv = uv_pos + uv_size;
   }

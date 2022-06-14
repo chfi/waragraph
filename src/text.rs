@@ -27,12 +27,6 @@ use glyph_brush::*;
 
 pub type GlyphVx = [u8; 48];
 
-pub struct CacheData {}
-
-// impl CacheData {
-//     fn new
-// }
-
 pub struct TextCache {
     pub brush: GlyphBrush<GlyphVx>,
 
@@ -140,9 +134,7 @@ impl TextCache {
         Ok(result)
     }
 
-    pub fn upload_data(&mut self, engine: &mut VkEngine) -> Result<()> {
-        log::warn!("uploading glyph data");
-
+    pub fn upload_texture(&mut self, engine: &mut VkEngine) -> Result<()> {
         let staging = engine.submit_queue_fn(|ctx, res, alloc, cmd| {
             let image = &mut res[self.cache_img];
 
@@ -197,14 +189,6 @@ impl TextCache {
                 vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL,
             );
 
-            // let tex_dims = self.brush.texture_dimensions();
-
-            // let image = {};
-            // let staging =
-
-            // if needed, recreate the image (and update the descriptor set)
-
-            //
             Ok(staging)
         })?;
 
@@ -223,7 +207,7 @@ impl TextCache {
         width: u32,
         height: u32,
     ) -> Result<()> {
-        log::error!("reallocating to ({}, {})", width, height);
+        log::trace!("Reallocating glyph cache to ({}, {})", width, height);
         let format = Self::cache_format();
 
         engine.with_allocators(|ctx, res, alloc| {
@@ -358,12 +342,18 @@ impl TextCache {
     }
 
     pub fn new(engine: &mut VkEngine, compositor: &Compositor) -> Result<Self> {
-        let dejavu = FontArc::try_from_slice(include_bytes!(concat!(
+        let dejavu_sans = FontArc::try_from_slice(include_bytes!(concat!(
             env!("CARGO_MANIFEST_DIR"),
             "/dejavu-fonts-ttf-2.37/ttf/DejaVuSans.ttf"
         )))?;
 
-        let _dejavu = FontArc::try_from_slice(include_bytes!(concat!(
+        let dejavu_sans_bold =
+            FontArc::try_from_slice(include_bytes!(concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/dejavu-fonts-ttf-2.37/ttf/DejaVuSans-Bold.ttf"
+            )))?;
+
+        let dejavu_serif = FontArc::try_from_slice(include_bytes!(concat!(
             env!("CARGO_MANIFEST_DIR"),
             "/dejavu-fonts-ttf-2.37/ttf/DejaVuSerif.ttf"
         )))?;
@@ -373,31 +363,24 @@ impl TextCache {
             "/dejavu-fonts-ttf-2.37/ttf/DejaVuSansMono.ttf"
         )))?;
 
-        let dejavu_bold = FontArc::try_from_slice(include_bytes!(concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/dejavu-fonts-ttf-2.37/ttf/DejaVuSansMono-Bold.ttf"
-        )))?;
+        let dejavu_mono_bold =
+            FontArc::try_from_slice(include_bytes!(concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/dejavu-fonts-ttf-2.37/ttf/DejaVuSansMono-Bold.ttf"
+            )))?;
 
         let glyph_brush: GlyphBrush<GlyphVx> =
-            GlyphBrushBuilder::using_font(dejavu)
-                // .draw_cache_position_tolerance(0.0)
+            // GlyphBrushBuilder::using_font(dejavu_mono)
+            GlyphBrushBuilder::using_font(dejavu_sans)
                 .draw_cache_position_tolerance(0.1)
                 .draw_cache_scale_tolerance(0.5)
                 .build();
-        //
-        // .draw_cache_position_tolerance(0.0)
-        // .draw_cache_scale_tolerance(0.0)
-        //
-        // .draw_cache_scale_tolerance(1000.0)
-        // .build();
 
         let (width, height) = glyph_brush.texture_dimensions();
 
         let capacity = (width * height) as usize;
 
         let cache_data = vec![0u8; capacity];
-
-        log::error!("glyph_brush texture dimensions: {:?}", (width, height));
 
         let sampler = {
             let norm_sampler_info = vk::SamplerCreateInfo::builder()
@@ -411,9 +394,9 @@ impl TextCache {
                 .address_mode_u(vk::SamplerAddressMode::CLAMP_TO_EDGE)
                 .address_mode_v(vk::SamplerAddressMode::CLAMP_TO_EDGE)
                 .address_mode_w(vk::SamplerAddressMode::CLAMP_TO_EDGE)
-                // .anisotropy_enable(false)
-                .anisotropy_enable(true)
-                .max_anisotropy(16.0)
+                .anisotropy_enable(false)
+                // .anisotropy_enable(true)
+                // .max_anisotropy(16.0)
                 .mipmap_mode(vk::SamplerMipmapMode::LINEAR)
                 .mip_lod_bias(0.0)
                 .min_lod(0.0)
@@ -487,16 +470,16 @@ impl TextCache {
         engine: &mut VkEngine,
         compositor: &mut Compositor,
     ) -> Result<()> {
-        log::error!("processing queued sections");
+        // log::error!("processing queued sections");
 
         // let mut glyphs_to_upload = Vec::new();
         let mut cache_updated = false;
 
+        let (tgt_width, _) = self.brush.texture_dimensions();
+
         let result = self.brush.process_queued(
             |rect, tex_data| {
                 cache_updated = true;
-                log::warn!("received rect: {:?}", rect);
-                log::warn!("tex_data len: {}", tex_data.len());
 
                 let [tex_x0, tex_y0] = rect.min;
                 let tex_w = rect.width();
@@ -510,8 +493,10 @@ impl TextCache {
                     let tgt_row = (tex_y0 + row_i) as usize;
                     let tgt_col = tex_x0 as usize;
                     let width = tex_w as usize;
-                    let tgt_row_ix = width * tgt_row + tgt_col;
-                    let tgt_row_end = tgt_row_ix + tex_w as usize;
+
+                    let tgt_width = tgt_width as usize;
+                    let tgt_row_ix = tgt_width * tgt_row + tgt_col;
+                    let tgt_row_end = tgt_row_ix + width;
 
                     self.cache_data[tgt_row_ix..tgt_row_end]
                         .clone_from_slice(row);
@@ -545,27 +530,26 @@ impl TextCache {
         );
 
         if cache_updated {
-            self.upload_data(engine)?;
+            log::trace!("uploading TextCache texture");
+            self.upload_texture(engine)?;
         }
 
         match result {
             Ok(BrushAction::Draw(vertices)) => {
-                log::warn!("updating glyphs with {} vertices", vertices.len());
+                // log::warn!("updating glyphs with {} vertices", vertices.len());
                 self.glyph_vertices = vertices;
             }
-            Ok(BrushAction::ReDraw) => {
-                log::warn!("redraw glyphs")
-            }
+            Ok(BrushAction::ReDraw) => {}
             Err(BrushError::TextureTooSmall { suggested }) => {
                 let (x, y) = suggested;
                 let capacity = (x * y) as usize;
                 self.cache_data.resize(capacity, 0u8);
                 self.glyph_vertices.clear();
-                log::warn!("reallocating glyph cache");
+                // log::warn!("reallocating glyph cache");
 
                 self.reallocate(engine, x, y)?;
 
-                log::warn!("trying again");
+                // log::warn!("trying again");
                 self.process_queued(engine, compositor)?;
             }
         }

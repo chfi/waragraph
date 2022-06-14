@@ -35,6 +35,7 @@ pub trait LayoutElement: Sized {
 }
 
 impl<U> LayoutElement for Rect<f32, U> {
+    // Splits at the given offset (from the left hand side of the rectangle)
     fn split_hor(self, at: f32) -> [Self; 2] {
         let mut r0 = self;
         r0.size.width = at;
@@ -46,6 +47,7 @@ impl<U> LayoutElement for Rect<f32, U> {
         [r0, r1]
     }
 
+    // Splits at the given offset (from the top of the rectangle)
     fn split_ver(self, at: f32) -> [Self; 2] {
         let mut r0 = self;
         r0.size.height = at;

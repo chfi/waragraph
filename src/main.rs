@@ -2,6 +2,7 @@ use crossbeam::atomic::AtomicCell;
 use euclid::SideOffsets2D;
 use euclid::{point2, size2, Length};
 use gfa::gfa::GFA;
+use glyph_brush::{Section, Text};
 use parking_lot::{Mutex, RwLock};
 
 use rand::Rng;
@@ -374,36 +375,6 @@ bed::load_bed_file(bed_path, bed_name, column_map)
 
     let mut text_cache = TextCache::new(&mut engine, &compositor)?;
 
-    {
-        use glyph_brush::{Section, Text};
-
-        let t0 = Text::new("this is some text at 16px");
-        let t1 = Text::new("hello world at 32px!!").with_scale(32.0);
-        let t2 = Text::new("40px: abcdefghijkhlmnopqrstuvxyz").with_scale(40.0);
-
-        let s0 = Section::default()
-            .with_screen_position((100.5, 100.0))
-            .add_text(t0);
-
-        text_cache.queue(s0);
-
-        let s1 = Section::default()
-            .with_screen_position((100.0, 200.0))
-            .add_text(t1);
-
-        let s2 = Section::default()
-            .with_screen_position((100.0, 250.0))
-            .add_text(t2);
-        // .add_text(Text::new("yeah hello world!!!!!"));
-
-        text_cache.queue(s1);
-        text_cache.queue(s2);
-
-        text_cache.process_queued(&mut engine, &mut compositor)?;
-    }
-
-    text_cache.upload_data(&mut engine)?;
-
     let mut verlet = VerletSolver::new(width, height);
 
     // waragraph::geometry::dynamics::verlet::add_test_data(&mut verlet);
@@ -460,8 +431,9 @@ bed::load_bed_file(bed_path, bed_name, column_map)
                     log::error!("Compositor error: {:?}", e);
                 }
 
-
                 cmd_pal.queue_glyphs(&mut text_cache).unwrap();
+
+                text_cache.process_queued(&mut engine, &mut compositor).unwrap();
                 cmd_pal.update_layer(
                     &mut compositor,
                     "command-palette",
@@ -469,8 +441,10 @@ bed::load_bed_file(bed_path, bed_name, column_map)
                     "lines",
                 ).unwrap();
 
-
-                if let Err(e) = text_cache.update_layer(&mut compositor, "command-palette", "glyphs") {
+                if let Err(e) = text_cache
+                    .update_layer(&mut compositor,
+                                  "command-palette",
+                                  "glyphs") {
                     panic!("Text cache error: {:?}", e);
                 }
 
