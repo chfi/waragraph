@@ -93,7 +93,6 @@ impl TextCache {
                     let info = vk::DescriptorImageInfo::builder()
                         .image_layout(layout)
                         .image_view(image_view)
-                        // .sampler(sampler)
                         .build();
 
                     let sampler_info = vk::DescriptorImageInfo::builder()
@@ -221,9 +220,12 @@ impl TextCache {
     pub fn reallocate(
         &mut self,
         engine: &mut VkEngine,
-        compositor: &Compositor,
+        width: u32,
+        height: u32,
     ) -> Result<()> {
-        /*
+        log::error!("reallocating to ({}, {})", width, height);
+        let format = Self::cache_format();
+
         engine.with_allocators(|ctx, res, alloc| {
             let usage = vk::ImageUsageFlags::TRANSFER_DST
                 | vk::ImageUsageFlags::SAMPLED
@@ -243,33 +245,70 @@ impl TextCache {
 
             let image_view = image_res.create_image_view(ctx)?;
 
-            let image_ix = res.insert_image(image_res);
+            if let Some(old_view) =
+                res.insert_image_view_at(self.cache_img_view, image_view)
+            {
+                unsafe {
+                    ctx.device().destroy_image_view(old_view, None);
+                };
+            }
+
+            if let Some(old_image) =
+                res.insert_image_at(self.cache_img, image_res)
+            {
+                res.free_image(ctx, alloc, old_image)?;
+            }
 
             let layout = vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL;
 
-            let desc_set = res.allocate_desc_set_raw(
-                layout_info,
-                set_info,
+            res.write_desc_set_raw(
+                &self.set_info,
+                res[self.cache_texture_set],
                 |res, desc_builder| {
                     let info = vk::DescriptorImageInfo::builder()
                         .image_layout(layout)
                         .image_view(image_view)
                         .build();
 
-                    desc_builder.bind_image(0, &[info]);
+                    let sampler_info = vk::DescriptorImageInfo::builder()
+                        .sampler(res[self.sampler])
+                        .build();
+
+                    desc_builder.bind_image(0, &[sampler_info]);
+                    desc_builder.bind_image(1, &[info]);
 
                     Ok(())
                 },
             )?;
 
-            let view_ix = res.insert_image_view(image_view);
-            let set_ix = res.insert_desc_set(desc_set);
+            Ok(())
+        })?;
 
-            // Ok((image_ix, view_ix, set_ix))
+        self.brush.resize_texture(width, height);
+
+        engine.submit_queue_fn(|ctx, res, alloc, cmd| {
+            let src_access_mask = vk::AccessFlags::empty();
+            let src_stage_mask = vk::PipelineStageFlags::TOP_OF_PIPE;
+
+            let dst_access_mask = vk::AccessFlags::TRANSFER_WRITE;
+            let dst_stage_mask = vk::PipelineStageFlags::TRANSFER;
+
+            let image = &res[self.cache_img];
+
+            VkEngine::transition_image(
+                cmd,
+                ctx.device(),
+                image.image,
+                src_access_mask,
+                src_stage_mask,
+                dst_access_mask,
+                dst_stage_mask,
+                vk::ImageLayout::UNDEFINED,
+                vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL,
+            );
 
             Ok(())
         })?;
-        */
 
         Ok(())
     }
@@ -319,18 +358,48 @@ impl TextCache {
     }
 
     pub fn new(engine: &mut VkEngine, compositor: &Compositor) -> Result<Self> {
+        let _dejavu = FontArc::try_from_slice(include_bytes!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/dejavu-fonts-ttf-2.37/ttf/DejaVuSans.ttf"
+        )))?;
+
         let dejavu = FontArc::try_from_slice(include_bytes!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/dejavu-fonts-ttf-2.37/ttf/DejaVuSerif.ttf"
+        )))?;
+
+        let dejavu_mono = FontArc::try_from_slice(include_bytes!(concat!(
             env!("CARGO_MANIFEST_DIR"),
             "/dejavu-fonts-ttf-2.37/ttf/DejaVuSansMono.ttf"
         )))?;
 
-        let _dejavu_bold = FontArc::try_from_slice(include_bytes!(concat!(
+        let dejavu_bold = FontArc::try_from_slice(include_bytes!(concat!(
             env!("CARGO_MANIFEST_DIR"),
             "/dejavu-fonts-ttf-2.37/ttf/DejaVuSansMono-Bold.ttf"
         )))?;
 
-        let glyph_brush: GlyphBrush<GlyphVx> =
-            GlyphBrushBuilder::using_font(dejavu).build();
+        let mut glyph_brush: GlyphBrushBuilder<_> =
+            GlyphBrushBuilder::using_font(dejavu);
+        // .draw_cache_position_tolerance(0.5)
+        // .draw_cache_scale_tolerance(1.0)
+        //
+        // .draw_cache_position_tolerance(0.0)
+        // .draw_cache_scale_tolerance(0.0)
+        //
+        // .draw_cache_scale_tolerance(1000.0)
+        // .build();
+
+        /*
+        {
+            let mut builder = glyph_brush.draw_cache_builder.clone();
+            builder = builder.pad_glyphs(true);
+            glyph_brush.draw_cache_builder = builder;
+        }
+        */
+
+        let mut glyph_brush: GlyphBrush<GlyphVx> =
+            glyph_brush.initial_cache_size((16, 16)).build();
+        // GlyphBrushBuilder::using_font(dejavu_bold).build();
 
         let (width, height) = glyph_brush.texture_dimensions();
 
@@ -342,12 +411,19 @@ impl TextCache {
 
         let sampler = {
             let norm_sampler_info = vk::SamplerCreateInfo::builder()
+                // .mag_filter(vk::Filter::LINEAR)
+                // .min_filter(vk::Filter::LINEAR)
                 .mag_filter(vk::Filter::LINEAR)
                 .min_filter(vk::Filter::LINEAR)
-                .address_mode_u(vk::SamplerAddressMode::REPEAT)
-                .address_mode_v(vk::SamplerAddressMode::REPEAT)
-                .address_mode_w(vk::SamplerAddressMode::REPEAT)
-                .anisotropy_enable(false)
+                // .address_mode_u(vk::SamplerAddressMode::REPEAT)
+                // .address_mode_v(vk::SamplerAddressMode::REPEAT)
+                // .address_mode_w(vk::SamplerAddressMode::REPEAT)
+                .address_mode_u(vk::SamplerAddressMode::CLAMP_TO_EDGE)
+                .address_mode_v(vk::SamplerAddressMode::CLAMP_TO_EDGE)
+                .address_mode_w(vk::SamplerAddressMode::CLAMP_TO_EDGE)
+                // .anisotropy_enable(false)
+                .anisotropy_enable(true)
+                .max_anisotropy(16.0)
                 .mipmap_mode(vk::SamplerMipmapMode::LINEAR)
                 .mip_lod_bias(0.0)
                 .min_lod(0.0)
@@ -470,10 +546,7 @@ impl TextCache {
 
                 let color = rgb::RGBA::new(0.0f32, 0.0, 0.0, 1.0);
 
-                let w = pixel.width();
-                let h = pixel.height();
-
-                log::warn!("processing glyph: {:?}", glyph_vx);
+                // log::warn!("processing glyph: {:?}", glyph_vx);
 
                 glyph_vertex(dst, src, color)
             },
@@ -492,8 +565,12 @@ impl TextCache {
                 let capacity = (x * y) as usize;
                 self.cache_data.resize(capacity, 0u8);
                 self.glyph_vertices.clear();
-                log::warn!("reallocate glyph cache");
-                todo!("need to reallocate!");
+                log::warn!("reallocating glyph cache");
+
+                self.reallocate(engine, x, y)?;
+
+                log::warn!("trying again");
+                self.process_queued(engine, compositor)?;
             }
         }
 

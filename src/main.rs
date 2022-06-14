@@ -366,27 +366,17 @@ bed::load_bed_file(bed_path, bed_name, column_map)
     let mut text_cache = TextCache::new(&mut engine, &compositor)?;
 
     {
-        use glyph_brush::{
-            ab_glyph::FontArc, BrushAction, BrushError, GlyphBrushBuilder,
-            HorizontalAlign, Layout, Section, Text,
-        };
+        use glyph_brush::{Section, Text};
 
         let t0 = Text::new("this is some text at 16px");
-        let t1 = Text::new("hello world at 20px!!").with_scale(20.0);
-        // let t2 = Text::new("24px: ABCDEFGHIJKLMNOPQRSTUVWXYZ").with_scale(24.0);
-        let t2 = Text::new("24px: abcdefghijkhlmnopqrstuvxyz").with_scale(24.0);
+        let t1 = Text::new("hello world at 32px!!").with_scale(32.0);
+        let t2 = Text::new("14px: abcdefghijkhlmnopqrstuvxyz").with_scale(14.0);
 
         let s0 = Section::default()
-            .with_screen_position((100.0, 100.0))
-            // .with_layout(Layout::default().h_align(HorizontalAlign::Center))
-            // .with_bounds((80.0, 20.0))
+            .with_screen_position((100.5, 100.0))
             .add_text(t0);
 
         text_cache.queue(s0);
-
-        // text_cache.process_queued(&mut engine, &mut compositor)?;
-
-        log::error!("AND AGAIN");
 
         let s1 = Section::default()
             .with_screen_position((100.0, 200.0))
@@ -404,7 +394,6 @@ bed::load_bed_file(bed_path, bed_name, column_map)
     }
 
     text_cache.upload_data(&mut engine)?;
-    dbg!();
 
     let mut verlet = VerletSolver::new(width, height);
 
@@ -462,10 +451,12 @@ bed::load_bed_file(bed_path, bed_name, column_map)
                     log::error!("Compositor error: {:?}", e);
                 }
 
+                /*
                 if let Err(e) =
                     text_cache.update_layer(&mut compositor, "command-palette", "glyphs") {
                     log::error!("Text layer update error: {:?}", e);
                 }
+                */
 
                 {
                     let [width, height] = swapchain_dims.load();
