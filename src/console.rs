@@ -279,7 +279,11 @@ impl Console {
                     {
                         log::warn!("evaluating command {}:{}", module, cmd);
                         let engine = self.create_engine(db, buffers);
-                        cmd_pal.run_command(&engine, module, cmd)?;
+                        if let Err(e) =
+                            cmd_pal.run_command(&engine, module, cmd)
+                        {
+                            log::error!("command palette error: {:?}", e);
+                        }
                     }
                 } else {
                     match eval_scope_ast::<rhai::Dynamic>(

@@ -4,12 +4,13 @@ use std::{collections::HashMap, path::PathBuf, sync::Arc};
 
 use anyhow::{anyhow, bail, Result};
 
+use parking_lot::RwLock;
 use raving::compositor::Compositor;
 use rhai::plugin::*;
 
 use crate::text::TextCache;
 
-#[derive(Clone)]
+#[derive(Default, Clone)]
 pub struct CommandModuleBuilder {
     pub name: rhai::ImmutableString,
     pub desc: rhai::ImmutableString,
@@ -102,14 +103,95 @@ impl CommandPalette {
         */
 
         let source_path: PathBuf = path.into();
-        let ast = engine.compile_file(source_path.clone())?;
 
-        // let builder = engine.eval_ast_with_scope(ast)
-        let builder: CommandModuleBuilder = engine.eval_ast(&ast)?;
+        let builder = Arc::new(RwLock::new(CommandModuleBuilder::default()));
 
+        let ast = {
+            let mut engine = engine;
+
+            let b = builder.clone();
+            engine.register_fn("set_name", move |name: &str| {
+                let mut b = b.write();
+                b.name = name.into();
+            });
+
+            let b = builder.clone();
+            engine.register_fn("set_desc", move |desc: &str| {
+                let mut b = b.write();
+                b.desc = desc.into();
+            });
+            let b = builder.clone();
+            engine.register_fn(
+                "add_command",
+                move |name: &str, desc: &str, fn_ptr: rhai::FnPtr| {
+                    let mut b = b.write();
+                    b.commands.insert(name.into(), fn_ptr.into());
+                },
+            );
+
+            let ast = engine.compile_file(source_path.clone())?;
+
+            // let builder = engine.eval_ast_with_scope(ast)
+            // let builder: CommandModuleBuilder = engine.eval_ast(&ast)?;
+            let _: () = engine.eval_ast(&ast)?;
+
+            ast
+        };
+
+        dbg!();
+
+        let builder = Arc::try_unwrap(builder)
+            .map_err(|_| anyhow!("Builder still shared!"))?
+            .into_inner();
+
+        let ast = ast.clone_functions_only_filtered(
+            |ns, acc, global, name, arity| {
+                log::error!(
+                    "{:?}\t{:?}\t{:?}\t{:?}\t{:?}",
+                    ns,
+                    acc,
+                    global,
+                    name,
+                    arity
+                );
+                true
+            },
+        );
         let ast = Arc::new(ast);
 
-        let module = builder.build(ast, source_path)?;
+        let mut module = builder.build(ast.clone(), source_path)?;
+
+        dbg!();
+
+        for f in ast.iter_functions() {
+            if f.name.starts_with("anon$") {
+                // log::warn!("skipping anon");
+                continue;
+            }
+
+            let mut desc = String::new();
+
+            for line in f.comments.iter() {
+                if let Some(rest) = line.strip_prefix("/// ") {
+                    desc.push_str(rest);
+                    desc.push_str("\n");
+                }
+            }
+
+            let desc = rhai::ImmutableString::from(desc);
+
+            log::warn!("f.name: {}", f.name);
+            let fn_ptr = rhai::FnPtr::new(f.name.clone())?;
+
+            module.commands.insert(f.name.into(), fn_ptr);
+
+            log::warn!(" >>>> inserted {}", f.name);
+
+            // l
+            // let desc = f.comments.iter().clone().join("\n");
+        }
+
+        dbg!();
 
         log::warn!(
             "loaded module `{}` with {} commands",
@@ -140,7 +222,11 @@ impl CommandPalette {
                 let res: rhai::Dynamic =
                     fn_ptr.call(engine, &module.fn_ptr_ast, ())?;
                 log::error!("command result: {:?}", res);
+            } else {
+                bail!("Unknown command `{}:{}`", module.name, cmd);
             }
+        } else {
+            bail!("Unknown module `{}`", module);
         }
 
         Ok(())
