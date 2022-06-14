@@ -11,6 +11,7 @@ use raving::script::console::frame::Resolvable;
 use raving::vk::{DescSetIx, VkEngine, WindowResources};
 
 use waragraph::cli::ViewerArgs;
+use waragraph::command::CommandPalette;
 use waragraph::console::layout::LabelStacks;
 use waragraph::console::{Console, ConsoleInput};
 
@@ -362,6 +363,13 @@ bed::load_bed_file(bed_path, bed_name, column_map)
             }
         }
     }
+
+    let mut cmd_pal = CommandPalette::new();
+
+    cmd_pal.load_rhai_module(
+        console.create_engine(&db, &buffers),
+        "internals/bed_cmd.rhai",
+    )?;
 
     let mut text_cache = TextCache::new(&mut engine, &compositor)?;
 
@@ -851,6 +859,7 @@ bed::load_bed_file(bed_path, bed_name, column_map)
                                     &db,
                                     &buffers,
                                     ConsoleInput::AppendChar(c),
+                                    &mut cmd_pal,
                                 )
                                 .unwrap();
                         }
@@ -880,6 +889,7 @@ bed::load_bed_file(bed_path, bed_name, column_map)
                                         &db,
                                         &buffers,
                                         ConsoleInput::Submit,
+                                        &mut cmd_pal,
                                     ) {
                                         log::error!("Console error: {:?}", e);
                                     }
@@ -889,6 +899,7 @@ bed::load_bed_file(bed_path, bed_name, column_map)
                                             &db,
                                             &buffers,
                                             ConsoleInput::Backspace,
+                                            &mut cmd_pal,
                                         )
                                         .unwrap();
                                 }

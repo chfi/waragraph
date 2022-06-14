@@ -20,7 +20,10 @@ use anyhow::{anyhow, bail, Result};
 
 use bstr::ByteSlice as BstrByteSlice;
 
-use crate::util::{BufFmt, BufId, BufMeta, BufferStorage};
+use crate::{
+    command::CommandPalette,
+    util::{BufFmt, BufId, BufMeta, BufferStorage},
+};
 
 use lazy_static::lazy_static;
 
@@ -258,6 +261,7 @@ impl Console {
         db: &sled::Db,
         buffers: &BufferStorage,
         input: ConsoleInput,
+        cmd_pal: &mut CommandPalette,
     ) -> Result<()> {
         match input {
             ConsoleInput::AppendChar(c) => {
@@ -267,34 +271,46 @@ impl Console {
             ConsoleInput::Submit => {
                 let ast = Arc::make_mut(&mut self.ast);
 
-                match eval_scope_ast::<rhai::Dynamic>(
-                    ast,
-                    &mut self.scope,
-                    &self.modules,
-                    db,
-                    buffers,
-                    &self.input,
-                ) {
-                    Ok(r) => {
-                        let body = match r.type_name() {
-                            // "string" => {
-                            //     format!("{}", r.cast::<rhai::ImmutableString>())
-                            // }
-                            "waragraph::graph::Node" => format!(
-                                "Node: {}",
-                                r.cast::<crate::graph::Node>()
-                            ),
-                            "waragraph::graph::Path" => format!(
-                                "Path: {}",
-                                r.cast::<crate::graph::Path>().ix()
-                            ),
-                            "()" => "()".to_string(),
-                            _ => format!("{}: {}", r.type_name(), r),
-                        };
-                        log::warn!("Console result: {}", body);
+                if let Some(rest) = self.input.strip_prefix(":cmd ") {
+                    let mut fields = rest.split_whitespace();
+
+                    if let Some((module, cmd)) =
+                        fields.next().and_then(|m| Some((m, fields.next()?)))
+                    {
+                        log::warn!("evaluating command {}:{}", module, cmd);
+                        let engine = self.create_engine(db, buffers);
+                        cmd_pal.run_command(&engine, module, cmd)?;
                     }
-                    Err(e) => {
-                        log::error!("Console error: {:?}", e);
+                } else {
+                    match eval_scope_ast::<rhai::Dynamic>(
+                        ast,
+                        &mut self.scope,
+                        &self.modules,
+                        db,
+                        buffers,
+                        &self.input,
+                    ) {
+                        Ok(r) => {
+                            let body = match r.type_name() {
+                                // "string" => {
+                                //     format!("{}", r.cast::<rhai::ImmutableString>())
+                                // }
+                                "waragraph::graph::Node" => format!(
+                                    "Node: {}",
+                                    r.cast::<crate::graph::Node>()
+                                ),
+                                "waragraph::graph::Path" => format!(
+                                    "Path: {}",
+                                    r.cast::<crate::graph::Path>().ix()
+                                ),
+                                "()" => "()".to_string(),
+                                _ => format!("{}: {}", r.type_name(), r),
+                            };
+                            log::warn!("Console result: {}", body);
+                        }
+                        Err(e) => {
+                            log::error!("Console error: {:?}", e);
+                        }
                     }
                 }
                 self.input.clear();
