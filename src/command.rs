@@ -4,12 +4,15 @@ use std::{collections::HashMap, path::PathBuf, sync::Arc};
 
 use anyhow::{anyhow, bail, Result};
 
+use euclid::Length;
 use parking_lot::RwLock;
 use raving::compositor::Compositor;
 use rhai::plugin::*;
 
 use crate::{
-    geometry::{LayoutElement, ScreenPoint, ScreenRect, ScreenSideOffsets},
+    geometry::{
+        LayoutElement, ListLayout, ScreenPoint, ScreenRect, ScreenSideOffsets,
+    },
     text::TextCache,
     viewer::gui::layer::rect_rgba,
 };
@@ -29,7 +32,7 @@ impl CommandModuleBuilder {
         ast: Arc<rhai::AST>,
         source_path: PathBuf,
     ) -> Result<CommandModule> {
-        let mut commands: HashMap<rhai::ImmutableString, Command> =
+        let mut commands: HashMap<rhai::ImmutableString, Arc<Command>> =
             HashMap::default();
 
         for (key, val) in self.commands {
@@ -39,7 +42,7 @@ impl CommandModuleBuilder {
             */
 
             if let Some(fn_ptr) = val.try_cast::<rhai::FnPtr>() {
-                commands.insert(key.into(), Command::new(fn_ptr));
+                commands.insert(key.into(), Arc::new(Command::new(fn_ptr)));
             }
         }
 
@@ -52,14 +55,42 @@ impl CommandModuleBuilder {
             fn_ptr_ast: ast,
 
             source_path,
+            // list_view: ListView::new(None),
         })
     }
 }
 
-#[derive(Clone)]
+// pub enum ResultType {
+//     Value { output: rhai::ImmutableString },
+//     // Command { command: Arc<Command>, output: rhai::ImmutableString },
+//     Command { output: rhai::Immutable
+// }
+
+#[derive(Debug, Clone)]
+pub enum ResultProducer {
+    Value(rhai::Dynamic),
+    Command {
+        module: rhai::ImmutableString,
+        command: rhai::ImmutableString,
+    },
+    // Command(Arc<Command>),
+}
+
+// pub struct CommandOutput
+#[derive(Debug, Clone)]
+pub struct ResultItem {
+    text: rhai::ImmutableString,
+
+    ty: rhai::ImmutableString,
+
+    item: ResultProducer,
+}
+
+#[derive(Debug, Clone)]
 pub struct Command {
     pub fn_ptr: rhai::FnPtr,
     pub inputs: HashMap<rhai::ImmutableString, rhai::ImmutableString>,
+    pub output: Option<rhai::ImmutableString>,
 }
 
 impl Command {
@@ -67,6 +98,7 @@ impl Command {
         Self {
             fn_ptr,
             inputs: HashMap::default(),
+            output: None,
         }
     }
 }
@@ -75,12 +107,21 @@ pub struct CommandModule {
     pub name: rhai::ImmutableString,
     pub desc: rhai::ImmutableString,
 
-    commands: HashMap<rhai::ImmutableString, Command>,
+    commands: HashMap<rhai::ImmutableString, Arc<Command>>,
 
     fn_ptr_ast: Arc<rhai::AST>,
 
     source_path: PathBuf,
     // source_filename: rhai::ImmutableString,
+    // results: Vec<ResultProducer>,
+    // list_view: ListView<ResultItem>,
+}
+
+pub enum CommandInput {
+    MoveDown,
+    MoveUp,
+    Select,
+    Clear,
 }
 
 pub struct CommandPalette {
@@ -93,6 +134,9 @@ pub struct CommandPalette {
     modules: HashMap<rhai::ImmutableString, CommandModule>,
 
     offset: ScreenPoint,
+
+    rect: ScreenRect,
+    layout: ListLayout,
 }
 
 impl CommandPalette {
@@ -183,7 +227,11 @@ impl CommandPalette {
                         let name = fields.next().unwrap();
                         let ty = fields.next().unwrap();
 
-                        cmd.inputs.insert(name.into(), ty.trim().into());
+                        if name == "->" {
+                            cmd.output = Some(ty.trim().into());
+                        } else {
+                            cmd.inputs.insert(name.into(), ty.trim().into());
+                        }
                     } else {
                         desc.push_str(rest.trim());
                         desc.push_str("\n");
@@ -196,7 +244,9 @@ impl CommandPalette {
             log::warn!("INPUTS: {:?}", cmd.inputs);
             log::warn!("desc: {}", desc);
 
-            module.commands.insert(f.name.into(), cmd);
+            log::error!("Command: {:#?}", cmd);
+
+            module.commands.insert(f.name.into(), Arc::new(cmd));
 
             log::warn!(" >>>> inserted {}", f.name);
         }
@@ -213,11 +263,28 @@ impl CommandPalette {
     }
 
     pub fn new() -> Self {
+        let bg_rect = euclid::rect(80.0, 80.0, 500.0, 500.0);
+
+        let [top, bottom] = bg_rect.split_ver(bg_rect.height() * 0.15);
+
+        let pad = ScreenSideOffsets::new(8.0, 8.0, 8.0, 8.0);
+
+        let layout = ListLayout {
+            origin: bottom.origin,
+            size: bottom.size,
+            side_offsets: Some(pad),
+            slot_height: Length::new(60.0),
+        };
+
         Self {
             input_buffer: String::new(),
             modules: HashMap::new(),
 
             offset: ScreenPoint::new(100.0, 100.0),
+
+            layout,
+
+            rect: bg_rect,
         }
     }
 
@@ -242,10 +309,15 @@ impl CommandPalette {
         Ok(())
     }
 
-    // TODO
     pub fn window_rect(&self) -> ScreenRect {
-        let bg_rect = euclid::rect(80.0, 80.0, 500.0, 500.0);
-        bg_rect
+        self.rect
+    }
+
+    // TODO
+    pub fn list_rect(&self) -> ScreenRect {
+        let rect = self.layout.inner_rect();
+        // let bg_rect = euclid::rect(80.0, 80.0, 500.0, 500.0);
+        rect
     }
 
     pub fn queue_glyphs(&self, text_cache: &mut TextCache) -> Result<()> {

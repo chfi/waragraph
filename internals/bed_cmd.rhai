@@ -14,11 +14,19 @@ fn another_command(bed_path) {
 /// Load a BED file
 ///
 /// @bed_path: PathBuf
+/// @->: BED
 fn load_bed(bed_path) {
   import "script/bed" as bed;
-  bed::load_bed_file(bed_path,
-                     "betaglobin",
-                     #{ "name": 3 })
+  bed::load_bed_file(bed_path);
+}
+
+
+/// Change visualization mode to a BED column
+///
+/// @bed: BED
+/// @column: BEDColumn
+fn display_column(bed, column) {
+  // logic here
 }
 
 /// This is a zero-arity command
