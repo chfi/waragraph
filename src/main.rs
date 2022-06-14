@@ -379,7 +379,7 @@ bed::load_bed_file(bed_path, bed_name, column_map)
 
         let t0 = Text::new("this is some text at 16px");
         let t1 = Text::new("hello world at 32px!!").with_scale(32.0);
-        let t2 = Text::new("14px: abcdefghijkhlmnopqrstuvxyz").with_scale(14.0);
+        let t2 = Text::new("40px: abcdefghijkhlmnopqrstuvxyz").with_scale(40.0);
 
         let s0 = Section::default()
             .with_screen_position((100.5, 100.0))
@@ -406,7 +406,7 @@ bed::load_bed_file(bed_path, bed_name, column_map)
 
     let mut verlet = VerletSolver::new(width, height);
 
-    waragraph::geometry::dynamics::verlet::add_test_data(&mut verlet);
+    // waragraph::geometry::dynamics::verlet::add_test_data(&mut verlet);
 
     let mut prev_frame = std::time::Instant::now();
 
@@ -468,6 +468,11 @@ bed::load_bed_file(bed_path, bed_name, column_map)
                     "rects",
                     "lines",
                 ).unwrap();
+
+
+                if let Err(e) = text_cache.update_layer(&mut compositor, "command-palette", "glyphs") {
+                    panic!("Text cache error: {:?}", e);
+                }
 
 
                 // text_cache

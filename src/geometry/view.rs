@@ -143,7 +143,6 @@ where
 
     #[must_use]
     pub fn shift_right(&self, delta: I) -> Self {
-        log::warn!("shift right by {:?}", delta);
         let mut new = *self;
 
         let delta = Length::new(delta);
@@ -153,14 +152,12 @@ where
         } else {
             new.offset = self.offset + delta;
         }
-        log::warn!("new offset: {:?}", new.offset);
 
         new
     }
 
     #[must_use]
     pub fn shift_left(&self, delta: I) -> Self {
-        log::warn!("shift left by {:?}", delta);
         let mut new = *self;
 
         let delta = Length::new(delta);
@@ -170,7 +167,6 @@ where
         } else {
             new.offset = self.offset - delta;
         }
-        log::warn!("new offset: {:?}", new.offset);
 
         new
     }
@@ -236,9 +232,6 @@ where
     where
         I: ToPrimitive + FromPrimitive + Ord,
     {
-        log::warn!("resize_around: {:?}", self);
-        log::warn!("resize around {:?} -> {:?}", around, new_len);
-
         let around = around.clamp(self.offset.0, self.offset.0 + self.len.0);
         let t = (around - self.offset.0).to_f64().unwrap()
             / self.len.0.to_f64().unwrap();
@@ -252,7 +245,6 @@ where
             let new = self.resize_from_left(new_len);
             new.shift_left(I::from_f64(diff).unwrap())
         };
-        log::warn!("after: {:?}", new);
 
         new
     }

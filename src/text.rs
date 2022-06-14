@@ -358,12 +358,12 @@ impl TextCache {
     }
 
     pub fn new(engine: &mut VkEngine, compositor: &Compositor) -> Result<Self> {
-        let _dejavu = FontArc::try_from_slice(include_bytes!(concat!(
+        let dejavu = FontArc::try_from_slice(include_bytes!(concat!(
             env!("CARGO_MANIFEST_DIR"),
             "/dejavu-fonts-ttf-2.37/ttf/DejaVuSans.ttf"
         )))?;
 
-        let dejavu = FontArc::try_from_slice(include_bytes!(concat!(
+        let _dejavu = FontArc::try_from_slice(include_bytes!(concat!(
             env!("CARGO_MANIFEST_DIR"),
             "/dejavu-fonts-ttf-2.37/ttf/DejaVuSerif.ttf"
         )))?;
@@ -378,28 +378,18 @@ impl TextCache {
             "/dejavu-fonts-ttf-2.37/ttf/DejaVuSansMono-Bold.ttf"
         )))?;
 
-        let mut glyph_brush: GlyphBrushBuilder<_> =
-            GlyphBrushBuilder::using_font(dejavu);
-        // .draw_cache_position_tolerance(0.5)
-        // .draw_cache_scale_tolerance(1.0)
+        let glyph_brush: GlyphBrush<GlyphVx> =
+            GlyphBrushBuilder::using_font(dejavu)
+                // .draw_cache_position_tolerance(0.0)
+                .draw_cache_position_tolerance(0.1)
+                .draw_cache_scale_tolerance(0.5)
+                .build();
         //
         // .draw_cache_position_tolerance(0.0)
         // .draw_cache_scale_tolerance(0.0)
         //
         // .draw_cache_scale_tolerance(1000.0)
         // .build();
-
-        /*
-        {
-            let mut builder = glyph_brush.draw_cache_builder.clone();
-            builder = builder.pad_glyphs(true);
-            glyph_brush.draw_cache_builder = builder;
-        }
-        */
-
-        let mut glyph_brush: GlyphBrush<GlyphVx> =
-            glyph_brush.initial_cache_size((16, 16)).build();
-        // GlyphBrushBuilder::using_font(dejavu_bold).build();
 
         let (width, height) = glyph_brush.texture_dimensions();
 
