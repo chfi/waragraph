@@ -154,12 +154,18 @@ fn gui_init(globals, label_space) {
   ui::allocate_sublayer("edges", "line-rgb", "lines");
   ui::allocate_sublayer("edges", "rect-rgb", "rects");
 
-  // ui::toggle_layer("path-slots", false);
+  ui::toggle_layer("path-slots", false);
 
   ui::init_layer("verlet", 50, false);
   ui::allocate_sublayer("verlet", "rect-rgb", "rects");
   ui::allocate_sublayer("verlet", "line-rgb", "lines");
   ui::allocate_sublayer("verlet", "line-rgb-2", "lines-2");
+
+  ui::init_layer("command-palette", 100, false);
+  ui::allocate_sublayer("command-palette", "rect-rgb", "rects");
+  ui::allocate_sublayer("command-palette", "line-rgb", "lines");
+  ui::allocate_sublayer("command-palette", "line-rgb-2", "lines-2");
+  ui::allocate_sublayer("command-palette", "glyph", "glyphs");
 }
 
 props.set("prev_slot", false);

@@ -8,7 +8,9 @@ use parking_lot::RwLock;
 use raving::compositor::Compositor;
 use rhai::plugin::*;
 
-use crate::text::TextCache;
+use crate::{
+    geometry::ScreenPoint, text::TextCache, viewer::gui::layer::rect_rgba,
+};
 
 #[derive(Default, Clone)]
 pub struct CommandModuleBuilder {
@@ -84,9 +86,11 @@ pub struct CommandPalette {
     // output_history: Vec<rhai::Dynamic>,
 
     // stack: Vec<rhai::Dynamic>,
-    input_buffer: String,
+    pub input_buffer: String,
 
     modules: HashMap<rhai::ImmutableString, CommandModule>,
+
+    offset: ScreenPoint,
 }
 
 impl CommandPalette {
@@ -210,6 +214,8 @@ impl CommandPalette {
         Self {
             input_buffer: String::new(),
             modules: HashMap::new(),
+
+            offset: ScreenPoint::new(100.0, 100.0),
         }
     }
 
@@ -235,7 +241,18 @@ impl CommandPalette {
     }
 
     pub fn queue_glyphs(&self, text_cache: &mut TextCache) -> Result<()> {
-        todo!();
+        use glyph_brush::{Section, Text};
+
+        // log::warn!("text: {}", self.input_buffer);
+        let text = Text::new(&self.input_buffer).with_scale(20.0);
+
+        let section = Section::default()
+            .with_screen_position((self.offset.x, self.offset.y))
+            .add_text(text);
+
+        text_cache.queue(section);
+
+        Ok(())
     }
 
     pub fn update_layer(
@@ -246,10 +263,26 @@ impl CommandPalette {
         line_sublayer: &str,
     ) -> Result<()> {
         compositor.with_layer(layer_name, |layer| {
-            // if let Some(sublayer_data) = layer
+            if let Some(sublayer_data) = layer
+                .get_sublayer_mut(line_sublayer)
+                .and_then(|s| s.draw_data_mut().next())
+            {
+                //
+            }
+
+            if let Some(sublayer_data) = layer
+                .get_sublayer_mut(rect_sublayer)
+                .and_then(|s| s.draw_data_mut().next())
+            {
+                // let bg_rect = euclid::rect(80.0, 80.0, 500.0, 500.0);
+                // let color = rgb::RGBA::new(0.75, 0.75, 0.75, 1.0);
+                // sublayer_data
+                //     .update_vertices_array(Some(rect_rgba(bg_rect, color)));
+                //
+            }
 
             Ok(())
-        });
+        })?;
 
         Ok(())
     }

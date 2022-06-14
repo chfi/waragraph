@@ -500,9 +500,11 @@ impl TextCache {
         log::error!("processing queued sections");
 
         // let mut glyphs_to_upload = Vec::new();
+        let mut cache_updated = false;
 
         let result = self.brush.process_queued(
             |rect, tex_data| {
+                cache_updated = true;
                 log::warn!("received rect: {:?}", rect);
                 log::warn!("tex_data len: {}", tex_data.len());
 
@@ -551,6 +553,10 @@ impl TextCache {
                 glyph_vertex(dst, src, color)
             },
         );
+
+        if cache_updated {
+            self.upload_data(engine)?;
+        }
 
         match result {
             Ok(BrushAction::Draw(vertices)) => {

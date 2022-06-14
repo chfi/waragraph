@@ -365,6 +365,7 @@ bed::load_bed_file(bed_path, bed_name, column_map)
     }
 
     let mut cmd_pal = CommandPalette::new();
+    cmd_pal.input_buffer = String::from("hello world!!!");
 
     cmd_pal.load_rhai_module(
         console.create_engine(&db, &buffers),
@@ -459,12 +460,36 @@ bed::load_bed_file(bed_path, bed_name, column_map)
                     log::error!("Compositor error: {:?}", e);
                 }
 
-                /*
-                if let Err(e) =
-                    text_cache.update_layer(&mut compositor, "command-palette", "glyphs") {
-                    log::error!("Text layer update error: {:?}", e);
-                }
-                */
+
+                cmd_pal.queue_glyphs(&mut text_cache).unwrap();
+                cmd_pal.update_layer(
+                    &mut compositor,
+                    "command-palette",
+                    "rects",
+                    "lines",
+                ).unwrap();
+
+
+                // text_cache
+
+                // if let Err(e) = text_cache
+                //     .process_queued(&mut engine, &mut compositor)
+                //     .and_then(|_| {
+                //         text_cache.update_layer(
+                //             &mut compositor,
+                //             "command-palette",
+                //             "glyphs"
+                //         )?;
+
+
+                //         log::warn!("this is good");
+
+                //         Ok(())
+
+                //     })
+                // {
+                //     panic!("Text cache error: {:?}", e);
+                // }
 
                 {
                     let [width, height] = swapchain_dims.load();

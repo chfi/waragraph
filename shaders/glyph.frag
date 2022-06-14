@@ -23,6 +23,7 @@ void main() {
   float a = 0.75 * alpha + 0.25 * nbor_alpha;
   */
 
-  f_color = i_color * alpha;
+  // f_color = i_color * alpha;
   // f_color = i_color * a;
+  f_color = vec4(0.0, 0.0, 0.0, alpha);
 }

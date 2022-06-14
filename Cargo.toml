@@ -56,7 +56,10 @@ ctrlc = "3.2"
 
 anyhow = "1.0"
 
-rhai = { version = "1.7", features = ["sync", "f32_float", "internals"] }
+rhai = { version = "1.7", features = ["sync",
+                                      "f32_float",
+                                      "internals",
+                                      "metadata"] }
 
 # temporary deps while i'm working on this as both the library & viewer
 
