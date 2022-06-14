@@ -154,7 +154,7 @@ fn gui_init(globals, label_space) {
   ui::allocate_sublayer("edges", "line-rgb", "lines");
   ui::allocate_sublayer("edges", "rect-rgb", "rects");
 
-  ui::toggle_layer("path-slots", false);
+  ui::toggle_layer("path-slots", true);
 
   ui::init_layer("verlet", 50, false);
   ui::allocate_sublayer("verlet", "rect-rgb", "rects");
