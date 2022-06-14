@@ -7,6 +7,8 @@ pub mod viewer;
 
 pub mod cli;
 
+pub mod command;
+
 pub mod geometry;
 
 pub mod text;
