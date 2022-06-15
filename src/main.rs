@@ -373,6 +373,8 @@ bed::load_bed_file(bed_path, bed_name, column_map)
         "internals/bed_cmd.rhai",
     )?;
 
+    cmd_pal.build_results();
+
     let mut text_cache = TextCache::new(&mut engine, &compositor)?;
 
     let mut verlet = VerletSolver::new(width, height);

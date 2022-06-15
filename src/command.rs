@@ -131,6 +131,8 @@ pub struct CommandPalette {
     // stack: Vec<rhai::Dynamic>,
     pub input_buffer: String,
 
+    result_texts: Vec<rhai::ImmutableString>,
+
     modules: HashMap<rhai::ImmutableString, CommandModule>,
 
     offset: ScreenPoint,
@@ -262,6 +264,24 @@ impl CommandPalette {
         Ok(())
     }
 
+    pub fn build_results(&mut self) {
+        // self.result_texts.clear();
+
+        let mut results = Vec::new();
+
+        for module in self.modules.values() {
+            for (cmd_name, cmd) in &module.commands {
+                results.push((&module.name, cmd_name));
+            }
+        }
+
+        results.sort();
+
+        self.result_texts.clear();
+        self.result_texts
+            .extend(results.into_iter().map(|(_, cmd)| cmd.to_owned()));
+    }
+
     pub fn new() -> Self {
         let bg_rect = euclid::rect(80.0, 80.0, 500.0, 500.0);
 
@@ -273,7 +293,7 @@ impl CommandPalette {
             origin: bottom.origin,
             size: bottom.size,
             side_offsets: Some(pad),
-            slot_height: Length::new(60.0),
+            slot_height: Length::new(30.0),
         };
 
         Self {
@@ -281,6 +301,8 @@ impl CommandPalette {
             modules: HashMap::new(),
 
             offset: ScreenPoint::new(100.0, 100.0),
+
+            result_texts: Vec::new(),
 
             layout,
 
@@ -323,30 +345,50 @@ impl CommandPalette {
     pub fn queue_glyphs(&self, text_cache: &mut TextCache) -> Result<()> {
         use glyph_brush::{Section, Text};
 
-        // let input_rect = euclid::rect(self.offset.x
-
         let window = self.window_rect();
 
         let [top, bottom] = window.split_ver(window.height() * 0.15);
 
-        let pad = ScreenSideOffsets::new(16.0, 8.0, 8.0, 8.0);
+        let top_pad = ScreenSideOffsets::new(16.0, 8.0, 8.0, 8.0);
 
-        let top = top.inner_rect(pad);
-        let bottom = bottom.inner_rect(pad);
+        let top = top.inner_rect(top_pad);
 
         let input_scale = 24.0;
 
         let input_text = Text::new(&self.input_buffer).with_scale(input_scale);
 
-        let rect = top.inner_rect(pad);
+        let input_rect = top.inner_rect(top_pad);
 
-        let pos = (rect.min_x(), rect.min_y());
+        let pos = (input_rect.min_x(), input_rect.min_y());
 
         let section = Section::default()
             .with_screen_position(pos)
             .add_text(input_text);
 
         text_cache.queue(section);
+
+        let result_scale = 20.0;
+
+        let pad = ScreenSideOffsets::new(8.0, 8.0, 8.0, 8.0);
+
+        for (ix, rect, text) in
+            self.layout.apply_to_rows(self.result_texts.iter())
+        {
+            let text = Text::new(text.as_str()).with_scale(result_scale);
+
+            let r = rect.inner_rect(pad);
+
+            let pos = (r.min_x(), r.min_y());
+            let bounds = (r.max_x(), r.max_y());
+
+            let section = Section::default()
+                .with_screen_position(pos)
+                // .with_layout(layout)
+                .with_bounds(bounds)
+                .add_text(text);
+
+            text_cache.queue(section);
+        }
 
         Ok(())
     }
