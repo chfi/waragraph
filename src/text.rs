@@ -370,9 +370,9 @@ impl TextCache {
             )))?;
 
         let glyph_brush: GlyphBrush<GlyphVx> =
-            // GlyphBrushBuilder::using_font(dejavu_mono)
-            GlyphBrushBuilder::using_font(dejavu_sans)
-                .draw_cache_position_tolerance(0.1)
+            GlyphBrushBuilder::using_font(dejavu_mono)
+                // GlyphBrushBuilder::using_font(dejavu_sans)
+                .draw_cache_position_tolerance(0.0)
                 .draw_cache_scale_tolerance(0.5)
                 .build();
 
@@ -384,13 +384,8 @@ impl TextCache {
 
         let sampler = {
             let norm_sampler_info = vk::SamplerCreateInfo::builder()
-                // .mag_filter(vk::Filter::LINEAR)
-                // .min_filter(vk::Filter::LINEAR)
                 .mag_filter(vk::Filter::LINEAR)
                 .min_filter(vk::Filter::LINEAR)
-                // .address_mode_u(vk::SamplerAddressMode::REPEAT)
-                // .address_mode_v(vk::SamplerAddressMode::REPEAT)
-                // .address_mode_w(vk::SamplerAddressMode::REPEAT)
                 .address_mode_u(vk::SamplerAddressMode::CLAMP_TO_EDGE)
                 .address_mode_v(vk::SamplerAddressMode::CLAMP_TO_EDGE)
                 .address_mode_w(vk::SamplerAddressMode::CLAMP_TO_EDGE)

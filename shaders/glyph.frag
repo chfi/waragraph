@@ -15,7 +15,7 @@ layout (push_constant) uniform Input {
 void main() {
   float alpha = texture(sampler2D(u_image_in, u_sampler), i_uv).r;
 
-  if (alpha > 0.1) {
+  if (alpha > 0.0) {
     vec3 base = i_color.rgb * alpha;
     f_color = vec4(base, alpha);
   } else {

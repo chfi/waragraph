@@ -329,12 +329,13 @@ impl CommandPalette {
 
         let [top, bottom] = window.split_ver(window.height() * 0.15);
 
-        let pad = ScreenSideOffsets::new(8.0, 8.0, 8.0, 8.0);
+        let pad = ScreenSideOffsets::new(16.0, 8.0, 8.0, 8.0);
 
         let top = top.inner_rect(pad);
         let bottom = bottom.inner_rect(pad);
 
         let input_scale = 24.0;
+
         let input_text = Text::new(&self.input_buffer).with_scale(input_scale);
 
         let rect = top.inner_rect(pad);
