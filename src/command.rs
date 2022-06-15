@@ -42,7 +42,8 @@ impl CommandModuleBuilder {
             */
 
             if let Some(fn_ptr) = val.try_cast::<rhai::FnPtr>() {
-                commands.insert(key.into(), Arc::new(Command::new(fn_ptr)));
+                let cmd = Arc::new(Command::new(key.as_str(), fn_ptr));
+                commands.insert(key.into(), cmd);
             }
         }
 
@@ -68,7 +69,7 @@ impl CommandModuleBuilder {
 
 #[derive(Debug, Clone)]
 pub enum ResultProducer {
-    Value(rhai::Dynamic),
+    // Value(rhai::Dynamic),
     Command {
         module: rhai::ImmutableString,
         command: rhai::ImmutableString,
@@ -88,14 +89,18 @@ pub struct ResultItem {
 
 #[derive(Debug, Clone)]
 pub struct Command {
+    pub name: rhai::ImmutableString,
+
+    // pub desc: rhai::ImmutableString,
     pub fn_ptr: rhai::FnPtr,
     pub inputs: HashMap<rhai::ImmutableString, rhai::ImmutableString>,
     pub output: Option<rhai::ImmutableString>,
 }
 
 impl Command {
-    pub fn new(fn_ptr: rhai::FnPtr) -> Self {
+    pub fn new(name: &str, fn_ptr: rhai::FnPtr) -> Self {
         Self {
+            name: name.into(),
             fn_ptr,
             inputs: HashMap::default(),
             output: None,
@@ -117,22 +122,18 @@ pub struct CommandModule {
     // list_view: ListView<ResultItem>,
 }
 
-pub enum CommandInput {
-    MoveDown,
-    MoveUp,
-    Select,
-    Clear,
-}
-
 pub struct CommandPalette {
     // input_history: Vec<String>,
     // output_history: Vec<rhai::Dynamic>,
 
     // stack: Vec<rhai::Dynamic>,
+    selection_focus: Option<usize>,
+
     pub input_buffer: String,
 
-    result_texts: Vec<rhai::ImmutableString>,
-
+    // results: Vec<(rhai::ImmutableString, Arc<Command>)>,
+    results: Vec<ResultItem>,
+    // result_texts: Vec<rhai::ImmutableString>,
     modules: HashMap<rhai::ImmutableString, CommandModule>,
 
     offset: ScreenPoint,
@@ -142,6 +143,94 @@ pub struct CommandPalette {
 }
 
 impl CommandPalette {
+    pub fn handle_input(
+        &mut self,
+        mut engine: rhai::Engine,
+        event: &winit::event::WindowEvent,
+    ) -> Result<()> {
+        use winit::event::{KeyboardInput, VirtualKeyCode as VK, WindowEvent};
+
+        match event {
+            WindowEvent::ReceivedCharacter(c) => {
+                if !c.is_ascii_control() && c.is_ascii() {
+                    self.input_buffer.push(*c);
+                }
+            }
+            WindowEvent::MouseInput { button, state, .. } => {
+                //
+            }
+            WindowEvent::KeyboardInput { input, .. } => {
+                if let Some(key) = input.virtual_keycode {
+                    let pressed =
+                        input.state == winit::event::ElementState::Pressed;
+
+                    match key {
+                        VK::Up => {
+                            // Move result selection up
+                            if pressed {
+                                if let Some(focus) =
+                                    self.selection_focus.as_mut()
+                                {
+                                    if *focus > 0 {
+                                        *focus -= 1;
+                                    }
+                                } else {
+                                    self.selection_focus =
+                                        Some(self.results.len() - 1);
+                                }
+                            }
+                        }
+                        VK::Down => {
+                            // Move result selection down
+                            if pressed {
+                                if let Some(focus) =
+                                    self.selection_focus.as_mut()
+                                {
+                                    if *focus < self.results.len() - 1 {
+                                        *focus += 1;
+                                    }
+                                } else {
+                                    self.selection_focus = Some(0);
+                                }
+                            }
+                        }
+                        VK::Left => {
+                            // Move input focus left
+                            // TODO
+                        }
+                        VK::Right => {
+                            // Move input focus right
+                            // TODO
+                        }
+                        VK::Return => {
+                            // Confirm selection
+                            // TODO
+                            // if let Some(ix) = self.selection_focus.take()
+                            if let Some(item) = self
+                                .selection_focus
+                                .take()
+                                .and_then(|ix| self.results.get(ix))
+                            {
+                                let ResultProducer::Command { module, command } =
+                                    &item.item;
+                                self.run_command(&engine, &module, &command)?;
+                            }
+                        }
+                        VK::Tab => {
+                            // Autocomplete
+                            // TODO
+                        }
+                        _ => (),
+                    }
+                }
+            }
+            _ => (),
+        }
+
+        Ok(())
+        //
+    }
+
     pub fn load_rhai_module(
         &mut self,
         mut engine: rhai::Engine,
@@ -215,7 +304,7 @@ impl CommandPalette {
             log::warn!("f.name: {}", f.name);
             let fn_ptr = rhai::FnPtr::new(f.name.clone())?;
 
-            let mut cmd = Command::new(fn_ptr);
+            let mut cmd = Command::new(f.name, fn_ptr);
 
             for line in f.comments.iter() {
                 if let Some(rest) = line.strip_prefix("///") {
@@ -269,17 +358,26 @@ impl CommandPalette {
 
         let mut results = Vec::new();
 
-        for module in self.modules.values() {
+        for (mod_name, module) in self.modules.iter() {
             for (cmd_name, cmd) in &module.commands {
-                results.push((&module.name, cmd_name));
+                let result = ResultItem {
+                    text: cmd_name.clone(),
+                    ty: cmd.output.clone().unwrap_or_default(),
+                    item: ResultProducer::Command {
+                        module: mod_name.clone(),
+                        command: cmd_name.clone(),
+                    },
+                };
+
+                // results.push((&module.name, cmd));
+                results.push(result);
             }
         }
 
-        results.sort();
+        results.sort_by(|c0, c1| c0.text.cmp(&c1.text));
 
-        self.result_texts.clear();
-        self.result_texts
-            .extend(results.into_iter().map(|(_, cmd)| cmd.to_owned()));
+        self.results.clear();
+        self.results.extend(results.into_iter());
     }
 
     pub fn new() -> Self {
@@ -300,9 +398,11 @@ impl CommandPalette {
             input_buffer: String::new(),
             modules: HashMap::new(),
 
+            selection_focus: None,
+
             offset: ScreenPoint::new(100.0, 100.0),
 
-            result_texts: Vec::new(),
+            results: Vec::new(),
 
             layout,
 
@@ -371,10 +471,9 @@ impl CommandPalette {
 
         let pad = ScreenSideOffsets::new(8.0, 8.0, 8.0, 8.0);
 
-        for (ix, rect, text) in
-            self.layout.apply_to_rows(self.result_texts.iter())
+        for (ix, rect, entry) in self.layout.apply_to_rows(self.results.iter())
         {
-            let text = Text::new(text.as_str()).with_scale(result_scale);
+            let text = Text::new(entry.text.as_str()).with_scale(result_scale);
 
             let r = rect.inner_rect(pad);
 
@@ -417,6 +516,8 @@ impl CommandPalette {
                 let color_bg = rgb::RGBA::new(0.6, 0.6, 0.6, 1.0);
                 let color_fg = rgb::RGBA::new(0.75, 0.75, 0.75, 1.0);
 
+                let color_focus = rgb::RGBA::new(0.85, 0.85, 0.85, 1.0);
+
                 let pad = ScreenSideOffsets::new(8.0, 8.0, 8.0, 8.0);
 
                 let [top, bottom] = bg_rect.split_ver(bg_rect.height() * 0.15);
@@ -427,7 +528,19 @@ impl CommandPalette {
                     rect_rgba(bottom.inner_rect(pad), color_fg),
                 ];
 
-                sublayer_data.update_vertices_array(base)?;
+                let selection = self.selection_focus.and_then(|ix| {
+                    let (_, rect, _) = self
+                        .layout
+                        .apply_to_rows(self.results.iter())
+                        .nth(ix)?;
+
+                    // let sel_vx = rect_rgba(rect.inner_rect(pad), color_focus);
+                    let sel_vx = rect_rgba(rect, color_focus);
+                    Some(sel_vx)
+                });
+
+                sublayer_data
+                    .update_vertices_array(base.into_iter().chain(selection))?;
                 // .update_vertices_array(Some(rect_rgba(bg_rect, color)))?;
             }
 

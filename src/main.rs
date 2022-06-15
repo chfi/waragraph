@@ -366,7 +366,6 @@ bed::load_bed_file(bed_path, bed_name, column_map)
     }
 
     let mut cmd_pal = CommandPalette::new();
-    cmd_pal.input_buffer = String::from("hello world!!!");
 
     cmd_pal.load_rhai_module(
         console.create_engine(&db, &buffers),
@@ -854,11 +853,22 @@ bed::load_bed_file(bed_path, bed_name, column_map)
             Event::WindowEvent { event, .. } => {
                 viewer.handle_input(&console, &event);
 
+
+                if let Err(e) = cmd_pal.handle_input(
+                    console.create_engine(&db, &buffers),
+                    &event
+                )
+                {
+                    log::error!("Command palette error: {:?}", e);
+                }
+
+
                 match event {
                     WindowEvent::ModifiersChanged(mod_state) => {
                         waragraph::input::set_modifiers(mod_state);
                     }
                     WindowEvent::ReceivedCharacter(c) => {
+                        /*
                         if !c.is_ascii_control() && c.is_ascii() {
                             console
                                 .handle_input(
@@ -869,6 +879,7 @@ bed::load_bed_file(bed_path, bed_name, column_map)
                                 )
                                 .unwrap();
                         }
+                        */
                     }
                     WindowEvent::MouseInput { button, state, .. } => {
                         if button == winit::event::MouseButton::Left
@@ -891,6 +902,7 @@ bed::load_bed_file(bed_path, bed_name, column_map)
                                 // if matches!(kc, VK::Space) {
                                 // }
                                 if matches!(kc, VK::Return) {
+                                    /*
                                     if let Err(e) = console.handle_input(
                                         &db,
                                         &buffers,
@@ -899,7 +911,9 @@ bed::load_bed_file(bed_path, bed_name, column_map)
                                     ) {
                                         log::error!("Console error: {:?}", e);
                                     }
+                                    */
                                 } else if matches!(kc, VK::Back) {
+                                    /*
                                     console
                                         .handle_input(
                                             &db,
@@ -908,6 +922,7 @@ bed::load_bed_file(bed_path, bed_name, column_map)
                                             &mut cmd_pal,
                                         )
                                         .unwrap();
+                                    */
                                 }
                             }
                         }
