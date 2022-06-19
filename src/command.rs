@@ -1,9 +1,10 @@
 //! Command palette system & features
 
-use std::{collections::HashMap, path::PathBuf, sync::Arc};
+use std::{cell::RefMut, collections::HashMap, path::PathBuf, sync::Arc};
 
 use anyhow::{anyhow, bail, Result};
 
+use crossbeam::atomic::AtomicCell;
 use euclid::Length;
 use parking_lot::RwLock;
 use raving::compositor::Compositor;
@@ -17,13 +18,85 @@ use crate::{
     viewer::gui::layer::rect_rgba,
 };
 
-enum CmdPromptFor {
-    Command,
-    Value { ty: rhai::ImmutableString },
+struct PromptObject {
+    act: Box<dyn FnMut(usize) -> std::ops::ControlFlow<(), ()>>,
+    show: Box<dyn FnMut(usize, ScreenRect) -> glyph_brush::OwnedSection>,
+
+    result_len: std::rc::Rc<AtomicCell<usize>>,
+}
+
+impl PromptObject {
+    fn new<V, I, P, T>(
+        init: P,
+        act: impl Fn(&V) -> PromptAction<P, T> + 'static,
+        show: impl Fn(&V, ScreenRect) -> glyph_brush::OwnedSection + 'static,
+        mut update_choices: impl FnMut(P) -> I + 'static,
+        done: impl Fn(T) + 'static,
+    ) -> PromptObject
+    where
+        V: Clone + 'static,
+        P: Clone,
+        T: Clone,
+        I: Iterator<Item = V>,
+    {
+        use std::cell::RefCell;
+        use std::rc::Rc;
+
+        let results = update_choices(init).collect::<Vec<_>>();
+
+        let result_len = Rc::new(AtomicCell::new(results.len()));
+        let results = Rc::new(RefCell::new(results));
+
+        let res = results.clone();
+        // todo add cache here
+        let show = Box::new(move |ix: usize, rect: ScreenRect| {
+            //
+            let res = res.borrow();
+            let section = show(&res[ix], rect);
+            section
+        });
+
+        let res = results.clone();
+        let len = result_len.clone();
+        let act = Box::new(move |ix: usize| {
+            let results = res.borrow();
+
+            match act(&results[ix]) {
+                PromptAction::PromptFor(prompt) => {
+                    std::mem::drop(results);
+
+                    let mut results = res.borrow_mut();
+                    results.clear();
+                    results.extend(update_choices(prompt));
+                    len.store(results.len());
+
+                    std::ops::ControlFlow::Continue(())
+                }
+                PromptAction::Return(value) => {
+                    std::mem::drop(results);
+
+                    done(value);
+
+                    std::ops::ControlFlow::Break(())
+                }
+            }
+        });
+
+        Self {
+            act,
+            show,
+            result_len,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-// struct CmdArg<T> {
+pub enum PromptAction<P, T> {
+    PromptFor(P),
+    Return(T),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 struct CmdArg<T> {
     name: rhai::ImmutableString,
 
@@ -49,6 +122,11 @@ enum PromptState {
     Command(PromptCommandState),
     Argument(PromptArgumentState),
 }
+
+// struct FilePickerResults {
+//     working_dir: PathBuf,
+//     included_exts: Option<HashSet<String>>,
+// }
 
 #[derive(Default, Clone)]
 pub struct CommandModuleBuilder {
@@ -173,7 +251,7 @@ pub enum PromptFor {
 pub struct CommandPalette {
     // input_history: Vec<String>,
     // output_history: Vec<rhai::Dynamic>,
-    prompt_for: Option<PromptFor>,
+    // prompt_state: Option<PromptState>,
 
     // stack: Vec<rhai::Dynamic>,
     selection_focus: Option<usize>,
