@@ -17,6 +17,39 @@ use crate::{
     viewer::gui::layer::rect_rgba,
 };
 
+enum CmdPromptFor {
+    Command,
+    Value { ty: rhai::ImmutableString },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+// struct CmdArg<T> {
+struct CmdArg<T> {
+    name: rhai::ImmutableString,
+
+    ty_name: rhai::ImmutableString,
+
+    data: T,
+}
+
+struct PromptCommandState {
+    result_ty: Option<rhai::ImmutableString>,
+}
+
+struct PromptArgumentState {
+    // (module name, command)
+    module: rhai::ImmutableString,
+    command: Arc<Command>,
+
+    remaining_args: Vec<CmdArg<()>>,
+    applied_args: Vec<CmdArg<rhai::Dynamic>>,
+}
+
+enum PromptState {
+    Command(PromptCommandState),
+    Argument(PromptArgumentState),
+}
+
 #[derive(Default, Clone)]
 pub struct CommandModuleBuilder {
     pub name: rhai::ImmutableString,
@@ -122,9 +155,25 @@ pub struct CommandModule {
     // list_view: ListView<ResultItem>,
 }
 
+struct CurriedCommand {
+    module: rhai::ImmutableString,
+    command: Arc<Command>,
+
+    remaining_args: Vec<(rhai::ImmutableString, std::any::TypeId)>,
+
+    args: HashMap<rhai::ImmutableString, rhai::Dynamic>,
+}
+
+#[derive(Clone)]
+pub enum PromptFor {
+    Command,
+    Argument { ty: rhai::ImmutableString },
+}
+
 pub struct CommandPalette {
     // input_history: Vec<String>,
     // output_history: Vec<rhai::Dynamic>,
+    prompt_for: Option<PromptFor>,
 
     // stack: Vec<rhai::Dynamic>,
     selection_focus: Option<usize>,
