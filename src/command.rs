@@ -1,6 +1,11 @@
 //! Command palette system & features
 
-use std::{cell::RefMut, collections::HashMap, path::PathBuf, sync::Arc};
+use std::{
+    cell::RefMut,
+    collections::{HashMap, HashSet},
+    path::PathBuf,
+    sync::Arc,
+};
 
 use anyhow::{anyhow, bail, Result};
 
@@ -17,6 +22,102 @@ use crate::{
     text::TextCache,
     viewer::gui::layer::rect_rgba,
 };
+
+#[derive(Default)]
+struct FilePathPromptConfig {
+    predicate: Option<Box<dyn Fn(&std::path::Path) -> bool>>,
+    current_dir: PathBuf,
+}
+
+impl FilePathPromptConfig {
+    pub fn new(current_dir: Option<PathBuf>) -> Result<Self> {
+        let current_dir = if let Some(dir) = current_dir {
+            dir
+        } else {
+            std::env::current_dir()?
+        };
+
+        Ok(Self {
+            predicate: None,
+            current_dir,
+        })
+    }
+
+    pub fn from_ext_whitelist<'a>(
+        current_dir: Option<PathBuf>,
+        ext_whitelist: impl IntoIterator<Item = &'a str>,
+    ) -> Result<Self> {
+        use std::ffi::OsString;
+
+        let current_dir = if let Some(dir) = current_dir {
+            dir
+        } else {
+            std::env::current_dir()?
+        };
+
+        let whitelist = {
+            let set = ext_whitelist
+                .into_iter()
+                .map(OsString::from)
+                .collect::<HashSet<_>>();
+
+            (!set.is_empty()).then(|| set)
+        };
+
+        if let Some(whitelist) = whitelist {
+            let predicate = Box::new(move |path: &std::path::Path| {
+                if path.is_dir() {
+                    return true;
+                }
+
+                if let Some(ext) = path.extension() {
+                    whitelist.contains(ext)
+                } else {
+                    true
+                }
+            });
+
+            Ok(Self {
+                predicate: Some(predicate),
+                current_dir,
+            })
+        } else {
+            Ok(Self {
+                predicate: None,
+                current_dir,
+            })
+        }
+    }
+}
+
+type FilePathPrompt<I> = PromptObjectRaw<PathBuf, I, PathBuf, PathBuf>;
+
+// pub struct FilePathPrompt {
+// }
+
+struct PromptObjectRaw<V, I, P, T>
+where
+    V: Clone + 'static,
+    P: Clone,
+    T: Clone,
+    I: Iterator<Item = V>,
+{
+    prompt_input: P,
+    select: Box<dyn Fn(&V) -> PromptAction<P, T> + 'static>,
+    display: Box<dyn Fn(&V, ScreenRect) -> glyph_brush::OwnedSection + 'static>,
+    update_choices: Box<dyn FnMut(P) -> I + 'static>,
+    // done: impl Fn(T) + 'static,
+}
+
+impl<V, I, P, T> PromptObjectRaw<V, I, P, T>
+where
+    V: Clone + 'static,
+    P: Clone,
+    T: Clone,
+    I: Iterator<Item = V>,
+{
+    //
+}
 
 struct PromptObject {
     act: Box<dyn FnMut(usize) -> std::ops::ControlFlow<(), ()>>,
