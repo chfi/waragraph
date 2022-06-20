@@ -11,6 +11,7 @@ use anyhow::{anyhow, bail, Result};
 
 use crossbeam::atomic::AtomicCell;
 use euclid::Length;
+use glyph_brush::OwnedText;
 use parking_lot::RwLock;
 use raving::compositor::Compositor;
 use rhai::plugin::*;
@@ -25,11 +26,67 @@ use crate::{
 
 #[derive(Default)]
 struct FilePathPromptConfig {
-    predicate: Option<Box<dyn Fn(&std::path::Path) -> bool>>,
+    predicate: Option<Arc<dyn Fn(&std::path::Path) -> bool>>,
     current_dir: PathBuf,
 }
 
 impl FilePathPromptConfig {
+    pub fn into_prompt(self) -> FilePathPrompt<impl Iterator<Item = PathBuf>> {
+        let prompt_input = self.current_dir.clone();
+
+        let mut config = self;
+
+        let select =
+            Box::new(|path: &PathBuf| -> PromptAction<PathBuf, PathBuf> {
+                if path.is_dir() {
+                    PromptAction::PromptFor(path.to_owned())
+                } else {
+                    PromptAction::Return(path.to_owned())
+                }
+            });
+
+        let display = Box::new(
+            |path: &PathBuf, _rect: ScreenRect| -> glyph_brush::OwnedText {
+                let result_scale = 20.0;
+                OwnedText::new(&format!("{:?}", path)).with_scale(result_scale)
+            },
+        );
+
+        let update_choices = Box::new(move |path: PathBuf| {
+            if path.is_dir() {
+                config.current_dir = path;
+            }
+
+            let results = config.current_results()?;
+
+            let predicate = config.predicate.clone();
+            let iter = results.filter_map(move |entry| {
+                let path = entry.ok()?.path();
+
+                if let Some(predicate) = &predicate {
+                    predicate(&path).then(|| path)
+                } else {
+                    Some(path)
+                }
+            });
+            Ok(iter)
+        });
+
+        let prompt_object = PromptObjectRaw {
+            prompt_input,
+            select,
+            display,
+            update_choices,
+        };
+
+        prompt_object
+    }
+
+    pub fn current_results(&self) -> Result<std::fs::ReadDir> {
+        let dir = std::fs::read_dir(&self.current_dir)?;
+        Ok(dir)
+    }
+
     pub fn new(current_dir: Option<PathBuf>) -> Result<Self> {
         let current_dir = if let Some(dir) = current_dir {
             dir
@@ -65,7 +122,7 @@ impl FilePathPromptConfig {
         };
 
         if let Some(whitelist) = whitelist {
-            let predicate = Box::new(move |path: &std::path::Path| {
+            let predicate = Arc::new(move |path: &std::path::Path| {
                 if path.is_dir() {
                     return true;
                 }
@@ -104,8 +161,8 @@ where
 {
     prompt_input: P,
     select: Box<dyn Fn(&V) -> PromptAction<P, T> + 'static>,
-    display: Box<dyn Fn(&V, ScreenRect) -> glyph_brush::OwnedSection + 'static>,
-    update_choices: Box<dyn FnMut(P) -> I + 'static>,
+    display: Box<dyn Fn(&V, ScreenRect) -> glyph_brush::OwnedText + 'static>,
+    update_choices: Box<dyn FnMut(P) -> Result<I> + 'static>,
     // done: impl Fn(T) + 'static,
 }
 
@@ -120,8 +177,8 @@ where
 }
 
 struct PromptObject {
-    act: Box<dyn FnMut(usize) -> std::ops::ControlFlow<(), ()>>,
-    show: Box<dyn FnMut(usize, ScreenRect) -> glyph_brush::OwnedSection>,
+    act: Box<dyn FnMut(usize) -> Result<std::ops::ControlFlow<(), ()>>>,
+    show: Box<dyn FnMut(usize, ScreenRect) -> glyph_brush::OwnedText>,
 
     result_len: std::rc::Rc<AtomicCell<usize>>,
 }
@@ -130,10 +187,10 @@ impl PromptObject {
     fn new<V, I, P, T>(
         init: P,
         act: impl Fn(&V) -> PromptAction<P, T> + 'static,
-        show: impl Fn(&V, ScreenRect) -> glyph_brush::OwnedSection + 'static,
-        mut update_choices: impl FnMut(P) -> I + 'static,
+        show: impl Fn(&V, ScreenRect) -> glyph_brush::OwnedText + 'static,
+        mut update_choices: impl FnMut(P) -> Result<I> + 'static,
         done: impl Fn(T) + 'static,
-    ) -> PromptObject
+    ) -> Result<PromptObject>
     where
         V: Clone + 'static,
         P: Clone,
@@ -143,7 +200,7 @@ impl PromptObject {
         use std::cell::RefCell;
         use std::rc::Rc;
 
-        let results = update_choices(init).collect::<Vec<_>>();
+        let results = update_choices(init)?.collect::<Vec<_>>();
 
         let result_len = Rc::new(AtomicCell::new(results.len()));
         let results = Rc::new(RefCell::new(results));
@@ -168,26 +225,26 @@ impl PromptObject {
 
                     let mut results = res.borrow_mut();
                     results.clear();
-                    results.extend(update_choices(prompt));
+                    results.extend(update_choices(prompt)?);
                     len.store(results.len());
 
-                    std::ops::ControlFlow::Continue(())
+                    Ok(std::ops::ControlFlow::Continue(()))
                 }
                 PromptAction::Return(value) => {
                     std::mem::drop(results);
 
                     done(value);
 
-                    std::ops::ControlFlow::Break(())
+                    Ok(std::ops::ControlFlow::Break(()))
                 }
             }
         });
 
-        Self {
+        Ok(Self {
             act,
             show,
             result_len,
-        }
+        })
     }
 }
 
