@@ -24,6 +24,119 @@ use crate::{
     viewer::gui::layer::rect_rgba,
 };
 
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+struct ArgType {
+    // id: u64,
+    name: rhai::ImmutableString,
+}
+
+type CommandPrompt<I, P> =
+    PromptObjectRaw<CommandEntry, I, P, CommandArgumentState>;
+
+type FilePathPrompt<I> = PromptObjectRaw<PathBuf, I, PathBuf, PathBuf>;
+
+struct CommandPromptConfig {
+    output_ty_filter: Option<Arc<dyn Fn(&ArgType) -> bool>>,
+}
+
+#[derive(Clone)]
+struct CommandEntry {
+    module: rhai::ImmutableString,
+    command: Arc<Command>,
+}
+
+impl CommandPromptConfig {
+    pub fn into_prompt(
+        self,
+        modules: &HashMap<rhai::ImmutableString, CommandModule>,
+    ) -> Result<CommandPrompt<impl Iterator<Item = CommandEntry>, ()>> {
+        let mut results = Vec::new();
+
+        for (mod_name, module) in modules.iter() {
+            for (cmd_name, cmd) in &module.commands {
+                results.push(CommandEntry {
+                    module: mod_name.clone(),
+                    command: cmd.clone(),
+                });
+            }
+        }
+
+        results.sort_by(|c0, c1| {
+            (&c0.module, &c0.command.name).cmp(&(&c1.module, &c1.command.name))
+        });
+
+        // let results = Arc::new(results);
+
+        let select = Box::new(
+            |entry: &CommandEntry| -> PromptAction<(), CommandArgumentState> {
+                let mut state = CommandArgumentState {
+                    module: entry.module.clone(),
+                    command: entry.command.clone(),
+
+                    remaining_args: Vec::new(),
+                    applied_args: Vec,
+                };
+
+                if entry.inputs.is_empty() {
+                    //
+                } else {
+                }
+                //
+                todo!();
+            },
+        );
+
+        let display = Box::new(
+            |entry: &CommandEntry,
+             _rect: ScreenRect|
+             -> glyph_brush::OwnedText {
+                let result_scale = 20.0;
+
+                let mut input_str = String::new();
+
+                let inputs =
+                    entry.command.inputs.iter().for_each(|(arg_name, ty)| {
+                        if !input_str.is_empty() {
+                            input_str.push_str(", ");
+                        }
+
+                        input_str.push_str(arg_name.as_str());
+                        input_str.push_str(" : ");
+                        input_str.push_str(ty.as_str());
+                    });
+
+                let input = if input_str.is_empty() {
+                    input_str
+                } else {
+                    format!("({})", input_str);
+                };
+
+                let output = if let Some(out) = &entry.command.output {
+                    format!("-> {}", out);
+                } else {
+                    String::new()
+                };
+
+                OwnedText::new(&format!(">{}{}{}", entry.name, input, output));
+            },
+        );
+
+        let update_choices = Box::new(move |_: ()| -> Result<_> {
+            let vals = results.clone();
+            Ok(vals.into_iter())
+        });
+
+        let prompt_object = PromptObjectRaw {
+            prompt_input: (),
+            select,
+            display,
+            update_choices,
+        };
+
+        Ok(prompt_object)
+    }
+}
+
 #[derive(Default)]
 struct FilePathPromptConfig {
     predicate: Option<Arc<dyn Fn(&std::path::Path) -> bool>>,
@@ -48,25 +161,35 @@ impl FilePathPromptConfig {
         let display = Box::new(
             |path: &PathBuf, _rect: ScreenRect| -> glyph_brush::OwnedText {
                 let result_scale = 20.0;
+
+                if path.is_relative() {
+                    log::error!("{:?} is relative", path.file_name());
+                }
+
                 if let Some(file_name) =
                     path.file_name().and_then(|name| name.to_str())
                 {
                     OwnedText::new(file_name).with_scale(result_scale)
                 } else {
-                    OwnedText::new("ERROR")
+                    OwnedText::new(&format!("{:?}", path.file_name()))
                 }
             },
         );
 
         let update_choices = Box::new(move |path: PathBuf| {
             if path.is_dir() {
+                let path = path.canonicalize()?;
                 config.current_dir = path;
             }
 
             let results = config.current_results()?;
 
             let predicate = config.predicate.clone();
-            let iter = results.filter_map(move |entry| {
+
+            // let go_up: PathBuf = "..".into();
+            let go_up = path.parent().map(|_| "/..".into());
+
+            let contents = results.filter_map(move |entry| {
                 let path = entry.ok()?.path();
 
                 if let Some(predicate) = &predicate {
@@ -75,6 +198,9 @@ impl FilePathPromptConfig {
                     Some(path)
                 }
             });
+
+            let iter = go_up.into_iter().chain(contents);
+
             Ok(iter)
         });
 
@@ -152,8 +278,6 @@ impl FilePathPromptConfig {
         }
     }
 }
-
-type FilePathPrompt<I> = PromptObjectRaw<PathBuf, I, PathBuf, PathBuf>;
 
 // pub struct FilePathPrompt {
 // }
@@ -281,7 +405,8 @@ struct PromptCommandState {
     result_ty: Option<rhai::ImmutableString>,
 }
 
-struct PromptArgumentState {
+#[derive(Clone)]
+struct CommandArgumentState {
     // (module name, command)
     module: rhai::ImmutableString,
     command: Arc<Command>,
@@ -290,9 +415,53 @@ struct PromptArgumentState {
     applied_args: Vec<CmdArg<rhai::Dynamic>>,
 }
 
-enum PromptState {
-    Command(PromptCommandState),
-    Argument(PromptArgumentState),
+impl CommandArgumentState {
+    fn from_command(
+        module: &rhai::ImmutableString,
+        command: &Arc<Command>,
+    ) -> Self {
+        let mut result = Self {
+            module: module.clone(),
+            command: command.clone(),
+
+            remaining_args: Vec::new(),
+            applied_args: Vec::new(),
+        };
+
+        for (arg_name, ty) in command.inputs.iter() {
+            result.remaining_args.push(CmdArg {
+                name: arg_name.clone(),
+                ty_name: ty.clone(),
+                data: (),
+            });
+        }
+
+        result
+    }
+
+    fn is_saturated(&self) -> bool {
+        self.remaining_args.is_empty()
+    }
+
+    fn execute(
+        &self,
+        engine: &rhai::Engine,
+        modules: &HashMap<rhai::ImmutableString, CommandModule>,
+    ) -> Result<rhai::Dynamic> {
+        if !self.is_saturated() {
+            // TODO fail here
+        }
+
+        let mut args = Vec::new();
+
+        let module = modules.get(&self.module).unwrap();
+
+        let res: rhai::Dynamic =
+            self.command.fn_ptr.call(engine, &module.fn_ptr_ast, args)?;
+        //
+
+        Ok(res)
+    }
 }
 
 // struct FilePickerResults {
