@@ -48,7 +48,13 @@ impl FilePathPromptConfig {
         let display = Box::new(
             |path: &PathBuf, _rect: ScreenRect| -> glyph_brush::OwnedText {
                 let result_scale = 20.0;
-                OwnedText::new(&format!("{:?}", path)).with_scale(result_scale)
+                if let Some(file_name) =
+                    path.file_name().and_then(|name| name.to_str())
+                {
+                    OwnedText::new(file_name).with_scale(result_scale)
+                } else {
+                    OwnedText::new("ERROR")
+                }
             },
         );
 
@@ -169,11 +175,19 @@ where
 impl<V, I, P, T> PromptObjectRaw<V, I, P, T>
 where
     V: Clone + 'static,
-    P: Clone,
-    T: Clone,
-    I: Iterator<Item = V>,
+    P: Clone + 'static,
+    T: Clone + 'static,
+    I: Iterator<Item = V> + 'static,
 {
-    //
+    fn build(self, done: impl Fn(T) + 'static) -> Result<PromptObject> {
+        PromptObject::new(
+            self.prompt_input,
+            self.select,
+            self.display,
+            self.update_choices,
+            done,
+        )
+    }
 }
 
 struct PromptObject {
@@ -410,6 +424,7 @@ pub struct CommandPalette {
     // input_history: Vec<String>,
     // output_history: Vec<rhai::Dynamic>,
     // prompt_state: Option<PromptState>,
+    prompt_state: PromptObject,
 
     // stack: Vec<rhai::Dynamic>,
     selection_focus: Option<usize>,
@@ -417,7 +432,6 @@ pub struct CommandPalette {
     pub input_buffer: String,
 
     // results: Vec<(rhai::ImmutableString, Arc<Command>)>,
-    results: Vec<ResultItem>,
     // result_texts: Vec<rhai::ImmutableString>,
     modules: HashMap<rhai::ImmutableString, CommandModule>,
 
@@ -449,6 +463,8 @@ impl CommandPalette {
                     let pressed =
                         input.state == winit::event::ElementState::Pressed;
 
+                    let result_len = self.prompt_state.result_len.load();
+
                     match key {
                         VK::Up => {
                             // Move result selection up
@@ -460,8 +476,7 @@ impl CommandPalette {
                                         *focus -= 1;
                                     }
                                 } else {
-                                    self.selection_focus =
-                                        Some(self.results.len() - 1);
+                                    self.selection_focus = Some(result_len - 1);
                                 }
                             }
                         }
@@ -471,7 +486,7 @@ impl CommandPalette {
                                 if let Some(focus) =
                                     self.selection_focus.as_mut()
                                 {
-                                    if *focus < self.results.len() - 1 {
+                                    if *focus < result_len - 1 {
                                         *focus += 1;
                                     }
                                 } else {
@@ -491,6 +506,21 @@ impl CommandPalette {
                             // Confirm selection
                             // TODO
                             // if let Some(ix) = self.selection_focus.take()
+
+                            if let Some(ix) = self.selection_focus.take() {
+                                match (self.prompt_state.act)(ix).unwrap() {
+                                    std::ops::ControlFlow::Continue(_) => {
+                                        //
+                                        log::error!("continue prompt");
+                                    }
+                                    std::ops::ControlFlow::Break(_) => {
+                                        //
+                                        log::error!("end prompt");
+                                    }
+                                }
+                            }
+
+                            /*
                             if let Some(item) = self
                                 .selection_focus
                                 .take()
@@ -500,6 +530,7 @@ impl CommandPalette {
                                     &item.item;
                                 self.run_command(&engine, &module, &command)?;
                             }
+                            */
                         }
                         VK::Tab => {
                             // Autocomplete
@@ -638,34 +669,7 @@ impl CommandPalette {
         Ok(())
     }
 
-    pub fn build_results(&mut self) {
-        // self.result_texts.clear();
-
-        let mut results = Vec::new();
-
-        for (mod_name, module) in self.modules.iter() {
-            for (cmd_name, cmd) in &module.commands {
-                let result = ResultItem {
-                    text: cmd_name.clone(),
-                    ty: cmd.output.clone().unwrap_or_default(),
-                    item: ResultProducer::Command {
-                        module: mod_name.clone(),
-                        command: cmd_name.clone(),
-                    },
-                };
-
-                // results.push((&module.name, cmd));
-                results.push(result);
-            }
-        }
-
-        results.sort_by(|c0, c1| c0.text.cmp(&c1.text));
-
-        self.results.clear();
-        self.results.extend(results.into_iter());
-    }
-
-    pub fn new() -> Self {
+    pub fn new() -> Result<Self> {
         let bg_rect = euclid::rect(80.0, 80.0, 500.0, 500.0);
 
         let [top, bottom] = bg_rect.split_ver(bg_rect.height() * 0.15);
@@ -679,7 +683,15 @@ impl CommandPalette {
             slot_height: Length::new(30.0),
         };
 
-        Self {
+        let config = FilePathPromptConfig::new(None)?;
+        let prompt = config.into_prompt();
+        let prompt_state = prompt.build(|path| {
+            log::error!("selected path: {:?}", path);
+        })?;
+
+        Ok(Self {
+            prompt_state,
+
             input_buffer: String::new(),
             modules: HashMap::new(),
 
@@ -687,12 +699,10 @@ impl CommandPalette {
 
             offset: ScreenPoint::new(100.0, 100.0),
 
-            results: Vec::new(),
-
             layout,
 
             rect: bg_rect,
-        }
+        })
     }
 
     pub fn run_command(
@@ -727,7 +737,7 @@ impl CommandPalette {
         rect
     }
 
-    pub fn queue_glyphs(&self, text_cache: &mut TextCache) -> Result<()> {
+    pub fn queue_glyphs(&mut self, text_cache: &mut TextCache) -> Result<()> {
         use glyph_brush::{Section, Text};
 
         let window = self.window_rect();
@@ -756,9 +766,10 @@ impl CommandPalette {
 
         let pad = ScreenSideOffsets::new(8.0, 8.0, 8.0, 8.0);
 
-        for (ix, rect, entry) in self.layout.apply_to_rows(self.results.iter())
-        {
-            let text = Text::new(entry.text.as_str()).with_scale(result_scale);
+        let indices = 0..self.prompt_state.result_len.load();
+
+        for (ix, rect, _ix) in self.layout.apply_to_rows(indices) {
+            let text = (self.prompt_state.show)(ix, rect);
 
             let r = rect.inner_rect(pad);
 
@@ -769,7 +780,7 @@ impl CommandPalette {
                 .with_screen_position(pos)
                 // .with_layout(layout)
                 .with_bounds(bounds)
-                .add_text(text);
+                .add_text(&text);
 
             text_cache.queue(section);
         }
@@ -813,11 +824,11 @@ impl CommandPalette {
                     rect_rgba(bottom.inner_rect(pad), color_fg),
                 ];
 
+                let result_len = self.prompt_state.result_len.load();
+
                 let selection = self.selection_focus.and_then(|ix| {
-                    let (_, rect, _) = self
-                        .layout
-                        .apply_to_rows(self.results.iter())
-                        .nth(ix)?;
+                    let (_, rect, _) =
+                        self.layout.apply_to_rows(0..result_len).nth(ix)?;
 
                     // let sel_vx = rect_rgba(rect.inner_rect(pad), color_focus);
                     let sel_vx = rect_rgba(rect, color_focus);

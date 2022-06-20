@@ -365,14 +365,12 @@ bed::load_bed_file(bed_path, bed_name, column_map)
         }
     }
 
-    let mut cmd_pal = CommandPalette::new();
+    let mut cmd_pal = CommandPalette::new()?;
 
     cmd_pal.load_rhai_module(
         console.create_engine(&db, &buffers),
         "internals/bed_cmd.rhai",
     )?;
-
-    cmd_pal.build_results();
 
     let mut text_cache = TextCache::new(&mut engine, &compositor)?;
 
