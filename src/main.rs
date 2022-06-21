@@ -449,28 +449,6 @@ bed::load_bed_file(bed_path, bed_name, column_map)
                     panic!("Text cache error: {:?}", e);
                 }
 
-
-                // text_cache
-
-                // if let Err(e) = text_cache
-                //     .process_queued(&mut engine, &mut compositor)
-                //     .and_then(|_| {
-                //         text_cache.update_layer(
-                //             &mut compositor,
-                //             "command-palette",
-                //             "glyphs"
-                //         )?;
-
-
-                //         log::warn!("this is good");
-
-                //         Ok(())
-
-                //     })
-                // {
-                //     panic!("Text cache error: {:?}", e);
-                // }
-
                 {
                     let [width, height] = swapchain_dims.load();
                     verlet.bounds =
@@ -544,45 +522,38 @@ bed::load_bed_file(bed_path, bed_name, column_map)
                 }
 
 
+                if let Some(state) = viewer.path_viewer.ui_state.hovered_path_row {
+                    let path = state.path;
 
+                    if graph.path_name(path).is_some() {
+                        let rect = state.data_rect;
 
-                {
-                    if let Some(state) = viewer.path_viewer.ui_state.hovered_path_row {
-                        let path = state.path;
+                        let x0 = rect.min_x();
+                        let y0 = rect.max_y();
 
-                        if graph.path_name(path).is_some() {
-                            let rect = state.data_rect;
+                        let view = viewer.view.load();
 
-                            let x0 = rect.min_x();
-                            let y0 = rect.max_y();
+                        compositor.with_layer("edges", |layer| {
+                            if let Some(sublayer) = layer.get_sublayer_mut("lines") {
+                                let draw_data =
+                                    sublayer.draw_data_mut().next().unwrap();
 
-                            let view = viewer.view.load();
+                                edge_cache.update_sublayer_data_with_path(
+                                    &graph,
+                                    path,
+                                    view,
+                                    x0 as u32,
+                                    y0 as u32,
+                                    rect.width() as u32,
+                                    90,
+                                    draw_data).unwrap();
+                            }
 
-                            compositor.with_layer("edges", |layer| {
-                                if let Some(sublayer) = layer.get_sublayer_mut("lines") {
-                                    let draw_data =
-                                        sublayer.draw_data_mut().next().unwrap();
-
-                                    edge_cache.update_sublayer_data_with_path(
-                                        &graph,
-                                        path,
-                                        view,
-                                        x0 as u32,
-                                        y0 as u32,
-                                        rect.width() as u32,
-                                        90,
-                                        draw_data).unwrap();
-                                }
-
-                                Ok(())
-                            }).unwrap();
-                        }
-
+                            Ok(())
+                        }).unwrap();
                     }
 
-
                 }
-
 
                 // console scope updates
                 {
@@ -612,80 +583,6 @@ bed::load_bed_file(bed_path, bed_name, column_map)
                     use waragraph::viewer::debug::{Shape, Style};
 
                     let [_win_width, win_height] = swapchain_dims.load();
-
-                    /*
-                    use waragraph::geometry::LayoutElement;
-                    let list_layout = viewer.path_viewer.list_layout.load();
-
-                    let color = |r: f32, g, b| rgb::RGBA::new(r, g, b, 1.0);
-                    let color_a = |r: f32, g, b, a| rgb::RGBA::new(r, g, b, a);
-
-                    let partition = 8.0 * 14.0;
-                    let rows = viewer.path_viewer.slot_list.visible_rows();
-
-                    let bg_rect = list_layout.inner_rect();
-
-                    let (mx, my) = waragraph::input::get_mouse_pos();
-                    let mpos = point2(mx as f32, my as f32);
-
-                    let mouse_rect = list_layout
-                        .apply_to_rows(rows)
-                        .find_map(|(i, r, v)| {
-                        let [_, r] = r.split_hor(partition);
-                        r.contains(mpos)
-                            .then(||
-                                  (Shape::from(r),
-                                   Style::fill(
-                                       rgb::RGBA::new(1.0, 0.0, 0.0, 1.0))))
-
-                    });
-
-                    let rows = viewer.path_viewer.slot_list.visible_rows();
-
-                    // let bg = Some((Shape::from(bg_rect), Style::fill(color_a(0.0, 0.0, 1.0, 0.6))));
-                    let bg: Option<(Shape, Style)> = None;
-
-                    let shapes = list_layout.apply_to_rows(rows).flat_map(|(_, r, v)| {
-
-                        let c0 = color_a(0.7, 0.1, 0.1, 0.3);
-                        let c1 = color_a(0.1, 0.7, 0.1, 0.3);
-                        let c2 = color_a(0.8, 0.8, 0.8, 0.7);
-
-                        let [r0, r1] = r.split_hor(partition);
-
-                        let mouse_color = |r: ScreenRect, c| {
-                            r.contains(mpos).then(|| c2).unwrap_or(c)
-                        };
-
-                        let col_0 = mouse_color(r0, c0);
-                        let col_1 = mouse_color(r1, c1);
-
-                        [
-                            (
-                            Shape::from(r0),
-                            Style::stroke_fill(
-                                color(1.0, 0.0, 0.0), col_0
-                            ),
-                        ),
-                            (
-                            Shape::from(r1),
-                            Style::stroke_fill(
-                                color(0.0, 1.0, 0.0), col_1
-                            ),
-                        )]
-
-                    });
-
-
-                    debug_layers.fill_layer(
-                        &mut compositor,
-                        debug_layer_id,
-                        bg
-                            .into_iter()
-                            .chain(shapes)
-                            .chain(mouse_rect)
-                    ).unwrap();
-                    */
 
                     let fps_str = last_fps.to_string();
 

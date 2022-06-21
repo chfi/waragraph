@@ -10,5 +10,6 @@ pub mod cli;
 pub mod command;
 
 pub mod geometry;
+pub mod list;
 
 pub mod text;

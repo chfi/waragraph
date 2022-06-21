@@ -42,6 +42,8 @@ use super::gui::layer::{label_at, path_slot};
 use super::SlotFnCache;
 use raving::compositor::{Compositor, Layer, SublayerAllocMsg};
 
+use crate::list::*;
+
 pub struct ViewerSys {
     pub config: ConfigMap,
     pub props: ConfigMap,
@@ -995,69 +997,6 @@ pub fn create_gradient_buffer(
 
 pub type SlotFnName = rhai::ImmutableString;
 
-#[derive(Clone)]
-pub struct ListView<T> {
-    values: Vec<T>,
-    offset: usize,
-    len: usize,
-    max: usize,
-}
-
-impl<T> ListView<T> {
-    pub fn new(values: impl IntoIterator<Item = T>) -> Self {
-        let values: Vec<_> = values.into_iter().collect();
-        let max = values.len();
-        let offset = 0;
-        // let len = 1.min(max);
-        let len = 16.min(max);
-        Self {
-            values,
-            max,
-            offset,
-            len,
-        }
-    }
-
-    pub fn len(&self) -> usize {
-        self.len
-    }
-
-    pub fn visible_rows<'a>(&'a self) -> impl Iterator<Item = &'a T> + 'a {
-        debug_assert!(self.offset + self.len <= self.max);
-        debug_assert!(self.max == self.values.len());
-
-        let s = self.offset;
-        let e = s + self.len;
-        self.values[s..e].iter()
-    }
-
-    pub fn set_offset(&mut self, mut offset: usize) {
-        if offset + self.len > self.max {
-            offset -= (offset + self.len) - self.max;
-        }
-
-        self.offset = offset;
-        debug_assert!(self.offset + self.len <= self.max);
-    }
-
-    pub fn scroll(&mut self, delta: isize) {
-        let mut offset = self.offset as isize;
-
-        let max_offset = (self.max - self.len) as isize;
-        offset = (offset + delta).clamp(0, max_offset);
-
-        self.offset = offset as usize;
-        debug_assert!(self.offset + self.len <= self.max);
-    }
-
-    pub fn resize(&mut self, new_len: usize) {
-        self.len = new_len.min(self.max);
-        // set_offset takes care of moving the offset back for the new
-        // length if needed
-        self.set_offset(self.offset);
-    }
-}
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum SlotState {
     Unknown,
@@ -1187,7 +1126,7 @@ impl PathViewer {
             graph.path_names.left_values().map(|&path| (path, 0)),
         );
 
-        let row_view = (slot_list.offset, slot_list.len);
+        let row_view = (slot_list.offset(), slot_list.len());
 
         let list_layout = ListLayout {
             origin: point2(0.0, 0.0),
@@ -1335,7 +1274,7 @@ impl PathViewer {
         let slot_count = self.slot_list.len();
 
         self.row_view_latch
-            .store((self.slot_list.offset, self.slot_list.len));
+            .store((self.slot_list.offset(), self.slot_list.len()));
 
         if slot_count > self.cache.cache().block_capacity()
             || self.current_width != self.cache.cache().block_size()
