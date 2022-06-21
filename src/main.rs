@@ -365,11 +365,16 @@ bed::load_bed_file(bed_path, bed_name, column_map)
         }
     }
 
-    let mut cmd_pal = CommandPalette::new(&viewer.annotations)?;
+    let mut cmd_pal =
+        CommandPalette::new(&viewer.annotations, &viewer.slot_functions)?;
 
     cmd_pal.load_rhai_module(
         console.create_engine(&db, &buffers),
         "internals/bed_cmd.rhai",
+    )?;
+    cmd_pal.load_rhai_module(
+        console.create_engine(&db, &buffers),
+        "internals/viz_cmd.rhai",
     )?;
 
     // cmd_pal.open_command_prompt()?;

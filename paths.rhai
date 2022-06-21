@@ -161,7 +161,7 @@ fn gui_init(globals, label_space) {
   ui::allocate_sublayer("verlet", "line-rgb", "lines");
   ui::allocate_sublayer("verlet", "line-rgb-2", "lines-2");
 
-  ui::init_layer("command-palette", 100, false);
+  ui::init_layer("command-palette", 100, true);
   ui::allocate_sublayer("command-palette", "rect-rgb", "rects");
   ui::allocate_sublayer("command-palette", "line-rgb", "lines");
   ui::allocate_sublayer("command-palette", "line-rgb-2", "lines-2");

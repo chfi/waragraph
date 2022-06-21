@@ -13,11 +13,11 @@ fn load_bed(bed_path) {
 }
 
 
-/// Add a column from a BED file as a visualization mode
+/// Visualize a BED column
 ///
 /// @bed: BED
 /// @column: BEDColumn
-fn enable_column(bed, column) {
+fn display_bed_column(bed, column) {
   // logic here
   let col = column;
   let name = col;
@@ -46,6 +46,14 @@ fn enable_column(bed, column) {
     slot::set_slot_color_scheme(slot_fn_name,
                                 "gradient-colorbrewer-spectral");
   }
+
+  let cfg = viewer::cfg;
+  let props = viewer::props;
+
+  cfg.update("viz.slot_function", || {
+    props.set("viz.previous", this);
+    this = slot_fn_name;
+  })
 }
 
 /*

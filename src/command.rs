@@ -24,7 +24,7 @@ use crate::{
     },
     list::ListView,
     text::TextCache,
-    viewer::gui::layer::rect_rgba,
+    viewer::{gui::layer::rect_rgba, SlotFnCache},
 };
 
 mod file_prompt;
@@ -92,6 +92,7 @@ impl PromptUniverse {
         annotations: &Arc<
             RwLock<BTreeMap<rhai::ImmutableString, Arc<AnnotationSet>>>,
         >,
+        slot_functions: &Arc<RwLock<SlotFnCache>>,
     ) -> Self {
         let mut arg_prompts = FxHashMap::default();
         let mut types_by_name = HashMap::default();
@@ -99,6 +100,8 @@ impl PromptUniverse {
         let path_type = ArgType::new::<std::path::PathBuf>("PathBuf");
         let bed_type = ArgType::new::<Arc<AnnotationSet>>("BED");
         let bed_col_ix_type = ArgType::new::<i64>("BEDColumn");
+
+        let viz_mode_type = ArgType::new::<rhai::ImmutableString>("VizMode");
         // let bed_col_name_type = ArgType::new::<rhai::ImmutableString>("BEDColumn");
 
         let bool_type = ArgType::new::<bool>("bool");
@@ -110,6 +113,7 @@ impl PromptUniverse {
         add_type(&bed_type);
         add_type(&bool_type);
         add_type(&bed_col_ix_type);
+        add_type(&viz_mode_type);
 
         let bool_prompt = ArgPrompt::Const {
             mk_prompt: Arc::new(|_opt| {
@@ -154,16 +158,12 @@ impl PromptUniverse {
 
         let annots = annotations.clone();
 
+        let arg_ty = bed_type.clone();
         let bed_prompt = ArgPrompt::Const {
             mk_prompt: Arc::new(move |_opt| {
-                let arg_ty = ArgType {
-                    name: "BED".into(),
-                    id: std::any::TypeId::of::<Arc<AnnotationSet>>(),
-                };
-
                 let annots = annots.clone();
                 let builder = DynPromptConfig {
-                    result_type: arg_ty,
+                    result_type: arg_ty.clone(),
                     results_producer: Arc::new(move || {
                         //
                         let annots = annots.read();
@@ -223,6 +223,46 @@ impl PromptUniverse {
         };
 
         arg_prompts.insert(bed_col_ix_type, bed_col_ix_prompt);
+
+        let slot_fns = slot_functions.clone();
+
+        let arg_ty = viz_mode_type.clone();
+        let slot_fns_prompt = ArgPrompt::Const {
+            mk_prompt: Arc::new(move |_opt| {
+                let slot_fns = slot_fns.clone();
+                let arg_ty = arg_ty.clone();
+
+                let builder = DynPromptConfig {
+                    result_type: arg_ty,
+                    results_producer: Arc::new(move || {
+                        let slot_fns = slot_fns.read();
+
+                        let mut results = slot_fns
+                            .slot_fn_u32
+                            .keys()
+                            .map(|n| n.clone())
+                            .collect::<Vec<_>>();
+
+                        results.sort();
+
+                        let results = results
+                            .into_iter()
+                            .map(|n| rhai::Dynamic::from(n))
+                            .collect::<Vec<_>>();
+
+                        results
+                    }),
+                    show: Arc::new(move |name| {
+                        name.clone_cast::<rhai::ImmutableString>()
+                    }),
+                };
+                let prompt = builder.into_prompt().unwrap();
+
+                prompt.build().unwrap()
+            }),
+        };
+
+        arg_prompts.insert(viz_mode_type, slot_fns_prompt);
 
         Self {
             arg_prompts,
@@ -1159,6 +1199,7 @@ impl CommandPalette {
         annotations: &Arc<
             RwLock<BTreeMap<rhai::ImmutableString, Arc<AnnotationSet>>>,
         >,
+        slot_functions: &Arc<RwLock<SlotFnCache>>,
     ) -> Result<Self> {
         let bg_rect = euclid::rect(80.0, 80.0, 500.0, 500.0);
 
@@ -1174,7 +1215,10 @@ impl CommandPalette {
         };
 
         let context = PromptContext {
-            universe: Arc::new(RwLock::new(PromptUniverse::new(annotations))),
+            universe: Arc::new(RwLock::new(PromptUniverse::new(
+                annotations,
+                slot_functions,
+            ))),
         };
 
         Ok(Self {
