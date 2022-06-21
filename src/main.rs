@@ -899,28 +899,32 @@ bed::load_bed_file(bed_path, bed_name, column_map)
 
                             let mods = waragraph::input::active_mod_keys();
 
-                            if !cmd_pal.is_active() {
-                                if input.state
-                                == winit::event::ElementState::Pressed
-                                {
-                                    if matches!(kc, VK::Space) && mods.ctrl() {
+                            let pressed = input.state
+                                == winit::event::ElementState::Pressed;
+
+                            if pressed {
+                                if !cmd_pal.is_active()
+                                    && matches!(kc, VK::Space) && mods.ctrl() {
                                         if let Err(e) = cmd_pal.open_command_prompt() {
                                             log::error!("Command palette error: {:?}", e);
                                         }
-                                    }
-                                    if matches!(kc, VK::Return) {
-                                        /*
-                                        if let Err(e) = console.handle_input(
-                                        &db,
-                                        &buffers,
-                                        ConsoleInput::Submit,
-                                        &mut cmd_pal,
+                                }
+
+                                if cmd_pal.is_active()
+                                    && matches!(kc, VK::Escape) {
+                                        cmd_pal.close_prompt();
+                                }
+                                /*
+                                if matches!(kc, VK::Return) {
+                                    if let Err(e) = console.handle_input(
+                                    &db,
+                                    &buffers,
+                                    ConsoleInput::Submit,
+                                    &mut cmd_pal,
                                     ) {
                                         log::error!("Console error: {:?}", e);
                                     }
-                                         */
                                     } else if matches!(kc, VK::Back) {
-                                        /*
                                     console
                                         .handle_input(
                                             &db,
@@ -929,9 +933,8 @@ bed::load_bed_file(bed_path, bed_name, column_map)
                                             &mut cmd_pal,
                                         )
                                         .unwrap();
-                                    */
                                     }
-                                }
+                                */
                             }
                         }
                     }

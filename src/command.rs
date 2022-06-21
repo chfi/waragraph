@@ -797,6 +797,11 @@ impl CommandPalette {
         self.prompt_state.is_some()
     }
 
+    pub fn close_prompt(&mut self) {
+        self.prompt_state = None;
+        self.cmd_arg_state = None;
+    }
+
     pub fn handle_input(
         &mut self,
         mut engine: rhai::Engine,
