@@ -33,8 +33,15 @@ pub struct PromptContext {
 #[derive(Clone)]
 enum ArgPrompt {
     Const {
-        mk_prompt: Arc<dyn Fn() -> PromptObject + 'static>,
+        mk_prompt: Arc<
+            dyn Fn(Option<rhai::ImmutableString>) -> PromptObject + 'static,
+        >,
     },
+    // WithArgInput {
+    //     input_type: ArgType,
+    //     mk_prompt:
+    //         Arc<dyn Fn(&rhai::Dynamic, &rhai::Map) -> PromptObject + 'static>,
+    // }
     /*
     WithArgInput {
         input_type: ArgType,
@@ -72,7 +79,7 @@ impl PromptUniverse {
         type_ids.insert("bool".into(), bool_type_id);
 
         let bool_prompt = ArgPrompt::Const {
-            mk_prompt: Arc::new(|| {
+            mk_prompt: Arc::new(|_opt| {
                 let arg_ty = ArgType {
                     name: "bool".into(),
                     id: std::any::TypeId::of::<bool>(),
@@ -96,12 +103,16 @@ impl PromptUniverse {
         arg_prompts.insert(bool_type_id, bool_prompt);
 
         let path_prompt = ArgPrompt::Const {
-            // mk_prompt: Box::new(|config| {
-            mk_prompt: Arc::new(|| {
-                let builder = FilePathPromptConfig::new(None).unwrap();
+            mk_prompt: Arc::new(|opt| {
+                let builder = if let Some(opts) = opt {
+                    let exts = opts.split(",").map(|s| s.trim());
+                    FilePathPromptConfig::from_ext_whitelist(None, exts)
+                        .unwrap()
+                } else {
+                    FilePathPromptConfig::new(None).unwrap()
+                };
 
                 let prompt = builder.into_prompt();
-
                 prompt.build().unwrap()
             }),
         };
@@ -111,7 +122,7 @@ impl PromptUniverse {
         let annots = annotations.clone();
 
         let bed_prompt = ArgPrompt::Const {
-            mk_prompt: Arc::new(move || {
+            mk_prompt: Arc::new(move |_opt| {
                 let arg_ty = ArgType {
                     name: "BED".into(),
                     id: std::any::TypeId::of::<Arc<AnnotationSet>>(),
@@ -568,6 +579,8 @@ struct CmdArg<T> {
     ty_name: rhai::ImmutableString,
     ty: std::any::TypeId,
 
+    opts: Option<rhai::ImmutableString>,
+
     data: T,
 }
 
@@ -595,10 +608,13 @@ impl CommandArgumentState {
         };
 
         for (arg_name, ty) in command.inputs.iter() {
+            let opts = command.arg_opts.get(&ty.name).cloned();
+
             result.remaining_args.push_back(CmdArg {
                 name: arg_name.clone(),
                 ty_name: ty.name.clone(),
                 ty: ty.id,
+                opts,
                 data: (),
             });
         }
@@ -613,7 +629,7 @@ impl CommandArgumentState {
                     name: first_arg.name.clone(),
                     ty_name: first_arg.ty_name.clone(),
                     ty: first_arg.ty,
-
+                    opts: first_arg.opts.clone(),
                     data: arg.clone(),
                 };
 
@@ -708,6 +724,8 @@ pub struct Command {
     pub fn_ptr: rhai::FnPtr,
     pub inputs: Vec<(rhai::ImmutableString, ArgType)>,
     pub output: Option<ArgType>,
+
+    pub arg_opts: HashMap<rhai::ImmutableString, rhai::ImmutableString>,
 }
 
 impl Command {
@@ -717,6 +735,7 @@ impl Command {
             fn_ptr,
             inputs: Vec::new(),
             output: None,
+            arg_opts: HashMap::default(),
         }
     }
 }
@@ -785,7 +804,7 @@ impl CommandPalette {
 
     pub fn handle_input(
         &mut self,
-        mut engine: rhai::Engine,
+        mk_engine: impl FnOnce() -> rhai::Engine,
         event: &winit::event::WindowEvent,
     ) -> Result<()> {
         use winit::event::{VirtualKeyCode as VK, WindowEvent};
@@ -881,6 +900,7 @@ impl CommandPalette {
                                             );
 
                                                 if state.is_saturated() {
+                                                    let engine = mk_engine();
                                                     let result = state
                                                         .execute(
                                                             &engine,
@@ -912,8 +932,11 @@ impl CommandPalette {
                                                         .arg_prompts
                                                         .get(&next_arg.ty)
                                                     {
-                                                        let prompt =
-                                                            mk_prompt();
+                                                        let prompt = mk_prompt(
+                                                            next_arg
+                                                                .opts
+                                                                .clone(),
+                                                        );
                                                         new_state = Some(
                                                             Box::new(prompt),
                                                         );
@@ -937,7 +960,8 @@ impl CommandPalette {
                                                     )?;
 
                                                     if state.is_saturated() {
-                                                        //
+                                                        let engine =
+                                                            mk_engine();
                                                         let result = state
                                                             .execute(
                                                                 &engine,
@@ -967,7 +991,12 @@ impl CommandPalette {
                                                             .get(&next_arg.ty)
                                                         {
                                                             let prompt =
-                                                                mk_prompt();
+                                                                mk_prompt(
+                                                                    next_arg
+                                                                        .opts
+                                                                        .clone(
+                                                                        ),
+                                                                );
                                                             new_state =
                                                                 Some(Box::new(
                                                                     prompt,
@@ -1095,9 +1124,32 @@ impl CommandPalette {
                         let mut fields = rest.split(":");
 
                         let name = fields.next().unwrap();
-                        let ty_name = fields.next().unwrap().trim();
+                        let mut ty_name = fields.next().unwrap().trim();
 
-                        if let Some(ty) = ctx.type_ids.get(ty_name) {
+                        let ty_name = {
+                            let mut opts = None;
+
+                            if let Some(opt_start) = ty_name.find('(') {
+                                if let Some(end) = ty_name.find(')') {
+                                    opts = Some(rhai::ImmutableString::from(
+                                        &ty_name[(opt_start + 1)..end],
+                                    ));
+                                }
+
+                                ty_name = &ty_name[..opt_start];
+                            }
+
+                            let ty_name = rhai::ImmutableString::from(ty_name);
+
+                            if let Some(opts) = opts {
+                                log::warn!("inserting arg opt for command {}: {} -> {:?}", cmd.name, ty_name, opts);
+                                cmd.arg_opts.insert(ty_name.clone(), opts);
+                            }
+
+                            ty_name
+                        };
+
+                        if let Some(ty) = ctx.type_ids.get(&ty_name) {
                             let arg_ty = ArgType {
                                 name: ty_name.into(),
                                 id: *ty,

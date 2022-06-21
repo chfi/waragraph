@@ -854,7 +854,7 @@ bed::load_bed_file(bed_path, bed_name, column_map)
 
                 if cmd_pal.is_active() {
                     if let Err(e) = cmd_pal.handle_input(
-                        console.create_engine(&db, &buffers),
+                        || console.create_engine(&db, &buffers),
                         &event
                     )
                     {

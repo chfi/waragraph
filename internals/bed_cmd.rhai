@@ -13,7 +13,7 @@ fn another_command(bed_path) {
 
 /// Load a BED file
 ///
-/// @bed_path: PathBuf
+/// @bed_path: PathBuf(bed)
 /// @->: BED
 fn load_bed(bed_path) {
   import "script/bed" as bed;
