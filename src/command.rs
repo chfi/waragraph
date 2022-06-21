@@ -35,6 +35,22 @@ pub struct PromptContext {
     universe: Arc<RwLock<PromptUniverse>>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct ArgType {
+    // id: u64,
+    name: rhai::ImmutableString,
+    id: std::any::TypeId,
+}
+
+impl ArgType {
+    fn new<T: std::any::Any>(name: &str) -> Self {
+        Self {
+            name: name.into(),
+            id: std::any::TypeId::of::<T>(),
+        }
+    }
+}
+
 #[derive(Clone)]
 enum ArgPrompt {
     Const {
@@ -42,30 +58,35 @@ enum ArgPrompt {
             dyn Fn(Option<rhai::ImmutableString>) -> PromptObject + 'static,
         >,
     },
-    // WithArgInput {
-    //     input_type: ArgType,
-    //     mk_prompt:
-    //         Arc<dyn Fn(&rhai::Dynamic, &rhai::Map) -> PromptObject + 'static>,
-    // }
-    /*
     WithArgInput {
         input_type: ArgType,
-        mk_prompt:
-            Arc<dyn Fn(&rhai::Dynamic, &rhai::Map) -> PromptObject + 'static>,
-    },
-    */
+        mk_prompt: Arc<
+            dyn Fn(
+                    Option<rhai::ImmutableString>,
+                    &rhai::Dynamic,
+                ) -> PromptObject
+                + 'static,
+        >,
+    }, /*
+       WithArgInput {
+           input_type: ArgType,
+           mk_prompt:
+               Arc<dyn Fn(&rhai::Dynamic, &rhai::Map) -> PromptObject + 'static>,
+       },
+       */
 }
 
 struct PromptUniverse {
-    arg_prompts: FxHashMap<std::any::TypeId, ArgPrompt>,
+    arg_prompts: FxHashMap<ArgType, ArgPrompt>,
 
-    type_ids: HashMap<rhai::ImmutableString, std::any::TypeId>,
+    types_by_name: HashMap<rhai::ImmutableString, ArgType>,
+    // type_ids: HashMap<rhai::ImmutableString, std::any::TypeId>,
 }
 
 impl PromptUniverse {
-    pub fn get_prompt(&self, arg_ty: std::any::TypeId) -> Option<ArgPrompt> {
-        self.arg_prompts.get(&arg_ty).cloned()
-    }
+    // pub fn get_prompt(&self, arg_ty: std::any::TypeId) -> Option<ArgPrompt> {
+    //     self.arg_prompts.get(&arg_ty).cloned()
+    // }
 
     pub fn new(
         annotations: &Arc<
@@ -73,15 +94,22 @@ impl PromptUniverse {
         >,
     ) -> Self {
         let mut arg_prompts = FxHashMap::default();
-        let mut type_ids = HashMap::default();
+        let mut types_by_name = HashMap::default();
 
-        let path_type_id = std::any::TypeId::of::<std::path::PathBuf>();
-        let bed_type_id = std::any::TypeId::of::<Arc<AnnotationSet>>();
-        let bool_type_id = std::any::TypeId::of::<bool>();
+        let path_type = ArgType::new::<std::path::PathBuf>("PathBuf");
+        let bed_type = ArgType::new::<Arc<AnnotationSet>>("BED");
+        let bed_col_ix_type = ArgType::new::<i64>("BEDColumn");
+        // let bed_col_name_type = ArgType::new::<rhai::ImmutableString>("BEDColumn");
 
-        type_ids.insert("PathBuf".into(), path_type_id);
-        type_ids.insert("BED".into(), bed_type_id);
-        type_ids.insert("bool".into(), bool_type_id);
+        let bool_type = ArgType::new::<bool>("bool");
+
+        let mut add_type =
+            |ty: &ArgType| types_by_name.insert(ty.name.clone(), ty.clone());
+
+        add_type(&path_type);
+        add_type(&bed_type);
+        add_type(&bool_type);
+        add_type(&bed_col_ix_type);
 
         let bool_prompt = ArgPrompt::Const {
             mk_prompt: Arc::new(|_opt| {
@@ -105,7 +133,7 @@ impl PromptUniverse {
             }),
         };
 
-        arg_prompts.insert(bool_type_id, bool_prompt);
+        arg_prompts.insert(bool_type, bool_prompt);
 
         let path_prompt = ArgPrompt::Const {
             mk_prompt: Arc::new(|opt| {
@@ -122,7 +150,7 @@ impl PromptUniverse {
             }),
         };
 
-        arg_prompts.insert(path_type_id, path_prompt);
+        arg_prompts.insert(path_type, path_prompt);
 
         let annots = annotations.clone();
 
@@ -159,20 +187,48 @@ impl PromptUniverse {
             }),
         };
 
-        arg_prompts.insert(bed_type_id, bed_prompt);
+        arg_prompts.insert(bed_type.clone(), bed_prompt);
+
+        // let annots = annotations.clone();
+
+        let col_ix_ty = bed_col_ix_type.clone();
+
+        let bed_col_ix_prompt = ArgPrompt::WithArgInput {
+            input_type: bed_type.clone(),
+            mk_prompt: Arc::new(move |_opt, bed| {
+                let bed = bed.clone_cast::<Arc<AnnotationSet>>();
+
+                let builder = DynPromptConfig {
+                    result_type: col_ix_ty.clone(),
+                    results_producer: Arc::new(move || {
+                        let mut results: rhai::Array = Vec::new();
+
+                        for ix in 0..bed.columns.len() {
+                            results
+                                .push(rhai::Dynamic::from_int(3 + ix as i64));
+                        }
+
+                        results
+                    }),
+                    show: Arc::new(move |ix| {
+                        let ix = ix.clone_cast::<i64>();
+                        ix.to_string().into()
+                    }),
+                };
+
+                let prompt = builder.into_prompt().unwrap();
+
+                prompt.build().unwrap()
+            }),
+        };
+
+        arg_prompts.insert(bed_col_ix_type, bed_col_ix_prompt);
 
         Self {
             arg_prompts,
-            type_ids,
+            types_by_name,
         }
     }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct ArgType {
-    // id: u64,
-    name: rhai::ImmutableString,
-    id: std::any::TypeId,
 }
 
 type CommandPrompt<I, P> =
@@ -435,8 +491,7 @@ pub enum PromptAction<P, T> {
 struct CmdArg<T> {
     name: rhai::ImmutableString,
 
-    ty_name: rhai::ImmutableString,
-    ty: std::any::TypeId,
+    ty: ArgType,
 
     opts: Option<rhai::ImmutableString>,
 
@@ -469,10 +524,14 @@ impl CommandArgumentState {
         for (arg_name, ty) in command.inputs.iter() {
             let opts = command.arg_opts.get(&ty.name).cloned();
 
+            // let ty = ArgType {
+            //     name: ty.name.clone(),
+            //     ty: ty.id,
+            // };
+
             result.remaining_args.push_back(CmdArg {
                 name: arg_name.clone(),
-                ty_name: ty.name.clone(),
-                ty: ty.id,
+                ty: ty.clone(),
                 opts,
                 data: (),
             });
@@ -483,18 +542,17 @@ impl CommandArgumentState {
 
     fn apply_argument(&mut self, arg: &rhai::Dynamic) -> Result<()> {
         if let Some(first_arg) = self.remaining_args.pop_front() {
-            if arg.type_id() == first_arg.ty {
+            if arg.type_id() == first_arg.ty.id {
                 let arg = CmdArg {
                     name: first_arg.name.clone(),
-                    ty_name: first_arg.ty_name.clone(),
-                    ty: first_arg.ty,
+                    ty: first_arg.ty.clone(),
                     opts: first_arg.opts.clone(),
                     data: arg.clone(),
                 };
 
                 self.applied_args.push(arg);
             } else {
-                let ty_name = first_arg.ty_name.clone();
+                let ty_name = first_arg.ty.name.clone();
                 self.remaining_args.push_front(first_arg);
                 bail!("Argument mismatch: {} != {}", arg.type_name(), ty_name);
             }
@@ -695,22 +753,40 @@ impl CommandPalette {
         arg_state: &mut CommandArgumentState,
     ) -> std::result::Result<bool, PromptObject> {
         if arg_state.is_saturated() {
-            Ok(true)
-        } else {
-            let next_arg = arg_state.remaining_args.front().unwrap();
+            return Ok(true);
+        }
+        let next_arg = arg_state.remaining_args.front().unwrap();
 
-            if let Some(ArgPrompt::Const { mk_prompt }) =
-                universe.arg_prompts.get(&next_arg.ty)
-            {
-                let prompt = mk_prompt(next_arg.opts.clone());
-                if prompt.result_len.load() == 0 {
-                    Ok(false)
-                } else {
-                    Err(prompt)
+        if let Some(prompt) = universe.arg_prompts.get(&next_arg.ty) {
+            match prompt {
+                ArgPrompt::Const { mk_prompt } => {
+                    let prompt = mk_prompt(next_arg.opts.clone());
+
+                    if prompt.result_len.load() == 0 {
+                        Ok(false)
+                    } else {
+                        Err(prompt)
+                    }
                 }
-            } else {
-                Ok(false)
+                ArgPrompt::WithArgInput {
+                    input_type,
+                    mk_prompt,
+                } => {
+                    let input_arg =
+                        arg_state.applied_args.iter().find_map(|arg| {
+                            (&arg.ty == input_type).then(|| arg.data.clone())
+                        });
+
+                    if let Some(input) = input_arg {
+                        let prompt = mk_prompt(next_arg.opts.clone(), &input);
+                        Err(prompt)
+                    } else {
+                        Ok(false)
+                    }
+                }
             }
+        } else {
+            Ok(false)
         }
     }
 
@@ -1035,16 +1111,11 @@ impl CommandPalette {
                             ty_name
                         };
 
-                        if let Some(ty) = ctx.type_ids.get(&ty_name) {
-                            let arg_ty = ArgType {
-                                name: ty_name.into(),
-                                id: *ty,
-                            };
-
+                        if let Some(arg_ty) = ctx.types_by_name.get(&ty_name) {
                             if name == "->" {
-                                cmd.output = Some(arg_ty);
+                                cmd.output = Some(arg_ty.clone());
                             } else {
-                                cmd.inputs.push((name.into(), arg_ty));
+                                cmd.inputs.push((name.into(), arg_ty.clone()));
                             }
                         } else {
                             log::warn!(
