@@ -365,7 +365,7 @@ bed::load_bed_file(bed_path, bed_name, column_map)
         }
     }
 
-    let mut cmd_pal = CommandPalette::new()?;
+    let mut cmd_pal = CommandPalette::new(&viewer.annotations)?;
 
     cmd_pal.load_rhai_module(
         console.create_engine(&db, &buffers),

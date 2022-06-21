@@ -2,7 +2,7 @@
 
 use std::{
     cell::RefMut,
-    collections::{HashMap, HashSet, VecDeque},
+    collections::{BTreeMap, HashMap, HashSet, VecDeque},
     path::PathBuf,
     sync::Arc,
 };
@@ -18,6 +18,7 @@ use rhai::plugin::*;
 use rustc_hash::FxHashMap;
 
 use crate::{
+    console::data::AnnotationSet,
     geometry::{
         LayoutElement, ListLayout, ScreenPoint, ScreenRect, ScreenSideOffsets,
     },
@@ -32,7 +33,6 @@ pub struct PromptContext {
 #[derive(Clone)]
 enum ArgPrompt {
     Const {
-        // mk_prompt: Arc<dyn Fn(&rhai::Map) -> PromptObject + 'static>,
         mk_prompt: Arc<dyn Fn() -> PromptObject + 'static>,
     },
     /*
@@ -55,32 +55,44 @@ impl PromptUniverse {
         self.arg_prompts.get(&arg_ty).cloned()
     }
 
-    pub fn new() -> Self {
+    pub fn new(
+        annotations: &Arc<
+            RwLock<BTreeMap<rhai::ImmutableString, Arc<AnnotationSet>>>,
+        >,
+    ) -> Self {
         let mut arg_prompts = FxHashMap::default();
         let mut type_ids = HashMap::default();
 
-        let type_id = std::any::TypeId::of::<std::path::PathBuf>();
+        let path_type_id = std::any::TypeId::of::<std::path::PathBuf>();
+        let bed_type_id = std::any::TypeId::of::<Arc<AnnotationSet>>();
 
-        type_ids.insert("PathBuf".into(), type_id);
+        type_ids.insert("PathBuf".into(), path_type_id);
+        type_ids.insert("BED".into(), bed_type_id);
 
-        let prompt = ArgPrompt::Const {
+        let path_prompt = ArgPrompt::Const {
             // mk_prompt: Box::new(|config| {
             mk_prompt: Arc::new(|| {
                 let builder = FilePathPromptConfig::new(None).unwrap();
 
                 let prompt = builder.into_prompt();
 
-                /*
-                let prompt_state = prompt.build(|path| {
-                    log::error!("selected path: {:?}", path);
-                    None
-                })?;
-                */
                 prompt.build().unwrap()
             }),
         };
 
-        arg_prompts.insert(type_id, prompt);
+        arg_prompts.insert(path_type_id, path_prompt);
+
+        let annots = annotations.clone();
+
+        /*
+        let bed_prompt = ArgPrompt::Const {
+            mk_prompt: Arc::new(|| {
+                let prompt = builder.into_prompt();
+
+                prompt.build().unwrap()
+            }),
+        };
+        */
 
         Self {
             arg_prompts,
@@ -100,6 +112,12 @@ type CommandPrompt<I, P> =
     PromptObjectRaw<CommandEntry, I, P, CommandArgumentState>;
 
 type FilePathPrompt<I> = PromptObjectRaw<PathBuf, I, PathBuf, PathBuf>;
+
+struct DynPromptConfig {
+    results: rhai::Array,
+}
+
+impl DynPromptConfig {}
 
 #[derive(Default)]
 struct CommandPromptConfig {
@@ -341,9 +359,6 @@ impl FilePathPromptConfig {
     }
 }
 
-// pub struct FilePathPrompt {
-// }
-
 struct PromptObjectRaw<V, I, P, T>
 where
     V: Clone + 'static,
@@ -365,10 +380,7 @@ where
     T: Clone + Send + Sync + 'static,
     I: Iterator<Item = V> + 'static,
 {
-    fn build(
-        self,
-        // done: impl Fn(T) -> Option<PromptObject> + 'static,
-    ) -> Result<PromptObject> {
+    fn build(self) -> Result<PromptObject> {
         PromptObject::new(
             self.prompt_input,
             self.select,
@@ -380,7 +392,6 @@ where
 }
 
 struct PromptObject {
-    // act: Box<dyn FnMut(usize) -> Result<std::ops::ControlFlow<(), ()>>>,
     act: Box<
         dyn FnMut(usize) -> Result<std::ops::ControlFlow<rhai::Dynamic, ()>>,
     >,
@@ -437,10 +448,6 @@ impl PromptObject {
                     Ok(std::ops::ControlFlow::Continue(()))
                 }
                 PromptAction::Return(value) => {
-                    // std::mem::drop(results);
-
-                    // let result = done(value).map(|b| Box::new(b));
-
                     Ok(std::ops::ControlFlow::Break(rhai::Dynamic::from(value)))
                 }
             }
@@ -560,11 +567,6 @@ impl CommandArgumentState {
     }
 }
 
-// struct FilePickerResults {
-//     working_dir: PathBuf,
-//     included_exts: Option<HashSet<String>>,
-// }
-
 #[derive(Default, Clone)]
 pub struct CommandModuleBuilder {
     pub name: rhai::ImmutableString,
@@ -607,32 +609,6 @@ impl CommandModuleBuilder {
             // list_view: ListView::new(None),
         })
     }
-}
-
-// pub enum ResultType {
-//     Value { output: rhai::ImmutableString },
-//     // Command { command: Arc<Command>, output: rhai::ImmutableString },
-//     Command { output: rhai::Immutable
-// }
-
-#[derive(Debug, Clone)]
-pub enum ResultProducer {
-    // Value(rhai::Dynamic),
-    Command {
-        module: rhai::ImmutableString,
-        command: rhai::ImmutableString,
-    },
-    // Command(Arc<Command>),
-}
-
-// pub struct CommandOutput
-#[derive(Debug, Clone)]
-pub struct ResultItem {
-    text: rhai::ImmutableString,
-
-    ty: rhai::ImmutableString,
-
-    item: ResultProducer,
 }
 
 #[derive(Debug, Clone)]
@@ -686,10 +662,6 @@ pub enum PromptFor {
 }
 
 pub struct CommandPalette {
-    // input_history: Vec<String>,
-    // output_history: Vec<rhai::Dynamic>,
-    // prompt_state: Option<PromptState>,
-    // prompt_state_: Arc<AtomicCell<Option<PromptObject>>>,
     cmd_arg_state: Option<CommandArgumentState>,
 
     prompt_state: Box<PromptObject>,
@@ -719,45 +691,7 @@ impl CommandPalette {
         let prompt_cell: Arc<AtomicCell<Option<PromptObject>>> =
             Arc::new(AtomicCell::new(None));
 
-        // fn build_outer(
-
         let prompt_state = prompt.build()?;
-        /*
-        let prompt_state = prompt.build(|cmd_arg_state| {
-            if cmd_arg_state.is_saturated() {
-                log::error!("executing state: {:?}", cmd_arg_state);
-                None
-            } else {
-                log::error!("command not saturated: {:?}", cmd_arg_state);
-
-                let first_arg = cmd_arg_state.remaining_args.front().unwrap();
-
-                log::error!("next argument: {:?}", first_arg);
-
-                if first_arg.ty_name == "PathBuf" {
-                    let config = FilePathPromptConfig::new(None).unwrap();
-                    let prompt = config.into_prompt();
-
-                    let prompt_state = prompt.build().unwrap();
-                    // .build(move |path| {
-                    //     log::error!("selected path: {:?}", path);
-
-                    //     None
-                    // })
-                    // .unwrap();
-                    Some(prompt_state)
-                } else {
-                    None
-                }
-
-                /*
-                {
-                }
-                */
-            }
-        })?;
-        */
-
         self.prompt_state = Box::new(prompt_state);
 
         Ok(())
@@ -911,37 +845,9 @@ impl CommandPalette {
 
                                             //
                                         }
-
-                                        // if value.type_id() == std::any::TypeId::of::<std::path::PathBuf>() {
-
-                                        // }
-                                        // if let Some(cmd_arg_state) =
-
-                                        /*
-                                        if let Some(prompt) = prompt {
-                                            self.prompt_state = prompt;
-                                            log::error!("new prompt!");
-                                        } else {
-                                            // self.prompt_state = None;
-                                            log::error!("end prompt");
-                                        }
-                                        */
-                                        //
                                     }
                                 }
                             }
-
-                            /*
-                            if let Some(item) = self
-                                .selection_focus
-                                .take()
-                                .and_then(|ix| self.results.get(ix))
-                            {
-                                let ResultProducer::Command { module, command } =
-                                    &item.item;
-                                self.run_command(&engine, &module, &command)?;
-                            }
-                            */
                         }
                         VK::Tab => {
                             // Autocomplete
@@ -1095,7 +1001,11 @@ impl CommandPalette {
         Ok(())
     }
 
-    pub fn new() -> Result<Self> {
+    pub fn new(
+        annotations: &Arc<
+            RwLock<BTreeMap<rhai::ImmutableString, Arc<AnnotationSet>>>,
+        >,
+    ) -> Result<Self> {
         let bg_rect = euclid::rect(80.0, 80.0, 500.0, 500.0);
 
         let [top, bottom] = bg_rect.split_ver(bg_rect.height() * 0.15);
@@ -1119,7 +1029,7 @@ impl CommandPalette {
         // })?;
 
         let context = PromptContext {
-            universe: Arc::new(RwLock::new(PromptUniverse::new())),
+            universe: Arc::new(RwLock::new(PromptUniverse::new(annotations))),
         };
 
         Ok(Self {
@@ -1283,16 +1193,3 @@ impl CommandPalette {
         Ok(())
     }
 }
-
-/*
-lazy_static::lazy_static! {
-    static ref RHAI_MODULE: Arc<rhai::Module> = {
-        let mut module = rhai::exported_module!(rhai_module);
-        Arc::new(module)
-    };
-}
-
-#[export_module]
-pub mod rhai_module {
-}
-*/
