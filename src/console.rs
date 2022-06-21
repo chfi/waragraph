@@ -471,6 +471,30 @@ pub fn append_to_engine(db: &sled::Db, engine: &mut rhai::Engine) {
         crate::viewer::app::PATH_UI_STATE_MODULE.clone(),
     );
 
+    engine.register_type_with_name::<std::path::PathBuf>("PathBuf");
+    engine.register_fn("to_string", |path: std::path::PathBuf| {
+        let path_str = path.to_str().unwrap_or_default();
+        path_str.to_string()
+    });
+
+    engine.register_fn("is_dir", |path: &mut std::path::PathBuf| path.is_dir());
+
+    engine.register_fn("file_name", |path: &mut std::path::PathBuf| {
+        if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
+            rhai::Dynamic::from(rhai::ImmutableString::from(name))
+        } else {
+            rhai::Dynamic::UNIT
+        }
+    });
+
+    engine.register_fn("extension", |path: &mut std::path::PathBuf| {
+        if let Some(ext) = path.extension().and_then(|n| n.to_str()) {
+            rhai::Dynamic::from(rhai::ImmutableString::from(ext))
+        } else {
+            rhai::Dynamic::UNIT
+        }
+    });
+
     // utility functions used in color.rhai
     engine.register_fn("rgba", |r: f32, g: f32, b: f32, a: f32| [r, g, b, a]);
     engine.register_fn("rgba", |r: i64, g: i64, b: i64, a: i64| {
