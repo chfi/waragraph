@@ -61,6 +61,7 @@ impl BedColumn {
 }
 
 pub struct AnnotationSet {
+    pub name: rhai::ImmutableString,
     // e.g. BED file path
     pub source: rhai::ImmutableString,
 
@@ -164,6 +165,11 @@ impl AnnotationSet {
         use std::io::prelude::*;
 
         let path = path.as_ref();
+
+        let name = path
+            .file_name()
+            .and_then(|s| s.to_str())
+            .ok_or(anyhow!("BED path has no filename!"))?;
 
         let source = path
             .to_str()
@@ -284,6 +290,7 @@ impl AnnotationSet {
             .collect();
 
         Ok(AnnotationSet {
+            name: name.into(),
             source,
 
             record_count: ix,
@@ -858,6 +865,16 @@ pub mod rhai_module {
     }
 
     pub type AnnotationSet = Arc<super::AnnotationSet>;
+
+    #[rhai_fn(global, pure, get = "source")]
+    pub fn annot_source(set: &mut AnnotationSet) -> rhai::ImmutableString {
+        set.source.clone()
+    }
+
+    #[rhai_fn(global, pure, get = "name")]
+    pub fn annot_name(set: &mut AnnotationSet) -> rhai::ImmutableString {
+        set.name.clone()
+    }
 
     #[rhai_fn(global, return_raw)]
     pub fn column_type(

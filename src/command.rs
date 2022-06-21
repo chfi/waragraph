@@ -815,6 +815,7 @@ impl CommandPalette {
 
                     match Self::handle_cmd_arg_state(universe, &mut arg_state) {
                         Ok(true) => {
+                            state.cmd_arg_state = Some(arg_state);
                             // saturated
                             execute = true;
                         }

@@ -1,15 +1,6 @@
 set_name("BED");
 set_desc("BED & Annotations");
 
-/*
-/// Load a BED file
-///
-/// @bed_path: PathBuf
-fn another_command(bed_path) {
-  import "script/bed" as bed;
-  bed::load_bed_file(bed_path)
-}
-*/
 
 /// Load a BED file
 ///
@@ -22,6 +13,42 @@ fn load_bed(bed_path) {
 }
 
 
+/// Add a column from a BED file as a visualization mode
+///
+/// @bed: BED
+/// @column: BEDColumn
+fn enable_column(bed, column) {
+  // logic here
+  let col = column;
+  let name = col;
+
+  let data_source_name = `${bed.name}:${col}`;
+  slot::create_data_source(bed, col, data_source_name);
+  let data_source = slot::get_data_source(data_source_name);
+
+  let slot_fn_name = `${bed.name}:${name}`;
+  let slot_fn = slot::new_slot_fn_from_data_source(data_source_name,
+                                                   slot_fn_name);
+
+  let col_type = bed.column_type(col);
+
+  // set the viz. color scheme based on the column type
+  if col_type == "string" {
+    slot::set_slot_color_scheme(slot_fn_name,
+                                "gradient-category10");
+  } else if col_type == "i64" {
+    slot::set_slot_color_scheme(slot_fn_name,
+                                "gradient-colorbrewer-spectral");
+  } else if col_type == "f32" {
+    slot::set_slot_color_scheme(slot_fn_name,
+                                "gradient-colorbrewer-spectral");
+  } else {
+    slot::set_slot_color_scheme(slot_fn_name,
+                                "gradient-colorbrewer-spectral");
+  }
+}
+
+/*
 /// TEST
 ///
 /// @bed_path: PathBuf
@@ -34,21 +61,8 @@ fn load_bed_test(bed_path, bed, a_bool) {
   // let file_name = bed_path1.file_name();
   // bed::load_bed_file(bed_path.to_string(), file_name);
 }
+*/
 
-
-/// Change visualization mode to a BED column
-///
-/// @bed: BED
-/// @column: BEDColumn
-fn display_column(bed, column) {
-  // logic here
-}
-
-/// This is a zero-arity command
-fn command_test() {
-  print("hello world");
-  return 13;
-}
 
 /*
 add_command("cmd_name", "cmd_desc", || {
