@@ -22,6 +22,7 @@ use crate::{
     geometry::{
         LayoutElement, ListLayout, ScreenPoint, ScreenRect, ScreenSideOffsets,
     },
+    list::ListView,
     text::TextCache,
     viewer::gui::layer::rect_rgba,
 };
@@ -256,8 +257,6 @@ impl CommandPromptConfig {
             (&c0.module, &c0.command.name).cmp(&(&c1.module, &c1.command.name))
         });
 
-        // let results = Arc::new(results);
-
         let select = Box::new(
             |entry: &CommandEntry| -> PromptAction<(), CommandArgumentState> {
                 let state = CommandArgumentState::from_command(
@@ -371,7 +370,6 @@ impl FilePathPromptConfig {
 
             let predicate = config.predicate.clone();
 
-            // let go_up: PathBuf = "..".into();
             let go_up = path.parent().map(|_| "/..".into());
 
             let contents = results.filter_map(move |entry| {
@@ -692,11 +690,6 @@ impl CommandModuleBuilder {
             HashMap::default();
 
         for (key, val) in self.commands {
-            /*
-            if let Some(map) = val.try_cast::<rhai::Map>() {
-            }
-            */
-
             if let Some(fn_ptr) = val.try_cast::<rhai::FnPtr>() {
                 let cmd = Arc::new(Command::new(key.as_str(), fn_ptr));
                 commands.insert(key.into(), cmd);
@@ -760,10 +753,17 @@ pub enum PromptFor {
     Argument { ty: rhai::ImmutableString },
 }
 
-pub struct CommandPalette {
+struct PromptState {
     cmd_arg_state: Option<CommandArgumentState>,
+    prompt_state: Box<PromptObject>,
+    list_view: ListView<usize>,
+}
 
-    prompt_state: Option<Box<PromptObject>>,
+pub struct CommandPalette {
+    // cmd_arg_state: Option<CommandArgumentState>,
+    // prompt_state: Option<Box<PromptObject>>,
+    // list_view: Option<ListView<()>>,
+    prompt_state: Option<PromptState>,
 
     // stack: Vec<rhai::Dynamic>,
     selection_focus: Option<usize>,
@@ -788,7 +788,18 @@ impl CommandPalette {
         let prompt = config.into_prompt(&self.modules)?;
 
         let prompt_state = prompt.build()?;
-        self.prompt_state = Some(Box::new(prompt_state));
+
+        let result_len = prompt_state.result_len.load();
+        let mut list_view = ListView::new(0..result_len);
+        list_view.resize(self.layout.slot_count().0);
+
+        let state = PromptState {
+            cmd_arg_state: None,
+            prompt_state: Box::new(prompt_state),
+            list_view,
+        };
+
+        self.prompt_state = Some(state);
 
         Ok(())
     }
@@ -799,7 +810,163 @@ impl CommandPalette {
 
     pub fn close_prompt(&mut self) {
         self.prompt_state = None;
-        self.cmd_arg_state = None;
+    }
+
+    fn set_focus(&mut self, new: usize) {
+        if self.prompt_state.is_none() {
+            self.selection_focus = None;
+            return;
+        }
+
+        if let Some(state) = self.prompt_state.as_mut() {
+            let view = &mut state.list_view;
+            view.scroll_to_ix(new);
+            self.selection_focus = Some(new.min(view.max() - 1));
+        }
+    }
+
+    // Returns Ok(true) if the argument state is saturated,
+    // Err(prompt) if a prompt was created for one of the command
+    // arguments, and Ok(false) if an argument is needed but cannot be
+    // produced
+    fn handle_cmd_arg_state(
+        universe: &PromptUniverse,
+        arg_state: &mut CommandArgumentState,
+    ) -> std::result::Result<bool, PromptObject> {
+        if arg_state.is_saturated() {
+            Ok(true)
+        } else {
+            let next_arg = arg_state.remaining_args.front().unwrap();
+
+            if let Some(ArgPrompt::Const { mk_prompt }) =
+                universe.arg_prompts.get(&next_arg.ty)
+            {
+                let prompt = mk_prompt(next_arg.opts.clone());
+                if prompt.result_len.load() == 0 {
+                    Ok(false)
+                } else {
+                    Err(prompt)
+                }
+            } else {
+                Ok(false)
+            }
+        }
+    }
+
+    // returns Ok(true) if the selection can be executed
+    fn act_on_selection_impl(
+        universe: &PromptUniverse,
+        state: &mut PromptState,
+        focus_ix: usize,
+        list_len: usize,
+    ) -> Result<bool> {
+        let mut execute = false;
+
+        match (state.prompt_state.act)(focus_ix)? {
+            std::ops::ControlFlow::Continue(_) => {
+                //
+                log::error!("continue prompt");
+            }
+            std::ops::ControlFlow::Break(value) => {
+                if value.type_id()
+                    == std::any::TypeId::of::<CommandArgumentState>()
+                {
+                    let mut arg_state = value.cast::<CommandArgumentState>();
+
+                    match Self::handle_cmd_arg_state(universe, &mut arg_state) {
+                        Ok(true) => {
+                            // saturated
+                            execute = true;
+                        }
+                        Ok(false) => {
+                            //
+                            log::error!("cannot saturate command");
+                        }
+
+                        Err(prompt) => {
+                            let result_len = prompt.result_len.load();
+                            let mut list_view = ListView::new(0..result_len);
+                            list_view.resize(list_len);
+
+                            state.list_view = list_view;
+                            state.prompt_state = Box::new(prompt);
+                            state.cmd_arg_state = Some(arg_state);
+                        }
+                    }
+                } else if let Some(arg_state) = state.cmd_arg_state.as_mut() {
+                    arg_state.apply_argument(&value)?;
+
+                    match Self::handle_cmd_arg_state(universe, arg_state) {
+                        Ok(true) => {
+                            // saturated
+                            execute = true;
+                        }
+                        Ok(false) => {
+                            //
+                            log::error!("cannot saturate command");
+                        }
+
+                        Err(prompt) => {
+                            log::error!("updating prompt");
+                            let result_len = prompt.result_len.load();
+                            let mut list_view = ListView::new(0..result_len);
+                            list_view.resize(list_len);
+
+                            state.list_view = list_view;
+                            state.prompt_state = Box::new(prompt);
+                        }
+                    }
+                }
+            }
+        }
+
+        Ok(execute)
+    }
+
+    fn act_on_selection(
+        &mut self,
+        mk_engine: impl FnOnce() -> rhai::Engine,
+        list_len: usize,
+    ) -> Result<()> {
+        if self.prompt_state.is_none() || self.selection_focus.is_none() {
+            return Ok(());
+        }
+
+        let universe = &self.context.universe.read();
+
+        let mut clear_state = false;
+
+        if let Some(state) = self.prompt_state.as_mut() {
+            let focus = self.selection_focus.unwrap();
+
+            match Self::act_on_selection_impl(universe, state, focus, list_len)
+            {
+                Ok(true) => {
+                    if let Some(arg_state) = state.cmd_arg_state.as_mut() {
+                        let engine = mk_engine();
+                        let result =
+                            arg_state.execute(&engine, &self.modules)?;
+
+                        clear_state = true;
+                    }
+                }
+                Ok(false) => {
+                    //
+                }
+                Err(e) => {
+                    //
+                    log::error!("Command palette error: {:?}", e);
+                    clear_state = true;
+                }
+            }
+        }
+
+        if clear_state {
+            self.prompt_state = None;
+            self.selection_focus = None;
+        }
+
+        Ok(())
     }
 
     pub fn handle_input(
@@ -828,36 +995,36 @@ impl CommandPalette {
                     let pressed =
                         input.state == winit::event::ElementState::Pressed;
 
-                    let result_len =
-                        self.prompt_state.as_ref().unwrap().result_len.load();
+                    let result_len = self
+                        .prompt_state
+                        .as_ref()
+                        .unwrap()
+                        .prompt_state
+                        .result_len
+                        .load();
 
                     match key {
                         VK::Up => {
                             // Move result selection up
                             if pressed {
-                                if let Some(focus) =
-                                    self.selection_focus.as_mut()
-                                {
-                                    if *focus > 0 {
-                                        *focus -= 1;
-                                    }
-                                } else {
-                                    self.selection_focus = Some(result_len - 1);
-                                }
+                                let ix = self
+                                    .selection_focus
+                                    .map(|ix| {
+                                        ix.checked_sub(1).unwrap_or_default()
+                                    })
+                                    .unwrap_or(result_len - 1);
+
+                                self.set_focus(ix);
                             }
                         }
                         VK::Down => {
                             // Move result selection down
                             if pressed {
-                                if let Some(focus) =
-                                    self.selection_focus.as_mut()
-                                {
-                                    if *focus < result_len - 1 {
-                                        *focus += 1;
-                                    }
-                                } else {
-                                    self.selection_focus = Some(0);
-                                }
+                                let ix = self
+                                    .selection_focus
+                                    .map(|ix| ix + 1)
+                                    .unwrap_or(0);
+                                self.set_focus(ix);
                             }
                         }
                         VK::Left => {
@@ -870,157 +1037,12 @@ impl CommandPalette {
                         }
                         VK::Return => {
                             // Confirm selection
-                            // TODO
-                            // if let Some(ix) = self.selection_focus.take()
-
                             if !pressed {
                                 return Ok(());
                             }
 
-                            let mut new_state = None;
-
-                            if let Some(mut prompt_state) =
-                                self.prompt_state.take()
-                            {
-                                if let Some(ix) = self.selection_focus.take() {
-                                    match (prompt_state.act)(ix).unwrap() {
-                                        std::ops::ControlFlow::Continue(_) => {
-                                            //
-                                            log::error!("continue prompt");
-                                        }
-                                        std::ops::ControlFlow::Break(value) => {
-                                            if value.type_id()
-                                                == std::any::TypeId::of::<
-                                                    CommandArgumentState,
-                                                >(
-                                                )
-                                            {
-                                                let state = value
-                                                .cast::<CommandArgumentState>(
-                                            );
-
-                                                if state.is_saturated() {
-                                                    let engine = mk_engine();
-                                                    let result = state
-                                                        .execute(
-                                                            &engine,
-                                                            &self.modules,
-                                                        )?;
-                                                    log::error!("executed command, result: {:?}", result);
-                                                } else {
-                                                    log::error!("got a command argument state: {:?}", state);
-
-                                                    let next_arg = state
-                                                        .remaining_args
-                                                        .front()
-                                                        .unwrap();
-
-                                                    log::error!(
-                                                        "next argument: {:?}",
-                                                        next_arg
-                                                    );
-
-                                                    let ctx = self
-                                                        .context
-                                                        .universe
-                                                        .read();
-                                                    if let Some(
-                                                        ArgPrompt::Const {
-                                                            mk_prompt,
-                                                        },
-                                                    ) = ctx
-                                                        .arg_prompts
-                                                        .get(&next_arg.ty)
-                                                    {
-                                                        let prompt = mk_prompt(
-                                                            next_arg
-                                                                .opts
-                                                                .clone(),
-                                                        );
-                                                        new_state = Some(
-                                                            Box::new(prompt),
-                                                        );
-                                                        dbg!();
-                                                    }
-
-                                                    self.cmd_arg_state =
-                                                        Some(state);
-                                                }
-                                            } else {
-                                                log::error!(
-                                                    "returned value: {:?}",
-                                                    value
-                                                );
-
-                                                if let Some(mut state) =
-                                                    self.cmd_arg_state.take()
-                                                {
-                                                    state.apply_argument(
-                                                        &value,
-                                                    )?;
-
-                                                    if state.is_saturated() {
-                                                        let engine =
-                                                            mk_engine();
-                                                        let result = state
-                                                            .execute(
-                                                                &engine,
-                                                                &self.modules,
-                                                            )?;
-                                                    } else {
-                                                        let next_arg = state
-                                                            .remaining_args
-                                                            .front()
-                                                            .unwrap();
-
-                                                        log::error!(
-                                                        "next argument: {:?}",
-                                                        next_arg
-                                                    );
-
-                                                        let ctx = self
-                                                            .context
-                                                            .universe
-                                                            .read();
-                                                        if let Some(
-                                                            ArgPrompt::Const {
-                                                                mk_prompt,
-                                                            },
-                                                        ) = ctx
-                                                            .arg_prompts
-                                                            .get(&next_arg.ty)
-                                                        {
-                                                            let prompt =
-                                                                mk_prompt(
-                                                                    next_arg
-                                                                        .opts
-                                                                        .clone(
-                                                                        ),
-                                                                );
-                                                            new_state =
-                                                                Some(Box::new(
-                                                                    prompt,
-                                                                ));
-                                                            dbg!();
-                                                        }
-
-                                                        self.cmd_arg_state =
-                                                            Some(state);
-                                                    }
-                                                }
-
-                                                //
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                            if new_state.is_some() {
-                                log::warn!("updating state");
-                            } else if new_state.is_none() {
-                                log::warn!("empty state!!");
-                            }
-                            self.prompt_state = new_state;
+                            let list_len = self.layout.slot_count().0;
+                            self.act_on_selection(mk_engine, list_len)?;
                         }
                         VK::Tab => {
                             // Autocomplete
@@ -1215,22 +1237,12 @@ impl CommandPalette {
             slot_height: Length::new(30.0),
         };
 
-        let config = FilePathPromptConfig::new(None)?;
-        let prompt = config.into_prompt();
-
-        let prompt_state = prompt.build()?;
-        // let prompt_state = prompt.build(|path| {
-        //     log::error!("selected path: {:?}", path);
-        //     None
-        // })?;
-
         let context = PromptContext {
             universe: Arc::new(RwLock::new(PromptUniverse::new(annotations))),
         };
 
         Ok(Self {
             // prompt_state_: Arc::new(AtomicCell::new(None)),
-            cmd_arg_state: None,
             prompt_state: None,
 
             input_buffer: String::new(),
@@ -1326,14 +1338,20 @@ impl CommandPalette {
 
         let state = self.prompt_state.as_mut().unwrap();
 
-        let indices = 0..state.result_len.load();
+        let indices = state.list_view.row_indices();
+
+        // let indices = 0..(state.prompt_state.result_len.load());
 
         let mut max_text_x = self.layout.origin.x;
 
         // let mut max_rect_x = self.layout.origin.x;
 
-        for (ix, rect, _ix) in self.layout.apply_to_rows(indices) {
-            let text = (state.show)(ix, rect);
+        for (ix, rect, res_ix) in self.layout.apply_to_rows(indices) {
+            if res_ix >= state.prompt_state.result_len.load() {
+                continue;
+            }
+
+            let text = (state.prompt_state.show)(res_ix, rect);
 
             let r = rect.inner_rect(pad);
 
@@ -1410,16 +1428,26 @@ impl CommandPalette {
                     rect_rgba(bottom.inner_rect(pad), color_fg),
                 ];
 
-                let result_len =
-                    self.prompt_state.as_ref().unwrap().result_len.load();
+                let result_len = self
+                    .prompt_state
+                    .as_ref()
+                    .unwrap()
+                    .prompt_state
+                    .result_len
+                    .load();
+
+                let state = self.prompt_state.as_ref().unwrap();
+                let indices = state.list_view.row_indices();
 
                 let selection = self.selection_focus.and_then(|ix| {
-                    let (_, rect, _) =
-                        self.layout.apply_to_rows(0..result_len).nth(ix)?;
+                    indices.contains(&ix).then(|| {
+                        let offset = ix - indices.start;
+                        let (_, rect, res_ix) =
+                            self.layout.apply_to_rows(indices).nth(offset)?;
 
-                    // let sel_vx = rect_rgba(rect.inner_rect(pad), color_focus);
-                    let sel_vx = rect_rgba(rect, color_focus);
-                    Some(sel_vx)
+                        let sel_vx = rect_rgba(rect, color_focus);
+                        Some(sel_vx)
+                    })?
                 });
 
                 sublayer_data
