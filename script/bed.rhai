@@ -62,3 +62,17 @@ fn load_bed_file(bed_path, bed_name, columns) {
 
   result
 }
+
+
+fn load_bed_file(bed_path, bed_name) {
+  let g = graph::get_graph();
+  let bed_file = slot::load_bed_file(g, bed_path);
+
+  let ix_data_source_name = `${bed_name}_ix`;
+  let ix_data_source = slot::create_data_source(bed_file,
+                                                ix_data_source_name);
+
+  let result = #{ bed: bed_file, ix_data_source: ix_data_source };
+
+  result
+}

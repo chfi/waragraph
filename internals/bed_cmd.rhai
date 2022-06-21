@@ -17,7 +17,8 @@ fn another_command(bed_path) {
 /// @->: BED
 fn load_bed(bed_path) {
   import "script/bed" as bed;
-  bed::load_bed_file(bed_path);
+  let file_name = bed_path.file_name();
+  bed::load_bed_file(bed_path.to_string(), file_name);
 }
 
 
