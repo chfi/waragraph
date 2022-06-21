@@ -65,9 +65,35 @@ impl PromptUniverse {
 
         let path_type_id = std::any::TypeId::of::<std::path::PathBuf>();
         let bed_type_id = std::any::TypeId::of::<Arc<AnnotationSet>>();
+        let bool_type_id = std::any::TypeId::of::<bool>();
 
         type_ids.insert("PathBuf".into(), path_type_id);
         type_ids.insert("BED".into(), bed_type_id);
+        type_ids.insert("bool".into(), bool_type_id);
+
+        let bool_prompt = ArgPrompt::Const {
+            mk_prompt: Arc::new(|| {
+                let arg_ty = ArgType {
+                    name: "bool".into(),
+                    id: std::any::TypeId::of::<bool>(),
+                };
+
+                let builder = DynPromptConfig {
+                    result_type: arg_ty,
+                    results_producer: Arc::new(move || {
+                        vec![rhai::Dynamic::TRUE, rhai::Dynamic::FALSE]
+                    }),
+                    show: Arc::new(move |value| {
+                        value.clone_cast::<bool>().to_string().into()
+                    }),
+                };
+                let prompt = builder.into_prompt().unwrap();
+
+                prompt.build().unwrap()
+            }),
+        };
+
+        arg_prompts.insert(bool_type_id, bool_prompt);
 
         let path_prompt = ArgPrompt::Const {
             // mk_prompt: Box::new(|config| {
@@ -906,13 +932,37 @@ impl CommandPalette {
                                                             &self.modules,
                                                         )?;
                                                 } else {
-                                                    //
-                                                    // todo!();
-                                                    log::error!("TODO!!");
-                                                }
+                                                    let next_arg = state
+                                                        .remaining_args
+                                                        .front()
+                                                        .unwrap();
 
-                                                self.cmd_arg_state =
-                                                    Some(state);
+                                                    log::error!(
+                                                        "next argument: {:?}",
+                                                        next_arg
+                                                    );
+
+                                                    let ctx = self
+                                                        .context
+                                                        .universe
+                                                        .read();
+                                                    if let Some(
+                                                        ArgPrompt::Const {
+                                                            mk_prompt,
+                                                        },
+                                                    ) = ctx
+                                                        .arg_prompts
+                                                        .get(&next_arg.ty)
+                                                    {
+                                                        let prompt =
+                                                            mk_prompt();
+                                                        self.prompt_state =
+                                                            Box::new(prompt);
+                                                    }
+
+                                                    self.cmd_arg_state =
+                                                        Some(state);
+                                                }
                                             }
 
                                             //

@@ -62,7 +62,7 @@ impl BedColumn {
 
 pub struct AnnotationSet {
     // e.g. BED file path
-    source: rhai::ImmutableString,
+    pub source: rhai::ImmutableString,
 
     record_count: usize,
 

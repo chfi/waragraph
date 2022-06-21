@@ -854,6 +854,7 @@ bed::load_bed_file(bed_path, bed_name, column_map)
                 viewer.handle_input(&console, &event);
 
 
+                /*
                 if let Err(e) = cmd_pal.handle_input(
                     console.create_engine(&db, &buffers),
                     &event
@@ -861,6 +862,7 @@ bed::load_bed_file(bed_path, bed_name, column_map)
                 {
                     log::error!("Command palette error: {:?}", e);
                 }
+                */
 
 
                 match event {

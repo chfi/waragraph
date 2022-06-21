@@ -22,6 +22,20 @@ fn load_bed(bed_path) {
 }
 
 
+/// TEST
+///
+/// @bed_path: PathBuf
+/// @bed: BED
+/// @a_bool: bool
+/// @->: BED
+fn load_bed_test(bed_path, bed, a_bool) {
+  print(`bed_path: ${bed_path}, bed: ${bed}, a_bool: ${a_bool}`);
+  // import "script/bed" as bed;
+  // let file_name = bed_path1.file_name();
+  // bed::load_bed_file(bed_path.to_string(), file_name);
+}
+
+
 /// Change visualization mode to a BED column
 ///
 /// @bed: BED
