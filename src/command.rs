@@ -2,7 +2,7 @@
 
 use std::{
     cell::RefMut,
-    collections::{HashMap, HashSet},
+    collections::{HashMap, HashSet, VecDeque},
     path::PathBuf,
     sync::Arc,
 };
@@ -35,8 +35,9 @@ type CommandPrompt<I, P> =
 
 type FilePathPrompt<I> = PromptObjectRaw<PathBuf, I, PathBuf, PathBuf>;
 
+#[derive(Default)]
 struct CommandPromptConfig {
-    output_ty_filter: Option<Arc<dyn Fn(&ArgType) -> bool>>,
+    // output_ty_filter: Option<Arc<dyn Fn(Option<&ArgType>) -> bool>>,
 }
 
 #[derive(Clone)]
@@ -69,20 +70,12 @@ impl CommandPromptConfig {
 
         let select = Box::new(
             |entry: &CommandEntry| -> PromptAction<(), CommandArgumentState> {
-                let mut state = CommandArgumentState {
-                    module: entry.module.clone(),
-                    command: entry.command.clone(),
+                let state = CommandArgumentState::from_command(
+                    &entry.module,
+                    &entry.command,
+                );
 
-                    remaining_args: Vec::new(),
-                    applied_args: Vec,
-                };
-
-                if entry.inputs.is_empty() {
-                    //
-                } else {
-                }
-                //
-                todo!();
+                PromptAction::Return(state)
             },
         );
 
@@ -108,16 +101,19 @@ impl CommandPromptConfig {
                 let input = if input_str.is_empty() {
                     input_str
                 } else {
-                    format!("({})", input_str);
+                    format!("({})", input_str)
                 };
 
                 let output = if let Some(out) = &entry.command.output {
-                    format!("-> {}", out);
+                    format!("-> {}", out)
                 } else {
                     String::new()
                 };
 
-                OwnedText::new(&format!(">{}{}{}", entry.name, input, output));
+                OwnedText::new(&format!(
+                    ">{}{}{}",
+                    entry.command.name, input, output
+                ))
             },
         );
 
@@ -303,7 +299,10 @@ where
     T: Clone + 'static,
     I: Iterator<Item = V> + 'static,
 {
-    fn build(self, done: impl Fn(T) + 'static) -> Result<PromptObject> {
+    fn build(
+        self,
+        done: impl Fn(T) -> Option<PromptObject> + 'static,
+    ) -> Result<PromptObject> {
         PromptObject::new(
             self.prompt_input,
             self.select,
@@ -315,7 +314,14 @@ where
 }
 
 struct PromptObject {
-    act: Box<dyn FnMut(usize) -> Result<std::ops::ControlFlow<(), ()>>>,
+    // act: Box<dyn FnMut(usize) -> Result<std::ops::ControlFlow<(), ()>>>,
+    act: Box<
+        dyn FnMut(
+            usize,
+        ) -> Result<
+            std::ops::ControlFlow<Option<Box<PromptObject>>, ()>,
+        >,
+    >,
     show: Box<dyn FnMut(usize, ScreenRect) -> glyph_brush::OwnedText>,
 
     result_len: std::rc::Rc<AtomicCell<usize>>,
@@ -327,7 +333,7 @@ impl PromptObject {
         act: impl Fn(&V) -> PromptAction<P, T> + 'static,
         show: impl Fn(&V, ScreenRect) -> glyph_brush::OwnedText + 'static,
         mut update_choices: impl FnMut(P) -> Result<I> + 'static,
-        done: impl Fn(T) + 'static,
+        done: impl Fn(T) -> Option<PromptObject> + 'static,
     ) -> Result<PromptObject>
     where
         V: Clone + 'static,
@@ -371,9 +377,9 @@ impl PromptObject {
                 PromptAction::Return(value) => {
                     std::mem::drop(results);
 
-                    done(value);
+                    let result = done(value).map(|b| Box::new(b));
 
-                    Ok(std::ops::ControlFlow::Break(()))
+                    Ok(std::ops::ControlFlow::Break(result))
                 }
             }
         });
@@ -405,13 +411,13 @@ struct PromptCommandState {
     result_ty: Option<rhai::ImmutableString>,
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 struct CommandArgumentState {
     // (module name, command)
     module: rhai::ImmutableString,
     command: Arc<Command>,
 
-    remaining_args: Vec<CmdArg<()>>,
+    remaining_args: VecDeque<CmdArg<()>>,
     applied_args: Vec<CmdArg<rhai::Dynamic>>,
 }
 
@@ -424,12 +430,12 @@ impl CommandArgumentState {
             module: module.clone(),
             command: command.clone(),
 
-            remaining_args: Vec::new(),
+            remaining_args: VecDeque::new(),
             applied_args: Vec::new(),
         };
 
         for (arg_name, ty) in command.inputs.iter() {
-            result.remaining_args.push(CmdArg {
+            result.remaining_args.push_back(CmdArg {
                 name: arg_name.clone(),
                 ty_name: ty.clone(),
                 data: (),
@@ -437,6 +443,12 @@ impl CommandArgumentState {
         }
 
         result
+    }
+
+    fn apply_argument(&mut self, arg: &rhai::Dynamic) -> Result<()> {
+        // if arg.type_id() == self.
+
+        Ok(())
     }
 
     fn is_saturated(&self) -> bool {
@@ -449,12 +461,16 @@ impl CommandArgumentState {
         modules: &HashMap<rhai::ImmutableString, CommandModule>,
     ) -> Result<rhai::Dynamic> {
         if !self.is_saturated() {
-            // TODO fail here
+            log::error!("Command being executed without being saturated");
         }
 
         let mut args = Vec::new();
 
         let module = modules.get(&self.module).unwrap();
+
+        for arg in self.applied_args.iter() {
+            args.push(arg.data.clone());
+        }
 
         let res: rhai::Dynamic =
             self.command.fn_ptr.call(engine, &module.fn_ptr_ast, args)?;
@@ -593,7 +609,8 @@ pub struct CommandPalette {
     // input_history: Vec<String>,
     // output_history: Vec<rhai::Dynamic>,
     // prompt_state: Option<PromptState>,
-    prompt_state: PromptObject,
+    // prompt_state_: Arc<AtomicCell<Option<PromptObject>>>,
+    prompt_state: Box<PromptObject>,
 
     // stack: Vec<rhai::Dynamic>,
     selection_focus: Option<usize>,
@@ -611,6 +628,54 @@ pub struct CommandPalette {
 }
 
 impl CommandPalette {
+    pub fn open_command_prompt(&mut self) -> Result<()> {
+        let config = CommandPromptConfig::default();
+        let prompt = config.into_prompt(&self.modules)?;
+
+        let prompt_cell: Arc<AtomicCell<Option<PromptObject>>> =
+            Arc::new(AtomicCell::new(None));
+
+        // fn build_outer(
+
+        let prompt_state = prompt.build(|cmd_arg_state| {
+            if cmd_arg_state.is_saturated() {
+                log::error!("executing state: {:?}", cmd_arg_state);
+                None
+            } else {
+                log::error!("command not saturated: {:?}", cmd_arg_state);
+
+                let first_arg = cmd_arg_state.remaining_args.front().unwrap();
+
+                log::error!("next argument: {:?}", first_arg);
+
+                if first_arg.ty_name == "PathBuf" {
+                    let config = FilePathPromptConfig::new(None).unwrap();
+                    let prompt = config.into_prompt();
+
+                    let prompt_state = prompt
+                        .build(move |path| {
+                            log::error!("selected path: {:?}", path);
+
+                            None
+                        })
+                        .unwrap();
+                    Some(prompt_state)
+                } else {
+                    None
+                }
+
+                /*
+                {
+                }
+                */
+            }
+        })?;
+
+        self.prompt_state = Box::new(prompt_state);
+
+        Ok(())
+    }
+
     pub fn handle_input(
         &mut self,
         mut engine: rhai::Engine,
@@ -682,9 +747,15 @@ impl CommandPalette {
                                         //
                                         log::error!("continue prompt");
                                     }
-                                    std::ops::ControlFlow::Break(_) => {
+                                    std::ops::ControlFlow::Break(prompt) => {
+                                        if let Some(prompt) = prompt {
+                                            self.prompt_state = prompt;
+                                            log::error!("new prompt!");
+                                        } else {
+                                            // self.prompt_state = None;
+                                            log::error!("end prompt");
+                                        }
                                         //
-                                        log::error!("end prompt");
                                     }
                                 }
                             }
@@ -854,12 +925,15 @@ impl CommandPalette {
 
         let config = FilePathPromptConfig::new(None)?;
         let prompt = config.into_prompt();
+
         let prompt_state = prompt.build(|path| {
             log::error!("selected path: {:?}", path);
+            None
         })?;
 
         Ok(Self {
-            prompt_state,
+            // prompt_state_: Arc::new(AtomicCell::new(None)),
+            prompt_state: Box::new(prompt_state),
 
             input_buffer: String::new(),
             modules: HashMap::new(),
