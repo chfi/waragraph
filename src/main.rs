@@ -372,7 +372,7 @@ bed::load_bed_file(bed_path, bed_name, column_map)
         "internals/bed_cmd.rhai",
     )?;
 
-    cmd_pal.open_command_prompt()?;
+    // cmd_pal.open_command_prompt()?;
 
     let mut text_cache = TextCache::new(&mut engine, &compositor)?;
 
@@ -851,19 +851,18 @@ bed::load_bed_file(bed_path, bed_name, column_map)
             }
 
             Event::WindowEvent { event, .. } => {
-                viewer.handle_input(&console, &event);
 
-
-                /*
-                if let Err(e) = cmd_pal.handle_input(
-                    console.create_engine(&db, &buffers),
-                    &event
-                )
-                {
-                    log::error!("Command palette error: {:?}", e);
+                if cmd_pal.is_active() {
+                    if let Err(e) = cmd_pal.handle_input(
+                        console.create_engine(&db, &buffers),
+                        &event
+                    )
+                    {
+                        log::error!("Command palette error: {:?}", e);
+                    }
+                } else {
+                    viewer.handle_input(&console, &event);
                 }
-                */
-
 
                 match event {
                     WindowEvent::ModifiersChanged(mod_state) => {
@@ -898,14 +897,20 @@ bed::load_bed_file(bed_path, bed_name, column_map)
                         if let Some(kc) = input.virtual_keycode {
                             use VirtualKeyCode as VK;
 
-                            if input.state
+                            let mods = waragraph::input::active_mod_keys();
+
+                            if !cmd_pal.is_active() {
+                                if input.state
                                 == winit::event::ElementState::Pressed
-                            {
-                                // if matches!(kc, VK::Space) {
-                                // }
-                                if matches!(kc, VK::Return) {
-                                    /*
-                                    if let Err(e) = console.handle_input(
+                                {
+                                    if matches!(kc, VK::Space) && mods.ctrl() {
+                                        if let Err(e) = cmd_pal.open_command_prompt() {
+                                            log::error!("Command palette error: {:?}", e);
+                                        }
+                                    }
+                                    if matches!(kc, VK::Return) {
+                                        /*
+                                        if let Err(e) = console.handle_input(
                                         &db,
                                         &buffers,
                                         ConsoleInput::Submit,
@@ -913,9 +918,9 @@ bed::load_bed_file(bed_path, bed_name, column_map)
                                     ) {
                                         log::error!("Console error: {:?}", e);
                                     }
-                                    */
-                                } else if matches!(kc, VK::Back) {
-                                    /*
+                                         */
+                                    } else if matches!(kc, VK::Back) {
+                                        /*
                                     console
                                         .handle_input(
                                             &db,
@@ -925,6 +930,7 @@ bed::load_bed_file(bed_path, bed_name, column_map)
                                         )
                                         .unwrap();
                                     */
+                                    }
                                 }
                             }
                         }

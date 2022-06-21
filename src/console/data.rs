@@ -416,6 +416,24 @@ pub fn add_module_fns(
     let annots = annotations.clone();
     module.set_native_fn(
         "load_bed_file",
+        move |graph: &mut Arc<Waragraph>, file_path: std::path::PathBuf| {
+            match AnnotationSet::load_bed(graph, &file_path) {
+                Ok(set) => {
+                    let source = format!("{:?}", file_path);
+                    let set = Arc::new(set);
+                    annots.write().insert(source.into(), set.clone());
+                    Ok(set)
+                }
+                Err(err) => {
+                    Err(format!("Error parsing BED file: {:?}", err).into())
+                }
+            }
+        },
+    );
+
+    let annots = annotations.clone();
+    module.set_native_fn(
+        "load_bed_file",
         move |graph: &mut Arc<Waragraph>, path: rhai::ImmutableString| {
             let file_path = std::path::Path::new(path.as_str());
 

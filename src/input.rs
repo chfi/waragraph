@@ -26,6 +26,10 @@ pub fn set_modifiers(state: ModifiersState) {
     MOD_KEYS.store(state);
 }
 
+pub fn active_mod_keys() -> ModifiersState {
+    MOD_KEYS.load()
+}
+
 pub fn create_mouse_module() -> rhai::Module {
     let mut module: rhai::Module = rhai::exported_module!(mouse);
 
