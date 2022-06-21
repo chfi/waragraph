@@ -266,16 +266,15 @@ impl CommandPromptConfig {
 
                 let mut input_str = String::new();
 
-                let inputs =
-                    entry.command.inputs.iter().for_each(|(arg_name, ty)| {
-                        if !input_str.is_empty() {
-                            input_str.push_str(", ");
-                        }
+                entry.command.inputs.iter().for_each(|(arg_name, ty)| {
+                    if !input_str.is_empty() {
+                        input_str.push_str(", ");
+                    }
 
-                        input_str.push_str(arg_name.as_str());
-                        input_str.push_str(" : ");
-                        input_str.push_str(ty.name.as_str());
-                    });
+                    input_str.push_str(arg_name.as_str());
+                    input_str.push_str(" : ");
+                    input_str.push_str(ty.name.as_str());
+                });
 
                 let input = if input_str.is_empty() {
                     input_str
@@ -284,7 +283,7 @@ impl CommandPromptConfig {
                 };
 
                 let output = if let Some(out) = &entry.command.output {
-                    format!("-> {}", out.name)
+                    format!(" -> {}", out.name)
                 } else {
                     String::new()
                 };
@@ -572,10 +571,6 @@ struct CmdArg<T> {
     data: T,
 }
 
-struct PromptCommandState {
-    result_ty: Option<rhai::ImmutableString>,
-}
-
 #[derive(Debug, Clone)]
 struct CommandArgumentState {
     // (module name, command)
@@ -709,11 +704,9 @@ impl CommandModuleBuilder {
 #[derive(Debug, Clone)]
 pub struct Command {
     pub name: rhai::ImmutableString,
-
     // pub desc: rhai::ImmutableString,
     pub fn_ptr: rhai::FnPtr,
     pub inputs: Vec<(rhai::ImmutableString, ArgType)>,
-    // pub inputs: HashMap<rhai::ImmutableString, ArgType>,
     pub output: Option<ArgType>,
 }
 
@@ -740,15 +733,6 @@ pub struct CommandModule {
     // source_filename: rhai::ImmutableString,
     // results: Vec<ResultProducer>,
     // list_view: ListView<ResultItem>,
-}
-
-struct CurriedCommand {
-    module: rhai::ImmutableString,
-    command: Arc<Command>,
-
-    remaining_args: Vec<(rhai::ImmutableString, std::any::TypeId)>,
-
-    args: HashMap<rhai::ImmutableString, rhai::Dynamic>,
 }
 
 #[derive(Clone)]
@@ -784,9 +768,6 @@ impl CommandPalette {
         let config = CommandPromptConfig::default();
         let prompt = config.into_prompt(&self.modules)?;
 
-        let prompt_cell: Arc<AtomicCell<Option<PromptObject>>> =
-            Arc::new(AtomicCell::new(None));
-
         let prompt_state = prompt.build()?;
         self.prompt_state = Some(Box::new(prompt_state));
 
@@ -807,9 +788,10 @@ impl CommandPalette {
         mut engine: rhai::Engine,
         event: &winit::event::WindowEvent,
     ) -> Result<()> {
-        use winit::event::{KeyboardInput, VirtualKeyCode as VK, WindowEvent};
+        use winit::event::{VirtualKeyCode as VK, WindowEvent};
 
         if self.prompt_state.is_none() {
+            self.input_buffer.clear();
             return Ok(());
         }
 
@@ -1235,15 +1217,25 @@ impl CommandPalette {
         Ok(())
     }
 
-    pub fn window_rect(&self) -> ScreenRect {
-        self.rect
+    pub fn header_rect(&self) -> ScreenRect {
+        let mut rect = self.layout.rect();
+        rect.origin.y -= 80.0;
+        rect.size.height = 80.0;
+        rect
     }
 
-    // TODO
     pub fn list_rect(&self) -> ScreenRect {
-        let rect = self.layout.inner_rect();
-        // let bg_rect = euclid::rect(80.0, 80.0, 500.0, 500.0);
-        rect
+        self.layout.rect()
+    }
+
+    pub fn list_inner_rect(&self) -> ScreenRect {
+        self.layout.inner_rect()
+    }
+
+    pub fn window_rect(&self) -> ScreenRect {
+        let header = self.header_rect();
+        let list = self.layout.rect();
+        header.union(&list)
     }
 
     pub fn queue_glyphs(&mut self, text_cache: &mut TextCache) -> Result<()> {
@@ -1255,7 +1247,8 @@ impl CommandPalette {
 
         let window = self.window_rect();
 
-        let [top, bottom] = window.split_ver(window.height() * 0.15);
+        let top = self.header_rect();
+        // let [top, bottom] = window.split_ver(window.height() * 0.15);
 
         let top_pad = ScreenSideOffsets::new(16.0, 8.0, 8.0, 8.0);
 
@@ -1283,6 +1276,10 @@ impl CommandPalette {
 
         let indices = 0..state.result_len.load();
 
+        let mut max_text_x = self.layout.origin.x;
+
+        // let mut max_rect_x = self.layout.origin.x;
+
         for (ix, rect, _ix) in self.layout.apply_to_rows(indices) {
             let text = (state.show)(ix, rect);
 
@@ -1291,22 +1288,27 @@ impl CommandPalette {
             let pos = (r.min_x(), r.min_y());
             let bounds = (r.max_x(), r.max_y());
 
-            let width = r.width();
-
             let section = Section::default()
                 .with_screen_position(pos)
                 // .with_layout(layout)
                 .with_bounds(bounds)
                 .add_text(&text);
 
-            // log::warn!("{}\t{:#?}", r.width(), section);
-
             text_cache.queue(&section);
 
-            // if let Some(rect) = text_cache.brush.glyph_bounds(&section) {
-            //     log::warn!("bounding box: {:?}", rect);
-            // }
+            if let Some(text_rect) = text_cache.brush.glyph_bounds(&section) {
+                if max_text_x < text_rect.max.x {
+                    max_text_x = text_rect.max.x;
+                }
+            }
         }
+
+        let list_inner = self.list_inner_rect();
+
+        let offsets = self.layout.offsets();
+
+        let width = (max_text_x - list_inner.origin.x).max(500.0);
+        self.layout.size.width = width + offsets.left + 2.0 * offsets.right;
 
         Ok(())
     }
@@ -1346,7 +1348,9 @@ impl CommandPalette {
 
                 let pad = ScreenSideOffsets::new(8.0, 8.0, 8.0, 8.0);
 
-                let [top, bottom] = bg_rect.split_ver(bg_rect.height() * 0.15);
+                let top = self.header_rect();
+                let bottom = self.list_rect();
+                // let [top, bottom] = bg_rect.split_ver(bg_rect.height() * 0.15);
 
                 let base = vec![
                     rect_rgba(bg_rect, color_bg),

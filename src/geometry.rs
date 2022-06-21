@@ -98,6 +98,10 @@ pub struct ListLayout {
 }
 
 impl ListLayout {
+    pub fn offsets(&self) -> SideOffsets2D<f32, ScreenSpace> {
+        self.side_offsets.unwrap_or_default()
+    }
+
     pub fn from_config_map(
         config: &ConfigMap,
         size: ScreenSize,
@@ -145,6 +149,12 @@ impl ListLayout {
         } else {
             rect
         }
+    }
+
+    /// Returns the rectangle that includes the area removed by the
+    /// `side_offsets`
+    pub fn rect(&self) -> Rect<f32, ScreenSpace> {
+        Rect::new(self.origin, self.size)
     }
 
     /// Returns the number of slots that are visible in this layout,
