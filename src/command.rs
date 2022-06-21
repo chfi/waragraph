@@ -27,6 +27,10 @@ use crate::{
     viewer::gui::layer::rect_rgba,
 };
 
+mod file_prompt;
+
+use file_prompt::*;
+
 pub struct PromptContext {
     universe: Arc<RwLock<PromptUniverse>>,
 }
@@ -174,8 +178,6 @@ pub struct ArgType {
 type CommandPrompt<I, P> =
     PromptObjectRaw<CommandEntry, I, P, CommandArgumentState>;
 
-type FilePathPrompt<I> = PromptObjectRaw<PathBuf, I, PathBuf, PathBuf>;
-
 type DynPrompt<I, P> = PromptObjectRaw<rhai::Dynamic, I, P, rhai::Dynamic>;
 
 #[derive(Clone)]
@@ -321,147 +323,6 @@ impl CommandPromptConfig {
     }
 }
 
-#[derive(Default)]
-struct FilePathPromptConfig {
-    predicate: Option<Arc<dyn Fn(&std::path::Path) -> bool>>,
-    current_dir: PathBuf,
-}
-
-impl FilePathPromptConfig {
-    pub fn into_prompt(self) -> FilePathPrompt<impl Iterator<Item = PathBuf>> {
-        let prompt_input = self.current_dir.clone();
-
-        let mut config = self;
-
-        let select =
-            Box::new(|path: &PathBuf| -> PromptAction<PathBuf, PathBuf> {
-                if path.is_dir() {
-                    PromptAction::PromptFor(path.to_owned())
-                } else {
-                    PromptAction::Return(path.to_owned())
-                }
-            });
-
-        let display = Box::new(
-            |path: &PathBuf, _rect: ScreenRect| -> glyph_brush::OwnedText {
-                let result_scale = 20.0;
-
-                if path.is_relative() {
-                    log::error!("{:?} is relative", path.file_name());
-                }
-
-                if let Some(file_name) =
-                    path.file_name().and_then(|name| name.to_str())
-                {
-                    OwnedText::new(file_name).with_scale(result_scale)
-                } else {
-                    OwnedText::new(&format!("{:?}", path.file_name()))
-                }
-            },
-        );
-
-        let update_choices = Box::new(move |path: PathBuf| {
-            if path.is_dir() {
-                let path = path.canonicalize()?;
-                config.current_dir = path;
-            }
-
-            let results = config.current_results()?;
-
-            let predicate = config.predicate.clone();
-
-            let go_up = path.parent().map(|_| "/..".into());
-
-            let contents = results.filter_map(move |entry| {
-                let path = entry.ok()?.path();
-
-                if let Some(predicate) = &predicate {
-                    predicate(&path).then(|| path)
-                } else {
-                    Some(path)
-                }
-            });
-
-            let iter = go_up.into_iter().chain(contents);
-
-            Ok(iter)
-        });
-
-        let prompt_object = PromptObjectRaw {
-            prompt_input,
-            select,
-            display,
-            update_choices,
-        };
-
-        prompt_object
-    }
-
-    pub fn current_results(&self) -> Result<std::fs::ReadDir> {
-        let dir = std::fs::read_dir(&self.current_dir)?;
-        Ok(dir)
-    }
-
-    pub fn new(current_dir: Option<PathBuf>) -> Result<Self> {
-        let current_dir = if let Some(dir) = current_dir {
-            dir
-        } else {
-            std::env::current_dir()?
-        };
-
-        Ok(Self {
-            predicate: None,
-            current_dir,
-        })
-    }
-
-    pub fn from_ext_whitelist<'a>(
-        current_dir: Option<PathBuf>,
-        ext_whitelist: impl IntoIterator<Item = &'a str>,
-    ) -> Result<Self> {
-        use std::ffi::OsString;
-
-        let current_dir = if let Some(dir) = current_dir {
-            dir
-        } else {
-            std::env::current_dir()?
-        };
-
-        let whitelist = {
-            let set = ext_whitelist
-                .into_iter()
-                .map(OsString::from)
-                .collect::<HashSet<_>>();
-
-            (!set.is_empty()).then(|| set)
-        };
-
-        if let Some(whitelist) = whitelist {
-            let predicate = Arc::new(move |path: &std::path::Path| {
-                if path.is_dir() {
-                    return true;
-                }
-
-                if let Some(ext) = path.extension() {
-                    whitelist.contains(ext)
-                } else {
-                    true
-                }
-            });
-
-            Ok(Self {
-                predicate: Some(predicate),
-                current_dir,
-            })
-        } else {
-            Ok(Self {
-                predicate: None,
-                current_dir,
-            })
-        }
-    }
-}
-
 struct PromptObjectRaw<V, I, P, T>
 where
     V: Clone + 'static,
@@ -496,7 +357,7 @@ where
 
 struct PromptObject {
     act: Box<
-        dyn FnMut(usize) -> Result<std::ops::ControlFlow<rhai::Dynamic, ()>>,
+        dyn FnMut(usize) -> Result<std::ops::ControlFlow<rhai::Dynamic, usize>>,
     >,
     show: Box<dyn FnMut(usize, ScreenRect) -> glyph_brush::OwnedText>,
 
@@ -548,7 +409,7 @@ impl PromptObject {
                     results.extend(update_choices(prompt)?);
                     len.store(results.len());
 
-                    Ok(std::ops::ControlFlow::Continue(()))
+                    Ok(std::ops::ControlFlow::Continue(results.len()))
                 }
                 PromptAction::Return(value) => {
                     Ok(std::ops::ControlFlow::Break(rhai::Dynamic::from(value)))
@@ -863,7 +724,10 @@ impl CommandPalette {
         let mut execute = false;
 
         match (state.prompt_state.act)(focus_ix)? {
-            std::ops::ControlFlow::Continue(_) => {
+            std::ops::ControlFlow::Continue(new_len) => {
+                let mut list_view = ListView::new(0..new_len);
+                list_view.resize(list_len);
+                state.list_view = list_view;
                 //
                 log::error!("continue prompt");
             }
