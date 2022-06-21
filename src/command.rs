@@ -84,15 +84,40 @@ impl PromptUniverse {
 
         let annots = annotations.clone();
 
-        /*
         let bed_prompt = ArgPrompt::Const {
-            mk_prompt: Arc::new(|| {
-                let prompt = builder.into_prompt();
+            mk_prompt: Arc::new(move || {
+                let arg_ty = ArgType {
+                    name: "BED".into(),
+                    id: std::any::TypeId::of::<Arc<AnnotationSet>>(),
+                };
+
+                let annots = annots.clone();
+                let builder = DynPromptConfig {
+                    result_type: arg_ty,
+                    results_producer: Arc::new(move || {
+                        //
+                        let annots = annots.read();
+
+                        let mut results: rhai::Array = Vec::new();
+
+                        for (name, bed) in annots.iter() {
+                            results.push(rhai::Dynamic::from(bed.clone()));
+                        }
+
+                        results
+                    }),
+                    show: Arc::new(move |bed| {
+                        let bed = bed.clone_cast::<Arc<AnnotationSet>>();
+                        bed.source.clone()
+                    }),
+                };
+                let prompt = builder.into_prompt().unwrap();
 
                 prompt.build().unwrap()
             }),
         };
-        */
+
+        arg_prompts.insert(bed_type_id, bed_prompt);
 
         Self {
             arg_prompts,
@@ -113,11 +138,55 @@ type CommandPrompt<I, P> =
 
 type FilePathPrompt<I> = PromptObjectRaw<PathBuf, I, PathBuf, PathBuf>;
 
+type DynPrompt<I, P> = PromptObjectRaw<rhai::Dynamic, I, P, rhai::Dynamic>;
+
+#[derive(Clone)]
 struct DynPromptConfig {
-    results: rhai::Array,
+    result_type: ArgType,
+
+    results_producer: Arc<dyn Fn() -> rhai::Array + Send + Sync>,
+
+    show: Arc<dyn Fn(&rhai::Dynamic) -> rhai::ImmutableString + Send + Sync>,
 }
 
-impl DynPromptConfig {}
+impl DynPromptConfig {
+    pub fn into_prompt(
+        self,
+    ) -> Result<DynPrompt<impl Iterator<Item = rhai::Dynamic>, ()>> {
+        let select = Box::new(
+            |val: &rhai::Dynamic| -> PromptAction<(), rhai::Dynamic> {
+                //
+                PromptAction::Return(val.clone())
+            },
+        );
+
+        let display = Box::new(
+            move |entry: &rhai::Dynamic,
+                  _rect: ScreenRect|
+                  -> glyph_brush::OwnedText {
+                let result_scale = 20.0;
+
+                OwnedText::new(&format!(">{}", (self.show)(entry)))
+            },
+        );
+
+        let producer = self.results_producer;
+
+        let update_choices = Box::new(move |_: ()| -> Result<_> {
+            let vals = producer();
+            Ok(vals.into_iter())
+        });
+
+        let prompt_object = PromptObjectRaw {
+            prompt_input: (),
+            select,
+            display,
+            update_choices,
+        };
+
+        Ok(prompt_object)
+    }
+}
 
 #[derive(Default)]
 struct CommandPromptConfig {
@@ -788,28 +857,31 @@ impl CommandPalette {
                                             } else {
                                                 log::error!("got a command argument state: {:?}", state);
 
-                                                let first_arg = state
+                                                let next_arg = state
                                                     .remaining_args
                                                     .front()
                                                     .unwrap();
 
                                                 log::error!(
                                                     "next argument: {:?}",
-                                                    first_arg
+                                                    next_arg
                                                 );
 
-                                                if first_arg.ty_name
-                                                    == "PathBuf"
+                                                let ctx = self
+                                                    .context
+                                                    .universe
+                                                    .read();
+                                                if let Some(
+                                                    ArgPrompt::Const {
+                                                        mk_prompt,
+                                                    },
+                                                ) = ctx
+                                                    .arg_prompts
+                                                    .get(&next_arg.ty)
                                                 {
-                                                    let config = FilePathPromptConfig::new(None).unwrap();
-                                                    let prompt =
-                                                        config.into_prompt();
-
-                                                    let prompt_state =
-                                                        prompt.build().unwrap();
-
+                                                    let prompt = mk_prompt();
                                                     self.prompt_state =
-                                                        Box::new(prompt_state);
+                                                        Box::new(prompt);
                                                 }
 
                                                 self.cmd_arg_state =
