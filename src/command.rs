@@ -11,7 +11,7 @@ use anyhow::{anyhow, bail, Result};
 
 use crossbeam::atomic::AtomicCell;
 use euclid::Length;
-use glyph_brush::OwnedText;
+use glyph_brush::{GlyphCruncher, OwnedText};
 use parking_lot::RwLock;
 use raving::compositor::Compositor;
 use rhai::plugin::*;
@@ -712,7 +712,8 @@ pub struct Command {
 
     // pub desc: rhai::ImmutableString,
     pub fn_ptr: rhai::FnPtr,
-    pub inputs: HashMap<rhai::ImmutableString, ArgType>,
+    pub inputs: Vec<(rhai::ImmutableString, ArgType)>,
+    // pub inputs: HashMap<rhai::ImmutableString, ArgType>,
     pub output: Option<ArgType>,
 }
 
@@ -721,7 +722,7 @@ impl Command {
         Self {
             name: name.into(),
             fn_ptr,
-            inputs: HashMap::default(),
+            inputs: Vec::new(),
             output: None,
         }
     }
@@ -759,7 +760,7 @@ pub enum PromptFor {
 pub struct CommandPalette {
     cmd_arg_state: Option<CommandArgumentState>,
 
-    prompt_state: Box<PromptObject>,
+    prompt_state: Option<Box<PromptObject>>,
 
     // stack: Vec<rhai::Dynamic>,
     selection_focus: Option<usize>,
@@ -787,9 +788,13 @@ impl CommandPalette {
             Arc::new(AtomicCell::new(None));
 
         let prompt_state = prompt.build()?;
-        self.prompt_state = Box::new(prompt_state);
+        self.prompt_state = Some(Box::new(prompt_state));
 
         Ok(())
+    }
+
+    pub fn is_active(&self) -> bool {
+        self.prompt_state.is_some()
     }
 
     pub fn handle_input(
@@ -798,6 +803,10 @@ impl CommandPalette {
         event: &winit::event::WindowEvent,
     ) -> Result<()> {
         use winit::event::{KeyboardInput, VirtualKeyCode as VK, WindowEvent};
+
+        if self.prompt_state.is_none() {
+            return Ok(());
+        }
 
         match event {
             WindowEvent::ReceivedCharacter(c) => {
@@ -813,7 +822,8 @@ impl CommandPalette {
                     let pressed =
                         input.state == winit::event::ElementState::Pressed;
 
-                    let result_len = self.prompt_state.result_len.load();
+                    let result_len =
+                        self.prompt_state.as_ref().unwrap().result_len.load();
 
                     match key {
                         VK::Up => {
@@ -857,81 +867,42 @@ impl CommandPalette {
                             // TODO
                             // if let Some(ix) = self.selection_focus.take()
 
-                            if let Some(ix) = self.selection_focus.take() {
-                                match (self.prompt_state.act)(ix).unwrap() {
-                                    std::ops::ControlFlow::Continue(_) => {
-                                        //
-                                        log::error!("continue prompt");
-                                    }
-                                    std::ops::ControlFlow::Break(value) => {
-                                        if value.type_id()
-                                            == std::any::TypeId::of::<
-                                                CommandArgumentState,
-                                            >(
-                                            )
-                                        {
-                                            let state = value
+                            if !pressed {
+                                return Ok(());
+                            }
+
+                            let mut new_state = None;
+
+                            if let Some(mut prompt_state) =
+                                self.prompt_state.take()
+                            {
+                                if let Some(ix) = self.selection_focus.take() {
+                                    match (prompt_state.act)(ix).unwrap() {
+                                        std::ops::ControlFlow::Continue(_) => {
+                                            //
+                                            log::error!("continue prompt");
+                                        }
+                                        std::ops::ControlFlow::Break(value) => {
+                                            if value.type_id()
+                                                == std::any::TypeId::of::<
+                                                    CommandArgumentState,
+                                                >(
+                                                )
+                                            {
+                                                let state = value
                                                 .cast::<CommandArgumentState>(
                                             );
 
-                                            if state.is_saturated() {
-                                                let result = state.execute(
-                                                    &engine,
-                                                    &self.modules,
-                                                )?;
-                                                log::error!("executed command, result: {:?}", result);
-                                            } else {
-                                                log::error!("got a command argument state: {:?}", state);
-
-                                                let next_arg = state
-                                                    .remaining_args
-                                                    .front()
-                                                    .unwrap();
-
-                                                log::error!(
-                                                    "next argument: {:?}",
-                                                    next_arg
-                                                );
-
-                                                let ctx = self
-                                                    .context
-                                                    .universe
-                                                    .read();
-                                                if let Some(
-                                                    ArgPrompt::Const {
-                                                        mk_prompt,
-                                                    },
-                                                ) = ctx
-                                                    .arg_prompts
-                                                    .get(&next_arg.ty)
-                                                {
-                                                    let prompt = mk_prompt();
-                                                    self.prompt_state =
-                                                        Box::new(prompt);
-                                                }
-
-                                                self.cmd_arg_state =
-                                                    Some(state);
-                                            }
-                                        } else {
-                                            log::error!(
-                                                "returned value: {:?}",
-                                                value
-                                            );
-
-                                            if let Some(mut state) =
-                                                self.cmd_arg_state.take()
-                                            {
-                                                state.apply_argument(&value)?;
-
                                                 if state.is_saturated() {
-                                                    //
                                                     let result = state
                                                         .execute(
                                                             &engine,
                                                             &self.modules,
                                                         )?;
+                                                    log::error!("executed command, result: {:?}", result);
                                                 } else {
+                                                    log::error!("got a command argument state: {:?}", state);
+
                                                     let next_arg = state
                                                         .remaining_args
                                                         .front()
@@ -956,20 +927,84 @@ impl CommandPalette {
                                                     {
                                                         let prompt =
                                                             mk_prompt();
-                                                        self.prompt_state =
-                                                            Box::new(prompt);
+                                                        new_state = Some(
+                                                            Box::new(prompt),
+                                                        );
+                                                        dbg!();
                                                     }
 
                                                     self.cmd_arg_state =
                                                         Some(state);
                                                 }
-                                            }
+                                            } else {
+                                                log::error!(
+                                                    "returned value: {:?}",
+                                                    value
+                                                );
 
-                                            //
+                                                if let Some(mut state) =
+                                                    self.cmd_arg_state.take()
+                                                {
+                                                    state.apply_argument(
+                                                        &value,
+                                                    )?;
+
+                                                    if state.is_saturated() {
+                                                        //
+                                                        let result = state
+                                                            .execute(
+                                                                &engine,
+                                                                &self.modules,
+                                                            )?;
+                                                    } else {
+                                                        let next_arg = state
+                                                            .remaining_args
+                                                            .front()
+                                                            .unwrap();
+
+                                                        log::error!(
+                                                        "next argument: {:?}",
+                                                        next_arg
+                                                    );
+
+                                                        let ctx = self
+                                                            .context
+                                                            .universe
+                                                            .read();
+                                                        if let Some(
+                                                            ArgPrompt::Const {
+                                                                mk_prompt,
+                                                            },
+                                                        ) = ctx
+                                                            .arg_prompts
+                                                            .get(&next_arg.ty)
+                                                        {
+                                                            let prompt =
+                                                                mk_prompt();
+                                                            new_state =
+                                                                Some(Box::new(
+                                                                    prompt,
+                                                                ));
+                                                            dbg!();
+                                                        }
+
+                                                        self.cmd_arg_state =
+                                                            Some(state);
+                                                    }
+                                                }
+
+                                                //
+                                            }
                                         }
                                     }
                                 }
                             }
+                            if new_state.is_some() {
+                                log::warn!("updating state");
+                            } else if new_state.is_none() {
+                                log::warn!("empty state!!");
+                            }
+                            self.prompt_state = new_state;
                         }
                         VK::Tab => {
                             // Autocomplete
@@ -1084,7 +1119,7 @@ impl CommandPalette {
                             if name == "->" {
                                 cmd.output = Some(arg_ty);
                             } else {
-                                cmd.inputs.insert(name.into(), arg_ty);
+                                cmd.inputs.push((name.into(), arg_ty));
                             }
                         } else {
                             log::warn!(
@@ -1157,7 +1192,7 @@ impl CommandPalette {
         Ok(Self {
             // prompt_state_: Arc::new(AtomicCell::new(None)),
             cmd_arg_state: None,
-            prompt_state: Box::new(prompt_state),
+            prompt_state: None,
 
             input_buffer: String::new(),
             modules: HashMap::new(),
@@ -1207,6 +1242,10 @@ impl CommandPalette {
     }
 
     pub fn queue_glyphs(&mut self, text_cache: &mut TextCache) -> Result<()> {
+        if self.prompt_state.is_none() {
+            return Ok(());
+        }
+
         use glyph_brush::{Section, Text};
 
         let window = self.window_rect();
@@ -1235,15 +1274,19 @@ impl CommandPalette {
 
         let pad = ScreenSideOffsets::new(8.0, 8.0, 8.0, 8.0);
 
-        let indices = 0..self.prompt_state.result_len.load();
+        let state = self.prompt_state.as_mut().unwrap();
+
+        let indices = 0..state.result_len.load();
 
         for (ix, rect, _ix) in self.layout.apply_to_rows(indices) {
-            let text = (self.prompt_state.show)(ix, rect);
+            let text = (state.show)(ix, rect);
 
             let r = rect.inner_rect(pad);
 
             let pos = (r.min_x(), r.min_y());
             let bounds = (r.max_x(), r.max_y());
+
+            let width = r.width();
 
             let section = Section::default()
                 .with_screen_position(pos)
@@ -1251,7 +1294,13 @@ impl CommandPalette {
                 .with_bounds(bounds)
                 .add_text(&text);
 
-            text_cache.queue(section);
+            // log::warn!("{}\t{:#?}", r.width(), section);
+
+            text_cache.queue(&section);
+
+            // if let Some(rect) = text_cache.brush.glyph_bounds(&section) {
+            //     log::warn!("bounding box: {:?}", rect);
+            // }
         }
 
         Ok(())
@@ -1264,6 +1313,13 @@ impl CommandPalette {
         rect_sublayer: &str,
         line_sublayer: &str,
     ) -> Result<()> {
+        if self.prompt_state.is_none() {
+            compositor.toggle_layer(layer_name, false);
+            return Ok(());
+        } else {
+            compositor.toggle_layer(layer_name, true);
+        }
+
         compositor.with_layer(layer_name, |layer| {
             if let Some(sublayer_data) = layer
                 .get_sublayer_mut(line_sublayer)
@@ -1293,7 +1349,8 @@ impl CommandPalette {
                     rect_rgba(bottom.inner_rect(pad), color_fg),
                 ];
 
-                let result_len = self.prompt_state.result_len.load();
+                let result_len =
+                    self.prompt_state.as_ref().unwrap().result_len.load();
 
                 let selection = self.selection_focus.and_then(|ix| {
                     let (_, rect, _) =
