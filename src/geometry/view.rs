@@ -297,8 +297,6 @@ mod tests {
         let t_zoom4 = t_zoom3.resize_around(3_000, 3_000);
         let t_zoom5 = t_zoom4.resize_around(3_000, 3_000);
 
-        assert!(false);
-
         Ok(())
     }
 }
