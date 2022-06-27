@@ -7,7 +7,7 @@ use euclid::*;
 use nalgebra::{Norm, Normed};
 use num_traits::{FromPrimitive, ToPrimitive};
 use raving::compositor::Compositor;
-use rustc_hash::FxHashMap;
+use rustc_hash::{FxHashMap, FxHashSet};
 
 use raving::compositor::label_space::LabelSpace;
 use raving::vk::context::VkContext;
@@ -39,7 +39,7 @@ impl From<OrientedCurve> for CurveId {
 
 impl From<CurveId> for OrientedCurve {
     fn from(CurveId(id): CurveId) -> OrientedCurve {
-        let id = unsafe { NonZeroI32::new_unchecked(1 + id as u32) };
+        let id = unsafe { NonZeroI32::new_unchecked(1 + id as i32) };
         OrientedCurve(id)
     }
 }
@@ -78,7 +78,13 @@ pub struct OrientedNode(NonZeroI32);
 
 impl From<Node> for OrientedNode {
     fn from(node: Node) -> OrientedNode {
-        Self::new(node.0, false)
+        Self::new(node.into(), false)
+    }
+}
+
+impl From<u32> for OrientedNode {
+    fn from(id: u32) -> OrientedNode {
+        Self::new(id, false)
     }
 }
 
@@ -122,6 +128,12 @@ impl OrientedNode {
     }
 }
 
+#[derive(Default, Clone)]
+pub struct NodeCurveNeighbors<T> {
+    forward: Option<T>,
+    backward: Option<T>,
+}
+
 pub struct Curve<D> {
     id: CurveId,
 
@@ -139,6 +151,24 @@ pub struct Curve<D> {
 }
 
 impl<D> Curve<D> {
+    pub fn new(id: CurveId) -> Self {
+        Curve {
+            id,
+
+            seq_len: 0,
+
+            steps: Vec::new(),
+
+            node_set: Default::default(),
+            path_set: Default::default(),
+
+            fwd_adj: Vec::new(),
+            rev_adj: Vec::new(),
+
+            step_data: Vec::new(),
+        }
+    }
+
     pub fn steps(&self) -> &[OrientedNode] {
         &self.steps
     }
@@ -176,13 +206,79 @@ impl<D> Curve<D> {
     }
 }
 
-pub struct GraphCurveMap {
-    source: Arc<Waragraph>,
+fn split_path_loops(
+    graph: &Waragraph,
+    path: Path,
+) -> (Vec<Vec<OrientedNode>>, Vec<usize>) {
+    let mut segments: Vec<Vec<OrientedNode>> = Vec::new();
+    let mut segment_order: Vec<usize> = Vec::new();
+
+    let mut seen_nodes: FxHashSet<Node> = FxHashSet::default();
+    // let mut seen_steps: FxHashSet<OrientedNode> = FxHashSet::default();
+    //
+    for &strand in graph.path_steps[path.ix()].iter() {
+        let step = OrientedNode::new(strand.node().into(), strand.is_reverse());
+        let node = step.node();
+
+        todo!();
+
+        if seen_nodes.contains(&node) {
+            //
+        } else {
+            //
+        }
+    }
+
+    (segments, segment_order)
 }
 
-pub struct CurveNet {
-    // curves:
+pub struct GraphCurveMap {
+    source: Arc<Waragraph>,
+
+    curves: Vec<Curve<()>>,
+
+    node_curve_map: FxHashMap<Node, CurveId>,
+    // path_curve_map: FxHashMap<Path, FxHashMap<
 }
+
+impl GraphCurveMap {
+    pub fn new(
+        graph: &Arc<Waragraph>,
+        // paths: impl IntoIterator<Item = Path>,
+        base_path: Path,
+    ) -> Result<GraphCurveMap> {
+        let mut curve_map = GraphCurveMap {
+            source: graph.clone(),
+            curves: Vec::new(),
+            node_curve_map: FxHashMap::default(),
+        };
+
+        let mut id = CurveId(curve_map.curves.len() as u32);
+
+        let mut curve = Curve::new(id);
+
+        // let mut seen_nodes = jjjj
+
+        for &strand in graph.path_steps[base_path.ix()].iter() {
+            //
+            //
+
+            curve_map.curves.push(curve);
+            id = CurveId(curve_map.curves.len() as u32);
+            curve = Curve::new(id);
+        }
+
+        // for path in paths {
+        //     curve_map.append_path(path)?;
+        // }
+
+        Ok(curve_map)
+    }
+}
+
+// pub struct CurveNet {
+// curves:
+// }
 
 mod sublayer {
 
