@@ -166,6 +166,12 @@ fn gui_init(globals, label_space) {
   ui::allocate_sublayer("command-palette", "line-rgb", "lines");
   ui::allocate_sublayer("command-palette", "line-rgb-2", "lines-2");
   ui::allocate_sublayer("command-palette", "glyph", "glyphs");
+
+  ui::init_layer("graph-layout", 70, true);
+  ui::allocate_sublayer("graph-layout", "rect-rgb", "rects");
+  ui::allocate_sublayer("graph-layout", "line-rgb", "lines");
+  ui::allocate_sublayer("graph-layout", "line-rgb-2", "lines-2");
+  ui::allocate_sublayer("graph-layout", "glyph", "glyphs");
 }
 
 props.set("prev_slot", false);

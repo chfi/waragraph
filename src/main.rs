@@ -24,6 +24,7 @@ use waragraph::geometry::dynamics::verlet::{
     Entity, Rail, RailLink, RailStep, VerletSolver,
 };
 use waragraph::geometry::dynamics::CurveLayout;
+use waragraph::geometry::graph::GraphLayout;
 use waragraph::geometry::{ListLayout, ScreenPoint, ScreenRect};
 use waragraph::graph::{Path, Waragraph};
 use waragraph::text::TextCache;
@@ -306,6 +307,10 @@ fn main() -> anyhow::Result<()> {
         }
     }
 
+    if let Err(e) = compositor.allocate_sublayers(&mut engine) {
+        log::error!("Compositor error: {:?}", e);
+    }
+
     let mut label_stacks: Option<LabelStacks> = None;
 
     if let Some(bed_path) = &viewer_args.bed_path {
@@ -382,6 +387,11 @@ bed::load_bed_file(bed_path, bed_name, column_map)
     let mut text_cache = TextCache::new(&mut engine, &compositor)?;
 
     let mut verlet = VerletSolver::new(width, height);
+
+    // let mut graph_layout: GraphLayout<(), ()> =
+    //     GraphLayout::load_layout_tsv(&graph, "A-3105.smooth.layout.tsv")?;
+
+    // graph_layout.update_layer(&mut compositor, "graph-layout")?;
 
     // waragraph::geometry::dynamics::verlet::add_test_data(&mut verlet);
 

@@ -5,24 +5,14 @@ use std::{
 
 use bstr::ByteSlice;
 use euclid::*;
-use nalgebra::{Norm, Normed};
-use num_traits::{FromPrimitive, ToPrimitive};
 use raving::compositor::Compositor;
-use rustc_hash::{FxHashMap, FxHashSet};
-
-use raving::compositor::label_space::LabelSpace;
-use raving::vk::context::VkContext;
-use raving::vk::{BufferIx, DescSetIx, GpuResources, VkEngine};
-
-use ash::vk;
-
-use std::sync::Arc;
 
 use anyhow::Result;
 
-use ndarray::prelude::*;
-
-use crate::graph::{Node, Path, Waragraph};
+use crate::{
+    graph::{Node, Path, Waragraph},
+    viewer::gui::layer::{line_width_rgba, line_width_rgba2},
+};
 
 use super::{ScreenPoint, ScreenRect, ScreenSize, ScreenSpace};
 
@@ -34,6 +24,8 @@ pub struct OrientedNode(NonZeroI32);
 pub struct GraphLayout<N, E> {
     vertices: Vec<Point2<f32>>,
     edges: Vec<(usize, usize)>,
+
+    aabb: (Point2<f32>, Point2<f32>),
 
     node_data: Vec<N>,
     edge_data: Vec<E>,
@@ -48,6 +40,8 @@ impl<N, E> GraphLayout<N, E> {
         use std::io::prelude::*;
         use std::io::BufReader;
 
+        log::warn!("loading {:?}", tsv_path.as_ref());
+
         let mut vertices = Vec::new();
         let mut edges = Vec::new();
 
@@ -58,6 +52,9 @@ impl<N, E> GraphLayout<N, E> {
 
         // skip header
         let _ = reader.read_line(&mut line_buf)?;
+
+        let mut min = point![std::f32::MAX, std::f32::MAX];
+        let mut max = point![std::f32::MIN, std::f32::MIN];
 
         loop {
             line_buf.clear();
@@ -83,7 +80,14 @@ impl<N, E> GraphLayout<N, E> {
                 let y = y.parse::<f32>()?;
 
                 let p = point![x, y];
-                vertices.push(p);
+
+                // TODO obviously don't scale here!
+                let scale = 0.05;
+
+                max = point![max.x.max(x), max.y.max(y)];
+                min = point![min.x.min(x), min.y.min(y)];
+
+                vertices.push(p * scale);
             }
         }
 
@@ -114,19 +118,114 @@ impl<N, E> GraphLayout<N, E> {
             edges.push((a_ix, b_ix));
         }
 
-        // let mut lines = reader.lines();
-        // throw away header
-        // lines.next().unwrap()?;
+        log::debug!("loaded {} vertex positions", vertices.len());
+
+        log::debug!("layout bounding box: min: {:?}\tmax: {:?}", min, max);
 
         let result = Self {
             vertices,
             edges,
+
+            aabb: (min, max),
 
             node_data: Vec::new(),
             edge_data: Vec::new(),
         };
 
         Ok(result)
+    }
+
+    pub fn update_layer(
+        &self,
+        compositor: &mut Compositor,
+        layer_name: &str,
+    ) -> Result<()> {
+        use palette::{FromColor, Hue, IntoColor, Lch, Srgb};
+
+        let lch_color: Lch = Srgb::new(0.8, 0.2, 0.1).into_color();
+        // let new_color = Srgb::from_color(lch_color.shift_hue(180.0));
+
+        let rect_sublayer = "rects";
+        let line_sublayer = "lines";
+        let line_2_sublayer = "lines-2";
+
+        compositor.with_layer(layer_name, |layer| {
+            if let Some(sublayer_data) = layer
+                .get_sublayer_mut(rect_sublayer)
+                .and_then(|s| s.draw_data_mut().next())
+            {
+                /*
+                sublayer_data.update_vertices_array(
+                    self.entities.iter().enumerate().map(|(i, e)| {
+                        //
+                        e.to_vertex()
+                    }),
+                )?;
+                */
+            }
+
+            if let Some(sublayer_data) = layer
+                .get_sublayer_mut(line_2_sublayer)
+                .and_then(|s| s.draw_data_mut().next())
+            {
+                assert!(self.vertices.len() % 2 == 0);
+
+                let mut min_x = std::f32::MAX;
+                let mut min_y = std::f32::MAX;
+                let mut max_x = std::f32::MIN;
+                let mut max_y = std::f32::MIN;
+
+                sublayer_data.update_vertices_array(
+                    self.vertices.chunks_exact(2).map(|chnk| {
+                        if let [back, front] = chnk {
+                            let p = back;
+                            let q = front;
+
+                            /*
+
+                            let c1 = Srgb::from_color(
+                                lch_color.shift_hue((dist - tgt_len).abs()),
+                            );
+                            */
+
+                            let dist = distance(p, q);
+
+                            let c1 =
+                                Srgb::from_color(lch_color.shift_hue(dist));
+
+                            // Srgb::from_color(lch_color.shift_hue(d_a * 200.0));
+
+                            // let color =
+                            //     rgb::RGBA::new(c1.red, c1.green, c1.blue, 1.0);
+
+                            let color = rgb::RGBA::new(0.8, 0.1, 0.1, 1.0);
+
+                            let w = 4.0;
+
+                            // let back = back - self.aabb.0;
+                            // let front = front - self.aabb.0;
+
+                            min_x = min_x.min(back.x).min(front.x);
+                            min_y = min_y.min(back.y).min(front.y);
+
+                            max_x = max_x.max(back.x).max(front.x);
+                            max_y = max_y.max(back.y).max(front.y);
+
+                            let p = point2(back.x, back.y);
+                            let q = point2(front.x, front.y);
+
+                            line_width_rgba2(p, q, w, w, color, color)
+                        } else {
+                            unreachable!();
+                        }
+                    }),
+                )?;
+            }
+
+            Ok(())
+        })?;
+
+        Ok(())
     }
 }
 
@@ -182,6 +281,7 @@ impl OrientedNode {
     }
 }
 
+/*
 mod sublayer {
 
     use raving::compositor::SublayerDef;
@@ -291,6 +391,7 @@ mod sublayer {
         Ok(def)
     }
 }
+*/
 
 #[cfg(test)]
 mod tests {
