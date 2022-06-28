@@ -15,6 +15,7 @@ pub mod dynamics;
 pub mod view;
 
 pub mod curves;
+pub mod graph;
 
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ScreenSpace;

@@ -166,12 +166,11 @@ pub struct Waragraph {
     pub node_lens: Vec<u32>,
     pub sequences: Vec<Vec<u8>>,
 
-    edges: FxHashMap<(Node, Node), u32>,
+    edges: FxHashMap<(Strand, Strand), u32>,
 
     // adj: CsMatI<u8, Strand>,
     // adj: CsMatI<u8, Node>,
-    pub adj_n_n: CsMatI<u8, u32>,
-    pub d0: CsMatI<i8, u32>,
+    // pub adj_n_n: CsMatI<u8, u32>,
 
     // pub paths: Vec<CsVecI<Strand, u32>>,
     pub path_lens: Vec<usize>,
@@ -212,12 +211,7 @@ impl Waragraph {
 
         let total_len = sum;
 
-        let mut adj_tris: TriMatI<u8, u32> =
-            TriMatI::new((node_count, node_count));
-        let mut d0_tris: TriMatI<i8, u32> =
-            TriMatI::new((edge_count, node_count));
-
-        let mut edges: FxHashMap<(Node, Node), u32> = FxHashMap::default();
+        let mut edges: FxHashMap<(Strand, Strand), u32> = FxHashMap::default();
 
         for edge in gfa.links.iter() {
             let ei = edges.len();
@@ -225,19 +219,19 @@ impl Waragraph {
             let from = edge.from_segment - 1;
             let to = edge.to_segment - 1;
 
-            adj_tris.add_triplet(to, from, 1);
-
-            d0_tris.add_triplet(ei, from, -1);
-            d0_tris.add_triplet(ei, to, 1);
+            let from_rev =
+                matches!(edge.from_orient, gfa::gfa::Orientation::Backward);
+            let to_rev =
+                matches!(edge.to_orient, gfa::gfa::Orientation::Backward);
 
             let n_f = Node::from(from as u32);
             let n_t = Node::from(to as u32);
 
-            edges.insert((n_f, n_t), ei as u32);
-        }
+            let s_f = Strand::new(n_f, from_rev);
+            let s_t = Strand::new(n_t, to_rev);
 
-        let adj_n_n = adj_tris.to_csc();
-        let d0 = d0_tris.to_csc();
+            edges.insert((s_f, s_t), ei as u32);
+        }
 
         let mut path_names = BiBTreeMap::default();
         let mut path_names_prefixes = BiBTreeMap::default();
@@ -378,9 +372,6 @@ impl Waragraph {
 
             edges,
 
-            adj_n_n,
-            d0,
-
             path_names,
             path_names_prefixes,
             path_lens,
@@ -516,6 +507,7 @@ impl Waragraph {
         self.total_len
     }
 
+    /*
     pub fn neighbors_fwd<'a>(&'a self, node: Node) -> Option<&'a [Node]> {
         let i = node.0 as usize;
         let range = self.adj_n_n.indptr().outer_inds_sz(i);
@@ -530,6 +522,7 @@ impl Waragraph {
         };
         Some(slice)
     }
+    */
 
     pub fn sample_node_lengths(
         &self,
