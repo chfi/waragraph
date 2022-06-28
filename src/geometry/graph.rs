@@ -3,6 +3,7 @@ use std::{
     ops::{Add, Div, Sub},
 };
 
+use bstr::ByteSlice;
 use euclid::*;
 use nalgebra::{Norm, Normed};
 use num_traits::{FromPrimitive, ToPrimitive};
@@ -25,10 +26,109 @@ use crate::graph::{Node, Path, Waragraph};
 
 use super::{ScreenPoint, ScreenRect, ScreenSize, ScreenSpace};
 
+use nalgebra::*;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct OrientedNode(NonZeroI32);
 
-pub struct GraphLayout {}
+pub struct GraphLayout<N, E> {
+    vertices: Vec<Point2<f32>>,
+    edges: Vec<(usize, usize)>,
+
+    node_data: Vec<N>,
+    edge_data: Vec<E>,
+}
+
+impl<N, E> GraphLayout<N, E> {
+    pub fn load_layout_tsv<P: AsRef<std::path::Path>>(
+        graph: &Waragraph,
+        tsv_path: P,
+    ) -> Result<Self> {
+        use std::fs::File;
+        use std::io::prelude::*;
+        use std::io::BufReader;
+
+        let mut vertices = Vec::new();
+        let mut edges = Vec::new();
+
+        let layout_file = File::open(tsv_path)?;
+        let mut reader = BufReader::new(layout_file);
+
+        let mut line_buf = String::new();
+
+        // skip header
+        let _ = reader.read_line(&mut line_buf)?;
+
+        loop {
+            line_buf.clear();
+            let len = reader.read_line(&mut line_buf)?;
+
+            if len == 0 {
+                break;
+            }
+
+            let line = line_buf[..len].trim();
+
+            let mut fields = line.split_whitespace();
+
+            let fields = fields.next().and_then(|ix_s| {
+                let x_s = fields.next()?;
+                let y_s = fields.next()?;
+                Some((ix_s, x_s, y_s))
+            });
+
+            if let Some((ix, x, y)) = fields {
+                let _ix = ix.parse::<usize>()?;
+                let x = x.parse::<f32>()?;
+                let y = y.parse::<f32>()?;
+
+                let p = point![x, y];
+                vertices.push(p);
+            }
+        }
+
+        for (a, b) in graph.edges.keys() {
+            let ai = a.node().ix() * 2;
+            let bi = b.node().ix() * 2;
+
+            let (a_ix, b_ix): (usize, usize) =
+                match (a.is_reverse(), b.is_reverse()) {
+                    (false, false) => {
+                        // (a+, b+)
+                        (ai + 1, bi)
+                    }
+                    (false, true) => {
+                        // (a+, b-)
+                        (ai + 1, bi + 1)
+                    }
+                    (true, false) => {
+                        // (a-, b+)
+                        (ai, bi)
+                    }
+                    (true, true) => {
+                        // (a-, b-)
+                        (ai, bi + 1)
+                    }
+                };
+
+            edges.push((a_ix, b_ix));
+        }
+
+        // let mut lines = reader.lines();
+        // throw away header
+        // lines.next().unwrap()?;
+
+        let result = Self {
+            vertices,
+            edges,
+
+            node_data: Vec::new(),
+            edge_data: Vec::new(),
+        };
+
+        Ok(result)
+    }
+}
 
 impl From<Node> for OrientedNode {
     fn from(node: Node) -> OrientedNode {

@@ -166,7 +166,7 @@ pub struct Waragraph {
     pub node_lens: Vec<u32>,
     pub sequences: Vec<Vec<u8>>,
 
-    edges: FxHashMap<(Strand, Strand), u32>,
+    pub edges: FxHashMap<(Strand, Strand), u32>,
 
     // adj: CsMatI<u8, Strand>,
     // adj: CsMatI<u8, Node>,
