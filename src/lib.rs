@@ -12,4 +12,5 @@ pub mod command;
 pub mod geometry;
 pub mod list;
 
+pub mod gui;
 pub mod text;

@@ -35,13 +35,11 @@ use std::sync::Arc;
 
 use anyhow::{anyhow, Result};
 
-use zerocopy::AsBytes;
-
 use super::cache::{GpuBufferCache, UpdateReqMsg};
-use super::gui::layer::{label_at, path_slot};
 use super::SlotFnCache;
 use raving::compositor::{Compositor, Layer, SublayerAllocMsg};
 
+use crate::gui::layer::{label_at, path_slot};
 use crate::list::*;
 
 pub struct ViewerSys {

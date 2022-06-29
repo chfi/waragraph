@@ -12,7 +12,7 @@ use rustc_hash::FxHashMap;
 
 use crate::{
     geometry::ScreenVector,
-    viewer::gui::layer::{line_width_rgba, line_width_rgba2},
+    gui::layer::{line_width_rgba, line_width_rgba2},
 };
 
 use super::{ScreenPoint, ScreenRect, ScreenSize, ScreenSpace};

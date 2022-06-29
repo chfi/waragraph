@@ -12,7 +12,7 @@ use raving::compositor::{Compositor, SublayerAllocMsg};
 
 use euclid::*;
 
-use super::gui::layer::{label_at, line_width_rgba, rect_rgba};
+use super::layer::{label_at, line_width_rgba, rect_rgba};
 
 #[derive(Debug, Clone)]
 pub enum Shape {

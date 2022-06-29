@@ -15,7 +15,7 @@ use crate::{
     geometry::{
         ScreenPoint, ScreenRect, ScreenSize, ScreenSpace, ScreenVector,
     },
-    viewer::gui::layer::{line_width_rgba, line_width_rgba2, rect_rgba},
+    gui::layer::{line_width_rgba, line_width_rgba2, rect_rgba},
 };
 
 use anyhow::Result;

@@ -24,8 +24,10 @@ use crate::{
     },
     list::ListView,
     text::TextCache,
-    viewer::{gui::layer::rect_rgba, SlotFnCache},
+    viewer::SlotFnCache,
 };
+
+use crate::gui::layer::rect_rgba;
 
 mod file_prompt;
 

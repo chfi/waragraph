@@ -11,7 +11,7 @@ use crate::{
     graph::{Path, Strand, Waragraph},
 };
 
-use super::gui::layer::line_width_rgba;
+use crate::gui::layer::line_width_rgba;
 
 pub struct EdgeCache {
     // all edges as endpoints (pangenome positions)

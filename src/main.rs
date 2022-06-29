@@ -3,6 +3,7 @@ use euclid::SideOffsets2D;
 use euclid::{point2, size2, Length};
 use gfa::gfa::GFA;
 use glyph_brush::{Section, Text};
+use nalgebra::vector;
 use parking_lot::{Mutex, RwLock};
 
 use rand::Rng;
@@ -27,12 +28,14 @@ use waragraph::geometry::dynamics::CurveLayout;
 use waragraph::geometry::graph::GraphLayout;
 use waragraph::geometry::{ListLayout, ScreenPoint, ScreenRect};
 use waragraph::graph::{Path, Waragraph};
+use waragraph::gui::{
+    debug::DebugLayers,
+    tree_list::{Breadcrumbs, ListPopup},
+};
 use waragraph::text::TextCache;
 use waragraph::util::BufferStorage;
 use waragraph::viewer::app::ViewerSys;
-use waragraph::viewer::debug::DebugLayers;
 use waragraph::viewer::edges::{EdgeCache, EdgeVertexCache};
-use waragraph::viewer::gui::tree_list::{Breadcrumbs, ListPopup};
 use winit::event::{Event, VirtualKeyCode, WindowEvent};
 use winit::{event_loop::EventLoop, window::WindowBuilder};
 
@@ -227,7 +230,7 @@ fn main() -> anyhow::Result<()> {
         .scope
         .push_constant("label_space", label_space.clone());
 
-    if let Err(e) = waragraph::viewer::gui::layer::add_sublayer_defs(
+    if let Err(e) = waragraph::gui::layer::add_sublayer_defs(
         &mut engine,
         &mut compositor,
         font_desc_set,
@@ -270,8 +273,7 @@ fn main() -> anyhow::Result<()> {
     console.modules.insert("popup".into(), popup_module.clone());
 
     {
-        let module =
-            waragraph::viewer::gui::layer::create_rhai_module(&compositor);
+        let module = waragraph::gui::layer::create_rhai_module(&compositor);
         console.modules.insert("ui".into(), Arc::new(module));
     }
 
@@ -388,10 +390,27 @@ bed::load_bed_file(bed_path, bed_name, column_map)
 
     let mut verlet = VerletSolver::new(width, height);
 
-    // let mut graph_layout: GraphLayout<(), ()> =
-    //     GraphLayout::load_layout_tsv(&graph, "A-3105.smooth.layout.tsv")?;
+    let mut graph_layout: GraphLayout<(), ()> =
+        GraphLayout::load_layout_tsv(&graph, "A-3105.smooth.layout.tsv")?;
 
-    // graph_layout.update_layer(&mut compositor, "graph-layout")?;
+    let layout_buf = graph_layout.prepare_sublayer(
+        &mut engine,
+        &mut compositor,
+        "graph-layout",
+    )?;
+
+    {
+        let buf = &mut engine.resources[layout_buf];
+
+        let offset = vector![0.0, 0.0];
+
+        waragraph::geometry::graph::sublayer::write_uniform_buffer(
+            buf, offset, 1.0,
+        )
+        .unwrap();
+    }
+
+    graph_layout.update_layer(&mut compositor, "graph-layout")?;
 
     // waragraph::geometry::dynamics::verlet::add_test_data(&mut verlet);
 
@@ -595,7 +614,7 @@ bed::load_bed_file(bed_path, bed_name, column_map)
                 buffers.fill_updated_buffers(&mut engine.resources).unwrap();
 
                 {
-                    use waragraph::viewer::debug::{Shape, Style};
+                    use waragraph::gui::debug::{Shape, Style};
 
                     let [_win_width, win_height] = swapchain_dims.load();
 

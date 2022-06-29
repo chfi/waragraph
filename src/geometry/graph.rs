@@ -5,13 +5,16 @@ use std::{
 
 use bstr::ByteSlice;
 use euclid::*;
-use raving::compositor::Compositor;
+use raving::{
+    compositor::Compositor,
+    vk::{BufferIx, VkEngine},
+};
 
 use anyhow::Result;
 
 use crate::{
     graph::{Node, Path, Waragraph},
-    viewer::gui::layer::{line_width_rgba, line_width_rgba2},
+    gui::layer::{line_width_rgba, line_width_rgba2},
 };
 
 use super::{ScreenPoint, ScreenRect, ScreenSize, ScreenSpace};
@@ -135,6 +138,32 @@ impl<N, E> GraphLayout<N, E> {
         Ok(result)
     }
 
+    pub fn prepare_sublayer(
+        &self,
+        engine: &mut VkEngine,
+        compositor: &mut Compositor,
+        layer_name: &str,
+    ) -> Result<BufferIx> {
+        let (buffer, set) = engine.with_allocators(|ctx, res, alloc| {
+            sublayer::allocate_uniform_buffer(compositor, ctx, res, alloc)
+        })?;
+
+        let polyline_sublayer = "polyline";
+
+        compositor.with_layer(layer_name, |layer| {
+            if let Some(sublayer_data) = layer
+                .get_sublayer_mut(polyline_sublayer)
+                .and_then(|s| s.draw_data_mut().next())
+            {
+                sublayer_data.update_sets([set]);
+            }
+
+            Ok(())
+        })?;
+
+        Ok(buffer)
+    }
+
     pub fn update_layer(
         &self,
         compositor: &mut Compositor,
@@ -146,8 +175,7 @@ impl<N, E> GraphLayout<N, E> {
         // let new_color = Srgb::from_color(lch_color.shift_hue(180.0));
 
         let rect_sublayer = "rects";
-        let line_sublayer = "lines";
-        let line_2_sublayer = "lines-2";
+        let polyline_sublayer = "polyline";
 
         compositor.with_layer(layer_name, |layer| {
             if let Some(sublayer_data) = layer
@@ -165,7 +193,7 @@ impl<N, E> GraphLayout<N, E> {
             }
 
             if let Some(sublayer_data) = layer
-                .get_sublayer_mut(line_2_sublayer)
+                .get_sublayer_mut(polyline_sublayer)
                 .and_then(|s| s.draw_data_mut().next())
             {
                 assert!(self.vertices.len() % 2 == 0);
@@ -281,15 +309,88 @@ impl OrientedNode {
     }
 }
 
-/*
-mod sublayer {
+pub mod sublayer {
 
+    use gpu_allocator::vulkan::Allocator;
     use raving::compositor::SublayerDef;
+
+    use raving::vk::{
+        BufferIx, BufferRes, DescSetIx, GpuResources, VkContext, VkEngine,
+    };
+
+    // use raving::compositor::*;
+
+    use ash::vk;
+
     use zerocopy::AsBytes;
 
     use super::*;
 
-    pub(super) fn sublayer_def(
+    pub fn write_uniform_buffer(
+        buf: &mut BufferRes,
+        offset: Vector2<f32>,
+        scale: f32,
+    ) -> Option<()> {
+        let dst = buf.mapped_slice_mut()?;
+
+        dst[0..12].clone_from_slice(bytemuck::cast_slice(&[
+            offset.x, offset.y, scale,
+        ]));
+
+        Some(())
+    }
+
+    pub(super) fn allocate_uniform_buffer(
+        compositor: &Compositor,
+        ctx: &VkContext,
+        res: &mut GpuResources,
+        alloc: &mut Allocator,
+    ) -> Result<(BufferIx, DescSetIx)> {
+        let size = std::mem::size_of::<([f32; 3])>();
+
+        let size = VkEngine::aligned_ubo_size(ctx, size);
+
+        let usage = vk::BufferUsageFlags::UNIFORM_BUFFER;
+        let location = gpu_allocator::MemoryLocation::CpuToGpu;
+
+        let buffer = res.allocate_buffer(
+            ctx,
+            alloc,
+            location,
+            1,
+            size,
+            usage,
+            Some("polyline-uniform-buffer"),
+        )?;
+
+        let shader_ix = compositor
+            .sublayer_defs
+            .get("polyline")
+            .and_then(|def| {
+                let pipeline = &res[def.load_pipeline];
+                pipeline.vertex
+            })
+            .unwrap();
+
+        let desc_set =
+            res.allocate_desc_set(shader_ix, 0, |res, builder| {
+                let info = vk::DescriptorBufferInfo::builder()
+                    .buffer(buffer.buffer)
+                    .offset(0)
+                    .range(ash::vk::WHOLE_SIZE)
+                    .build();
+                let buffer_info = [info];
+                builder.bind_buffer(0, &buffer_info);
+                Ok(())
+            })?;
+
+        let buffer = res.insert_buffer(buffer);
+        let set = res.insert_desc_set(desc_set);
+
+        Ok((buffer, set))
+    }
+
+    pub(crate) fn sublayer_def(
         ctx: &VkContext,
         res: &mut GpuResources,
         clear_pass: vk::RenderPass,
@@ -308,7 +409,7 @@ mod sublayer {
         let vert = res.insert_shader(vert);
         let frag = res.insert_shader(frag);
 
-        let vertex_stride = std::mem::size_of::<[f32; 6]>();
+        let vertex_stride = std::mem::size_of::<[f32; 14]>();
 
         let vert_binding_desc = vk::VertexInputBindingDescription::builder()
             .binding(0)
@@ -316,29 +417,36 @@ mod sublayer {
             .input_rate(vk::VertexInputRate::INSTANCE)
             .build();
 
-        let pos_desc = vk::VertexInputAttributeDescription::builder()
+        let p0_desc = vk::VertexInputAttributeDescription::builder()
             .binding(0)
             .location(0)
-            .format(vk::Format::R32G32_SFLOAT)
+            .format(vk::Format::R32G32B32_SFLOAT)
             .offset(0)
             .build();
 
-        let size_desc = vk::VertexInputAttributeDescription::builder()
+        let p1_desc = vk::VertexInputAttributeDescription::builder()
             .binding(0)
             .location(1)
-            .format(vk::Format::R32G32_SFLOAT)
-            .offset(8)
+            .format(vk::Format::R32G32B32_SFLOAT)
+            .offset(12)
             .build();
 
-        let ix_desc = vk::VertexInputAttributeDescription::builder()
+        let color0_desc = vk::VertexInputAttributeDescription::builder()
             .binding(0)
             .location(2)
-            .format(vk::Format::R32G32_UINT)
-            .offset(16)
+            .format(vk::Format::R32G32B32A32_SFLOAT)
+            .offset(24)
+            .build();
+
+        let color1_desc = vk::VertexInputAttributeDescription::builder()
+            .binding(0)
+            .location(3)
+            .format(vk::Format::R32G32B32A32_SFLOAT)
+            .offset(40)
             .build();
 
         let vert_binding_descs = [vert_binding_desc];
-        let vert_attr_descs = [pos_desc, size_desc, ix_desc];
+        let vert_attr_descs = [p0_desc, p1_desc, color0_desc, color1_desc];
 
         let vert_input_info = vk::PipelineVertexInputStateCreateInfo::builder()
             .vertex_binding_descriptions(&vert_binding_descs)
@@ -346,24 +454,25 @@ mod sublayer {
 
         let vertex_offset = 0;
 
-        let mut def = SublayerDef::new::<([f32; 2], [f32; 2], [u32; 2]), _>(
-            ctx,
-            res,
-            "path-slot",
-            vert,
-            frag,
-            clear_pass,
-            load_pass,
-            vertex_offset,
-            vertex_stride,
-            true,
-            Some(6),
-            None,
-            vert_input_info,
-            None,
-            // [font_desc_set],
-            None,
-        )?;
+        let mut def =
+            SublayerDef::new::<([f32; 3], [f32; 3], [f32; 4], [f32; 4]), _>(
+                ctx,
+                res,
+                "polyline",
+                vert,
+                frag,
+                clear_pass,
+                load_pass,
+                vertex_offset,
+                vertex_stride,
+                true,
+                Some(6),
+                None,
+                vert_input_info,
+                None,
+                // [font_desc_set],
+                None,
+            )?;
 
         fn get_cast(map: &rhai::Map, k: &str) -> Option<f32> {
             let field = map.get(k)?;
@@ -391,7 +500,6 @@ mod sublayer {
         Ok(def)
     }
 }
-*/
 
 #[cfg(test)]
 mod tests {

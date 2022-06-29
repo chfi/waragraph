@@ -15,6 +15,11 @@ layout (location = 0) out vec4 o_color;
 //   mat4 model_t;
 // } ubo;
 
+layout (set = 0, binding = 0) uniform UBO {
+  vec2 offset;
+  float scale;
+} ubo;
+
 layout (push_constant) uniform Input {
   vec2 window_dims;
 } inputs;
