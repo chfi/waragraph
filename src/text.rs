@@ -27,8 +27,8 @@ use glyph_brush::*;
 
 pub type GlyphVx = [u8; 48];
 
-pub struct TextCache {
-    pub brush: GlyphBrush<GlyphVx>,
+pub struct TextCache<X = glyph_brush::Extra> {
+    pub brush: GlyphBrush<GlyphVx, X>,
 
     cache_data: Vec<u8>,
     glyph_vertices: Vec<GlyphVx>,
@@ -43,7 +43,10 @@ pub struct TextCache {
     sampler: SamplerIx,
 }
 
-impl TextCache {
+impl<X> TextCache<X>
+where
+    X: Clone + std::hash::Hash,
+{
     pub fn cache_format() -> vk::Format {
         vk::Format::R8_UNORM
     }
@@ -369,7 +372,7 @@ impl TextCache {
                 "/dejavu-fonts-ttf-2.37/ttf/DejaVuSansMono-Bold.ttf"
             )))?;
 
-        let glyph_brush: GlyphBrush<GlyphVx> =
+        let glyph_brush: GlyphBrush<GlyphVx, X> =
             GlyphBrushBuilder::using_font(dejavu_mono)
                 // GlyphBrushBuilder::using_font(dejavu_sans)
                 .draw_cache_position_tolerance(0.0)
@@ -455,16 +458,92 @@ impl TextCache {
         // engine: &mut VkEngine,
         section: S,
     ) where
-        S: Into<Cow<'a, Section<'a>>>,
+        S: Into<Cow<'a, Section<'a, X>>>,
+        X: 'a,
     {
         self.brush.queue(section);
     }
+
+    /*
+    pub fn process_queued_raw<V>(
+        &mut self,
+        engine: &mut VkEngine,
+        compositor: &mut Compositor,
+        to_vertex: impl Fn(glyph_brush::GlyphVertex<X>) -> V,
+        handle_vertices: impl Fn(V)
+    ) -> Result<()> {
+        // log::error!("processing queued sections");
+
+        // let mut glyphs_to_upload = Vec::new();
+        let mut cache_updated = false;
+
+        let (tgt_width, _) = self.brush.texture_dimensions();
+
+        let result = self.brush.process_queued(
+            |rect, tex_data| {
+                cache_updated = true;
+
+                let [tex_x0, tex_y0] = rect.min;
+                let tex_w = rect.width();
+                let tex_h = rect.height();
+
+                for row_i in 0..tex_h {
+                    let data_row_ix = (tex_w * row_i) as usize;
+                    let data_row_end = data_row_ix + tex_w as usize;
+                    let row = &tex_data[data_row_ix..data_row_end];
+
+                    let tgt_row = (tex_y0 + row_i) as usize;
+                    let tgt_col = tex_x0 as usize;
+                    let width = tex_w as usize;
+
+                    let tgt_width = tgt_width as usize;
+                    let tgt_row_ix = tgt_width * tgt_row + tgt_col;
+                    let tgt_row_end = tgt_row_ix + width;
+
+                    self.cache_data[tgt_row_ix..tgt_row_end]
+                        .clone_from_slice(row);
+                }
+            },
+            to_vertex,
+        );
+
+        if cache_updated {
+            log::trace!("uploading TextCache texture");
+            self.upload_texture(engine)?;
+        }
+
+        match result {
+            Ok(BrushAction::Draw(vertices)) => {
+                // log::warn!("updating glyphs with {} vertices", vertices.len());
+                self.glyph_vertices = vertices;
+            }
+            Ok(BrushAction::ReDraw) => {}
+            Err(BrushError::TextureTooSmall { suggested }) => {
+                let (x, y) = suggested;
+                let capacity = (x * y) as usize;
+                self.cache_data.resize(capacity, 0u8);
+                self.glyph_vertices.clear();
+                // log::warn!("reallocating glyph cache");
+
+                self.reallocate(engine, x, y)?;
+
+                // log::warn!("trying again");
+                self.process_queued(engine, compositor)?;
+            }
+        }
+
+        Ok(())
+    }
+    */
 
     pub fn process_queued(
         &mut self,
         engine: &mut VkEngine,
         compositor: &mut Compositor,
-    ) -> Result<()> {
+    ) -> Result<()>
+    where
+        X: PartialEq,
+    {
         // log::error!("processing queued sections");
 
         // let mut glyphs_to_upload = Vec::new();
