@@ -20,7 +20,7 @@ pub mod graph;
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ScreenSpace;
 
-pub type ScreenLen = Length<f32, ScreenSpace>;
+pub type ScreenLength = Length<f32, ScreenSpace>;
 pub type ScreenPoint = Point2D<f32, ScreenSpace>;
 pub type ScreenVector = Vector2D<f32, ScreenSpace>;
 pub type ScreenSize = Size2D<f32, ScreenSpace>;

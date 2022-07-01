@@ -847,7 +847,7 @@ impl CommandPalette {
                 list_view.resize(list_len);
                 state.list_view = list_view;
                 //
-                log::error!("continue prompt");
+                log::debug!("continue prompt");
             }
             std::ops::ControlFlow::Break(value) => {
                 if value.type_id()
@@ -890,7 +890,7 @@ impl CommandPalette {
                         }
 
                         Err(prompt) => {
-                            log::error!("updating prompt");
+                            log::debug!("updating prompt");
                             let result_len = prompt.result_len.load();
                             let mut list_view = ListView::new(0..result_len);
                             list_view.resize(list_len);
@@ -1089,7 +1089,7 @@ impl CommandPalette {
 
         let ast = ast.clone_functions_only_filtered(
             |ns, acc, global, name, arity| {
-                log::error!(
+                log::debug!(
                     "{:?}\t{:?}\t{:?}\t{:?}\t{:?}",
                     ns,
                     acc,
@@ -1252,7 +1252,7 @@ impl CommandPalette {
             if let Some(cmd) = module.commands.get(cmd) {
                 let res: rhai::Dynamic =
                     cmd.fn_ptr.call(engine, &module.fn_ptr_ast, ())?;
-                log::error!("command result: {:?}", res);
+                log::debug!("command result: {:?}", res);
             } else {
                 bail!("Unknown command `{}:{}`", module.name, cmd);
             }
@@ -1338,7 +1338,8 @@ impl CommandPalette {
             let r = rect.inner_rect(pad);
 
             let pos = (r.min_x(), r.min_y());
-            let bounds = (r.max_x(), r.max_y());
+            // let bounds = (r.max_x(), r.max_y());
+            let bounds = (r.min_x() + 100.0, r.max_y());
 
             let section = Section::default()
                 .with_screen_position(pos)

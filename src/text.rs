@@ -372,12 +372,11 @@ where
                 "/dejavu-fonts-ttf-2.37/ttf/DejaVuSansMono-Bold.ttf"
             )))?;
 
-        let glyph_brush: GlyphBrush<GlyphVx, X> =
-            GlyphBrushBuilder::using_font(dejavu_mono)
-                // GlyphBrushBuilder::using_font(dejavu_sans)
-                .draw_cache_position_tolerance(0.0)
-                .draw_cache_scale_tolerance(0.5)
-                .build();
+        let glyph_brush = GlyphBrushBuilder::using_font(dejavu_mono)
+            // GlyphBrushBuilder::using_font(dejavu_sans)
+            .draw_cache_position_tolerance(0.0)
+            .draw_cache_scale_tolerance(0.5)
+            .build();
 
         let (width, height) = glyph_brush.texture_dimensions();
 
@@ -465,12 +464,11 @@ where
     }
 
     /*
-    pub fn process_queued_raw<V>(
+    pub fn process_queued_raw(
         &mut self,
         engine: &mut VkEngine,
         compositor: &mut Compositor,
-        to_vertex: impl Fn(glyph_brush::GlyphVertex<X>) -> V,
-        handle_vertices: impl Fn(V)
+        // to_vertex: impl,
     ) -> Result<()> {
         // log::error!("processing queued sections");
 
