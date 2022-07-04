@@ -23,8 +23,8 @@ use crate::console::data::AnnotationSet;
 use crate::console::{Console, RhaiBatchFn2, RhaiBatchFn5};
 use crate::geometry::view::PangenomeView;
 use crate::geometry::{
-    CachedListLayout, LayoutElement, ListLayout, ScreenPoint, ScreenRect,
-    ScreenSideOffsets, ScreenSpace,
+    CachedListLayout, FlexListLayout, LayoutElement, ListLayout, ScreenPoint,
+    ScreenRect, ScreenSideOffsets, ScreenSpace,
 };
 use crate::graph::{Node, Path, Waragraph};
 use crate::util::{BufFmt, BufferStorage};
@@ -1039,7 +1039,8 @@ impl std::default::Default for ScaleFactor {
 
 pub struct PathViewer {
     pub list_layout: Arc<AtomicCell<ListLayout>>,
-    cached_list_layout: CachedListLayout,
+    // cached_list_layout: CachedListLayout,
+    flex_list_layout: FlexListLayout,
 
     pub cache: GpuBufferCache<(Path, SlotFnName)>,
 
@@ -1124,11 +1125,13 @@ impl PathViewer {
             slot_height: Length::new(18.0),
         };
 
-        let cached_list_layout = CachedListLayout::from_layout(&list_layout);
+        // let cached_list_layout = CachedListLayout::from_layout(&list_layout);
+        let flex_list_layout = FlexListLayout::from_layout(&list_layout);
 
         Ok(Self {
             list_layout: Arc::new(list_layout.into()),
-            cached_list_layout,
+            // cached_list_layout,
+            flex_list_layout,
 
             cache,
 
@@ -1238,7 +1241,7 @@ impl PathViewer {
             let size = size2(win_width as f32, win_height as f32);
             let layout = ListLayout::from_config_map(config, size).unwrap();
             self.list_layout.store(layout);
-            self.cached_list_layout.set_layout(layout);
+            self.flex_list_layout.set_layout(layout);
         };
 
         let _ = label_space.write_buffer(&mut engine.resources);
@@ -1443,7 +1446,18 @@ impl PathViewer {
 
         let mut vertices: Vec<[u8; 24]> = Vec::new();
 
-        let layout = &self.cached_list_layout;
+        self.flex_list_layout.apply_to_elements(
+            std::iter::zip(
+                self.slot_list.row_indices(),
+                self.slot_list.visible_rows(),
+            )
+            .map(|(ix, (path, _var))| {
+                let i = path.ix();
+                let extra = (i > 0 && i % 3 == 0).then(|| 20.0);
+
+                (ix, extra)
+            }),
+        );
 
         let mut any_hovered = false;
 
@@ -1454,6 +1468,94 @@ impl PathViewer {
         ui_state.hovered_path_pos = None;
         ui_state.hovered_node = None;
 
+        let cached_rows = self.flex_list_layout.cached_rows().unwrap();
+
+        for ((ix, rect, extra), (path, var)) in
+            std::iter::zip(cached_rows, self.slot_list.visible_rows())
+        {
+            if ix == 0 {
+                log::error!("rect: {:?}", rect);
+            }
+
+            //
+            let slot_fn = self.slot_fn_vars.get_by_left(var).unwrap();
+            let key = (*path, slot_fn.clone());
+
+            // if the state cell somehow doesn't exist, or shows that
+            // there's probably only garbage data there, simply skip
+            // this row (it'll get drawn when the data's ready)
+            //
+            // TODO: it still renders garbage when resizing
+            if let Some(state) = self.slot_states.get(&key) {
+                let state = state.load();
+                match state {
+                    SlotState::Unknown => {
+                        // log::warn!("Unknown, skipping slot {}", ix);
+                        continue;
+                    }
+                    _ => (),
+                }
+            } else {
+                continue;
+            }
+
+            // otherwise prepare the vertex data
+            let range = if let Some(range) = self.cache.cache().get_range(&key)
+            {
+                range
+            } else {
+                continue;
+            };
+
+            let [left, right] = rect.split_hor(slot_partition_x);
+
+            let right = right.inner_rect(slot_ver_offsets);
+
+            {
+                let in_left = left.contains(mouse_pos);
+                let in_right = right.contains(mouse_pos);
+
+                if in_left || in_right {
+                    any_hovered = true;
+                    let path_row = PathRowUIState {
+                        path: *path,
+                        name_rect: left,
+                        data_rect: right,
+                    };
+                    ui_state.hovered_path_row = Some(path_row);
+                }
+
+                if in_left {
+                    ui_state.hovered_path_name = true;
+                } else if in_right {
+                    let x0 = right.min_x();
+                    let l = right.width();
+
+                    let mx = mouse_pos.x - x0;
+                    let t = mx / l;
+
+                    let view = self.current_view;
+                    let pos =
+                        view.offset().0 + (t * view.len().0 as f32) as usize;
+
+                    ui_state.pangenome_pos = Some(pos);
+
+                    if let Some(node) = graph.node_at_pos(pos) {
+                        ui_state.hovered_node = Some(node);
+                        ui_state.hovered_path_pos =
+                            graph.path_pos_at_node(*path, node);
+                    }
+                }
+            }
+
+            vertices.push(path_slot(
+                right,
+                range.start,
+                range.end - range.start,
+            ));
+        }
+
+        /*
         for (_ix, rect, (path, var)) in
             layout.apply_to_rows(self.slot_list.visible_rows())
         {
@@ -1533,6 +1635,7 @@ impl PathViewer {
                 range.end - range.start,
             ));
         }
+        */
 
         if !any_hovered {
             self.ui_state = Default::default();
@@ -1559,11 +1662,11 @@ impl PathViewer {
         if let Some(sublayer) = layer.get_sublayer_mut("slot-labels") {
             let mut vertices: Vec<[u8; 32]> = Vec::new();
 
-            // insert path names into the label space
-            for (_ix, rect, (path, _var)) in
-                layout.apply_to_rows(self.slot_list.visible_rows())
+            let cached_rows = self.flex_list_layout.cached_rows().unwrap();
+
+            for ((_ix, rect, _extra), (path, _var)) in
+                std::iter::zip(cached_rows, self.slot_list.visible_rows())
             {
-                // for (ix, (path, _)) in self.slot_list.visible_rows().enumerate() {
                 let path_name = graph.path_name(*path).unwrap();
 
                 let text = if path_name.len() < name_len {

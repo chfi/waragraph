@@ -402,6 +402,7 @@ bed::load_bed_file(bed_path, bed_name, column_map)
 
     let mut verlet = VerletSolver::new(width, height);
 
+    /*
     let mut graph_layout: GraphLayout<(), ()> =
         GraphLayout::load_layout_tsv(&graph, "A-3105.smooth.layout.tsv")?;
 
@@ -423,6 +424,7 @@ bed::load_bed_file(bed_path, bed_name, column_map)
     }
 
     graph_layout.update_layer(&mut compositor, "graph-layout")?;
+    */
 
     // waragraph::geometry::dynamics::verlet::add_test_data(&mut verlet);
 

@@ -130,6 +130,42 @@ impl FlexListLayout {
         }
     }
 
+    pub fn from_layout(layout: &ListLayout) -> Self {
+        let rect = layout.rect();
+        let side_offsets = layout.side_offsets.unwrap_or_default();
+        let slot_padding = SideOffsets2D::default();
+        let min_slot_height = layout.slot_height;
+
+        Self {
+            origin: rect.origin,
+            size: rect.size,
+
+            side_offsets,
+            slot_padding,
+            min_slot_height,
+
+            cached_range: None,
+            cached_slot_offsets: Vec::new(),
+            cached_slots: Vec::new(),
+        }
+    }
+
+    pub fn set_layout(&mut self, layout: ListLayout) {
+        let rect = layout.rect();
+
+        self.origin = rect.origin;
+        self.size = rect.size;
+
+        self.side_offsets = layout.side_offsets.unwrap_or_default();
+        self.slot_padding = SideOffsets2D::default();
+        self.min_slot_height = layout.slot_height;
+
+        self.cached_range = None;
+        self.cached_slot_offsets.clear();
+        self.cached_slots.clear();
+        // self.refresh();
+    }
+
     /// Returns the rectangle that will contain the list slots (i.e.
     /// with `side_offsets` taken into account)
     pub fn inner_rect(&self) -> Rect<f32, ScreenSpace> {
@@ -165,15 +201,10 @@ impl FlexListLayout {
             (r, total_h)
         };
 
-        // let mk_rect = |y, h| {
-        //     euclid::rect(self.
-
-        // };
-
         let mut start = None;
         let mut end = None;
 
-        let mut y = 0.0;
+        let mut y = contents_rect.origin.y;
 
         let h0 = self.min_slot_height.0;
 
