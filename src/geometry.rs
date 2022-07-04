@@ -91,6 +91,144 @@ impl<U> LayoutElement for Rect<f32, U> {
     }
 }
 
+#[derive(Clone)]
+pub struct FlexListLayout {
+    pub origin: Point2D<f32, ScreenSpace>,
+    pub size: Size2D<f32, ScreenSpace>,
+
+    pub side_offsets: SideOffsets2D<f32, ScreenSpace>,
+    pub slot_padding: SideOffsets2D<f32, ScreenSpace>,
+
+    pub min_slot_height: Length<f32, ScreenSpace>,
+
+    cached_range: Option<std::ops::Range<usize>>,
+
+    // pub cached_slot_heights: Vec<ScreenLength>,
+    // cached_slot_offsets: Vec<ScreenLength>,
+    cached_slot_offsets: Vec<f32>,
+    cached_slots: Vec<(ScreenRect, Option<ScreenRect>)>,
+}
+
+impl FlexListLayout {
+    pub fn new(
+        rect: ScreenRect,
+        side_offsets: SideOffsets2D<f32, ScreenSpace>,
+        slot_padding: SideOffsets2D<f32, ScreenSpace>,
+        min_slot_height: Length<f32, ScreenSpace>,
+    ) -> Self {
+        Self {
+            origin: rect.origin,
+            size: rect.size,
+
+            side_offsets,
+            slot_padding,
+            min_slot_height,
+
+            cached_range: None,
+            cached_slot_offsets: Vec::new(),
+            cached_slots: Vec::new(),
+        }
+    }
+
+    /// Returns the rectangle that will contain the list slots (i.e.
+    /// with `side_offsets` taken into account)
+    pub fn inner_rect(&self) -> Rect<f32, ScreenSpace> {
+        let rect = Rect::new(self.origin, self.size);
+        rect.inner_rect(self.side_offsets)
+    }
+
+    /// Returns the rectangle that includes the area removed by the
+    /// `side_offsets`
+    pub fn rect(&self) -> Rect<f32, ScreenSpace> {
+        Rect::new(self.origin, self.size)
+    }
+
+    pub fn apply_to_elements(
+        &mut self,
+        elems: impl IntoIterator<Item = (usize, Option<f32>)>,
+    ) -> Option<()> {
+        //
+
+        self.cached_range = None;
+        self.cached_slot_offsets.clear();
+        self.cached_slots.clear();
+
+        let contents_rect = self.inner_rect();
+
+        let mk_slot_rect = |y, h| {
+            let mut r = contents_rect.inner_rect(self.slot_padding);
+            r.origin.y = y;
+            r.size.height = h;
+
+            let total_h = h + self.slot_padding.vertical();
+
+            (r, total_h)
+        };
+
+        // let mk_rect = |y, h| {
+        //     euclid::rect(self.
+
+        // };
+
+        let mut start = None;
+        let mut end = None;
+
+        let mut y = 0.0;
+
+        let h0 = self.min_slot_height.0;
+
+        for (ix, extra) in elems {
+            if start.is_none() {
+                start = Some(ix);
+            }
+            end = Some(ix);
+
+            self.cached_slot_offsets.push(y);
+
+            let (slot_rect, h) = mk_slot_rect(y, h0);
+
+            y += h;
+
+            let extra_rect = extra.map(|height| {
+                let (rect, h) = mk_slot_rect(y, height);
+                y += h;
+                rect
+            });
+
+            self.cached_slots.push((slot_rect, extra_rect));
+        }
+
+        let start = start?;
+        let end = end?;
+
+        self.cached_range = Some(start..end + 1);
+
+        Some(())
+    }
+
+    pub fn cached_rows(
+        &self,
+    ) -> Option<
+        impl Iterator<Item = (usize, ScreenRect, Option<ScreenRect>)> + '_,
+    > {
+        let range = self.cached_range.clone()?;
+
+        let iter = range
+            .zip(&self.cached_slots)
+            .map(|(ix, (rect, extra))| (ix, *rect, *extra));
+
+        //
+        Some(iter)
+    }
+
+    pub fn visible_row_count(&self) -> usize {
+        self.cached_range
+            .as_ref()
+            .map(|range| range.len())
+            .unwrap_or_default()
+    }
+}
+
 #[derive(Clone, Copy)]
 pub struct ListLayout {
     pub origin: Point2D<f32, ScreenSpace>,

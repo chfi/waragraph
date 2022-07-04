@@ -1037,15 +1037,6 @@ impl std::default::Default for ScaleFactor {
     }
 }
 
-#[derive(Clone, Copy)]
-pub struct PathListLayout {
-    base: ListLayout,
-
-    max_label_len: usize,
-    label_pad: ScreenSideOffsets,
-    slot_pad: ScreenSideOffsets,
-}
-
 pub struct PathViewer {
     pub list_layout: Arc<AtomicCell<ListLayout>>,
     cached_list_layout: CachedListLayout,
