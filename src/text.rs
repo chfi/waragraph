@@ -326,6 +326,20 @@ where
         Ok(())
     }
 
+    pub fn update_sublayer(
+        &self,
+        sublayer_data: &mut SublayerDrawData,
+    ) -> Result<()> {
+        sublayer_data
+            .update_vertices_array(self.glyph_vertices.iter().copied())?;
+
+        let desc_set = self.cache_texture_set;
+        let new_sets = [desc_set];
+        sublayer_data.update_sets(new_sets);
+
+        Ok(())
+    }
+
     fn insert_row(&mut self, x: usize, y: usize, pixels: &[u8]) {
         let (cols, rows) = self.brush.texture_dimensions();
 
