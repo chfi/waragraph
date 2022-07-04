@@ -14,9 +14,12 @@ use crate::{
 
 use anyhow::Result;
 use euclid::Rect;
-use glyph_brush::{GlyphCruncher, OwnedSection};
+use glyph_brush::{GlyphCruncher, OwnedSection, Text};
 use nalgebra::{Point2, Vector2};
-use raving::{compositor::Compositor, vk::VkEngine};
+use raving::{
+    compositor::{Compositor, SublayerAllocMsg},
+    vk::VkEngine,
+};
 
 // pub struct WindowId
 
@@ -132,7 +135,7 @@ pub enum Drawable {
         width: ScreenLength,
     },
     Rect {
-        border: Option<(rgb::RGBA<f32>, ScreenLength)>,
+        border: Option<(rgb::RGBA<f32>, f32)>,
         fill: Option<rgb::RGBA<f32>>,
         rect: ScreenRect,
     },
@@ -150,10 +153,11 @@ pub struct Window {
     layer_name: rhai::ImmutableString,
 
     offset: ScreenPoint,
+    size: ScreenSize,
 
     bg_color: rgb::RGBA<f32>,
     border_color: rgb::RGBA<f32>,
-    border_width: ScreenLength,
+    border_width: f32,
 
     drawables: Vec<Drawable>,
 }
@@ -164,22 +168,57 @@ impl Window {
     const GLYPH_SUBLAYER: &'static str = "glyphs";
 
     pub fn new(
-        engine: &mut VkEngine,
         compositor: &mut Compositor,
         id: u64,
-        layer_name: rhai::ImmutableString,
+        layer_name: &str,
+        layer_depth: usize,
         offset: ScreenPoint,
     ) -> Result<Self> {
         // add layer
+        compositor.new_layer(layer_name, layer_depth, true);
 
         // allocate sublayers
+        for (name, def) in [
+            (Self::RECT_SUBLAYER, "rect-rgb"),
+            (Self::LINE_SUBLAYER, "line-rgb-2"),
+            (Self::GLYPH_SUBLAYER, "glyph"),
+        ] {
+            let msg = SublayerAllocMsg::new(layer_name, name, def, &[]);
+            compositor.sublayer_alloc_tx.send(msg)?;
+        }
 
-        // rect
-        // line
-        // glyph
+        let bg_color = rgb::RGBA::new(0.7, 0.7, 0.7, 1.0);
+        let border_color = rgb::RGBA::new(0.0, 0.0, 0.0, 1.0);
 
-        //
-        todo!();
+        let mut res = Self {
+            id,
+            layer_name: layer_name.into(),
+
+            offset,
+            size: ScreenSize::new(100.0, 100.0),
+
+            bg_color,
+            border_color,
+            border_width: 1.0,
+
+            drawables: Vec::new(),
+        };
+
+        res.drawables.push(Drawable::Rect {
+            border: None,
+            fill: Some(rgb::RGBA::new(0.6, 0.1, 0.6, 1.0)),
+            rect: euclid::rect(offset.x + 40.0, offset.y + 40.0, 40.0, 40.0),
+        });
+
+        res.drawables.push(Drawable::Text {
+            section: OwnedSection::default()
+                .add_text(
+                    &Text::new("whoa hello").with_color([0.9, 0.9, 0.9, 1.0]),
+                )
+                .with_screen_position((120.0, 120.0)),
+        });
+
+        Ok(res)
     }
 
     fn layer_name(&self) -> &rhai::ImmutableString {
@@ -188,16 +227,27 @@ impl Window {
 
     pub fn update_layer(
         &self,
-        text_cache: &mut TextCache,
+        engine: &mut VkEngine,
         compositor: &mut Compositor,
+        text_cache: &mut TextCache,
     ) -> Result<()> {
         // initialize sublayer vertex arrays
 
         let mut rect_buf: Vec<[u8; 32]> = Vec::new();
         let mut line_buf: Vec<[u8; 56]> = Vec::new();
-        let mut glyph_buf: Vec<[u8; 48]> = Vec::new();
+        // let mut glyph_buf: Vec<[u8; 48]> = Vec::new();
 
         // map drawables to vertices and distribute to vertex arrays
+
+        // window rectangle background
+        {
+            let bg_rect =
+                ScreenRect::new(self.offset, euclid::size2(300.0, 300.0));
+            let brd_rect = bg_rect.inflate(1.0, 1.0);
+
+            rect_buf.push(rect_rgba(brd_rect, self.border_color));
+            rect_buf.push(rect_rgba(bg_rect, self.bg_color));
+        }
 
         for obj in &self.drawables {
             match obj {
@@ -234,37 +284,27 @@ impl Window {
                     }
                 }
                 Drawable::Rect { border, fill, rect } => {
-                    if let Some(color) = fill {
-                        rect_buf.push(rect_rgba(*rect, *color));
+                    if let Some((color, width)) = border {
+                        let brd_rect = rect.inflate(*width, *width);
+                        rect_buf.push(rect_rgba(brd_rect, *color));
                     }
 
-                    if let Some((c, w)) = border {
-                        let p0 = rect.min();
-                        let d = rect.max() - p0;
-
-                        let dx = euclid::vec2(d.x, 0.0);
-                        let dy = euclid::vec2(0.0, d.y);
-
-                        let p1 = p0 + dx;
-                        let p2 = p1 + dy;
-                        let p3 = p0 + dy;
-
-                        for (a, b) in [(p0, p1), (p1, p2), (p2, p3), (p3, p0)] {
-                            line_buf
-                                .push(line_width_rgba2(a, b, w.0, w.0, *c, *c));
-                        }
+                    if let Some(color) = fill {
+                        rect_buf.push(rect_rgba(*rect, *color));
                     }
                 }
             }
         }
 
-        // update sublayers with vertex array data
+        text_cache.process_queued(engine, compositor)?;
 
+        // update sublayers with vertex array data
         compositor.with_layer(self.layer_name(), |layer| {
             if let Some(sublayer_data) = layer
                 .get_sublayer_mut(Self::RECT_SUBLAYER)
                 .and_then(|sub| sub.draw_data_mut().next())
             {
+                log::warn!("updating rect sublayer");
                 sublayer_data.update_vertices_array(rect_buf)?;
             }
 
@@ -272,6 +312,7 @@ impl Window {
                 .get_sublayer_mut(Self::LINE_SUBLAYER)
                 .and_then(|sub| sub.draw_data_mut().next())
             {
+                log::warn!("updating line sublayer");
                 sublayer_data.update_vertices_array(line_buf)?;
             }
 
@@ -279,6 +320,7 @@ impl Window {
                 .get_sublayer_mut(Self::GLYPH_SUBLAYER)
                 .and_then(|sub| sub.draw_data_mut().next())
             {
+                log::warn!("updating glyph sublayer");
                 text_cache.update_sublayer(sublayer_data)?;
             }
 

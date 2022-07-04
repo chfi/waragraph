@@ -309,9 +309,21 @@ fn main() -> anyhow::Result<()> {
         }
     }
 
+    let mut gui_win = waragraph::gui::Window::new(
+        // &mut engine,
+        &mut compositor,
+        0,
+        "test window",
+        300,
+        euclid::point2(100.0, 100.0),
+    )?;
+
     if let Err(e) = compositor.allocate_sublayers(&mut engine) {
         log::error!("Compositor error: {:?}", e);
     }
+
+    let mut gui_text = TextCache::new(&mut engine, &compositor)?;
+    gui_win.update_layer(&mut engine, &mut compositor, &mut gui_text)?;
 
     let mut label_stacks: Option<LabelStacks> = None;
 
