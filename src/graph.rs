@@ -467,17 +467,6 @@ impl Waragraph {
             std::ops::Bound::Unbounded => self.path_lens[path.ix()],
         };
 
-        // let start_ix = match path_sum.binary_search_by_key(&start, |(_, p)| *p)
-        // {
-        //     Ok(ix) => {
-        //         //
-        //         ix
-        //     }
-        //     Err(ix) => {
-        //         //
-        //     }
-        // };
-
         let start_ix = path_sum
             .binary_search_by_key(&start, |(_, p)| *p)
             .unwrap_or_else(|i| i);
@@ -486,17 +475,9 @@ impl Waragraph {
             .binary_search_by_key(&end, |(_, p)| *p)
             .unwrap_or_else(|i| i);
 
-        // let nodes = path_sum
-        //     .iter()
-        //     .skip(start_ix)
-        //     .take(end_ix)
-        //     .map(|(node, _offset)| u32::from(*node))
-        //     .collect::<roaring::RoaringBitmap>();
+        let count = end_ix - start_ix;
 
-        // nodes
-
-        path_sum.iter().skip(start_ix).take(end_ix)
-        // .map(|(node, _offset)| u32::from(*node))
+        path_sum.iter().skip(start_ix).take(count)
     }
 
     pub fn node_count(&self) -> usize {

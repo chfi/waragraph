@@ -272,7 +272,7 @@ impl AnnotationSet {
                         ix,
                     ));
 
-                    for &(node, _) in
+                    for &(node, _pos) in
                         graph.nodes_in_path_range(path, start..end)
                     {
                         indices.entry(node).or_default().insert(ix as u32);
