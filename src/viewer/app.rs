@@ -1418,6 +1418,7 @@ impl PathViewer {
     pub fn update_slot_sublayer(
         &mut self,
         graph: &Arc<Waragraph>,
+        annotations: &BTreeMap<rhai::ImmutableString, Arc<AnnotationSet>>,
         label_space: &mut LabelSpace,
         layer: &mut Layer,
         config: &ConfigMap,
@@ -1452,11 +1453,18 @@ impl PathViewer {
                 self.slot_list.visible_rows(),
             )
             .map(|(ix, (path, _var))| {
-                // let i = path.ix();
-                // let extra = (i > 0 && i % 3 == 0).then(|| 20.0);
-                // (ix, extra)
+                // (ix, None)
 
-                (ix, None)
+                let extra = annotations
+                    .values()
+                    .find_map(|bed| bed.path_records(*path).map(|_| 30.0));
+
+                //     .path_records(path).map(|| {
+                //     //
+                //     30.0
+                // });
+
+                (ix, extra)
             }),
         );
 

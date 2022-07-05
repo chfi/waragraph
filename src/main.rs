@@ -707,9 +707,11 @@ bed::load_bed_file(bed_path, bed_name, column_map)
                         point2(x as f32, y as f32)
                     };
 
+                    let annots = viewer.annotations.read();
                     let slot_fns = viewer.slot_functions.read();
                     viewer.path_viewer.update_slot_sublayer(
                         &graph,
+                        &annots,
                         &mut viewer.label_space,
                         layer,
                         &viewer.config,

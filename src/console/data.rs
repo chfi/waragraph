@@ -566,7 +566,7 @@ pub fn add_module_fns(
                                         None
                                     }
                                 })?;
-                            Some(*val as u32)
+                            Some(1 + *val as u32)
                         },
                     );
 
