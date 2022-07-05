@@ -1452,10 +1452,11 @@ impl PathViewer {
                 self.slot_list.visible_rows(),
             )
             .map(|(ix, (path, _var))| {
-                let i = path.ix();
-                let extra = (i > 0 && i % 3 == 0).then(|| 20.0);
+                // let i = path.ix();
+                // let extra = (i > 0 && i % 3 == 0).then(|| 20.0);
+                // (ix, extra)
 
-                (ix, extra)
+                (ix, None)
             }),
         );
 
@@ -1473,11 +1474,6 @@ impl PathViewer {
         for ((ix, rect, extra), (path, var)) in
             std::iter::zip(cached_rows, self.slot_list.visible_rows())
         {
-            if ix == 0 {
-                log::error!("rect: {:?}", rect);
-            }
-
-            //
             let slot_fn = self.slot_fn_vars.get_by_left(var).unwrap();
             let key = (*path, slot_fn.clone());
 
@@ -1554,88 +1550,6 @@ impl PathViewer {
                 range.end - range.start,
             ));
         }
-
-        /*
-        for (_ix, rect, (path, var)) in
-            layout.apply_to_rows(self.slot_list.visible_rows())
-        {
-            let slot_fn = self.slot_fn_vars.get_by_left(var).unwrap();
-            let key = (*path, slot_fn.clone());
-
-            // if the state cell somehow doesn't exist, or shows that
-            // there's probably only garbage data there, simply skip
-            // this row (it'll get drawn when the data's ready)
-            //
-            // TODO: it still renders garbage when resizing
-            if let Some(state) = self.slot_states.get(&key) {
-                let state = state.load();
-                match state {
-                    SlotState::Unknown => {
-                        // log::warn!("Unknown, skipping slot {}", ix);
-                        continue;
-                    }
-                    _ => (),
-                }
-            } else {
-                continue;
-            }
-
-            // otherwise prepare the vertex data
-            let range = if let Some(range) = self.cache.cache().get_range(&key)
-            {
-                range
-            } else {
-                continue;
-            };
-
-            let [left, right] = rect.split_hor(slot_partition_x);
-
-            let right = right.inner_rect(slot_ver_offsets);
-
-            {
-                let in_left = left.contains(mouse_pos);
-                let in_right = right.contains(mouse_pos);
-
-                if in_left || in_right {
-                    any_hovered = true;
-                    let path_row = PathRowUIState {
-                        path: *path,
-                        name_rect: left,
-                        data_rect: right,
-                    };
-                    ui_state.hovered_path_row = Some(path_row);
-                }
-
-                if in_left {
-                    ui_state.hovered_path_name = true;
-                } else if in_right {
-                    let x0 = right.min_x();
-                    let l = right.width();
-
-                    let mx = mouse_pos.x - x0;
-                    let t = mx / l;
-
-                    let view = self.current_view;
-                    let pos =
-                        view.offset().0 + (t * view.len().0 as f32) as usize;
-
-                    ui_state.pangenome_pos = Some(pos);
-
-                    if let Some(node) = graph.node_at_pos(pos) {
-                        ui_state.hovered_node = Some(node);
-                        ui_state.hovered_path_pos =
-                            graph.path_pos_at_node(*path, node);
-                    }
-                }
-            }
-
-            vertices.push(path_slot(
-                right,
-                range.start,
-                range.end - range.start,
-            ));
-        }
-        */
 
         if !any_hovered {
             self.ui_state = Default::default();

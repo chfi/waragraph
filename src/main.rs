@@ -309,6 +309,7 @@ fn main() -> anyhow::Result<()> {
         }
     }
 
+    /*
     let mut gui_win = waragraph::gui::Window::new(
         // &mut engine,
         &mut compositor,
@@ -324,6 +325,7 @@ fn main() -> anyhow::Result<()> {
 
     let mut gui_text = TextCache::new(&mut engine, &compositor)?;
     gui_win.update_layer(&mut engine, &mut compositor, &mut gui_text)?;
+    */
 
     let mut label_stacks: Option<LabelStacks> = None;
 
