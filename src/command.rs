@@ -1338,8 +1338,8 @@ impl CommandPalette {
             let r = rect.inner_rect(pad);
 
             let pos = (r.min_x(), r.min_y());
-            // let bounds = (r.max_x(), r.max_y());
-            let bounds = (r.min_x() + 100.0, r.max_y());
+            let bounds = (r.max_x(), r.max_y());
+            // let bounds = (r.min_x() + 100.0, r.max_y());
 
             let section = Section::default()
                 .with_screen_position(pos)
@@ -1393,22 +1393,28 @@ impl CommandPalette {
                 .and_then(|s| s.draw_data_mut().next())
             {
                 let bg_rect = self.window_rect();
+                let border_rect = bg_rect.inflate(1.0, 1.0);
+                let color_border = rgb::RGBA::new(0.0, 0.0, 0.0, 1.0);
 
                 let color_bg = rgb::RGBA::new(0.6, 0.6, 0.6, 1.0);
-                let color_fg = rgb::RGBA::new(0.75, 0.75, 0.75, 1.0);
+
+                let fg_0 = rgb::RGBA::new(0.75, 0.75, 0.75, 1.0);
+                let fg_1 = rgb::RGBA::new(0.70, 0.70, 0.70, 1.0);
 
                 let color_focus = rgb::RGBA::new(0.85, 0.85, 0.85, 1.0);
 
                 let pad = ScreenSideOffsets::new(8.0, 8.0, 8.0, 8.0);
 
                 let top = self.header_rect();
+                let top_bg = top.inflate(-1.0, -1.0);
                 let bottom = self.list_rect();
-                // let [top, bottom] = bg_rect.split_ver(bg_rect.height() * 0.15);
+                let bottom_bg = bottom.inflate(-1.0, -1.0);
 
                 let base = vec![
+                    rect_rgba(border_rect, color_border),
                     rect_rgba(bg_rect, color_bg),
-                    rect_rgba(top.inner_rect(pad), color_fg),
-                    rect_rgba(bottom.inner_rect(pad), color_fg),
+                    rect_rgba(top_bg, fg_0),
+                    rect_rgba(bottom_bg, fg_1),
                 ];
 
                 let result_len = self
