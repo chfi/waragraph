@@ -9,6 +9,8 @@ pub mod cli;
 
 pub mod command;
 
+pub mod annotations;
+
 pub mod geometry;
 pub mod list;
 
