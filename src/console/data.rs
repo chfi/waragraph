@@ -313,15 +313,6 @@ impl AnnotationSet {
         self.path_record_indices.get(&path)
     }
 
-    pub fn path_node_records(
-        &self,
-        path: Path,
-        node: Node,
-    ) -> Option<&roaring::RoaringBitmap> {
-        let path = self.path_record_indices.get(&path)?;
-        path.get(&node)
-    }
-
     pub fn nodes_on_record(
         &self,
         record_ix: usize,
