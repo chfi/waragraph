@@ -8,6 +8,8 @@ use crossbeam::atomic::AtomicCell;
 
 use lazy_static::lazy_static;
 
+pub mod state;
+
 lazy_static! {
     static ref MOUSE_POS: AtomicCell<(f64, f64)> = AtomicCell::new((0.0, 0.0));
     static ref MOD_KEYS: AtomicCell<ModifiersState> =
