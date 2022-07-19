@@ -44,12 +44,13 @@ pub type InputHandlerFn = Arc<
         + 'static,
 >;
 
-enum InputHandler {
+#[derive(Clone)]
+pub enum InputHandler {
     RustFn(InputHandlerFn),
-    RhaiFn {
-        ast: Arc<rhai::AST>,
-        fn_ptr: rhai::FnPtr,
-    },
+    RhaiFn(StateId, InputId, rhai::FnPtr), // RhaiFn {
+                                           //     ast: Arc<rhai::AST>,
+                                           //     fn_ptr: rhai::FnPtr,
+                                           // },
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -74,7 +75,7 @@ pub struct StateMachineBuilder {
     outputs: Vec<OutputDef>,
 
     // takes a state var (if applicable), and an input (which must match), and optionally returns a new state to switch to
-    state_input_handlers: Vec<FxHashMap<usize, InputHandlerFn>>,
+    state_input_handlers: Vec<FxHashMap<InputId, InputHandler>>,
 }
 
 impl StateMachineBuilder {
@@ -116,28 +117,88 @@ impl StateMachineBuilder {
             + Sync
             + 'static,
     {
-        todo!();
-        //
+        let si = state.0;
+        let map = &mut self.state_input_handlers[si];
+        map.insert(input, InputHandler::RustFn(Arc::new(handler)));
     }
-    
 
-    pub fn build(self, init: Option<StateId>) -> StateMachine {
+    pub fn add_input_handler_rhai(
+        &mut self,
+        state: StateId,
+        input: InputId,
+        handler: rhai::FnPtr,
+    ) {
+        let si = state.0;
+        let map = &mut self.state_input_handlers[si];
+        map.insert(input, InputHandler::RhaiFn(state, input, handler));
+    }
+
+    /*
+    pub fn build(
+        self,
+        ast: Arc<rhai::AST>,
+        init: Option<StateId>,
+    ) -> StateMachine {
         let current_state = init.unwrap_or(StateId(0));
+
         StateMachine {
             builder: self,
             current_state,
         }
     }
+    */
 }
 
 #[derive(Clone)]
 pub struct StateMachine {
-    builder: StateMachineBuilder,
-
     current_state: StateId,
+
+    state_vars: Vec<Option<rhai::Map>>,
+    inputs: Vec<InputDef>,
+    outputs: Vec<OutputDef>,
+
+    // takes a state var (if applicable), and an input (which must match), and optionally returns a new state to switch to
+    state_input_handlers: Vec<FxHashMap<InputId, InputHandlerFn>>,
 }
 
-impl StateMachine {}
+impl StateMachine {
+    pub fn build_no_rhai(
+        builder: StateMachineBuilder,
+        init_state: Option<StateId>,
+    ) -> Self {
+        #[cfg(debug_assertions)]
+        for map in &builder.state_input_handlers {
+            for (_input, handler) in map {
+                if matches!(handler, InputHandler::RhaiFn(_, _, _)) {
+                    panic!("Expected no Rhai handlers in this builder!");
+                }
+            }
+        }
+
+        //
+
+        let mut state_input_handlers =
+            builder.state_input_handlers.into_iter().map(|map| {
+                map.into_iter().filter_map(|(k, v)| {
+                    if let InputHandler::RustFn(f) = v {
+                        Some((k, f))
+                    } else {
+                        None
+                    }
+                }).collect()
+            }).collect();
+
+        let current_state = init_state.unwrap_or(StateId(0));
+
+        Self {
+            current_state,
+            state_vars: builder.state_vars,
+            inputs: builder.inputs,
+            outputs: builder.outputs,
+            state_input_handlers,
+        }
+    }
+}
 
 fn extend_engine(
     engine: &mut rhai::Engine,
@@ -170,4 +231,13 @@ fn extend_engine(
         let output = b.add_output(OutputDef::Unit);
         output
     });
+
+    let build = builder.clone();
+    engine.register_fn(
+        "on",
+        move |state: &mut StateId, input: InputId, handler: rhai::FnPtr| {
+            let mut b = build.write();
+            b.add_input_handler_rhai(*state, input, handler);
+        },
+    );
 }
