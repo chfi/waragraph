@@ -11,18 +11,18 @@ use crossbeam::atomic::AtomicCell;
 pub enum InputDef {
     Unit,
     Bool,
-    Int,
-    Float,
-    Dyn,
+    // Int,
+    // Float,
+    // Dyn,
 }
 
 #[derive(Debug, Clone)]
 pub enum Input {
     Unit,
     Bool(bool),
-    Int(i64),
-    Float(f32),
-    Dyn(rhai::Dynamic),
+    // Int(i64),
+    // Float(f32),
+    // Dyn(rhai::Dynamic),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
@@ -151,14 +151,14 @@ impl StateMachineBuilder {
 
 #[derive(Clone)]
 pub struct StateMachine {
-    current_state: StateId,
+    pub(super) current_state: StateId,
 
-    state_vars: Vec<Option<rhai::Map>>,
-    inputs: Vec<InputDef>,
-    outputs: Vec<OutputDef>,
+    pub(super) state_vars: Vec<Option<rhai::Map>>,
+    pub(super) inputs: Vec<InputDef>,
+    pub(super) outputs: Vec<OutputDef>,
 
     // takes a state var (if applicable), and an input (which must match), and optionally returns a new state to switch to
-    state_input_handlers: Vec<FxHashMap<InputId, InputHandlerFn>>,
+    pub(super) state_input_handlers: Vec<FxHashMap<InputId, InputHandlerFn>>,
 }
 
 impl StateMachine {
