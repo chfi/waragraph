@@ -7,10 +7,8 @@ use std::sync::Arc;
 
 use crossbeam::atomic::AtomicCell;
 
-
-
 #[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
-enum InputDef {
+pub enum InputDef {
     Unit,
     Bool,
     Int,
@@ -19,97 +17,157 @@ enum InputDef {
 }
 
 #[derive(Debug, Clone)]
-enum Input {
+pub enum Input {
     Unit,
     Bool(bool),
     Int(i64),
     Float(f32),
-    Dyn(rhai::Dynamic)
+    Dyn(rhai::Dynamic),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
-enum OutputDef {
+pub enum OutputDef {
     Unit,
     Map,
 }
 
 #[derive(Debug, Clone)]
-enum Output {
+pub enum Output {
     Unit,
     Map(rhai::Map),
 }
 
+pub type InputHandlerFn = Arc<
+    dyn Fn(&mut Option<rhai::Map>, Input) -> Option<StateId>
+        + Send
+        + Sync
+        + 'static,
+>;
 
 enum InputHandler {
-    RustFn(Arc<dyn Fn(&mut Option<rhai::Map>, Input) -> Option<StateId>>),
-    RhaiFn { ast: Arc<rhai::AST>, fn_ptr: rhai::FnPtr}
+    RustFn(InputHandlerFn),
+    RhaiFn {
+        ast: Arc<rhai::AST>,
+        fn_ptr: rhai::FnPtr,
+    },
 }
 
-type InputId = usize;
-type StateId = usize;
-type OutputId = usize;
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[repr(transparent)]
+pub struct InputId(pub usize);
+
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[repr(transparent)]
+pub struct StateId(pub usize);
+
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[repr(transparent)]
+pub struct OutputId(pub usize);
 
 #[derive(Default, Clone)]
 pub struct StateMachineBuilder {
-    state_map: HashMap<rhai::ImmutableString, StateId>,
-    input_map: HashMap<rhai::ImmutableString, InputId>,
-    output_map: HashMap<rhai::ImmutableString, OutputId>,
-
+    //    state_map: HashMap<rhai::ImmutableString, StateId>,
+    //    input_map: HashMap<rhai::ImmutableString, InputId>,
+    //    output_map: HashMap<rhai::ImmutableString, OutputId>,
     state_vars: Vec<Option<rhai::Map>>,
     inputs: Vec<InputDef>,
     outputs: Vec<OutputDef>,
 
     // takes a state var (if applicable), and an input (which must match), and optionally returns a new state to switch to
-    state_input_handlers: Vec<FxHashMap<usize, Arc<dyn Fn(&mut Option<rhai::Map>, Input) -> Option<StateId>>>>,
+    state_input_handlers: Vec<FxHashMap<usize, InputHandlerFn>>,
 }
 
 impl StateMachineBuilder {
-    fn add_state_impl(&mut self, name: &str, init_state: Option<rhai::Map>) -> StateId {
-        if let Some(id) = self.state_map.get(name).copied() {
-            id
-        } else {
-            let id = self.state_map.len();
-            self.state_map.insert(name.into(), id);
-            self.state_vars.push(init_state);
-            self.state_input_handlers.push(Default::default());
-            id
-        }
+    fn add_state_impl(&mut self, init_state: Option<rhai::Map>) -> StateId {
+        let id = self.state_vars.len();
+        self.state_vars.push(init_state);
+        self.state_input_handlers.push(Default::default());
+        StateId(id)
     }
 
-    pub fn add_state(&mut self, name: &str) -> StateId {
-        self.add_state_impl(name, None)
-    }
-    
-    pub fn add_state_with_var(&mut self, name: &str, init_state: rhai::Map) -> StateId {
-        self.add_state_impl(name, Some(init_state))
-    }
-    
-    pub fn add_input(&mut self, name: &str, def: InputDef) -> InputId {
-        if let Some(id) = self.input_map.get(name).copied() {
-            id
-        } else {
-            let id = self.input_map.len();
-            self.inputs.push(def);
-            id
-        }
-    }
-    
-    pub fn add_output(&mut self, name: &str, def: OutputDef) -> InputId {
-        if let Some(id) = self.output_map.get(name).copied() {
-            id
-        } else {
-            let id = self.output_map.len();
-            self.outputs.push(def);
-            id
-        }
+    pub fn add_state(&mut self) -> StateId {
+        self.add_state_impl(None)
     }
 
+    pub fn add_state_with_var(&mut self, init_state: rhai::Map) -> StateId {
+        self.add_state_impl(Some(init_state))
+    }
 
+    pub fn add_input(&mut self, def: InputDef) -> InputId {
+        let id = self.inputs.len();
+        self.inputs.push(def);
+        InputId(id)
+    }
+
+    pub fn add_output(&mut self, def: OutputDef) -> OutputId {
+        let id = self.outputs.len();
+        self.outputs.push(def);
+        OutputId(id)
+    }
+
+    pub fn add_input_handler<F>(
+        &mut self,
+        state: StateId,
+        input: InputId,
+        handler: F,
+    ) where
+        F: Fn(&mut Option<rhai::Map>, Input) -> Option<StateId>
+            + Send
+            + Sync
+            + 'static,
+    {
+        todo!();
+        //
+    }
+    
+
+    pub fn build(self, init: Option<StateId>) -> StateMachine {
+        let current_state = init.unwrap_or(StateId(0));
+        StateMachine {
+            builder: self,
+            current_state,
+        }
+    }
 }
 
 #[derive(Clone)]
 pub struct StateMachine {
     builder: StateMachineBuilder,
 
-    current_state: usize,
+    current_state: StateId,
+}
+
+impl StateMachine {}
+
+fn extend_engine(
+    engine: &mut rhai::Engine,
+    builder: &Arc<RwLock<StateMachineBuilder>>,
+) {
+    let build = builder.clone();
+    engine.register_fn("state", move || {
+        let mut b = build.write();
+        let state = b.add_state();
+        state
+    });
+
+    let build = builder.clone();
+    engine.register_fn("state", move |init: rhai::Map| {
+        let mut b = build.write();
+        let state = b.add_state_with_var(init);
+        state
+    });
+
+    let build = builder.clone();
+    engine.register_fn("input", move || {
+        let mut b = build.write();
+        let input = b.add_input(InputDef::Unit);
+        input
+    });
+
+    let build = builder.clone();
+    engine.register_fn("output", move || {
+        let mut b = build.write();
+        let output = b.add_output(OutputDef::Unit);
+        output
+    });
 }

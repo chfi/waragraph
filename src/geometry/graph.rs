@@ -315,10 +315,9 @@ pub mod sublayer {
     use raving::compositor::SublayerDef;
 
     use raving::vk::{
-        BufferIx, BufferRes, DescSetIx, GpuResources, VkContext, VkEngine,
+        BufferIx, BufferRes, DescSetIx, GpuResources, VkEngine,
     };
-
-    // use raving::compositor::*;
+    use raving::vk::context::VkContext;
 
     use ash::vk;
 
