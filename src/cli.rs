@@ -22,4 +22,8 @@ pub struct ViewerArgs {
     /// `run_result` console var
     #[argh(option, long = "run")]
     pub run_script: Option<PathBuf>,
+
+    /// path to layout TSV file for the provided GFA
+    #[argh(option)]
+    pub layout_path: Option<PathBuf>,
 }

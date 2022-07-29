@@ -339,6 +339,7 @@ pub mod sublayer {
         Some(())
     }
 
+    /// Allocates the UBO that holds the layout offset and scale
     pub(super) fn allocate_uniform_buffer(
         compositor: &Compositor,
         ctx: &VkContext,

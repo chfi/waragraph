@@ -1,5 +1,7 @@
 pub mod app;
 
+pub mod app_2d;
+
 pub mod cache;
 pub mod slots;
 

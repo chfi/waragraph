@@ -250,6 +250,24 @@ where
     }
 }
 
+
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct GraphSpace;
+
+#[derive(Debug)]
+pub struct View2D<I, U = UnknownUnit> 
+where I: Clone + PartialOrd,
+{
+    offset: Point2D<I, U>,
+    scale: f32,
+
+    // aspect: Vector2<I, U>,
+    // scale: Vector2<I, U>,
+}
+
+
+
+
 #[cfg(test)]
 mod tests {
     use super::*;
