@@ -148,7 +148,7 @@ impl<N, E> GraphLayout<N, E> {
             sublayer::allocate_uniform_buffer(compositor, ctx, res, alloc)
         })?;
 
-        let polyline_sublayer = "polyline";
+        let polyline_sublayer = "nodes_polyline";
 
         compositor.with_layer(layer_name, |layer| {
             if let Some(sublayer_data) = layer
@@ -175,7 +175,7 @@ impl<N, E> GraphLayout<N, E> {
         // let new_color = Srgb::from_color(lch_color.shift_hue(180.0));
 
         let rect_sublayer = "rects";
-        let polyline_sublayer = "polyline";
+        let polyline_sublayer = "nodes";
 
         compositor.with_layer(layer_name, |layer| {
             if let Some(sublayer_data) = layer
@@ -314,10 +314,8 @@ pub mod sublayer {
     use gpu_allocator::vulkan::Allocator;
     use raving::compositor::SublayerDef;
 
-    use raving::vk::{
-        BufferIx, BufferRes, DescSetIx, GpuResources, VkEngine,
-    };
     use raving::vk::context::VkContext;
+    use raving::vk::{BufferIx, BufferRes, DescSetIx, GpuResources, VkEngine};
 
     use ash::vk;
 
@@ -327,14 +325,33 @@ pub mod sublayer {
 
     pub fn write_uniform_buffer(
         buf: &mut BufferRes,
-        offset: Vector2<f32>,
+        window_dims: [u32; 2],
+        offset: ultraviolet::Vec2,
         scale: f32,
     ) -> Option<()> {
+        let [w, h] = window_dims;
+
+        let left = 0.0;
+        let top = 0.0;
+        let right = w as f32;
+        let bottom = h as f32;
+
+        let near = 1.0;
+        let far = 1000.0;
+
+        let proj = ultraviolet::projection::orthographic_vk(
+            left, right, bottom, top, near, far,
+        );
+
         let dst = buf.mapped_slice_mut()?;
 
-        dst[0..12].clone_from_slice(bytemuck::cast_slice(&[
-            offset.x, offset.y, scale,
-        ]));
+        let mat_size = std::mem::size_of::<ultraviolet::Mat4>();
+
+        dst[0..mat_size].clone_from_slice(bytemuck::cast_slice(&[proj]));
+        dst[mat_size..(mat_size + 8)]
+            .clone_from_slice(bytemuck::cast_slice(&[offset]));
+        dst[(mat_size + 8)..(mat_size + 12)]
+            .clone_from_slice(bytemuck::cast_slice(&[scale]));
 
         Some(())
     }
@@ -346,7 +363,8 @@ pub mod sublayer {
         res: &mut GpuResources,
         alloc: &mut Allocator,
     ) -> Result<(BufferIx, DescSetIx)> {
-        let size = std::mem::size_of::<([f32; 3])>();
+        let size =
+            std::mem::size_of::<(ultraviolet::Mat4, ultraviolet::Vec2, f32)>();
 
         let size = VkEngine::aligned_ubo_size(ctx, size);
 
@@ -365,7 +383,7 @@ pub mod sublayer {
 
         let shader_ix = compositor
             .sublayer_defs
-            .get("polyline")
+            .get("nodes_polyline")
             .and_then(|def| {
                 let pipeline = &res[def.load_pipeline];
                 pipeline.vertex
@@ -397,7 +415,7 @@ pub mod sublayer {
         load_pass: vk::RenderPass,
     ) -> Result<SublayerDef> {
         let vert = res.load_shader(
-            "shaders/polyline.vert.spv",
+            "shaders/viewer_2d/nodes_polyline.vert.spv",
             vk::ShaderStageFlags::VERTEX,
         )?;
 
@@ -458,7 +476,7 @@ pub mod sublayer {
             SublayerDef::new::<([f32; 3], [f32; 3], [f32; 4], [f32; 4]), _>(
                 ctx,
                 res,
-                "polyline",
+                "nodes_polyline",
                 vert,
                 frag,
                 clear_pass,

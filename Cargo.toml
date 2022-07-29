@@ -29,6 +29,7 @@ bimap = "0.6"
 thunderdome = "0.5"
 rustc-hash = "1.1"
 
+ultraviolet = { version = "0.9", features = ["bytemuck", "int"]}
 euclid = "0.22"
 ndarray = { version = "0.15", features = ["rayon"] }
 nalgebra = "0.30"
