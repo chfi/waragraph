@@ -35,6 +35,7 @@ use waragraph::gui::{
 use waragraph::text::TextCache;
 use waragraph::util::BufferStorage;
 use waragraph::viewer::app::ViewerSys;
+use waragraph::viewer::app_2d::Viewer2D;
 use waragraph::viewer::edges::{EdgeCache, EdgeVertexCache};
 use winit::event::{Event, VirtualKeyCode, WindowEvent};
 use winit::{event_loop::EventLoop, window::WindowBuilder};
@@ -96,6 +97,7 @@ fn main() -> anyhow::Result<()> {
         let gfa: GFA<usize, ()> = parser.parse_file(&gfa_path)?;
         gfa
     };
+    
 
     let db_cfg = sled::Config::default()
         .temporary(true)
@@ -241,6 +243,13 @@ fn main() -> anyhow::Result<()> {
         );
         std::process::exit(1);
     }
+    
+    let mut viewer_2d = if let Some(path) = viewer_args.layout_path {
+        let viewer = Viewer2D::new(&mut engine, &mut compositor, &graph, path)?;
+        Some(viewer)
+    } else {
+        None
+    };
 
     let popup_list =
         ListPopup::new(&mut engine, &mut compositor, "popup", 300.0, 100.0)?;
@@ -289,6 +298,10 @@ fn main() -> anyhow::Result<()> {
 
     if let Err(e) = compositor.allocate_sublayers(&mut engine) {
         log::error!("Compositor error: {:?}", e);
+    }
+
+    if let Some(viewer_2d) = viewer_2d.as_mut() {
+        viewer_2d.update(&mut engine, &mut compositor)?;
     }
 
     let debug_layer_id = 0usize;
@@ -513,6 +526,12 @@ bed::load_bed_file(bed_path, bed_name, column_map)
 
                 if let Err(e) = verlet.update_layer(&mut compositor, "verlet") {
                     log::error!("Verlet layer update error: {:?}", e);
+                }
+                
+                if let Some(viewer_2d) = viewer_2d.as_mut() {
+                    if let Err(e) = viewer_2d.update(&mut engine, &mut compositor) {
+                        log::error!("2D viewer update error: {:?}", e);
+                    }
                 }
 
                 if let Err(e) = compositor.write_layers(&mut engine.resources) {

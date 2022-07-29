@@ -24,6 +24,8 @@ impl Viewer2D {
         graph: &Waragraph,
         layout_path: impl AsRef<std::path::Path>,
     ) -> Result<Self> {
+        compositor.new_layer(Self::LAYER_NAME, 1, true);
+        
         let layout = GraphLayout::load_layout_tsv(graph, layout_path)?;
 
         let ubo = layout.prepare_sublayer(
@@ -42,6 +44,7 @@ impl Viewer2D {
             scale,
         };
 
+        /*
         let buf = &mut engine.resources[ubo];
 
         crate::geometry::graph::sublayer::write_uniform_buffer(
@@ -52,6 +55,7 @@ impl Viewer2D {
         viewer
             .layout
             .update_layer(compositor, Self::LAYER_NAME)?;
+            */
 
         Ok(viewer)
     }
