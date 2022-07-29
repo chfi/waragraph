@@ -1,9 +1,11 @@
 #version 450
 
-layout (location = 0) in vec3 p0;
-layout (location = 1) in vec3 p1;
-layout (location = 2) in vec4 color0;
-layout (location = 3) in vec4 color1;
+layout (location = 0) in vec2 p0;
+layout (location = 1) in float p0_w;
+layout (location = 2) in vec2 p1;
+layout (location = 3) in float p1_w;
+layout (location = 4) in vec4 color0;
+layout (location = 5) in vec4 color1;
 
 layout (location = 0) out vec4 o_color;
 
@@ -32,10 +34,10 @@ void main() {
   float len = length(u);
   vec2 n = u / len;
 
-  vec2 a = p0.xy + vec2(-n.y, n.x) * p0.z;
-  vec2 b = p1.xy + vec2(-n.y, n.x) * p1.z;
-  vec2 c = p1.xy - vec2(-n.y, n.x) * p1.z;
-  vec2 d = p0.xy - vec2(-n.y, n.x) * p0.z;
+  vec2 a = p0.xy + vec2(-n.y, n.x) * p0_w;
+  vec2 b = p1.xy + vec2(-n.y, n.x) * p1_w;
+  vec2 c = p1.xy - vec2(-n.y, n.x) * p1_w;
+  vec2 d = p0.xy - vec2(-n.y, n.x) * p0_w;
 
   vec2 pos = vec2(0.0);
 

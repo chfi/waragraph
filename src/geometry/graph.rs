@@ -85,12 +85,12 @@ impl<N, E> GraphLayout<N, E> {
                 let p = point![x, y];
 
                 // TODO obviously don't scale here!
-                let scale = 0.05;
+                // let scale = 0.05;
 
                 max = point![max.x.max(x), max.y.max(y)];
                 min = point![min.x.min(x), min.y.min(y)];
 
-                vertices.push(p * scale);
+                vertices.push(p);
             }
         }
 
@@ -420,7 +420,7 @@ pub mod sublayer {
         )?;
 
         let frag = res.load_shader(
-            "shaders/vector.frag.spv",
+            "shaders/viewer_2d/nodes_color_buf.frag.spv",
             vk::ShaderStageFlags::FRAGMENT,
         )?;
 
@@ -438,33 +438,49 @@ pub mod sublayer {
         let p0_desc = vk::VertexInputAttributeDescription::builder()
             .binding(0)
             .location(0)
-            .format(vk::Format::R32G32B32_SFLOAT)
+            .format(vk::Format::R32G32_SFLOAT)
             .offset(0)
             .build();
 
-        let p1_desc = vk::VertexInputAttributeDescription::builder()
+
+        let p0_width_desc = vk::VertexInputAttributeDescription::builder()
             .binding(0)
             .location(1)
-            .format(vk::Format::R32G32B32_SFLOAT)
+            .format(vk::Format::R32_SFLOAT)
+            .offset(8)
+            .build();
+    
+
+        let p1_desc = vk::VertexInputAttributeDescription::builder()
+            .binding(0)
+            .location(2)
+            .format(vk::Format::R32G32_SFLOAT)
             .offset(12)
+            .build();
+
+        let p1_width_desc = vk::VertexInputAttributeDescription::builder()
+            .binding(0)
+            .location(3)
+            .format(vk::Format::R32_SFLOAT)
+            .offset(20)
             .build();
 
         let color0_desc = vk::VertexInputAttributeDescription::builder()
             .binding(0)
-            .location(2)
+            .location(4)
             .format(vk::Format::R32G32B32A32_SFLOAT)
             .offset(24)
             .build();
 
         let color1_desc = vk::VertexInputAttributeDescription::builder()
             .binding(0)
-            .location(3)
+            .location(5)
             .format(vk::Format::R32G32B32A32_SFLOAT)
             .offset(40)
             .build();
 
         let vert_binding_descs = [vert_binding_desc];
-        let vert_attr_descs = [p0_desc, p1_desc, color0_desc, color1_desc];
+        let vert_attr_descs = [p0_desc, p0_width_desc, p1_desc, p1_width_desc, color0_desc, color1_desc];
 
         let vert_input_info = vk::PipelineVertexInputStateCreateInfo::builder()
             .vertex_binding_descriptions(&vert_binding_descs)
