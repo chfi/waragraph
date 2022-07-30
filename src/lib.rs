@@ -5,6 +5,8 @@ pub mod input;
 pub mod util;
 pub mod viewer;
 
+pub mod animation;
+
 pub mod cli;
 
 pub mod command;

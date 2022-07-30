@@ -12,6 +12,7 @@ use raving::compositor::Compositor;
 use raving::script::console::frame::Resolvable;
 use raving::vk::{DescSetIx, VkEngine, WindowResources};
 
+use waragraph::animation::AnimHandler;
 use waragraph::cli::ViewerArgs;
 use waragraph::command::CommandPalette;
 use waragraph::console::layout::LabelStacks;
@@ -111,6 +112,8 @@ fn main() -> anyhow::Result<()> {
 
     let edge_cache = EdgeCache::new(&graph);
     let mut edge_cache = EdgeVertexCache::new(edge_cache);
+
+    let mut anim_handler = AnimHandler::initialize();
 
     let event_loop: EventLoop<()>;
 
@@ -490,6 +493,8 @@ bed::load_bed_file(bed_path, bed_name, column_map)
         match event {
             Event::MainEventsCleared => {
                 let delta_time = prev_frame.elapsed().as_secs_f32();
+
+                anim_handler.update();
 
                 if let Err(e) = compositor.allocate_sublayers(&mut engine) {
                     log::error!("Compositor error: {:?}", e);

@@ -34,10 +34,13 @@ void main() {
   float len = length(u);
   vec2 n = u / len;
 
-  vec2 a = p0.xy + vec2(-n.y, n.x) * p0_w;
-  vec2 b = p1.xy + vec2(-n.y, n.x) * p1_w;
-  vec2 c = p1.xy - vec2(-n.y, n.x) * p1_w;
-  vec2 d = p0.xy - vec2(-n.y, n.x) * p0_w;
+  vec2 p0_ = ubo.proj * (p0 - offset);
+  vec2 p1_ = ubo.proj * (p1 - offset);
+
+  vec2 a = p0_ + vec2(-n.y, n.x) * p0_w;
+  vec2 b = p1_ + vec2(-n.y, n.x) * p1_w;
+  vec2 c = p1_ - vec2(-n.y, n.x) * p1_w;
+  vec2 d = p0_ - vec2(-n.y, n.x) * p0_w;
 
   vec2 pos = vec2(0.0);
 

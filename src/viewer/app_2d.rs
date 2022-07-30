@@ -88,4 +88,18 @@ impl Viewer2D {
 
         Ok(())
     }
+
+    pub fn set_view_offset(&mut self, offset: ultraviolet::Vec2) {
+        self.offset = offset;
+    }
+
+    pub fn translate_view(&mut self, delta: ultraviolet::Vec2) {
+        self.offset += delta;
+    }
+
+    pub fn zoom_view(&mut self, scale_mult: f32) {
+        self.scale *= scale_mult;
+        self.scale = self.scale.max(1.0);
+    }
+
 }
