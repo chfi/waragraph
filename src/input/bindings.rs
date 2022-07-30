@@ -10,7 +10,7 @@ use crossbeam::atomic::AtomicCell;
 use super::state::*;
 
 pub struct MachineKeymap {
-    key_map: FxHashMap<(winit::event::KeyboardInput, bool), Input>,
+    key_map: FxHashMap<(winit::event::KeyboardInput, bool), (InputId, Input)>,
 }
 
 impl MachineKeymap {
@@ -22,11 +22,11 @@ impl MachineKeymap {
         for (key, input) in keys {
             match machine.inputs[input.0] {
                 InputDef::Unit => {
-                    key_map.insert((key, true), Input::Unit);
+                    key_map.insert((key, true), (input, Input::Unit));
                 }
                 InputDef::Bool => {
                     for t in [true, false] {
-                        key_map.insert((key, t), Input::Bool(t));
+                        key_map.insert((key, t), (input, Input::Bool(t)));
                     }
                 }
             }

@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use anyhow::Result;
 use parking_lot::RwLock;
 use rustc_hash::FxHashMap;
 
@@ -67,9 +68,8 @@ pub struct OutputId(pub usize);
 
 #[derive(Default, Clone)]
 pub struct StateMachineBuilder {
-    //    state_map: HashMap<rhai::ImmutableString, StateId>,
-    //    input_map: HashMap<rhai::ImmutableString, InputId>,
-    //    output_map: HashMap<rhai::ImmutableString, OutputId>,
+    init_state: Option<StateId>,
+    
     state_vars: Vec<Option<rhai::Map>>,
     inputs: Vec<InputDef>,
     outputs: Vec<OutputDef>,
@@ -153,16 +153,46 @@ impl StateMachineBuilder {
 pub struct StateMachine {
     pub(super) current_state: StateId,
 
+    pub(super) ast: Arc<rhai::AST>,
+
     pub(super) state_vars: Vec<Option<rhai::Map>>,
     pub(super) inputs: Vec<InputDef>,
     pub(super) outputs: Vec<OutputDef>,
 
     // takes a state var (if applicable), and an input (which must match), and optionally returns a new state to switch to
-    pub(super) state_input_handlers: Vec<FxHashMap<InputId, InputHandlerFn>>,
+    // pub(super) state_input_handlers: Vec<FxHashMap<InputId, InputHandlerFn>>,
+    pub(super) state_input_handlers: Vec<FxHashMap<InputId, InputHandler>>,
 }
 
 impl StateMachine {
-    pub fn build_no_rhai(
+    pub fn step(
+        &mut self,
+        engine: &rhai::Engine,
+        input: (InputId, Input),
+    ) -> Option<(OutputId, Output)> {
+        //
+        todo!();
+    }
+
+    pub fn from_script(script: &str) -> Result<Self> {
+        let mut engine = rhai::Engine::new();
+
+        let builder = Arc::new(RwLock::new(StateMachineBuilder::default()));
+
+        extend_engine(&mut engine, &builder);
+
+        let _: rhai::Dynamic = engine.eval(script)?;
+
+        let builder = {
+            let b = Arc::try_unwrap(builder).unwrap_or(unreachable!());
+            b.into_inner()
+        };
+
+        todo!();
+    }
+
+    /*
+    pub fn build(
         builder: StateMachineBuilder,
         init_state: Option<StateId>,
     ) -> Self {
@@ -175,19 +205,6 @@ impl StateMachine {
             }
         }
 
-        //
-
-        let mut state_input_handlers =
-            builder.state_input_handlers.into_iter().map(|map| {
-                map.into_iter().filter_map(|(k, v)| {
-                    if let InputHandler::RustFn(f) = v {
-                        Some((k, f))
-                    } else {
-                        None
-                    }
-                }).collect()
-            }).collect();
-
         let current_state = init_state.unwrap_or(StateId(0));
 
         Self {
@@ -195,9 +212,10 @@ impl StateMachine {
             state_vars: builder.state_vars,
             inputs: builder.inputs,
             outputs: builder.outputs,
-            state_input_handlers,
+            state_input_handlers: builder.state_input_handlers,
         }
     }
+    */
 }
 
 fn extend_engine(
@@ -216,6 +234,12 @@ fn extend_engine(
         let mut b = build.write();
         let state = b.add_state_with_var(init);
         state
+    });
+
+    let build = builder.clone();
+    engine.register_fn("set_init_state", move |init_state: StateId| {
+        let mut b = build.write();
+        b.init_state = Some(init_state);
     });
 
     let build = builder.clone();
