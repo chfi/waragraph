@@ -34,14 +34,36 @@ void main() {
   float len = length(u);
   vec2 n = u / len;
 
-  vec2 s = p0 + ubo.offset;
-  vec2 t = p1 + ubo.offset;
+  float scale = ubo.scale;
 
+  mat4 scaling = mat4(scale, 0.0, 0.0, 0.0,
+                      0.0, scale, 0.0, 0.0,
+                      0.0,   0.0, 1.0, 1.0,
+                      0.0,   0.0, 0.0, 1.0);
+
+  mat4 translation = mat4(1.0, 0.0, 0.0, -ubo.offset.x,
+                          0.0, 1.0, 0.0, -ubo.offset.y,
+                          0.0, 0.0, 1.0, 0.0,
+                          0.0, 0.0, 0.0, 1.0);
+
+  // mat4 mat = ubo.proj * scaling * translation;
+  mat4 mat = ubo.proj * translation;
+                      
+
+  vec2 s = p0 - ubo.offset;
+  vec2 t = p1 - ubo.offset;
+  
   vec4 q0 = vec4(s.xy, 0.0, 1.0);
   vec4 q1 = vec4(t.xy, 0.0, 1.0);
 
+  // vec4 q0 = vec4(p0.xy, 0.0, 1.0);
+  // vec4 q1 = vec4(p1.xy, 0.0, 1.0);
+
   // vec4 p0_ = ubo.proj * (p0 + ubo.offset);
   // vec4 p1_ = ubo.proj * (p1 + ubo.offset);
+
+  // vec4 p0_ = mat * q0;
+  // vec4 p1_ = mat * q1;
 
   vec4 p0_ = ubo.proj * q0;
   vec4 p1_ = ubo.proj * q1;
