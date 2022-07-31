@@ -5,14 +5,24 @@ use raving::{
     vk::{BufferIx, VkEngine},
 };
 
+use std::sync::Arc;
+use crossbeam::atomic::AtomicCell;
+
 use crate::{geometry::graph::GraphLayout, graph::Waragraph};
 
+#[derive(Debug, Clone, Copy)]
+pub struct View2D {
+    pub offset: ultraviolet::Vec2,
+    pub scale: f32,
+}
+
 pub struct Viewer2D {
-    layout: GraphLayout<(), ()>,
+    pub layout: GraphLayout<(), ()>,
     ubo: BufferIx,
 
-    offset: ultraviolet::Vec2,
-    scale: f32,
+    pub view: Arc<AtomicCell<View2D>>,
+    // offset: ultraviolet::Vec2,
+    // scale: f32,
 }
 
 impl Viewer2D {
@@ -41,14 +51,20 @@ impl Viewer2D {
         let ubo =
             layout.prepare_sublayer(engine, compositor, Self::LAYER_NAME)?;
 
-        let offset = ultraviolet::Vec2 { x: 0.0, y: 0.0 };
+        let (p0, p1) = layout.aabb;
+
+        let center = p0 + (p1 - p0) / 2.0;
+
+        let offset = ultraviolet::Vec2 { x: center.x, y: center.y }; 
         let scale = 1.0;
+
+        let view = View2D { offset, scale };
 
         let mut viewer = Self {
             layout,
             ubo,
-            offset,
-            scale,
+
+            view: Arc::new(view.into()),
         };
 
         /*
@@ -76,11 +92,13 @@ impl Viewer2D {
 
         let dims = compositor.window_dims();
 
+        let view = self.view.load();
+
         crate::geometry::graph::sublayer::write_uniform_buffer(
             buf,
             dims,
-            self.offset,
-            self.scale,
+            view.offset,
+            view.scale,
         )
         .unwrap();
 
@@ -89,17 +107,20 @@ impl Viewer2D {
         Ok(())
     }
 
-    pub fn set_view_offset(&mut self, offset: ultraviolet::Vec2) {
-        self.offset = offset;
+    /* 
+    pub fn set_view_offset(&self, offset: ultraviolet::Vec2) {
+        self.offset.store(offset);
     }
 
-    pub fn translate_view(&mut self, delta: ultraviolet::Vec2) {
+    pub fn translate_view(&self, delta: ultraviolet::Vec2) {
+        let mut offset = self.offset.load();
         self.offset += delta;
     }
 
-    pub fn zoom_view(&mut self, scale_mult: f32) {
+    pub fn zoom_view(&self, scale_mult: f32) {
         self.scale *= scale_mult;
         self.scale = self.scale.max(1.0);
     }
+    */
 
 }

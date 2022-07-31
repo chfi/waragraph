@@ -28,7 +28,7 @@ pub struct GraphLayout<N, E> {
     vertices: Vec<Point2<f32>>,
     edges: Vec<(usize, usize)>,
 
-    aabb: (Point2<f32>, Point2<f32>),
+    pub aabb: (Point2<f32>, Point2<f32>),
 
     node_data: Vec<N>,
     edge_data: Vec<E>,
@@ -148,7 +148,7 @@ impl<N, E> GraphLayout<N, E> {
             sublayer::allocate_uniform_buffer(compositor, ctx, res, alloc)
         })?;
 
-        let polyline_sublayer = "nodes_polyline";
+        let polyline_sublayer = "nodes";
 
         compositor.with_layer(layer_name, |layer| {
             if let Some(sublayer_data) = layer
