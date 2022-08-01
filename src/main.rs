@@ -883,6 +883,37 @@ bed::load_bed_file(bed_path, bed_name, column_map)
                                         }
                                 }
 
+                                if !cmd_pal.is_active() {
+
+                                    dbg!();
+                                    if let Some(viewer_2d) = viewer_2d.as_mut() {
+                                        dbg!();
+
+                                    let dx =
+                                        if matches!(kc, VK::Left) {
+                                            -1.0
+                                        } else if matches!(kc, VK::Right) {
+                                           1.0
+                                        } else { 0.0 };
+                                    
+                                    let dy = 
+                                        if matches!(kc, VK::Up) {
+                                            -1.0
+                                        } else if matches!(kc, VK::Down) {
+                                            1.0
+                                        } else { 0.0 };
+
+                                        dbg!((dx, dy));
+                                    viewer_2d.update_view(|view| {
+                                        let d = ultraviolet::Vec2::new(dx, dy) * view.scale * 100.0;
+                                        view.offset += d;
+                                    });
+
+                                    }
+
+                                }
+
+
                                 if cmd_pal.is_active()
                                     && matches!(kc, VK::Escape) {
                                         cmd_pal.close_prompt();

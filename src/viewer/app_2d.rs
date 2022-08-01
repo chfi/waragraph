@@ -5,8 +5,8 @@ use raving::{
     vk::{BufferIx, VkEngine},
 };
 
-use std::sync::Arc;
 use crossbeam::atomic::AtomicCell;
+use std::sync::Arc;
 
 use crate::{geometry::graph::GraphLayout, graph::Waragraph};
 
@@ -34,7 +34,7 @@ impl Viewer2D {
         graph: &Waragraph,
         layout_path: impl AsRef<std::path::Path>,
     ) -> Result<Self> {
-        compositor.new_layer(Self::LAYER_NAME, 1, true);
+        compositor.new_layer(Self::LAYER_NAME, 500, true);
 
         let sublayer_msg = SublayerAllocMsg::new(
             Self::LAYER_NAME.into(),
@@ -55,7 +55,11 @@ impl Viewer2D {
 
         let center = p0 + (p1 - p0) / 2.0;
 
-        let offset = ultraviolet::Vec2 { x: center.x, y: center.y }; 
+        let offset = ultraviolet::Vec2 {
+            x: center.x,
+            y: center.y,
+        };
+        // let scale = 20.0;
         let scale = 1.0;
 
         let view = View2D { offset, scale };
@@ -83,6 +87,17 @@ impl Viewer2D {
         Ok(viewer)
     }
 
+    pub fn update_view<F>(&self, f: F)
+    where
+        F: Fn(&mut View2D),
+    {
+        let mut view = self.view.load();
+        log::warn!("old view: {:?}", view.offset);
+        f(&mut view);
+        log::warn!("new view: {:?}", view.offset);
+        self.view.store(view);
+    }
+
     pub fn update(
         &mut self,
         engine: &mut VkEngine,
@@ -93,6 +108,8 @@ impl Viewer2D {
         let dims = compositor.window_dims();
 
         let view = self.view.load();
+
+        log::warn!("updating graph view with offset {:?}", view.offset);
 
         crate::geometry::graph::sublayer::write_uniform_buffer(
             buf,
@@ -107,7 +124,7 @@ impl Viewer2D {
         Ok(())
     }
 
-    /* 
+    /*
     pub fn set_view_offset(&self, offset: ultraviolet::Vec2) {
         self.offset.store(offset);
     }
@@ -122,5 +139,4 @@ impl Viewer2D {
         self.scale = self.scale.max(1.0);
     }
     */
-
 }

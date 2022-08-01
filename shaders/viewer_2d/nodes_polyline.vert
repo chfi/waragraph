@@ -35,6 +35,7 @@ void main() {
   vec2 n = u / len;
 
   float scale = 1.0 / ubo.scale;
+  // float scale = ubo.scale;
 
   mat4 scaling = mat4(scale, 0.0, 0.0, 0.0,
                       0.0, scale, 0.0, 0.0,
@@ -52,6 +53,8 @@ void main() {
                    0.0, 0.0, 0.0, 1.0);
 
   mat4 mat = proj * scaling * translation;
+
+  mat = transpose(mat);
 
   // mat4 mat = ubo.proj * scaling * translation;
   // mat4 mat = ubo.proj * translation;
@@ -83,22 +86,25 @@ void main() {
   vec2 pos = vec2(0.0);
 
   if (i == 0 || i == 5) {
-    pos =
-      (2.0 * a / inputs.window_dims) - vec2(1.0);
+    pos = a;
+      // (2.0 * a / inputs.window_dims) - vec2(1.0);
     o_color = color0;
   } else if (i == 1) {
-    pos =
-      (2.0 * b / inputs.window_dims) - vec2(1.0);
+    pos = b;
+      // (2.0 * b / inputs.window_dims) - vec2(1.0);
     o_color = color1;
   } else if (i == 2 || i == 3) {
-    pos =
-      (2.0 * c / inputs.window_dims) - vec2(1.0);
+    pos = c;
+      // (2.0 * c / inputs.window_dims) - vec2(1.0);
     o_color = color1;
   } else {
-    pos =
-      (2.0 * d / inputs.window_dims) - vec2(1.0);
+    pos = d;
+      // (2.0 * d / inputs.window_dims) - vec2(1.0);
     o_color = color0;
   }
 
-  gl_Position = vec4(pos + vec2(1.0), 0.0, 1.0);
+  // gl_Position = vec4(pos, 0.0, 1.0);
+
+  // gl_Position = vec4(pos + vec2(1.0), 0.0, 1.0);
+  gl_Position = vec4(pos + vec2(0.5), 0.0, 1.0);
 }
