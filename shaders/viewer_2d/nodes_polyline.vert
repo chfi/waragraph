@@ -34,7 +34,7 @@ void main() {
   float len = length(u);
   vec2 n = u / len;
 
-  float scale = ubo.scale;
+  float scale = 1.0 / ubo.scale;
 
   mat4 scaling = mat4(scale, 0.0, 0.0, 0.0,
                       0.0, scale, 0.0, 0.0,
@@ -46,27 +46,34 @@ void main() {
                           0.0, 0.0, 1.0, 0.0,
                           0.0, 0.0, 0.0, 1.0);
 
+  mat4 proj = mat4(2.0 / inputs.window_dims.x, 0.0, 0.0, 0.0,
+                   0.0, 2.0 / inputs.window_dims.y, 0.0, 0.0,
+                   0.0, 0.0, 1.0, 0.0,
+                   0.0, 0.0, 0.0, 1.0);
+
+  mat4 mat = proj * scaling * translation;
+
   // mat4 mat = ubo.proj * scaling * translation;
-  mat4 mat = ubo.proj * translation;
+  // mat4 mat = ubo.proj * translation;
                       
 
-  vec2 s = p0 - ubo.offset;
-  vec2 t = p1 - ubo.offset;
+  // vec2 s = p0 - ubo.offset;
+  // vec2 t = p1 - ubo.offset;
   
-  vec4 q0 = vec4(s.xy, 0.0, 1.0);
-  vec4 q1 = vec4(t.xy, 0.0, 1.0);
+  // vec4 q0 = vec4(s.xy, 0.0, 1.0);
+  // vec4 q1 = vec4(t.xy, 0.0, 1.0);
 
-  // vec4 q0 = vec4(p0.xy, 0.0, 1.0);
-  // vec4 q1 = vec4(p1.xy, 0.0, 1.0);
+  vec4 q0 = vec4(p0.xy, 0.0, 1.0);
+  vec4 q1 = vec4(p1.xy, 0.0, 1.0);
 
   // vec4 p0_ = ubo.proj * (p0 + ubo.offset);
   // vec4 p1_ = ubo.proj * (p1 + ubo.offset);
 
-  // vec4 p0_ = mat * q0;
-  // vec4 p1_ = mat * q1;
+  vec4 p0_ = mat * q0;
+  vec4 p1_ = mat * q1;
 
-  vec4 p0_ = ubo.proj * q0;
-  vec4 p1_ = ubo.proj * q1;
+  // vec4 p0_ = ubo.proj * q0;
+  // vec4 p1_ = ubo.proj * q1;
 
   vec2 a = p0_.xy + vec2(-n.y, n.x) * p0_w;
   vec2 b = p1_.xy + vec2(-n.y, n.x) * p1_w;
@@ -93,5 +100,5 @@ void main() {
     o_color = color0;
   }
 
-  gl_Position = vec4(pos, 0.0, 1.0);
+  gl_Position = vec4(pos + vec2(1.0), 0.0, 1.0);
 }
