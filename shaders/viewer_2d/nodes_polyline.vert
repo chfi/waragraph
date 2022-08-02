@@ -90,9 +90,14 @@ void main() {
 
   vec4 q0 = vec4(p0.xy - ubo.offset, 0.0, 1.0);
   vec4 q1 = vec4(p1.xy - ubo.offset, 0.0, 1.0);
+  
+  mat4 scaling = mat4(scale, 0.0, 0.0, 0.0,
+                      0.0, scale, 0.0, 0.0,
+                      0.0,   0.0, 1.0, 1.0,
+                      0.0,   0.0, 0.0, 1.0);
 
-  vec4 p0_ = ubo.proj * q0;
-  vec4 p1_ = ubo.proj * q1;
+  vec4 p0_ = ubo.proj * scaling * q0;
+  vec4 p1_ = ubo.proj * scaling * q1;
 
   // scales the width of the nodes; 
   // hardcoded for now but should depend on both config and scale

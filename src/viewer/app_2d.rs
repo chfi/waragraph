@@ -59,8 +59,9 @@ impl Viewer2D {
             x: center.x,
             y: center.y,
         };
-        // let scale = 20.0;
-        let scale = 1.0;
+
+        let scale = 20.0;
+        // let scale = 1.0;
 
         let view = View2D { offset, scale };
 
