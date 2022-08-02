@@ -37,6 +37,8 @@ void main() {
   float scale = 1.0 / ubo.scale;
   // float scale = ubo.scale;
 
+  /*
+
   mat4 scaling = mat4(scale, 0.0, 0.0, 0.0,
                       0.0, scale, 0.0, 0.0,
                       0.0,   0.0, 1.0, 1.0,
@@ -82,6 +84,24 @@ void main() {
   vec2 b = p1_.xy + vec2(-n.y, n.x) * p1_w;
   vec2 c = p1_.xy - vec2(-n.y, n.x) * p1_w;
   vec2 d = p0_.xy - vec2(-n.y, n.x) * p0_w;
+  
+  
+  */
+
+  vec4 q0 = vec4(p0.xy - ubo.offset, 0.0, 1.0);
+  vec4 q1 = vec4(p1.xy - ubo.offset, 0.0, 1.0);
+
+  vec4 p0_ = ubo.proj * q0;
+  vec4 p1_ = ubo.proj * q1;
+
+  // vec2 aspect = input.window_dims * 0.5;
+
+  float s = 0.01;
+  
+  vec2 a = p0_.xy + vec2(-n.y, n.x) * p0_w * s;
+  vec2 b = p1_.xy + vec2(-n.y, n.x) * p1_w * s;
+  vec2 c = p1_.xy - vec2(-n.y, n.x) * p1_w * s;
+  vec2 d = p0_.xy - vec2(-n.y, n.x) * p0_w * s;
 
   vec2 pos = vec2(0.0);
 
