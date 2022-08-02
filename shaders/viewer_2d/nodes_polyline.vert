@@ -94,14 +94,19 @@ void main() {
   vec4 p0_ = ubo.proj * q0;
   vec4 p1_ = ubo.proj * q1;
 
-  // vec2 aspect = input.window_dims * 0.5;
+  // scales the width of the nodes; 
+  // hardcoded for now but should depend on both config and scale
+  float width_scale = 0.003;
 
-  float s = 0.01;
+  // vec2 aspect = vec2(1.0, inputs.window_dims.y / inputs.window_dims.x);
+  float aspect = inputs.window_dims.y / inputs.window_dims.x;
+
+  vec2 n_a = vec2(-n.y, n.x / aspect);
   
-  vec2 a = p0_.xy + vec2(-n.y, n.x) * p0_w * s;
-  vec2 b = p1_.xy + vec2(-n.y, n.x) * p1_w * s;
-  vec2 c = p1_.xy - vec2(-n.y, n.x) * p1_w * s;
-  vec2 d = p0_.xy - vec2(-n.y, n.x) * p0_w * s;
+  vec2 a = p0_.xy + n_a * p0_w * width_scale;
+  vec2 b = p1_.xy + n_a * p1_w * width_scale;
+  vec2 c = p1_.xy - n_a * p1_w * width_scale;
+  vec2 d = p0_.xy - n_a * p0_w * width_scale;
 
   vec2 pos = vec2(0.0);
 
