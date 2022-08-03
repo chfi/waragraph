@@ -248,7 +248,16 @@ fn main() -> anyhow::Result<()> {
     }
     
     let mut viewer_2d = if let Some(path) = viewer_args.layout_path {
-        let viewer = Viewer2D::new(&mut engine, &mut compositor, &graph, path)?;
+
+        let path_to_show = waragraph::graph::Path::from(9usize);
+
+        let viewer = Viewer2D::new(&mut engine, 
+                                             &mut compositor, 
+                                             &graph, 
+                                             path,
+                                             None,
+                                            //  Some(path_to_show),
+                                            )?;
         Some(viewer)
     } else {
         None

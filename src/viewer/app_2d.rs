@@ -27,6 +27,7 @@ pub struct Viewer2D {
 
 impl Viewer2D {
     pub const LAYER_NAME: &'static str = "graph-viewer-2d";
+    pub const NODE_SUBLAYER: &'static str = "nodes";
 
     pub fn create_index_buffer_for_path(
         engine: &mut VkEngine,
@@ -46,7 +47,7 @@ impl Viewer2D {
             let usage = ash::vk::BufferUsageFlags::INDEX_BUFFER;
             // | vk::BufferUsageFlags::TRANSFER_DST;
 
-            let buffer = res.allocate_buffer(
+            let mut buffer = res.allocate_buffer(
                 ctx,
                 alloc,
                 mem_loc,
@@ -55,6 +56,15 @@ impl Viewer2D {
                 usage,
                 Some(&format!("Index buffer - Path {}", path_name,)),
             )?;
+
+            {
+                let mapped = buffer.mapped_slice_mut().unwrap();
+                for (ix, node) in nodes.iter().enumerate() {
+                    let i = ix * 4;
+                    let j = i + 4;
+                    mapped[i..j].clone_from_slice(bytemuck::cast_slice(&[node]));
+                }
+            }
 
             let buf_ix = res.insert_buffer(buffer);
 
@@ -69,18 +79,32 @@ impl Viewer2D {
         compositor: &mut Compositor,
         graph: &Waragraph,
         layout_path: impl AsRef<std::path::Path>,
+        path_to_show: Option<crate::graph::Path>,
     ) -> Result<Self> {
         compositor.new_layer(Self::LAYER_NAME, 500, true);
 
         let sublayer_msg = SublayerAllocMsg::new(
             Self::LAYER_NAME.into(),
-            "nodes".into(),
+            Self::NODE_SUBLAYER.into(),
             "nodes_polyline".into(),
             &[],
         );
         compositor.sublayer_alloc_tx.send(sublayer_msg)?;
 
         compositor.allocate_sublayers(engine)?;
+
+        if let Some(path) = path_to_show {
+            let indices =
+                Self::create_index_buffer_for_path(engine, graph, path)?;
+
+            compositor.with_layer(Self::LAYER_NAME, |layer| {
+                let sublayer =
+                    layer.get_sublayer_mut(Self::NODE_SUBLAYER).unwrap();
+                sublayer.draw_data[0].set_indices(Some(indices));
+
+                Ok(())
+            })?;
+        }
 
         let layout = GraphLayout::load_layout_tsv(graph, layout_path)?;
 
