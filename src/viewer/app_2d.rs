@@ -28,6 +28,42 @@ pub struct Viewer2D {
 impl Viewer2D {
     pub const LAYER_NAME: &'static str = "graph-viewer-2d";
 
+    pub fn create_index_buffer_for_path(
+        engine: &mut VkEngine,
+        graph: &Waragraph,
+        path: crate::graph::Path,
+    ) -> Result<(BufferIx, usize)> {
+        let nodes = &graph.path_nodes[path.ix()];
+
+        let path_name = graph
+            .path_name(path)
+            .expect("Path not found, this should be impossible!");
+
+        let node_count = nodes.len() as usize;
+
+        let buf = engine.with_allocators(|ctx, res, alloc| {
+            let mem_loc = gpu_allocator::MemoryLocation::CpuToGpu;
+            let usage = ash::vk::BufferUsageFlags::INDEX_BUFFER;
+            // | vk::BufferUsageFlags::TRANSFER_DST;
+
+            let buffer = res.allocate_buffer(
+                ctx,
+                alloc,
+                mem_loc,
+                std::mem::size_of::<u32>(),
+                node_count,
+                usage,
+                Some(&format!("Index buffer - Path {}", path_name,)),
+            )?;
+
+            let buf_ix = res.insert_buffer(buffer);
+
+            Ok(buf_ix)
+        })?;
+
+        Ok((buf, node_count))
+    }
+
     pub fn new(
         engine: &mut VkEngine,
         compositor: &mut Compositor,
