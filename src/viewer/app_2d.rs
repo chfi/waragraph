@@ -132,18 +132,9 @@ impl Viewer2D {
             view: Arc::new(view.into()),
         };
 
-        /*
-        let buf = &mut engine.resources[ubo];
-
-        crate::geometry::graph::sublayer::write_uniform_buffer(
-            buf, offset, scale,
-        )
-        .unwrap();
-
         viewer
             .layout
             .update_layer(compositor, Self::LAYER_NAME)?;
-            */
 
         Ok(viewer)
     }
@@ -180,7 +171,7 @@ impl Viewer2D {
         )
         .unwrap();
 
-        self.layout.update_layer(compositor, Self::LAYER_NAME)?;
+        // self.layout.update_layer(compositor, Self::LAYER_NAME)?;
 
         Ok(())
     }
