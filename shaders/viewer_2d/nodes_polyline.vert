@@ -37,57 +37,6 @@ void main() {
   float scale = 1.0 / ubo.scale;
   // float scale = ubo.scale;
 
-  /*
-
-  mat4 scaling = mat4(scale, 0.0, 0.0, 0.0,
-                      0.0, scale, 0.0, 0.0,
-                      0.0,   0.0, 1.0, 1.0,
-                      0.0,   0.0, 0.0, 1.0);
-
-  mat4 translation = mat4(1.0, 0.0, 0.0, -ubo.offset.x,
-                          0.0, 1.0, 0.0, -ubo.offset.y,
-                          0.0, 0.0, 1.0, 0.0,
-                          0.0, 0.0, 0.0, 1.0);
-
-  mat4 proj = mat4(2.0 / inputs.window_dims.x, 0.0, 0.0, 0.0,
-                   0.0, 2.0 / inputs.window_dims.y, 0.0, 0.0,
-                   0.0, 0.0, 1.0, 0.0,
-                   0.0, 0.0, 0.0, 1.0);
-
-  mat4 mat = proj * scaling * translation;
-
-  mat = transpose(mat);
-
-  // mat4 mat = ubo.proj * scaling * translation;
-  // mat4 mat = ubo.proj * translation;
-                      
-
-  // vec2 s = p0 - ubo.offset;
-  // vec2 t = p1 - ubo.offset;
-  
-  // vec4 q0 = vec4(s.xy, 0.0, 1.0);
-  // vec4 q1 = vec4(t.xy, 0.0, 1.0);
-
-  vec4 q0 = vec4(p0.xy, 0.0, 1.0);
-  vec4 q1 = vec4(p1.xy, 0.0, 1.0);
-
-  // vec4 p0_ = ubo.proj * (p0 + ubo.offset);
-  // vec4 p1_ = ubo.proj * (p1 + ubo.offset);
-
-  vec4 p0_ = mat * q0;
-  vec4 p1_ = mat * q1;
-
-  // vec4 p0_ = ubo.proj * q0;
-  // vec4 p1_ = ubo.proj * q1;
-
-  vec2 a = p0_.xy + vec2(-n.y, n.x) * p0_w;
-  vec2 b = p1_.xy + vec2(-n.y, n.x) * p1_w;
-  vec2 c = p1_.xy - vec2(-n.y, n.x) * p1_w;
-  vec2 d = p0_.xy - vec2(-n.y, n.x) * p0_w;
-  
-  
-  */
-
   vec4 q0 = vec4(p0.xy - ubo.offset, 0.0, 1.0);
   vec4 q1 = vec4(p1.xy - ubo.offset, 0.0, 1.0);
   
@@ -99,19 +48,17 @@ void main() {
   vec4 p0_ = ubo.proj * scaling * q0;
   vec4 p1_ = ubo.proj * scaling * q1;
 
-  // scales the width of the nodes; 
-  // hardcoded for now but should depend on both config and scale
-  float width_scale = 0.003;
-
-  // vec2 aspect = vec2(1.0, inputs.window_dims.y / inputs.window_dims.x);
   float aspect = inputs.window_dims.y / inputs.window_dims.x;
 
   vec2 n_a = vec2(-n.y, n.x / aspect);
+
+  vec2 p0_na = n_a * p0_w / inputs.window_dims.x;
+  vec2 p1_na = n_a * p1_w / inputs.window_dims.x;
   
-  vec2 a = p0_.xy + n_a * p0_w * width_scale;
-  vec2 b = p1_.xy + n_a * p1_w * width_scale;
-  vec2 c = p1_.xy - n_a * p1_w * width_scale;
-  vec2 d = p0_.xy - n_a * p0_w * width_scale;
+  vec2 a = p0_.xy + p0_na;
+  vec2 b = p1_.xy + p1_na;
+  vec2 c = p1_.xy - p1_na;
+  vec2 d = p0_.xy - p0_na;
 
   vec2 pos = vec2(0.0);
 
