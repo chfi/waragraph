@@ -10,6 +10,8 @@ use std::sync::Arc;
 
 use crate::{geometry::graph::GraphLayout, graph::Waragraph};
 
+pub mod renderer;
+
 #[derive(Debug, Clone, Copy)]
 pub struct View2D {
     pub offset: ultraviolet::Vec2,
