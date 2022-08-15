@@ -1,5 +1,8 @@
 use ash::vk;
-use raving::vk::{ImageIx, ImageViewIx, PipelineIx, RenderPassIx, VkEngine};
+use raving::vk::{
+    GpuResources, ImageIx, ImageViewIx, PipelineIx, RenderPassIx, VkContext,
+    VkEngine,
+};
 
 use anyhow::Result;
 
@@ -9,6 +12,80 @@ pub struct GraphRenderer {
     first_pipeline: PipelineIx,
 
     attachments: DeferredAttachments,
+}
+
+impl GraphRenderer {
+    
+
+    fn create_pipeline(
+        ctx: &VkContext,
+        res: &mut GpuResources,
+        pass: vk::RenderPass,
+    ) -> Result<PipelineIx> {
+        //
+
+        let vert = res.load_shader(
+            "shaders/viewer_2d/nodes_deferred.vert.spv",
+            vk::ShaderStageFlags::VERTEX,
+        )?;
+
+        let frag = res.load_shader(
+            "shaders/viewer_2d/nodes_deferred.frag.spv",
+            vk::ShaderStageFlags::FRAGMENT,
+        )?;
+
+        let vert_ix = res.insert_shader(vert);
+        let frag_ix = res.insert_shader(frag);
+
+        let vertex_stride = std::mem::size_of::<([f32; 4], u32)>();
+
+        let vert_binding_desc = vk::VertexInputBindingDescription::builder()
+            .binding(0)
+            .stride(vertex_stride as u32)
+            .input_rate(vk::VertexInputRate::INSTANCE)
+            .build();
+
+        let p0_desc = vk::VertexInputAttributeDescription::builder()
+            .binding(0)
+            .location(0)
+            .format(vk::Format::R32G32_SFLOAT)
+            .offset(0)
+            .build();
+
+        let p1_desc = vk::VertexInputAttributeDescription::builder()
+            .binding(0)
+            .location(1)
+            .format(vk::Format::R32G32_SFLOAT)
+            .offset(8)
+            .build();
+
+        let node_len_desc = vk::VertexInputAttributeDescription::builder()
+            .binding(0)
+            .location(1)
+            .format(vk::Format::R32_UINT)
+            .offset(16)
+            .build();
+
+        let vert_binding_descs = [vert_binding_desc];
+
+        let vert_attr_descs = [p0_desc, p1_desc, node_len_desc];
+
+        let vert_input_info = vk::PipelineVertexInputStateCreateInfo::builder()
+            .vertex_binding_descriptions(&vert_binding_descs)
+            .vertex_attribute_descriptions(&vert_attr_descs);
+
+        // let vertex_offset = 0;
+
+        let pipeline = res.create_graphics_pipeline(
+            ctx,
+            vert_ix,
+            frag_ix,
+            pass,
+            &vert_input_info,
+        )?;
+
+        Ok(pipeline)
+    }
 }
 
 pub struct DeferredAttachments {
@@ -116,6 +193,11 @@ impl DeferredAttachments {
         })?;
 
         Ok(result)
+    }
+
+    pub fn framebuffer(&self) -> Result<vk::Framebuffer> {
+        //
+        todo!();
     }
 
     pub fn reallocate(
