@@ -8,14 +8,37 @@ use anyhow::Result;
 
 // Type for handling resources and drawing for the deferred graph renderer
 pub struct GraphRenderer {
-    first_pass: RenderPassIx,
-    first_pipeline: PipelineIx,
+    pass: RenderPassIx,
+    pipeline: PipelineIx,
 
     attachments: DeferredAttachments,
 }
 
 impl GraphRenderer {
-    fn create_pass(ctx: &VkContext, res: &mut GpuResources) -> Result<RenderPassIx>{
+    pub fn initialize(engine: &mut VkEngine, dims: [u32; 2]) -> Result<Self> {
+        let (pass, pipeline, attachments) =
+            engine.with_allocators(|ctx, res, alloc| {
+                let pass_ix = Self::create_pass(ctx, res)?;
+
+                let pass = res[pass_ix];
+                let pipeline = Self::create_pipeline(ctx, res, pass)?;
+
+                let attachments = DeferredAttachments::new(engine, dims)?;
+
+                Ok((pass_ix, pipeline, attachments))
+            })?;
+
+        Ok(Self {
+            pass,
+            pipeline,
+            attachments,
+        })
+    }
+
+    fn create_pass(
+        ctx: &VkContext,
+        res: &mut GpuResources,
+    ) -> Result<RenderPassIx> {
         let index_attch_desc = vk::AttachmentDescription::builder()
             .format(DeferredAttachments::NODE_INDEX_FORMAT)
             .samples(vk::SampleCountFlags::TYPE_1)
@@ -257,9 +280,20 @@ impl DeferredAttachments {
         Ok(result)
     }
 
-    pub fn framebuffer(&self) -> Result<vk::Framebuffer> {
-        //
-        todo!();
+    pub fn framebuffer(
+        &self,
+        ctx: &VkContext,
+        res: &mut GpuResources,
+        pass: RenderPassIx,
+    ) -> Result<vk::Framebuffer> {
+        let index_view = res[self.node_index_view];
+        let uv_view = res[self.node_uv_view];
+
+        let attchs = [index_view, uv_view];
+
+        let [width, height] = self.dims;
+
+        res.create_framebuffer(ctx, pass, &attchs, width, height)
     }
 
     pub fn reallocate(
