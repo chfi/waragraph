@@ -25,8 +25,8 @@ use nalgebra::*;
 pub struct OrientedNode(NonZeroI32);
 
 pub struct GraphLayout<N, E> {
-    vertices: Vec<Point2<f32>>,
-    edges: Vec<(usize, usize)>,
+    pub vertices: Vec<Point2<f32>>,
+    pub edges: Vec<(usize, usize)>,
 
     pub aabb: (Point2<f32>, Point2<f32>),
 

@@ -247,6 +247,8 @@ fn main() -> anyhow::Result<()> {
         );
         std::process::exit(1);
     }
+
+    let mut deferred_graph_renderer = None; 
     
     let mut viewer_2d = if let Some(path) = viewer_args.layout_path {
 
@@ -259,6 +261,11 @@ fn main() -> anyhow::Result<()> {
                                             //  None,
                                              Some(path_to_show),
                                             )?;
+
+                                            
+    
+        deferred_graph_renderer = Some(GraphRenderer::initialize(&mut engine, &graph, &viewer.layout, [1024, 1024])?);
+
         Some(viewer)
     } else {
         None
@@ -312,8 +319,6 @@ fn main() -> anyhow::Result<()> {
     if let Err(e) = compositor.allocate_sublayers(&mut engine) {
         log::error!("Compositor error: {:?}", e);
     }
-    
-    let deferred_graph_renderer = GraphRenderer::initialize(&mut engine, [1024, 1024])?;
 
     if let Some(viewer_2d) = viewer_2d.as_mut() {
         viewer_2d.update(&mut engine, &mut compositor)?;
@@ -344,10 +349,10 @@ fn main() -> anyhow::Result<()> {
         engine.submit_queue_fn(|ctx, res, alloc, cmd| {
             let node_width = 20.0;
 
-            deferred_graph_renderer.draw_first_pass(
+            deferred_graph_renderer.as_ref().unwrap().draw_first_pass(
                 ctx.device(), 
                 res, 
-                vx_buf, 
+                // vx_buf, 
                 ix_buf, 
                 ubo, 
                 ix_count, 
@@ -593,47 +598,45 @@ bed::load_bed_file(bed_path, bed_name, column_map)
                         log::error!("2D viewer update error: {:?}", e);
                     }
                     
-                /*
-                let (vx_buf, ix_buf, ix_count, inst_count, ubo) = compositor.with_layer(Viewer2D::LAYER_NAME, |layer| {
-                    let sublayer = layer.get_sublayer_mut(Viewer2D::NODE_SUBLAYER).unwrap();
-                    let data = &sublayer.draw_data[0];
-
-                    let vx = data.vertex_buffer();
-                    let (ix, ix_count) = data.indices().unwrap();
-                    let vertex_count = data.vertex_count();
-
-                    let inst_count = data.instance_count();
-        
-                    let (instances, index_count) = if inst_count > 1 {
-                        (ix_count as u32, vertex_count as u32)
-                    } else {
-                        (1, ix_count as u32)
-                    };
-        
-                    let ubo = data.sets()[0];
-        
-                    Ok((vx, ix, index_count, instances, ubo))
-        
-                }).unwrap();
-        
-                engine.submit_queue_fn(|ctx, res, alloc, cmd| {
-                    let node_width = 20.0;
-        
-                    deferred_graph_renderer.draw_first_pass(
-                        ctx.device(), 
-                        res, 
-                        vx_buf, 
-                        ix_buf, 
-                        ubo, 
-                        ix_count, 
-                        inst_count, 
-                        node_width, 
-                        cmd
-                    )?;
-        
-                    Ok(())
-                }).unwrap();
-                */
+                    let (vx_buf, ix_buf, ix_count, inst_count, ubo) = compositor.with_layer(Viewer2D::LAYER_NAME, |layer| {
+                        let sublayer = layer.get_sublayer_mut(Viewer2D::NODE_SUBLAYER).unwrap();
+                        let data = &sublayer.draw_data[0];
+    
+                        let vx = data.vertex_buffer();
+                        let (ix, ix_count) = data.indices().unwrap();
+                        let vertex_count = data.vertex_count();
+    
+                        let inst_count = data.instance_count();
+            
+                        let (instances, index_count) = if inst_count > 1 {
+                            (ix_count as u32, vertex_count as u32)
+                        } else {
+                            (1, ix_count as u32)
+                        };
+            
+                        let ubo = data.sets()[0];
+            
+                        Ok((vx, ix, index_count, instances, ubo))
+            
+                    }).unwrap();
+            
+                    engine.submit_queue_fn(|ctx, res, alloc, cmd| {
+                        let node_width = 20.0;
+            
+                        deferred_graph_renderer.as_ref().unwrap().draw_first_pass(
+                            ctx.device(), 
+                            res, 
+                            // vx_buf, 
+                            ix_buf, 
+                            ubo, 
+                            ix_count, 
+                            inst_count, 
+                            node_width, 
+                            cmd
+                        )?;
+            
+                        Ok(())
+                    }).unwrap();
                 }
 
                 if let Err(e) = compositor.write_layers(&mut engine.resources) {

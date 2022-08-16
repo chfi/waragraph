@@ -6,22 +6,30 @@ use raving::vk::{
 
 use anyhow::Result;
 
+use crate::{graph::Waragraph, geometry::graph::GraphLayout};
+
 // Type for handling resources and drawing for the deferred graph renderer
 pub struct GraphRenderer {
     pass: RenderPassIx,
     pipeline: PipelineIx,
 
     attachments: DeferredAttachments,
-
     framebuffer: vk::Framebuffer,
+
+    vertex_buffer: BufferIx,
 }
 
 impl GraphRenderer {
-    pub fn initialize(engine: &mut VkEngine, dims: [u32; 2]) -> Result<Self> {
+    pub fn initialize(
+        engine: &mut VkEngine,
+        graph: &Waragraph,
+        layout: &GraphLayout<(), ()>,
+        dims: [u32; 2],
+    ) -> Result<Self> {
         let attachments = DeferredAttachments::new(engine, dims)?;
 
-        let (pass, pipeline, framebuffer) =
-            engine.with_allocators(|ctx, res, alloc| {
+        let (vertex_buffer, pass, pipeline, framebuffer) = engine
+            .with_allocators(|ctx, res, alloc| {
                 let pass_ix = Self::create_pass(ctx, res)?;
 
                 let pass = res[pass_ix];
@@ -29,15 +37,51 @@ impl GraphRenderer {
 
                 let framebuffer = attachments.framebuffer(ctx, res, pass_ix)?;
 
-                Ok((pass_ix, pipeline, framebuffer))
+                let usage = vk::BufferUsageFlags::VERTEX_BUFFER;
+
+                let stride = 5 * 4;
+
+                let mut vx_buf = res.allocate_buffer(
+                    ctx,
+                    alloc,
+                    gpu_allocator::MemoryLocation::CpuToGpu,
+                    stride,
+                    graph.node_count(),
+                    usage,
+                    Some("Deferred Node Vertex Buffer"),
+                )?;
+
+                {
+                    let dst = vx_buf.mapped_slice_mut().unwrap();
+
+                    for (node_ix, len) in graph.node_lens.iter().enumerate() {
+
+                        let v_ix = node_ix * 2;
+                        let p0 = layout.vertices[v_ix];
+                        let p1 = layout.vertices[v_ix + 1];
+
+                        let start = node_ix * stride;
+                        let end = start + stride;
+
+                        dst[start..(start + 16)].clone_from_slice(bytemuck::cast_slice(&[p0.x, p0.y, p1.x, p1.y]));
+                        dst[(start + 16)..end].clone_from_slice(bytemuck::cast_slice(&[*len]));
+                    }
+
+                }
+
+                let vx_buf_ix = res.insert_buffer(vx_buf);
+
+                Ok((vx_buf_ix, pass_ix, pipeline, framebuffer))
             })?;
 
         Ok(Self {
             pass,
             pipeline,
-            attachments,
 
+            attachments,
             framebuffer,
+
+            vertex_buffer,
         })
     }
 
@@ -45,7 +89,7 @@ impl GraphRenderer {
         &self,
         device: &ash::Device,
         res: &GpuResources,
-        vertex_buf: BufferIx,
+        // vertex_buf: BufferIx,
         index_buf: BufferIx,
         ubo: DescSetIx,
         index_count: u32,
@@ -67,6 +111,8 @@ impl GraphRenderer {
                 },
             },
         ];
+
+        let vertex_buf = self.vertex_buffer;
 
         let [width, height] = self.attachments.dims;
 
