@@ -15,7 +15,69 @@ pub struct GraphRenderer {
 }
 
 impl GraphRenderer {
-    
+    fn create_pass(ctx: &VkContext, res: &mut GpuResources) -> Result<RenderPassIx>{
+        let index_attch_desc = vk::AttachmentDescription::builder()
+            .format(DeferredAttachments::NODE_INDEX_FORMAT)
+            .samples(vk::SampleCountFlags::TYPE_1)
+            .load_op(vk::AttachmentLoadOp::CLEAR)
+            .store_op(vk::AttachmentStoreOp::STORE)
+            .initial_layout(vk::ImageLayout::COLOR_ATTACHMENT_OPTIMAL)
+            .final_layout(vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL)
+            .build();
+
+        let uv_attch_desc = vk::AttachmentDescription::builder()
+            .format(DeferredAttachments::NODE_UV_FORMAT)
+            .samples(vk::SampleCountFlags::TYPE_1)
+            .load_op(vk::AttachmentLoadOp::CLEAR)
+            .store_op(vk::AttachmentStoreOp::STORE)
+            .initial_layout(vk::ImageLayout::COLOR_ATTACHMENT_OPTIMAL)
+            .final_layout(vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL)
+            .build();
+
+        let attch_descs = [index_attch_desc, uv_attch_desc];
+
+        let index_attch_ref = vk::AttachmentReference::builder()
+            .attachment(0)
+            .layout(vk::ImageLayout::COLOR_ATTACHMENT_OPTIMAL)
+            .build();
+
+        let uv_attch_ref = vk::AttachmentReference::builder()
+            .attachment(0)
+            .layout(vk::ImageLayout::COLOR_ATTACHMENT_OPTIMAL)
+            .build();
+
+        let attch_refs = [index_attch_ref, uv_attch_ref];
+
+        let subpass_desc = vk::SubpassDescription::builder()
+            .pipeline_bind_point(vk::PipelineBindPoint::GRAPHICS)
+            .color_attachments(&attch_refs)
+            .build();
+
+        let subpass_descs = [subpass_desc];
+
+        /*
+        let subpass_dep = vk::SubpassDependency::builder()
+        //.src_subpass(vk::SUBPASS_EXTERNAL)
+        .src_stage_mask(vk::PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT
+        |vk::PipelineStageFlags::COMPUTE_SHADER)
+        .src_access_mask()
+        */
+
+        // let subpass_deps = [];
+
+        let render_pass_info = vk::RenderPassCreateInfo::builder()
+            .attachments(&attch_descs)
+            .subpasses(&subpass_descs)
+            .build();
+
+        let render_pass = unsafe {
+            ctx.device().create_render_pass(&render_pass_info, None)
+        }?;
+
+        let pass = res.insert_render_pass(render_pass);
+
+        Ok(pass)
+    }
 
     fn create_pipeline(
         ctx: &VkContext,
