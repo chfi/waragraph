@@ -276,7 +276,7 @@ impl GraphRenderer {
 
         let node_len_desc = vk::VertexInputAttributeDescription::builder()
             .binding(0)
-            .location(1)
+            .location(2)
             .format(vk::Format::R32_UINT)
             .offset(16)
             .build();
@@ -290,13 +290,56 @@ impl GraphRenderer {
             .vertex_attribute_descriptions(&vert_attr_descs);
 
         // let vertex_offset = 0;
+        let rasterizer_info =
+            vk::PipelineRasterizationStateCreateInfo::builder()
+                .depth_clamp_enable(false)
+                .rasterizer_discard_enable(false)
+                .polygon_mode(vk::PolygonMode::FILL)
+                .line_width(1.0)
+                // .cull_mode(vk::CullModeFlags::BACK)
+                // .cull_mode(vk::CullModeFlags::FRONT)
+                .cull_mode(vk::CullModeFlags::NONE)
+                // .front_face(vk::FrontFace::CLOCKWISE)
+                .front_face(vk::FrontFace::COUNTER_CLOCKWISE)
+                .depth_bias_enable(false)
+                .depth_bias_constant_factor(0.0)
+                .depth_bias_clamp(0.0)
+                .depth_bias_slope_factor(0.0)
+                .build();
 
-        let pipeline = res.create_graphics_pipeline(
+        let index_blend_attachment =
+            vk::PipelineColorBlendAttachmentState::builder()
+                .color_write_mask(vk::ColorComponentFlags::R)
+                .blend_enable(false)
+                .build();
+
+        let uv_blend_attachment =
+            vk::PipelineColorBlendAttachmentState::builder()
+                .color_write_mask(
+                    vk::ColorComponentFlags::R | vk::ColorComponentFlags::G,
+                )
+                .blend_enable(false)
+                .build();
+
+        let color_blend_attachments =
+            [index_blend_attachment, uv_blend_attachment];
+
+        let color_blending_info =
+            vk::PipelineColorBlendStateCreateInfo::builder()
+                // .logic_op_enable(false)
+                // .logic_op(vk::LogicOp::COPY)
+                .attachments(&color_blend_attachments)
+                .blend_constants([0.0, 0.0, 0.0, 0.0])
+                .build();
+
+        let pipeline = res.create_graphics_pipeline_impl(
             ctx,
             vert_ix,
             frag_ix,
             pass,
             &vert_input_info,
+            &rasterizer_info,
+            &color_blending_info,
         )?;
 
         Ok(pipeline)
@@ -387,7 +430,7 @@ impl DeferredAttachments {
                 vk::AccessFlags::empty(),
                 vk::PipelineStageFlags::TOP_OF_PIPE,
                 vk::AccessFlags::COLOR_ATTACHMENT_WRITE,
-                vk::PipelineStageFlags::FRAGMENT_SHADER,
+                vk::PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT,
                 vk::ImageLayout::UNDEFINED,
                 vk::ImageLayout::COLOR_ATTACHMENT_OPTIMAL,
             );
@@ -399,7 +442,7 @@ impl DeferredAttachments {
                 vk::AccessFlags::empty(),
                 vk::PipelineStageFlags::TOP_OF_PIPE,
                 vk::AccessFlags::COLOR_ATTACHMENT_WRITE,
-                vk::PipelineStageFlags::FRAGMENT_SHADER,
+                vk::PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT,
                 vk::ImageLayout::UNDEFINED,
                 vk::ImageLayout::COLOR_ATTACHMENT_OPTIMAL,
             );

@@ -37,6 +37,7 @@ use waragraph::text::TextCache;
 use waragraph::util::BufferStorage;
 use waragraph::viewer::app::ViewerSys;
 use waragraph::viewer::app_2d::Viewer2D;
+use waragraph::viewer::app_2d::renderer::GraphRenderer;
 use waragraph::viewer::edges::{EdgeCache, EdgeVertexCache};
 use winit::event::{Event, VirtualKeyCode, WindowEvent};
 use winit::{event_loop::EventLoop, window::WindowBuilder};
@@ -255,8 +256,8 @@ fn main() -> anyhow::Result<()> {
                                              &mut compositor, 
                                              &graph, 
                                              path,
-                                             None,
-                                            //  Some(path_to_show),
+                                            //  None,
+                                             Some(path_to_show),
                                             )?;
         Some(viewer)
     } else {
@@ -311,9 +312,53 @@ fn main() -> anyhow::Result<()> {
     if let Err(e) = compositor.allocate_sublayers(&mut engine) {
         log::error!("Compositor error: {:?}", e);
     }
+    
+    let deferred_graph_renderer = GraphRenderer::initialize(&mut engine, [1024, 1024])?;
 
     if let Some(viewer_2d) = viewer_2d.as_mut() {
         viewer_2d.update(&mut engine, &mut compositor)?;
+
+        
+        let (vx_buf, ix_buf, ix_count, inst_count, ubo) = compositor.with_layer(Viewer2D::LAYER_NAME, |layer| {
+            let sublayer = layer.get_sublayer_mut(Viewer2D::NODE_SUBLAYER).unwrap();
+            let data = &sublayer.draw_data[0];
+
+            let vx = data.vertex_buffer();
+            let (ix, ix_count) = data.indices().unwrap();
+            let vertex_count = data.vertex_count();
+
+            let inst_count = data.instance_count();
+
+            let (instances, index_count) = if inst_count > 1 {
+                (ix_count as u32, vertex_count as u32)
+            } else {
+                (1, ix_count as u32)
+            };
+
+            let ubo = data.sets()[0];
+
+            Ok((vx, ix, index_count, instances, ubo))
+
+        })?;
+
+        engine.submit_queue_fn(|ctx, res, alloc, cmd| {
+            let node_width = 20.0;
+
+            deferred_graph_renderer.draw_first_pass(
+                ctx.device(), 
+                res, 
+                vx_buf, 
+                ix_buf, 
+                ubo, 
+                ix_count, 
+                inst_count, 
+                node_width, 
+                cmd
+            )?;
+
+            Ok(())
+        })?;
+
     }
 
     let debug_layer_id = 0usize;
@@ -455,6 +500,7 @@ bed::load_bed_file(bed_path, bed_name, column_map)
 
     // waragraph::geometry::dynamics::verlet::add_test_data(&mut verlet);
 
+
     let mut prev_frame = std::time::Instant::now();
 
     let start_time = std::time::Instant::now();
@@ -546,6 +592,48 @@ bed::load_bed_file(bed_path, bed_name, column_map)
                     if let Err(e) = viewer_2d.update(&mut engine, &mut compositor) {
                         log::error!("2D viewer update error: {:?}", e);
                     }
+                    
+                /*
+                let (vx_buf, ix_buf, ix_count, inst_count, ubo) = compositor.with_layer(Viewer2D::LAYER_NAME, |layer| {
+                    let sublayer = layer.get_sublayer_mut(Viewer2D::NODE_SUBLAYER).unwrap();
+                    let data = &sublayer.draw_data[0];
+
+                    let vx = data.vertex_buffer();
+                    let (ix, ix_count) = data.indices().unwrap();
+                    let vertex_count = data.vertex_count();
+
+                    let inst_count = data.instance_count();
+        
+                    let (instances, index_count) = if inst_count > 1 {
+                        (ix_count as u32, vertex_count as u32)
+                    } else {
+                        (1, ix_count as u32)
+                    };
+        
+                    let ubo = data.sets()[0];
+        
+                    Ok((vx, ix, index_count, instances, ubo))
+        
+                }).unwrap();
+        
+                engine.submit_queue_fn(|ctx, res, alloc, cmd| {
+                    let node_width = 20.0;
+        
+                    deferred_graph_renderer.draw_first_pass(
+                        ctx.device(), 
+                        res, 
+                        vx_buf, 
+                        ix_buf, 
+                        ubo, 
+                        ix_count, 
+                        inst_count, 
+                        node_width, 
+                        cmd
+                    )?;
+        
+                    Ok(())
+                }).unwrap();
+                */
                 }
 
                 if let Err(e) = compositor.write_layers(&mut engine.resources) {
