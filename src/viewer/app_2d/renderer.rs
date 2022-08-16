@@ -1,7 +1,7 @@
 use ash::vk;
 use raving::vk::{
-    GpuResources, ImageIx, ImageViewIx, PipelineIx, RenderPassIx, VkContext,
-    VkEngine,
+    BufferIx, DescSetIx, FramebufferIx, GpuResources, ImageIx, ImageViewIx,
+    PipelineIx, RenderPassIx, VkContext, VkEngine,
 };
 
 use anyhow::Result;
@@ -12,27 +12,157 @@ pub struct GraphRenderer {
     pipeline: PipelineIx,
 
     attachments: DeferredAttachments,
+
+    framebuffer: vk::Framebuffer,
 }
 
 impl GraphRenderer {
     pub fn initialize(engine: &mut VkEngine, dims: [u32; 2]) -> Result<Self> {
-        let (pass, pipeline, attachments) =
+        let attachments = DeferredAttachments::new(engine, dims)?;
+
+        let (pass, pipeline, framebuffer) =
             engine.with_allocators(|ctx, res, alloc| {
                 let pass_ix = Self::create_pass(ctx, res)?;
 
                 let pass = res[pass_ix];
                 let pipeline = Self::create_pipeline(ctx, res, pass)?;
 
-                let attachments = DeferredAttachments::new(engine, dims)?;
+                let framebuffer = attachments.framebuffer(ctx, res, pass_ix)?;
 
-                Ok((pass_ix, pipeline, attachments))
+                Ok((pass_ix, pipeline, framebuffer))
             })?;
 
         Ok(Self {
             pass,
             pipeline,
             attachments,
+
+            framebuffer,
         })
+    }
+
+    pub fn draw_first_pass(
+        &self,
+        device: &ash::Device,
+        res: &GpuResources,
+        vertex_buf: BufferIx,
+        index_buf: BufferIx,
+        ubo: DescSetIx,
+        index_count: u32,
+        instance_count: u32,
+        node_width: f32,
+        cmd: vk::CommandBuffer,
+    ) -> Result<()> {
+        //
+
+        let clear_values = [
+            vk::ClearValue {
+                color: vk::ClearColorValue {
+                    int32: [0, 0, 0, 0],
+                },
+            },
+            vk::ClearValue {
+                color: vk::ClearColorValue {
+                    float32: [0.0, 0.0, 0.0, 0.0],
+                },
+            },
+        ];
+
+        let [width, height] = self.attachments.dims;
+
+        let pass = res[self.pass];
+
+        let extent = vk::Extent2D { width, height };
+
+        let pass_begin_info = vk::RenderPassBeginInfo::builder()
+            .render_pass(pass)
+            .framebuffer(self.framebuffer)
+            .render_area(vk::Rect2D {
+                offset: vk::Offset2D { x: 0, y: 0 },
+                extent,
+            })
+            .clear_values(&clear_values)
+            .build();
+
+        let vertices = &res[vertex_buf];
+        let indices = &res[index_buf];
+
+        let (pipeline, layout) = res[self.pipeline].pipeline_and_layout();
+
+        unsafe {
+            device.cmd_begin_render_pass(
+                cmd,
+                &pass_begin_info,
+                vk::SubpassContents::INLINE,
+            );
+
+            device.cmd_bind_pipeline(
+                cmd,
+                vk::PipelineBindPoint::GRAPHICS,
+                pipeline,
+            );
+
+            let viewport = vk::Viewport {
+                x: 0.0,
+                y: 0.0,
+                width: width as f32,
+                height: height as f32,
+                min_depth: 0.0,
+                max_depth: 1.0,
+            };
+            let viewports = [viewport];
+
+            device.cmd_set_viewport(cmd, 0, &viewports);
+
+            let scissor = vk::Rect2D {
+                offset: vk::Offset2D { x: 0, y: 0 },
+                extent,
+            };
+            let scissors = [scissor];
+
+            device.cmd_set_scissor(cmd, 0, &scissors);
+
+            let vx_bufs = [res[vertex_buf].buffer];
+            let offsets = [0];
+            device.cmd_bind_vertex_buffers(cmd, 0, &vx_bufs, &offsets);
+            device.cmd_bind_index_buffer(
+                cmd,
+                res[index_buf].buffer,
+                0,
+                vk::IndexType::UINT32,
+            );
+
+            let desc_sets = [res[ubo]];
+            device.cmd_bind_descriptor_sets(
+                cmd,
+                vk::PipelineBindPoint::GRAPHICS,
+                layout,
+                0,
+                &desc_sets,
+                &[],
+            );
+
+            // let dims = [extent.width as f32, extent.height as f32];
+            // let node_width = [node_width];
+            let const_vals =
+                [extent.width as f32, extent.height as f32, node_width];
+
+            let constants: &[u8] = bytemuck::cast_slice(&const_vals);
+
+            device.cmd_push_constants(
+                cmd,
+                layout,
+                vk::ShaderStageFlags::VERTEX,
+                0,
+                constants,
+            );
+
+            device.cmd_draw_indexed(cmd, index_count, instance_count, 0, 0, 0);
+
+            device.cmd_end_render_pass(cmd);
+        }
+
+        Ok(())
     }
 
     fn create_pass(
