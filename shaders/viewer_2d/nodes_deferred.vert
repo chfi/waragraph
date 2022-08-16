@@ -85,6 +85,11 @@ void main() {
     o_v = 1.0;
   }
 
+  // or should this be instance index
+  // o_node_index = gl_VertexIndex / 6;
+
+  o_node_index = gl_InstanceIndex;
+
   // gl_Position = vec4(pos, 0.0, 1.0);
 
   // gl_Position = vec4(pos + vec2(1.0), 0.0, 1.0);

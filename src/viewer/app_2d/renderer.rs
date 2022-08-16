@@ -195,7 +195,7 @@ impl GraphRenderer {
             .build();
 
         let uv_attch_ref = vk::AttachmentReference::builder()
-            .attachment(0)
+            .attachment(1)
             .layout(vk::ImageLayout::COLOR_ATTACHMENT_OPTIMAL)
             .build();
 
@@ -309,15 +309,16 @@ impl GraphRenderer {
 
         let index_blend_attachment =
             vk::PipelineColorBlendAttachmentState::builder()
-                .color_write_mask(vk::ColorComponentFlags::R)
+                .color_write_mask(vk::ColorComponentFlags::RGBA)
                 .blend_enable(false)
                 .build();
 
         let uv_blend_attachment =
             vk::PipelineColorBlendAttachmentState::builder()
-                .color_write_mask(
-                    vk::ColorComponentFlags::R | vk::ColorComponentFlags::G,
-                )
+                .color_write_mask(vk::ColorComponentFlags::RGBA)
+                // .color_write_mask(
+                //     vk::ColorComponentFlags::R | vk::ColorComponentFlags::G,
+                // )
                 .blend_enable(false)
                 .build();
 

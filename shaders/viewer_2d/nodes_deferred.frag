@@ -22,4 +22,6 @@ layout (location = 1) out vec2 o_bp_v;
 void main() {
   o_node_index = i_node_index;
   o_bp_v = vec2(i_bp, i_v);
+
+//  o_bp_v = vec2(1.0, 1.0);
 }
