@@ -102,7 +102,7 @@ impl GraphRenderer {
         let clear_values = [
             vk::ClearValue {
                 color: vk::ClearColorValue {
-                    int32: [0, 0, 0, 0],
+                    int32: [-1, 0, 0, 0],
                 },
             },
             vk::ClearValue {
