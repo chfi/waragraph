@@ -1,12 +1,12 @@
 use ash::vk;
 use raving::vk::{
     BufferIx, DescSetIx, FramebufferIx, GpuResources, ImageIx, ImageViewIx,
-    PipelineIx, RenderPassIx, VkContext, VkEngine,
+    PipelineIx, RenderPassIx, SamplerIx, ShaderIx, VkContext, VkEngine,
 };
 
 use anyhow::Result;
 
-use crate::{graph::Waragraph, geometry::graph::GraphLayout};
+use crate::{geometry::graph::GraphLayout, graph::Waragraph};
 
 // Type for handling resources and drawing for the deferred graph renderer
 pub struct GraphRenderer {
@@ -55,7 +55,6 @@ impl GraphRenderer {
                     let dst = vx_buf.mapped_slice_mut().unwrap();
 
                     for (node_ix, len) in graph.node_lens.iter().enumerate() {
-
                         let v_ix = node_ix * 2;
                         let p0 = layout.vertices[v_ix];
                         let p1 = layout.vertices[v_ix + 1];
@@ -63,10 +62,12 @@ impl GraphRenderer {
                         let start = node_ix * stride;
                         let end = start + stride;
 
-                        dst[start..(start + 16)].clone_from_slice(bytemuck::cast_slice(&[p0.x, p0.y, p1.x, p1.y]));
-                        dst[(start + 16)..end].clone_from_slice(bytemuck::cast_slice(&[*len]));
+                        dst[start..(start + 16)].clone_from_slice(
+                            bytemuck::cast_slice(&[p0.x, p0.y, p1.x, p1.y]),
+                        );
+                        dst[(start + 16)..end]
+                            .clone_from_slice(bytemuck::cast_slice(&[*len]));
                     }
-
                 }
 
                 let vx_buf_ix = res.insert_buffer(vx_buf);
@@ -419,6 +420,56 @@ impl DeferredAttachments {
         vk::ImageUsageFlags::COLOR_ATTACHMENT
             | vk::ImageUsageFlags::SAMPLED
             | vk::ImageUsageFlags::STORAGE
+    }
+
+    pub fn create_desc_set_for_shader(
+        &self,
+        res: &mut GpuResources,
+        shader: ShaderIx,
+        set_ix: u32,
+        sampler: SamplerIx,
+    ) -> Result<DescSetIx> {
+        let (layout_info, set_info) = {
+            let shader = &res[shader];
+
+            let layout_info = shader.set_layout_info(set_ix)?;
+            let set_info = shader.set_infos[&set_ix].clone();
+
+            (layout_info, set_info)
+        };
+
+        let desc_set = res.allocate_desc_set_raw(
+            &layout_info,
+            &set_info,
+            |res, desc_builder| {
+                let sampler_info = vk::DescriptorImageInfo::builder()
+                    .sampler(res[sampler])
+                    .build();
+
+                let id_view = res[self.node_index_view];
+                let uv_view = res[self.node_uv_view];
+
+                let index_info = vk::DescriptorImageInfo::builder()
+                    .image_layout(vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL)
+                    .image_view(id_view)
+                    .build();
+
+                let uv_info = vk::DescriptorImageInfo::builder()
+                    .image_layout(vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL)
+                    .image_view(uv_view)
+                    .build();
+
+                desc_builder.bind_image(0, &[sampler_info]);
+                desc_builder.bind_image(1, &[index_info]);
+                desc_builder.bind_image(2, &[uv_info]);
+
+                Ok(())
+            },
+        )?;
+
+        let set_ix = res.insert_desc_set(desc_set);
+
+        Ok(set_ix)
     }
 
     pub fn new(engine: &mut VkEngine, dims: [u32; 2]) -> Result<Self> {
