@@ -18,3 +18,5 @@ pub mod list;
 
 pub mod gui;
 pub mod text;
+
+pub mod postprocessing;
