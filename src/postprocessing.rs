@@ -18,8 +18,10 @@ pub struct Postprocessing {
 
 #[derive(Clone, Copy)]
 pub struct EffectDef {
-    pass: RenderPassIx,
-    pipeline: PipelineIx,
+    pub pass: RenderPassIx,
+    pub pipeline: PipelineIx,
+
+    pub frag: ShaderIx,
 }
 
 pub struct EffectAttachments {
@@ -133,7 +135,7 @@ pub fn create_basic_effect_pass(
 static POSTPROCESS_VERT_SPIRV_SRC: &'static [u8] =
     raving::include_shader!("postprocessing/base.vert.spv");
 
-const POSTPROCESS_VERT_SHADER: AtomicCell<Option<ShaderIx>> =
+static POSTPROCESS_VERT_SHADER: AtomicCell<Option<ShaderIx>> =
     AtomicCell::new(None);
 
 impl EffectDef {
@@ -209,16 +211,18 @@ impl EffectDef {
         Ok(Self {
             pass: pass_ix,
             pipeline,
+
+            frag,
         })
     }
 }
 
 pub struct EffectInstance {
-    def: EffectDef,
+    pub def: EffectDef,
 
-    sets: Vec<DescSetIx>,
+    pub sets: Vec<DescSetIx>,
 
-    attachments: EffectAttachments,
+    pub attachments: EffectAttachments,
 }
 
 impl EffectInstance {
@@ -341,7 +345,7 @@ pub fn test_effect_instance(
         let pass = create_basic_effect_pass(ctx, res)?;
 
         let frag = res.load_shader(
-            "shaders/postprocessing/nodes_deferred_effect.frag.spv",
+            "shaders/viewer_2d/nodes_deferred_effect.frag.spv",
             vk::ShaderStageFlags::FRAGMENT,
         )?;
 

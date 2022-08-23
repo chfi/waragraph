@@ -320,6 +320,11 @@ fn main() -> anyhow::Result<()> {
         log::error!("Compositor error: {:?}", e);
     }
 
+    let (effect, eff_fb) = waragraph::postprocessing::test_effect_instance(&mut engine)?;
+
+    let mut effect_input = None;
+    let mut effect_sampler = None;
+
     if let Some(viewer_2d) = viewer_2d.as_mut() {
         viewer_2d.update(&mut engine, &mut compositor)?;
 
@@ -345,6 +350,38 @@ fn main() -> anyhow::Result<()> {
             Ok((vx, ix, index_count, instances, ubo))
 
         })?;
+        
+        {
+            let renderer = deferred_graph_renderer.as_ref().unwrap();
+
+            let sampler = {
+                let sampler_info = vk::SamplerCreateInfo::builder()
+                    .mag_filter(vk::Filter::LINEAR)
+                    .min_filter(vk::Filter::LINEAR)
+                    .address_mode_u(vk::SamplerAddressMode::CLAMP_TO_EDGE)
+                    .address_mode_v(vk::SamplerAddressMode::CLAMP_TO_EDGE)
+                    .address_mode_w(vk::SamplerAddressMode::CLAMP_TO_EDGE)
+                    .anisotropy_enable(false)
+                    // .anisotropy_enable(true)
+                    // .max_anisotropy(16.0)
+                    .mipmap_mode(vk::SamplerMipmapMode::LINEAR)
+                    .mip_lod_bias(0.0)
+                    .min_lod(0.0)
+                    .max_lod(1.0)
+                    .unnormalized_coordinates(false)
+                    .build();
+    
+                engine
+                    .resources
+                    .insert_sampler(&engine.context, sampler_info)?
+            };
+
+            effect_sampler = Some(sampler);
+
+            let input = renderer.attachments.create_desc_set_for_shader(&mut engine.resources, effect.def.frag, 0, sampler)?;
+            
+            effect_input = Some(input);
+        }
 
         engine.submit_queue_fn(|ctx, res, alloc, cmd| {
             let node_width = 20.0;
@@ -672,66 +709,68 @@ bed::load_bed_file(bed_path, bed_name, column_map)
                     engine.submit_queue_fn(|ctx, res, alloc, cmd| {
                         let node_width = 20.0;
             
-                let renderer = deferred_graph_renderer.as_ref().unwrap();
-    
-                renderer.draw_first_pass(
-                    ctx.device(), 
-                    res, 
-                    // vx_buf, 
-                    ix_buf, 
-                    ubo, 
-                    ix_count, 
-                    inst_count, 
-                    node_width, 
-                    cmd
-                )?;
-    
-                unsafe {
-                    let dev = ctx.device();
-    
-                    let src_mask = vk::AccessFlags::COLOR_ATTACHMENT_WRITE;
-                    let dst_mask = vk::AccessFlags::SHADER_READ;
-    
-                    let src_stage = vk::PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT;
-                    let dst_stage = vk::PipelineStageFlags::FRAGMENT_SHADER;
-    
-                    let barrier = vk::ImageMemoryBarrier::builder()
-                        .src_access_mask(src_mask)
-                        .dst_access_mask(dst_mask)
-                        .old_layout(vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL)
-                        .new_layout(vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL)
-                        .subresource_range(vk::ImageSubresourceRange {
-                            aspect_mask: vk::ImageAspectFlags::COLOR,
-                            base_mip_level: 0,
-                            level_count: 1,
-                            base_array_layer: 0,
-                            layer_count: 1,
-                        })
-                        .src_queue_family_index(vk::QUEUE_FAMILY_IGNORED)
-                        .dst_queue_family_index(vk::QUEUE_FAMILY_IGNORED);
-                        
-                    let index_img = res[renderer.attachments.node_index_img].image;
-                    let uv_img = res[renderer.attachments.node_uv_img].image;
-    
-                    let mut index_barrier = barrier.clone();
-                    index_barrier.image = index_img;
-    
-                    let mut uv_barrier = barrier.clone();
-                    uv_barrier.image = uv_img;
-    
-    
-                    let image_barriers = [index_barrier, uv_barrier];
-    
-                    dev.cmd_pipeline_barrier(
-                        cmd, 
-                        src_stage,
-                        dst_stage,
-                        vk::DependencyFlags::BY_REGION,
-                        &[],
-                        &[],
-                        &image_barriers
-                    );
-                }
+                        let renderer = deferred_graph_renderer.as_ref().unwrap();
+            
+                        renderer.draw_first_pass(
+                            ctx.device(), 
+                            res, 
+                            // vx_buf, 
+                            ix_buf, 
+                            ubo, 
+                            ix_count, 
+                            inst_count, 
+                            node_width, 
+                            cmd
+                        )?;
+            
+                        unsafe {
+                            let dev = ctx.device();
+            
+                            let src_mask = vk::AccessFlags::COLOR_ATTACHMENT_WRITE;
+                            let dst_mask = vk::AccessFlags::SHADER_READ;
+            
+                            let src_stage = vk::PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT;
+                            let dst_stage = vk::PipelineStageFlags::FRAGMENT_SHADER;
+            
+                            let barrier = vk::ImageMemoryBarrier::builder()
+                                .src_access_mask(src_mask)
+                                .dst_access_mask(dst_mask)
+                                .old_layout(vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL)
+                                .new_layout(vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL)
+                                .subresource_range(vk::ImageSubresourceRange {
+                                    aspect_mask: vk::ImageAspectFlags::COLOR,
+                                    base_mip_level: 0,
+                                    level_count: 1,
+                                    base_array_layer: 0,
+                                    layer_count: 1,
+                                })
+                                .src_queue_family_index(vk::QUEUE_FAMILY_IGNORED)
+                                .dst_queue_family_index(vk::QUEUE_FAMILY_IGNORED);
+                                
+                            let index_img = res[renderer.attachments.node_index_img].image;
+                            let uv_img = res[renderer.attachments.node_uv_img].image;
+            
+                            let mut index_barrier = barrier.clone();
+                            index_barrier.image = index_img;
+            
+                            let mut uv_barrier = barrier.clone();
+                            uv_barrier.image = uv_img;
+            
+            
+                            let image_barriers = [index_barrier, uv_barrier];
+            
+                            dev.cmd_pipeline_barrier(
+                                cmd, 
+                                src_stage,
+                                dst_stage,
+                                vk::DependencyFlags::BY_REGION,
+                                &[],
+                                &[],
+                                &image_barriers
+                            );
+                        }
+
+                        effect.draw(ctx.device(), res, effect_input.unwrap(), eff_fb, cmd)?;
             
                         Ok(())
                     }).unwrap();
