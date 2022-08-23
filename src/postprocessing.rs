@@ -13,6 +13,101 @@ pub struct EffectDef {
     pipeline: PipelineIx,
 }
 
+pub struct EffectAttachments {
+    dims: [u32; 2],
+
+    img: ImageIx,
+    view: ImageViewIx,
+
+    format: vk::Format,
+}
+
+impl EffectAttachments {
+    pub fn img_usage() -> vk::ImageUsageFlags {
+        vk::ImageUsageFlags::COLOR_ATTACHMENT
+            | vk::ImageUsageFlags::SAMPLED
+            | vk::ImageUsageFlags::STORAGE
+    }
+
+    pub fn new(
+        engine: &mut VkEngine,
+        format: vk::Format,
+        dims: [u32; 2],
+    ) -> Result<Self> {
+        let [width, height] = dims;
+
+        let result = engine.with_allocators(|ctx, res, alloc| {
+            let img = res.allocate_image(
+                ctx,
+                alloc,
+                width,
+                height,
+                format,
+                Self::img_usage(),
+                Some("effect_attachment"),
+            )?;
+
+            let view = res.new_image_view(ctx, &img)?;
+
+            let img = res.insert_image(img);
+            let view = res.insert_image_view(view);
+
+            Ok(Self {
+                dims,
+                img,
+                view,
+                format,
+            })
+        })?;
+
+        Ok(result)
+    }
+}
+
+pub fn create_basic_effect_pass(
+    ctx: &VkContext,
+    res: &mut GpuResources,
+) -> Result<RenderPassIx> {
+    let format = vk::Format::R8G8B8A8_UNORM;
+
+    let attch_desc = vk::AttachmentDescription::builder()
+        .format(format)
+        .samples(vk::SampleCountFlags::TYPE_1)
+        .load_op(vk::AttachmentLoadOp::CLEAR)
+        .store_op(vk::AttachmentStoreOp::STORE)
+        .initial_layout(vk::ImageLayout::COLOR_ATTACHMENT_OPTIMAL)
+        .final_layout(vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL)
+        .build();
+
+    let attch_descs = [attch_desc];
+
+    let attch_ref = vk::AttachmentReference::builder()
+        .attachment(0)
+        .layout(vk::ImageLayout::COLOR_ATTACHMENT_OPTIMAL)
+        .build();
+
+    let attch_refs = [attch_ref];
+
+    let subpass_desc = vk::SubpassDescription::builder()
+        .pipeline_bind_point(vk::PipelineBindPoint::GRAPHICS)
+        .color_attachments(&attch_refs)
+        .build();
+
+    let subpass_descs = [subpass_desc];
+
+    let render_pass_info = vk::RenderPassCreateInfo::builder()
+        .attachments(&attch_descs)
+        .subpasses(&subpass_descs)
+        .build();
+
+    let render_pass =
+        unsafe { ctx.device().create_render_pass(&render_pass_info, None) }?;
+
+    let pass = res.insert_render_pass(render_pass);
+
+    Ok(pass)
+}
+
 static POSTPROCESS_VERT_SPIRV_SRC: &'static [u8] =
     raving::include_shader!("postprocessing/base.vert.spv");
 
@@ -89,7 +184,10 @@ impl EffectDef {
             &color_blending_info,
         )?;
 
-        Ok(Self { pass: pass_ix, pipeline })
+        Ok(Self {
+            pass: pass_ix,
+            pipeline,
+        })
     }
 }
 
