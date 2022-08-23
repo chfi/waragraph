@@ -1,11 +1,20 @@
+use std::collections::HashMap;
+
 use ash::vk;
 use crossbeam::atomic::AtomicCell;
+use gpu_allocator::vulkan::Allocator;
 use raving::vk::{
     BufferIx, DescSetIx, FramebufferIx, GpuResources, ImageIx, ImageViewIx,
     PipelineIx, RenderPassIx, ShaderIx, VkContext, VkEngine,
 };
 
 use anyhow::Result;
+
+pub struct Postprocessing {
+    effects: HashMap<rhai::ImmutableString, EffectDef>,
+
+    attachments: HashMap<rhai::ImmutableString, EffectAttachments>,
+}
 
 #[derive(Clone, Copy)]
 pub struct EffectDef {
@@ -31,6 +40,11 @@ impl EffectAttachments {
 
     pub fn new(
         engine: &mut VkEngine,
+        /*
+        ctx: &VkContext,
+        res: &mut GpuResources,
+        alloc: &mut Allocator,
+        */
         format: vk::Format,
         dims: [u32; 2],
     ) -> Result<Self> {
@@ -58,6 +72,24 @@ impl EffectAttachments {
                 view,
                 format,
             })
+        })?;
+
+        engine.submit_queue_fn(|ctx, res, alloc, cmd| {
+            let img = &res[result.img];
+
+            VkEngine::transition_image(
+                cmd,
+                ctx.device(),
+                img.image,
+                vk::AccessFlags::empty(),
+                vk::PipelineStageFlags::TOP_OF_PIPE,
+                vk::AccessFlags::COLOR_ATTACHMENT_WRITE,
+                vk::PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT,
+                vk::ImageLayout::UNDEFINED,
+                vk::ImageLayout::COLOR_ATTACHMENT_OPTIMAL,
+            );
+
+            Ok(())
         })?;
 
         Ok(result)
@@ -195,4 +227,47 @@ pub struct EffectInstance {
     def: EffectDef,
 
     sets: Vec<DescSetIx>,
+
+    attachments: EffectAttachments,
+}
+
+impl EffectInstance {
+    pub fn draw(
+        &self,
+        device: &ash::Device,
+        res: &GpuResources,
+        input: DescSetIx,
+        cmd: vk::CommandBuffer,
+    ) -> Result<()> {
+        //
+
+        todo!();
+    }
+}
+
+pub fn test_effect_instance(engine: &mut VkEngine) -> Result<EffectInstance> {
+    let format = vk::Format::R8G8B8A8_UNORM;
+
+    let attchs = EffectAttachments::new(engine, format, [1024, 1024])?;
+
+    let def = engine.with_allocators(|ctx, res, alloc| {
+        let pass = create_basic_effect_pass(ctx, res)?;
+
+        let frag = res.load_shader(
+            "shaders/postprocessing/nodes_deferred_effect.frag.spv",
+            vk::ShaderStageFlags::FRAGMENT,
+        )?;
+
+        let frag = res.insert_shader(frag);
+
+        let def = EffectDef::new(ctx, res, pass, frag)?;
+
+        Ok(EffectInstance {
+            def,
+            attachments: attchs,
+            sets: Vec::new(),
+        })
+    })?;
+
+    Ok(def)
 }
