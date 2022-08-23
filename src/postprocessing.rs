@@ -186,6 +186,12 @@ impl EffectDef {
             vk::PipelineColorBlendAttachmentState::builder()
                 .color_write_mask(vk::ColorComponentFlags::RGBA)
                 .blend_enable(true)
+                .src_color_blend_factor(vk::BlendFactor::SRC_ALPHA)
+                .dst_color_blend_factor(vk::BlendFactor::ONE_MINUS_SRC_ALPHA)
+                .color_blend_op(vk::BlendOp::ADD)
+                .src_alpha_blend_factor(vk::BlendFactor::SRC_ALPHA)
+                .dst_alpha_blend_factor(vk::BlendFactor::ONE_MINUS_SRC_ALPHA)
+                .alpha_blend_op(vk::BlendOp::ADD)
                 .build();
 
         let color_blend_attachments = [color_blend_attachment];

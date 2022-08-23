@@ -32,9 +32,11 @@ void main() {
 
   // uint node_id = imageLoad(u_index_img, pixel).r;
 
-  // vec2 bp_v = texture(sampler2D(u_uv_img, u_sampler), i_uv).rg;
+  vec4 bp_v = texture(sampler2D(u_uv_img, u_sampler), i_uv);
   
   o_color = (node_id == 0xffffffff) ? vec4(0.0) : vec4(1.0);
+
+  // o_color = vec4(bp_v.xyz, 1.0);
 
   // o_color = vec4(0.0);
 }
