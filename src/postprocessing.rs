@@ -39,60 +39,50 @@ impl EffectAttachments {
     }
 
     pub fn new(
-        engine: &mut VkEngine,
-        /*
         ctx: &VkContext,
         res: &mut GpuResources,
         alloc: &mut Allocator,
-        */
         format: vk::Format,
         dims: [u32; 2],
     ) -> Result<Self> {
         let [width, height] = dims;
 
-        let result = engine.with_allocators(|ctx, res, alloc| {
-            let img = res.allocate_image(
-                ctx,
-                alloc,
-                width,
-                height,
-                format,
-                Self::img_usage(),
-                Some("effect_attachment"),
-            )?;
+        let img = res.allocate_image(
+            ctx,
+            alloc,
+            width,
+            height,
+            format,
+            Self::img_usage(),
+            Some("effect_attachment"),
+        )?;
 
-            let view = res.new_image_view(ctx, &img)?;
+        let view = res.new_image_view(ctx, &img)?;
 
-            let img = res.insert_image(img);
-            let view = res.insert_image_view(view);
+        let img = res.insert_image(img);
+        let view = res.insert_image_view(view);
 
-            Ok(Self {
-                dims,
-                img,
-                view,
-                format,
-            })
-        })?;
+        Ok(Self {
+            dims,
+            img,
+            view,
+            format,
+        })
+    }
 
-        engine.submit_queue_fn(|ctx, res, alloc, cmd| {
-            let img = &res[result.img];
+    pub fn framebuffer(
+        &self,
+        ctx: &VkContext,
+        res: &mut GpuResources,
+        pass: RenderPassIx,
+    ) -> Result<vk::Framebuffer> {
+        let view = res[self.view];
 
-            VkEngine::transition_image(
-                cmd,
-                ctx.device(),
-                img.image,
-                vk::AccessFlags::empty(),
-                vk::PipelineStageFlags::TOP_OF_PIPE,
-                vk::AccessFlags::COLOR_ATTACHMENT_WRITE,
-                vk::PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT,
-                vk::ImageLayout::UNDEFINED,
-                vk::ImageLayout::COLOR_ATTACHMENT_OPTIMAL,
-            );
+        let attchs = [view];
 
-            Ok(())
-        })?;
+        let [width, height] = self.dims;
 
-        Ok(result)
+        res.create_framebuffer(ctx, pass, &attchs, width, height)
     }
 }
 
@@ -237,20 +227,117 @@ impl EffectInstance {
         device: &ash::Device,
         res: &GpuResources,
         input: DescSetIx,
+        framebuffer: vk::Framebuffer,
         cmd: vk::CommandBuffer,
     ) -> Result<()> {
         //
 
-        todo!();
+        let clear_values = [vk::ClearValue {
+            color: vk::ClearColorValue {
+                float32: [0.0, 0.0, 0.0, 0.0],
+            },
+        }];
+
+        let [width, height] = self.attachments.dims;
+
+        let pass = res[self.def.pass];
+
+        let extent = vk::Extent2D { width, height };
+
+        let pass_begin_info = vk::RenderPassBeginInfo::builder()
+            .render_pass(pass)
+            .framebuffer(framebuffer)
+            .render_area(vk::Rect2D {
+                offset: vk::Offset2D { x: 0, y: 0 },
+                extent,
+            })
+            .clear_values(&clear_values)
+            .build();
+
+        let (pipeline, layout) = res[self.def.pipeline].pipeline_and_layout();
+
+        unsafe {
+            device.cmd_begin_render_pass(
+                cmd,
+                &pass_begin_info,
+                vk::SubpassContents::INLINE,
+            );
+
+            device.cmd_bind_pipeline(
+                cmd,
+                vk::PipelineBindPoint::GRAPHICS,
+                pipeline,
+            );
+
+            let viewport = vk::Viewport {
+                x: 0.0,
+                y: 0.0,
+                width: width as f32,
+                height: height as f32,
+                min_depth: 0.0,
+                max_depth: 1.0,
+            };
+            let viewports = [viewport];
+
+            device.cmd_set_viewport(cmd, 0, &viewports);
+
+            let scissor = vk::Rect2D {
+                offset: vk::Offset2D { x: 0, y: 0 },
+                extent,
+            };
+            let scissors = [scissor];
+
+            device.cmd_set_scissor(cmd, 0, &scissors);
+
+            /*
+            let vx_bufs = [res[vertex_buf].buffer];
+            let offsets = [0];
+            device.cmd_bind_vertex_buffers(cmd, 0, &vx_bufs, &offsets);
+            device.cmd_bind_index_buffer(
+                cmd,
+                res[index_buf].buffer,
+                0,
+                vk::IndexType::UINT32,
+            );
+            */
+
+            let desc_sets = [res[input]];
+            device.cmd_bind_descriptor_sets(
+                cmd,
+                vk::PipelineBindPoint::GRAPHICS,
+                layout,
+                0,
+                &desc_sets,
+                &[],
+            );
+
+            let const_vals = [extent.width as f32, extent.height as f32];
+
+            let constants: &[u8] = bytemuck::cast_slice(&const_vals);
+
+            device.cmd_push_constants(
+                cmd,
+                layout,
+                vk::ShaderStageFlags::FRAGMENT,
+                0,
+                constants,
+            );
+
+            device.cmd_draw(cmd, 3, 1, 0, 0);
+
+            device.cmd_end_render_pass(cmd);
+        }
+
+        Ok(())
     }
 }
 
-pub fn test_effect_instance(engine: &mut VkEngine) -> Result<EffectInstance> {
+pub fn test_effect_instance(
+    engine: &mut VkEngine,
+) -> Result<(EffectInstance, vk::Framebuffer)> {
     let format = vk::Format::R8G8B8A8_UNORM;
 
-    let attchs = EffectAttachments::new(engine, format, [1024, 1024])?;
-
-    let def = engine.with_allocators(|ctx, res, alloc| {
+    let (result, fb) = engine.with_allocators(|ctx, res, alloc| {
         let pass = create_basic_effect_pass(ctx, res)?;
 
         let frag = res.load_shader(
@@ -262,12 +349,37 @@ pub fn test_effect_instance(engine: &mut VkEngine) -> Result<EffectInstance> {
 
         let def = EffectDef::new(ctx, res, pass, frag)?;
 
-        Ok(EffectInstance {
+        let attchs =
+            EffectAttachments::new(ctx, res, alloc, format, [1024, 1024])?;
+
+        let framebuffer = attchs.framebuffer(ctx, res, pass);
+
+        let effect = EffectInstance {
             def,
             attachments: attchs,
             sets: Vec::new(),
-        })
+        };
+
+        Ok((effect, framebuffer))
     })?;
 
-    Ok(def)
+    engine.submit_queue_fn(|ctx, res, alloc, cmd| {
+        let img = &res[result.attachments.img];
+
+        VkEngine::transition_image(
+            cmd,
+            ctx.device(),
+            img.image,
+            vk::AccessFlags::empty(),
+            vk::PipelineStageFlags::TOP_OF_PIPE,
+            vk::AccessFlags::COLOR_ATTACHMENT_WRITE,
+            vk::PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT,
+            vk::ImageLayout::UNDEFINED,
+            vk::ImageLayout::COLOR_ATTACHMENT_OPTIMAL,
+        );
+
+        Ok(())
+    })?;
+
+    Ok((result, fb))
 }
