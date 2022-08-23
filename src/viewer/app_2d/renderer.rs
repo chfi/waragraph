@@ -13,7 +13,7 @@ pub struct GraphRenderer {
     pass: RenderPassIx,
     pipeline: PipelineIx,
 
-    attachments: DeferredAttachments,
+    pub attachments: DeferredAttachments,
     framebuffer: vk::Framebuffer,
 
     vertex_buffer: BufferIx,
@@ -395,14 +395,14 @@ impl GraphRenderer {
 }
 
 pub struct DeferredAttachments {
-    dims: [u32; 2],
+    pub dims: [u32; 2],
 
     /// Render target for node/step IDs
-    node_index_img: ImageIx,
-    node_index_view: ImageViewIx,
+    pub node_index_img: ImageIx,
+    pub node_index_view: ImageViewIx,
 
-    node_uv_img: ImageIx,
-    node_uv_view: ImageViewIx,
+    pub node_uv_img: ImageIx,
+    pub node_uv_view: ImageViewIx,
 }
 
 impl DeferredAttachments {

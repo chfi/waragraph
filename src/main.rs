@@ -349,7 +349,9 @@ fn main() -> anyhow::Result<()> {
         engine.submit_queue_fn(|ctx, res, alloc, cmd| {
             let node_width = 20.0;
 
-            deferred_graph_renderer.as_ref().unwrap().draw_first_pass(
+            let renderer = deferred_graph_renderer.as_ref().unwrap();
+
+            renderer.draw_first_pass(
                 ctx.device(), 
                 res, 
                 // vx_buf, 
@@ -360,6 +362,53 @@ fn main() -> anyhow::Result<()> {
                 node_width, 
                 cmd
             )?;
+
+            unsafe {
+                let dev = ctx.device();
+
+                let src_mask = vk::AccessFlags::COLOR_ATTACHMENT_WRITE;
+                let dst_mask = vk::AccessFlags::SHADER_READ;
+
+                let src_stage = vk::PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT;
+                let dst_stage = vk::PipelineStageFlags::FRAGMENT_SHADER;
+
+                let barrier = vk::ImageMemoryBarrier::builder()
+                    .src_access_mask(src_mask)
+                    .dst_access_mask(dst_mask)
+                    .old_layout(vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL)
+                    .new_layout(vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL)
+                    .subresource_range(vk::ImageSubresourceRange {
+                        aspect_mask: vk::ImageAspectFlags::COLOR,
+                        base_mip_level: 0,
+                        level_count: 1,
+                        base_array_layer: 0,
+                        layer_count: 1,
+                    })
+                    .src_queue_family_index(vk::QUEUE_FAMILY_IGNORED)
+                    .dst_queue_family_index(vk::QUEUE_FAMILY_IGNORED);
+                    
+                let index_img = res[renderer.attachments.node_index_img].image;
+                let uv_img = res[renderer.attachments.node_uv_img].image;
+
+                let mut index_barrier = barrier.clone();
+                index_barrier.image = index_img;
+
+                let mut uv_barrier = barrier.clone();
+                uv_barrier.image = uv_img;
+
+
+                let image_barriers = [index_barrier, uv_barrier];
+
+                dev.cmd_pipeline_barrier(
+                    cmd, 
+                    src_stage,
+                    dst_stage,
+                    vk::DependencyFlags::BY_REGION,
+                    &[],
+                    &[],
+                    &image_barriers
+                );
+            }
 
             Ok(())
         })?;
@@ -623,17 +672,66 @@ bed::load_bed_file(bed_path, bed_name, column_map)
                     engine.submit_queue_fn(|ctx, res, alloc, cmd| {
                         let node_width = 20.0;
             
-                        deferred_graph_renderer.as_ref().unwrap().draw_first_pass(
-                            ctx.device(), 
-                            res, 
-                            // vx_buf, 
-                            ix_buf, 
-                            ubo, 
-                            ix_count, 
-                            inst_count, 
-                            node_width, 
-                            cmd
-                        )?;
+                let renderer = deferred_graph_renderer.as_ref().unwrap();
+    
+                renderer.draw_first_pass(
+                    ctx.device(), 
+                    res, 
+                    // vx_buf, 
+                    ix_buf, 
+                    ubo, 
+                    ix_count, 
+                    inst_count, 
+                    node_width, 
+                    cmd
+                )?;
+    
+                unsafe {
+                    let dev = ctx.device();
+    
+                    let src_mask = vk::AccessFlags::COLOR_ATTACHMENT_WRITE;
+                    let dst_mask = vk::AccessFlags::SHADER_READ;
+    
+                    let src_stage = vk::PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT;
+                    let dst_stage = vk::PipelineStageFlags::FRAGMENT_SHADER;
+    
+                    let barrier = vk::ImageMemoryBarrier::builder()
+                        .src_access_mask(src_mask)
+                        .dst_access_mask(dst_mask)
+                        .old_layout(vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL)
+                        .new_layout(vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL)
+                        .subresource_range(vk::ImageSubresourceRange {
+                            aspect_mask: vk::ImageAspectFlags::COLOR,
+                            base_mip_level: 0,
+                            level_count: 1,
+                            base_array_layer: 0,
+                            layer_count: 1,
+                        })
+                        .src_queue_family_index(vk::QUEUE_FAMILY_IGNORED)
+                        .dst_queue_family_index(vk::QUEUE_FAMILY_IGNORED);
+                        
+                    let index_img = res[renderer.attachments.node_index_img].image;
+                    let uv_img = res[renderer.attachments.node_uv_img].image;
+    
+                    let mut index_barrier = barrier.clone();
+                    index_barrier.image = index_img;
+    
+                    let mut uv_barrier = barrier.clone();
+                    uv_barrier.image = uv_img;
+    
+    
+                    let image_barriers = [index_barrier, uv_barrier];
+    
+                    dev.cmd_pipeline_barrier(
+                        cmd, 
+                        src_stage,
+                        dst_stage,
+                        vk::DependencyFlags::BY_REGION,
+                        &[],
+                        &[],
+                        &image_barriers
+                    );
+                }
             
                         Ok(())
                     }).unwrap();

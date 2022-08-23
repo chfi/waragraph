@@ -352,7 +352,7 @@ pub fn test_effect_instance(
         let attchs =
             EffectAttachments::new(ctx, res, alloc, format, [1024, 1024])?;
 
-        let framebuffer = attchs.framebuffer(ctx, res, pass);
+        let framebuffer = attchs.framebuffer(ctx, res, pass)?;
 
         let effect = EffectInstance {
             def,
