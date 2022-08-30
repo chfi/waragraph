@@ -18,25 +18,11 @@ layout (push_constant) uniform Input {
 } inputs;
 
 void main() {
-  
   ivec2 pixel = ivec2(inputs.out_dims * i_uv);
 
-  
   uint node_id = texelFetch(usampler2D(u_index_img, u_sampler), pixel, 0).r;
-
-  // uint node_id = texture(usampler2D(u_index_img, u_sampler), i_uv).r;
-  // uint node_id = texture(usampler2D(u_index_img, u_sampler), i_uv).r;
-  // uint node_id = texture(sampler2D(u_index_img, u_sampler), i_uv).r;
-  // uint node_id = texelFetch(usampler2D(u_index_img, u_sampler), i_uv).r;
-
-
-  // uint node_id = imageLoad(u_index_img, pixel).r;
 
   vec4 bp_v = texture(sampler2D(u_uv_img, u_sampler), i_uv);
   
   o_color = (node_id == 0xffffffff) ? vec4(0.0) : vec4(1.0);
-
-  // o_color = vec4(bp_v.xyz, 1.0);
-
-  // o_color = vec4(0.0);
 }
