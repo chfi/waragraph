@@ -5,7 +5,7 @@ use crossbeam::atomic::AtomicCell;
 use gpu_allocator::vulkan::Allocator;
 use raving::vk::{
     BufferIx, DescSetIx, FramebufferIx, GpuResources, ImageIx, ImageViewIx,
-    PipelineIx, RenderPassIx, ShaderIx, VkContext, VkEngine,
+    PipelineIx, RenderPassIx, SamplerIx, ShaderIx, VkContext, VkEngine,
 };
 
 use anyhow::Result;
@@ -14,6 +14,82 @@ pub struct Postprocessing {
     effects: HashMap<rhai::ImmutableString, EffectDef>,
 
     attachments: HashMap<rhai::ImmutableString, EffectAttachments>,
+
+    pub nn_sampler: SamplerIx,
+    pub lin_sampler: SamplerIx,
+}
+
+impl Postprocessing {
+    pub fn initialize(engine: &mut VkEngine) -> Result<Self> {
+        let (nn_sampler, lin_sampler) =
+            engine.with_allocators(|ctx, res, _alloc| {
+                let nn_sampler = Self::create_nn_sampler(ctx, res)?;
+                let lin_sampler = Self::create_lin_sampler(ctx, res)?;
+
+                Ok((nn_sampler, lin_sampler))
+            })?;
+
+        Ok(Self {
+            effects: Default::default(),
+            attachments: Default::default(),
+            nn_sampler,
+            lin_sampler,
+        })
+    }
+
+    fn create_nn_sampler(
+        ctx: &VkContext,
+        res: &mut GpuResources,
+    ) -> Result<SamplerIx> {
+        let sampler = {
+            let sampler_info = vk::SamplerCreateInfo::builder()
+                .mag_filter(vk::Filter::NEAREST)
+                .min_filter(vk::Filter::NEAREST)
+                .address_mode_u(vk::SamplerAddressMode::CLAMP_TO_EDGE)
+                .address_mode_v(vk::SamplerAddressMode::CLAMP_TO_EDGE)
+                .address_mode_w(vk::SamplerAddressMode::CLAMP_TO_EDGE)
+                .anisotropy_enable(false)
+                // .anisotropy_enable(true)
+                // .max_anisotropy(16.0)
+                .mipmap_mode(vk::SamplerMipmapMode::NEAREST)
+                .mip_lod_bias(0.0)
+                .min_lod(0.0)
+                .max_lod(1.0)
+                .unnormalized_coordinates(false)
+                .build();
+
+            res.insert_sampler(ctx, sampler_info)?
+        };
+
+        Ok(sampler)
+    }
+
+    fn create_lin_sampler(
+        ctx: &VkContext,
+        res: &mut GpuResources,
+    ) -> Result<SamplerIx> {
+        let sampler = {
+            let sampler_info = vk::SamplerCreateInfo::builder()
+                .mag_filter(vk::Filter::LINEAR)
+                .min_filter(vk::Filter::LINEAR)
+                .address_mode_u(vk::SamplerAddressMode::CLAMP_TO_EDGE)
+                .address_mode_v(vk::SamplerAddressMode::CLAMP_TO_EDGE)
+                .address_mode_w(vk::SamplerAddressMode::CLAMP_TO_EDGE)
+                .anisotropy_enable(false)
+                // .anisotropy_enable(true)
+                // .max_anisotropy(16.0)
+                .mipmap_mode(vk::SamplerMipmapMode::LINEAR)
+                .mip_lod_bias(0.0)
+                .min_lod(0.0)
+                .max_lod(1.0)
+                .unnormalized_coordinates(false)
+                .build();
+
+            res.insert_sampler(ctx, sampler_info)?
+        };
+
+        Ok(sampler)
+    }
 }
 
 #[derive(Clone, Copy)]
