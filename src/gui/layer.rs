@@ -1,7 +1,7 @@
 use parking_lot::RwLock;
 use raving::compositor::label_space::LabelSpace;
 use raving::vk::context::VkContext;
-use raving::vk::{BufferIx, DescSetIx, GpuResources, VkEngine};
+use raving::vk::{BufferIx, DescSetIx, GpuResources, ImageIx, VkEngine, ImageViewIx};
 
 use raving::compositor::*;
 
@@ -139,6 +139,42 @@ pub fn add_sublayer_defs(
     })
 }
 
+pub fn create_image_desc_set(
+    res: &mut GpuResources,
+    compositor: &mut Compositor,
+    img_view: ImageViewIx,
+) -> Result<DescSetIx> {
+    let sublayer_def = &compositor.sublayer_defs["sample_image"];
+
+    let frag = res[sublayer_def.clear_pipeline].fragment.unwrap();
+
+    let (layout_info, set_info) = {
+        let shader = &res[frag];
+
+        let layout_info = shader.set_layout_info(0)?;
+        let set_info = shader.set_infos[&0].clone();
+
+        (layout_info, set_info)
+    };
+
+    let desc_set = res.allocate_desc_set_raw(
+        &layout_info,
+        &set_info,
+        |res, desc_builder| {
+            let image_info = vk::DescriptorImageInfo::builder()
+                .image_layout(vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL)
+                .image_view(res[img_view])
+                .build();
+            desc_builder.bind_image(0, &[image_info]);
+            Ok(())
+        },
+    )?;
+
+    let set_ix = res.insert_desc_set(desc_set);
+
+    Ok(set_ix)
+}
+
 pub(super) fn image_sublayer(
     ctx: &VkContext,
     res: &mut GpuResources,
@@ -198,7 +234,7 @@ pub(super) fn image_sublayer(
                 Ok(())
             },
         )?;
-        
+
         let set_ix = res.insert_desc_set(desc_set);
 
         set_ix
