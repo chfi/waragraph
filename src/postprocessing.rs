@@ -100,12 +100,12 @@ pub struct EffectDef {
 }
 
 pub struct EffectAttachments {
-    dims: [u32; 2],
+    pub dims: [u32; 2],
 
-    img: ImageIx,
-    view: ImageViewIx,
+    pub img: ImageIx,
+    pub view: ImageViewIx,
 
-    format: vk::Format,
+    pub format: vk::Format,
 }
 
 impl EffectAttachments {
