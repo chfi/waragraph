@@ -13,8 +13,7 @@ use anyhow::Result;
 pub struct Postprocessing {
     effects: HashMap<rhai::ImmutableString, EffectDef>,
 
-    attachments: HashMap<rhai::ImmutableString, EffectAttachments>,
-
+    // attachments: HashMap<rhai::ImmutableString, EffectAttachments>,
     pub nn_sampler: SamplerIx,
     pub lin_sampler: SamplerIx,
 }
@@ -31,7 +30,7 @@ impl Postprocessing {
 
         Ok(Self {
             effects: Default::default(),
-            attachments: Default::default(),
+            // attachments: Default::default(),
             nn_sampler,
             lin_sampler,
         })
@@ -161,6 +160,92 @@ impl EffectAttachments {
         let [width, height] = self.dims;
 
         res.create_framebuffer(ctx, pass, &attchs, width, height)
+    }
+
+    pub fn transition_to_read(
+        &self,
+        device: &ash::Device,
+        res: &GpuResources,
+        cmd: vk::CommandBuffer,
+    ) {
+        let src_mask = vk::AccessFlags::COLOR_ATTACHMENT_WRITE;
+        let dst_mask = vk::AccessFlags::SHADER_READ;
+
+        let src_stage = vk::PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT;
+        let dst_stage = vk::PipelineStageFlags::FRAGMENT_SHADER;
+
+        let old_layout = vk::ImageLayout::COLOR_ATTACHMENT_OPTIMAL;
+        let new_layout = vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL;
+
+        self.transition(
+            device, res, cmd, src_mask, dst_mask, src_stage, dst_stage,
+            old_layout, new_layout,
+        );
+    }
+    
+    pub fn transition_to_write(
+        &self,
+        device: &ash::Device,
+        res: &GpuResources,
+        cmd: vk::CommandBuffer,
+    ) {
+        let src_mask = vk::AccessFlags::SHADER_READ;
+        let dst_mask = vk::AccessFlags::COLOR_ATTACHMENT_WRITE;
+
+        let src_stage = vk::PipelineStageFlags::FRAGMENT_SHADER;
+        let dst_stage = vk::PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT;
+
+        let old_layout = vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL;
+        let new_layout = vk::ImageLayout::COLOR_ATTACHMENT_OPTIMAL;
+
+        self.transition(
+            device, res, cmd, src_mask, dst_mask, src_stage, dst_stage,
+            old_layout, new_layout,
+        );
+    }
+
+    fn transition(
+        &self,
+        device: &ash::Device,
+        res: &GpuResources,
+        cmd: vk::CommandBuffer,
+        src_mask: vk::AccessFlags,
+        dst_mask: vk::AccessFlags,
+        src_stage: vk::PipelineStageFlags,
+        dst_stage: vk::PipelineStageFlags,
+        old_layout: vk::ImageLayout,
+        new_layout: vk::ImageLayout,
+    ) {
+        unsafe {
+            let img_barrier = vk::ImageMemoryBarrier::builder()
+                .src_access_mask(src_mask)
+                .dst_access_mask(dst_mask)
+                .old_layout(old_layout)
+                .new_layout(new_layout)
+                .subresource_range(vk::ImageSubresourceRange {
+                    aspect_mask: vk::ImageAspectFlags::COLOR,
+                    base_mip_level: 0,
+                    level_count: 1,
+                    base_array_layer: 0,
+                    layer_count: 1,
+                })
+                .src_queue_family_index(vk::QUEUE_FAMILY_IGNORED)
+                .dst_queue_family_index(vk::QUEUE_FAMILY_IGNORED)
+                .image(res[self.img].image)
+                .build();
+
+            let image_barriers = [img_barrier];
+
+            device.cmd_pipeline_barrier(
+                cmd,
+                src_stage,
+                dst_stage,
+                vk::DependencyFlags::BY_REGION,
+                &[],
+                &[],
+                &image_barriers,
+            );
+        }
     }
 }
 
