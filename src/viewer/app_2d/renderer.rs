@@ -1,4 +1,5 @@
 use ash::vk;
+use gpu_allocator::vulkan::Allocator;
 use raving::vk::{
     BufferIx, DescSetIx, FramebufferIx, GpuResources, ImageIx, ImageViewIx,
     PipelineIx, RenderPassIx, SamplerIx, ShaderIx, VkContext, VkEngine,
@@ -445,6 +446,122 @@ impl GraphRenderer {
 
         Ok(pipeline)
     }
+}
+
+
+#[derive(Clone)]
+pub struct AttachmentSet {
+    dims: [u32; 2],
+
+    names: Vec<String>,
+    images: Vec<ImageIx>,
+    views: Vec<ImageViewIx>,
+    formats: Vec<vk::Format>,
+
+    initialized: bool,
+}
+
+impl AttachmentSet {
+    
+    fn image_usage() -> vk::ImageUsageFlags {
+        vk::ImageUsageFlags::COLOR_ATTACHMENT
+            | vk::ImageUsageFlags::SAMPLED
+            | vk::ImageUsageFlags::STORAGE
+    }
+
+    pub fn new<'a>(
+        ctx: &VkContext, 
+        res: &mut GpuResources, 
+        alloc: &mut Allocator, 
+        dims: [u32; 2], 
+        entries: impl IntoIterator<Item = (&'a str, vk::Format)>,
+    ) -> Result<Self> {
+        let [width, height] = dims;
+
+        let mut names = Vec::new();
+        let mut images = Vec::new();
+        let mut views = Vec::new();
+        let mut formats = Vec::new();
+        
+        let usage = Self::image_usage();
+
+        for (name, format) in entries {
+            let image = res.allocate_image(
+                ctx,
+                alloc,
+                width,
+                height,
+                format,
+                usage,
+                Some(name),
+            )?;
+            
+            let view = res.new_image_view(ctx, &image)?;
+
+            let image = res.insert_image(image);
+            let view = res.insert_image_view(view);
+
+            names.push(name.to_string());
+            images.push(image);
+            views.push(view);
+            formats.push(format);
+        }
+
+        Ok(Self {
+            dims,
+
+            names,
+            images,
+            views,
+            formats,
+
+            initialized: false,
+        })
+        
+    }
+    
+
+
+    
+    /*
+    pub fn new_(engine: &mut VkEngine, dims: [u32; 2]) -> Result<Self> {
+        let [width, height] = dims;
+
+        // transition images
+        engine.submit_queue_fn(|ctx, res, alloc, cmd| {
+            let index_img = &res[result.node_index_img];
+            let uv_img = &res[result.node_uv_img];
+
+            VkEngine::transition_image(
+                cmd,
+                ctx.device(),
+                index_img.image,
+                vk::AccessFlags::empty(),
+                vk::PipelineStageFlags::TOP_OF_PIPE,
+                vk::AccessFlags::COLOR_ATTACHMENT_WRITE,
+                vk::PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT,
+                vk::ImageLayout::UNDEFINED,
+                vk::ImageLayout::COLOR_ATTACHMENT_OPTIMAL,
+            );
+
+            VkEngine::transition_image(
+                cmd,
+                ctx.device(),
+                uv_img.image,
+                vk::AccessFlags::empty(),
+                vk::PipelineStageFlags::TOP_OF_PIPE,
+                vk::AccessFlags::COLOR_ATTACHMENT_WRITE,
+                vk::PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT,
+                vk::ImageLayout::UNDEFINED,
+                vk::ImageLayout::COLOR_ATTACHMENT_OPTIMAL,
+            );
+
+            Ok(())
+        })?;
+
+        Ok(result)
+    }
+    */
 }
 
 pub struct DeferredAttachments {
