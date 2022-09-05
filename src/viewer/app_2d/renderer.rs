@@ -132,9 +132,6 @@ impl GraphRenderer {
             .clear_values(&clear_values)
             .build();
 
-        let vertices = &res[vertex_buf];
-        let indices = &res[index_buf];
-
         let (pipeline, layout) = res[self.pipeline].pipeline_and_layout();
 
         unsafe {
@@ -703,16 +700,6 @@ impl AttachmentSet {
 
 pub struct DeferredAttachments {
     pub attachment_set: AttachmentSet,
-    /*
-    pub dims: [u32; 2],
-
-    /// Render target for node/step IDs
-    pub node_index_img: ImageIx,
-    pub node_index_view: ImageViewIx,
-
-    pub node_uv_img: ImageIx,
-    pub node_uv_view: ImageViewIx,
-    */
 }
 
 impl DeferredAttachments {

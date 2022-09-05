@@ -1,7 +1,5 @@
 use raving::vk::context::VkContext;
-use raving::vk::{
-    DescSetIx, GpuResources, ImageViewIx, 
-};
+use raving::vk::{DescSetIx, GpuResources, ImageViewIx};
 
 use raving::compositor::*;
 
@@ -29,19 +27,20 @@ pub fn create_image_desc_set(
     compositor: &mut Compositor,
     img_view: ImageViewIx,
 ) -> Result<DescSetIx> {
-    let sublayer_def = &compositor.sublayer_defs["sample_image"];
+    let sublayer_def = &compositor.sublayer_defs["image"];
 
     let frag = res[sublayer_def.clear_pipeline].fragment.unwrap();
 
     let (layout_info, set_info) = {
         let shader = &res[frag];
 
-        let layout_info = shader.set_layout_info(0)?;
-        let set_info = shader.set_infos[&0].clone();
+        let layout_info = shader.set_layout_info(1)?;
+        let set_info = shader.set_infos[&1].clone();
 
         (layout_info, set_info)
     };
 
+    log::error!("allocating `image` sublayer draw data desc set");
     let desc_set = res.allocate_desc_set_raw(
         &layout_info,
         &set_info,
@@ -54,7 +53,8 @@ pub fn create_image_desc_set(
             Ok(())
         },
     )?;
-
+    log::error!("desc set allocated");
+    
     let set_ix = res.insert_desc_set(desc_set);
 
     Ok(set_ix)
@@ -82,18 +82,21 @@ pub(super) fn image_sublayer(
 
     let sampler_set: DescSetIx = {
         let sampler_info = vk::SamplerCreateInfo::builder()
-            .mag_filter(vk::Filter::LINEAR)
-            .min_filter(vk::Filter::LINEAR)
+            // .mag_filter(vk::Filter::LINEAR)
+            // .min_filter(vk::Filter::LINEAR)
+            .mag_filter(vk::Filter::NEAREST)
+            .min_filter(vk::Filter::NEAREST)
             .address_mode_u(vk::SamplerAddressMode::CLAMP_TO_EDGE)
             .address_mode_v(vk::SamplerAddressMode::CLAMP_TO_EDGE)
             .address_mode_w(vk::SamplerAddressMode::CLAMP_TO_EDGE)
             .anisotropy_enable(false)
             // .anisotropy_enable(true)
             // .max_anisotropy(16.0)
-            .mipmap_mode(vk::SamplerMipmapMode::LINEAR)
+            // .mipmap_mode(vk::SamplerMipmapMode::LINEAR)
+            .mipmap_mode(vk::SamplerMipmapMode::NEAREST)
             .mip_lod_bias(0.0)
             .min_lod(0.0)
-            .max_lod(1.0)
+            .max_lod(0.0)
             .unnormalized_coordinates(true)
             .build();
 
@@ -108,6 +111,7 @@ pub(super) fn image_sublayer(
             (layout_info, set_info)
         };
 
+        log::error!("allocating `image` sublayer def desc set");
         let desc_set = res.allocate_desc_set_raw(
             &layout_info,
             &set_info,
@@ -120,6 +124,7 @@ pub(super) fn image_sublayer(
             },
         )?;
 
+        log::error!("desc set allocated");
         let set_ix = res.insert_desc_set(desc_set);
 
         set_ix
