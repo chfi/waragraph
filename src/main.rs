@@ -261,8 +261,6 @@ fn main() -> anyhow::Result<()> {
                                             //  None,
                                              Some(path_to_show),
                                             )?;
-
-                                            
     
         deferred_graph_renderer = Some(GraphRenderer::initialize(&mut engine, &graph, &viewer.layout, [1024, 1024])?);
 
@@ -336,7 +334,10 @@ fn main() -> anyhow::Result<()> {
     if let Some(viewer_2d) = viewer_2d.as_mut() {
         viewer_2d.update(&mut engine, &mut compositor)?;
 
+        viewer_2d.update_image_set(&mut compositor, eff_desc_set)?;
+
         let renderer = deferred_graph_renderer.as_ref().unwrap();
+
         let input = renderer
             .attachments
             .attachment_set
@@ -604,7 +605,7 @@ bed::load_bed_file(bed_path, bed_name, column_map)
                     }).unwrap();
             
                     engine.submit_queue_fn(|ctx, res, alloc, cmd| {
-                        let node_width = 20.0;
+                        let node_width = 10.0;
             
                         let renderer = deferred_graph_renderer.as_ref().unwrap();
             

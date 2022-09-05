@@ -2,13 +2,13 @@ use anyhow::Result;
 use nalgebra::{vector, Vector2};
 use raving::{
     compositor::{Compositor, SublayerAllocMsg},
-    vk::{BufferIx, VkEngine},
+    vk::{BufferIx, DescSetIx, VkEngine},
 };
 
 use crossbeam::atomic::AtomicCell;
 use std::sync::Arc;
 
-use crate::{geometry::graph::GraphLayout, graph::Waragraph};
+use crate::{geometry::graph::GraphLayout, graph::Waragraph, postprocessing};
 
 pub mod renderer;
 
@@ -30,6 +30,7 @@ pub struct Viewer2D {
 impl Viewer2D {
     pub const LAYER_NAME: &'static str = "graph-viewer-2d";
     pub const NODE_SUBLAYER: &'static str = "nodes";
+    pub const IMAGE_SUBLAYER: &'static str = "image";
 
     pub fn create_index_buffer_for_path(
         engine: &mut VkEngine,
@@ -64,7 +65,8 @@ impl Viewer2D {
                 for (ix, node) in nodes.iter().enumerate() {
                     let i = ix * 4;
                     let j = i + 4;
-                    mapped[i..j].clone_from_slice(bytemuck::cast_slice(&[node]));
+                    mapped[i..j]
+                        .clone_from_slice(bytemuck::cast_slice(&[node]));
                 }
             }
 
@@ -74,6 +76,45 @@ impl Viewer2D {
         })?;
 
         Ok((buf, node_count))
+    }
+
+    pub fn update_image_set(
+        &mut self,
+        compositor: &mut Compositor,
+        set: DescSetIx,
+    ) -> Result<()> {
+        compositor.with_layer(Self::LAYER_NAME, |layer| {
+            let sublayer =
+                layer.get_sublayer_mut(Self::IMAGE_SUBLAYER).unwrap();
+
+            let data = &mut sublayer.draw_data[0];
+
+            data.update_sets([set]);
+
+            /*
+            log::error!("pre update sets len: {}", data.sets().len());
+
+            if data.sets().len() <= 1 {
+                data.sets_mut().push(set);
+            } else {
+                data.sets_mut()[1] = set;
+            }
+            
+            log::error!("post update sets len: {}", data.sets().len());
+            */
+
+            let vx = crate::gui::layer::image_vertex(
+                [0.0, 0.0],
+                [1000.0, 1000.0],
+                [0.0, 0.0],
+                [400.0, 400.0],
+            );
+            data.update_vertices_array([vx])?;
+
+            Ok(())
+        })?;
+
+        Ok(())
     }
 
     pub fn new(
@@ -89,6 +130,14 @@ impl Viewer2D {
             Self::LAYER_NAME.into(),
             Self::NODE_SUBLAYER.into(),
             "nodes_polyline".into(),
+            &[],
+        );
+        compositor.sublayer_alloc_tx.send(sublayer_msg)?;
+
+        let sublayer_msg = SublayerAllocMsg::new(
+            Self::LAYER_NAME.into(),
+            Self::IMAGE_SUBLAYER.into(),
+            "image".into(),
             &[],
         );
         compositor.sublayer_alloc_tx.send(sublayer_msg)?;
@@ -134,9 +183,7 @@ impl Viewer2D {
             view: Arc::new(view.into()),
         };
 
-        viewer
-            .layout
-            .update_layer(compositor, Self::LAYER_NAME)?;
+        viewer.layout.update_layer(compositor, Self::LAYER_NAME)?;
 
         Ok(viewer)
     }
