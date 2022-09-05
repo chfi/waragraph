@@ -116,7 +116,7 @@ impl GraphRenderer {
 
         let vertex_buf = self.vertex_buffer;
 
-        let [width, height] = self.attachments.dims;
+        let [width, height] = self.attachments.attachment_set.dims;
 
         let pass = res[self.pass];
 
@@ -219,51 +219,18 @@ impl GraphRenderer {
         res: &GpuResources,
         cmd: vk::CommandBuffer,
     ) {
-        unsafe {
-            let dev = ctx.device();
+        let layout = vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL;
 
-            let src_mask = vk::AccessFlags::COLOR_ATTACHMENT_WRITE;
-            let dst_mask = vk::AccessFlags::SHADER_READ;
+        let src_access = vk::AccessFlags::COLOR_ATTACHMENT_WRITE;
+        let dst_access = vk::AccessFlags::SHADER_READ;
 
-            let src_stage = vk::PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT;
-            let dst_stage = vk::PipelineStageFlags::FRAGMENT_SHADER;
+        let src_stage = vk::PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT;
+        let dst_stage = vk::PipelineStageFlags::FRAGMENT_SHADER;
 
-            let barrier = vk::ImageMemoryBarrier::builder()
-                .src_access_mask(src_mask)
-                .dst_access_mask(dst_mask)
-                .old_layout(vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL)
-                .new_layout(vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL)
-                .subresource_range(vk::ImageSubresourceRange {
-                    aspect_mask: vk::ImageAspectFlags::COLOR,
-                    base_mip_level: 0,
-                    level_count: 1,
-                    base_array_layer: 0,
-                    layer_count: 1,
-                })
-                .src_queue_family_index(vk::QUEUE_FAMILY_IGNORED)
-                .dst_queue_family_index(vk::QUEUE_FAMILY_IGNORED);
-
-            let index_img = res[self.attachments.node_index_img].image;
-            let uv_img = res[self.attachments.node_uv_img].image;
-
-            let mut index_barrier = barrier.clone();
-            index_barrier.image = index_img;
-
-            let mut uv_barrier = barrier.clone();
-            uv_barrier.image = uv_img;
-
-            let image_barriers = [index_barrier, uv_barrier];
-
-            dev.cmd_pipeline_barrier(
-                cmd,
-                src_stage,
-                dst_stage,
-                vk::DependencyFlags::BY_REGION,
-                &[],
-                &[],
-                &image_barriers,
-            );
-        }
+        self.attachments.attachment_set.transition(
+            ctx.device(), res, cmd, src_access, dst_access, src_stage, dst_stage,
+            layout, layout,
+        );
     }
 
     fn create_pass(
@@ -465,6 +432,10 @@ impl AttachmentSet {
         vk::ImageUsageFlags::COLOR_ATTACHMENT
             | vk::ImageUsageFlags::SAMPLED
             | vk::ImageUsageFlags::STORAGE
+    }
+
+    pub fn is_initialized(&self) -> bool {
+        self.initialized
     }
 
     pub fn new<'a>(
@@ -683,9 +654,56 @@ impl AttachmentSet {
 
         res.create_framebuffer(ctx, pass, &attchs, width, height)
     }
+
+    // invalidates descriptor sets and framebuffers!
+    pub fn reallocate(
+        &mut self,
+        ctx: &VkContext,
+        res: &mut GpuResources,
+        alloc: &mut Allocator,
+        dims: [u32; 2],
+    ) -> Result<()> {
+        self.initialized = false;
+
+        let usage = Self::image_usage();
+        let [width, height] = dims;
+
+        for (ix, (&image_ix, &view_ix)) in
+            std::iter::zip(&self.images, &self.views).enumerate()
+        {
+            let image = res.allocate_image(
+                ctx,
+                alloc,
+                width,
+                height,
+                self.formats[ix],
+                usage,
+                Some(self.names[ix].as_str()),
+            )?;
+
+            let view = res.new_image_view(ctx, &image)?;
+
+            let old_image = res.insert_image_at(image_ix, image);
+            let old_view = res.insert_image_view_at(view_ix, view);
+
+            if let Some(view) = old_view {
+                unsafe {
+                    ctx.device().destroy_image_view(view, None);
+                }
+            }
+
+            if let Some(image) = old_image {
+                res.free_image(ctx, alloc, image)?;
+            }
+        }
+
+        Ok(())
+    }
 }
 
 pub struct DeferredAttachments {
+    pub attachment_set: AttachmentSet,
+    /*
     pub dims: [u32; 2],
 
     /// Render target for node/step IDs
@@ -694,6 +712,7 @@ pub struct DeferredAttachments {
 
     pub node_uv_img: ImageIx,
     pub node_uv_view: ImageViewIx,
+    */
 }
 
 impl DeferredAttachments {
@@ -707,137 +726,23 @@ impl DeferredAttachments {
             | vk::ImageUsageFlags::STORAGE
     }
 
-    pub fn node_uv_usage() -> vk::ImageUsageFlags {
-        vk::ImageUsageFlags::COLOR_ATTACHMENT
-            | vk::ImageUsageFlags::SAMPLED
-            | vk::ImageUsageFlags::STORAGE
-    }
-
-    pub fn create_desc_set_for_shader(
-        &self,
-        res: &mut GpuResources,
-        shader: ShaderIx,
-        set_ix: u32,
-        sampler: SamplerIx,
-    ) -> Result<DescSetIx> {
-        let (layout_info, set_info) = {
-            let shader = &res[shader];
-
-            let layout_info = shader.set_layout_info(set_ix)?;
-            let set_info = shader.set_infos[&set_ix].clone();
-
-            (layout_info, set_info)
-        };
-
-        let desc_set = res.allocate_desc_set_raw(
-            &layout_info,
-            &set_info,
-            |res, desc_builder| {
-                let sampler_info = vk::DescriptorImageInfo::builder()
-                    .sampler(res[sampler])
-                    .build();
-
-                let id_view = res[self.node_index_view];
-                let uv_view = res[self.node_uv_view];
-
-                let index_info = vk::DescriptorImageInfo::builder()
-                    .image_layout(vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL)
-                    .image_view(id_view)
-                    .build();
-
-                let uv_info = vk::DescriptorImageInfo::builder()
-                    .image_layout(vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL)
-                    .image_view(uv_view)
-                    .build();
-
-                desc_builder.bind_image(0, &[sampler_info]);
-                desc_builder.bind_image(1, &[index_info]);
-                desc_builder.bind_image(2, &[uv_info]);
-
-                Ok(())
-            },
-        )?;
-
-        let set_ix = res.insert_desc_set(desc_set);
-
-        Ok(set_ix)
-    }
-
     pub fn new(engine: &mut VkEngine, dims: [u32; 2]) -> Result<Self> {
-        let [width, height] = dims;
-
-        let result = engine.with_allocators(|ctx, res, alloc| {
-            let index_img = res.allocate_image(
+        let mut result = engine.with_allocators(|ctx, res, alloc| {
+            let attachment_set = AttachmentSet::new(
                 ctx,
+                res,
                 alloc,
-                width,
-                height,
-                Self::NODE_INDEX_FORMAT,
-                Self::node_index_usage(),
-                Some("deferred_node_index"),
-            )?;
-
-            let uv_img = res.allocate_image(
-                ctx,
-                alloc,
-                width,
-                height,
-                Self::NODE_UV_FORMAT,
-                Self::node_uv_usage(),
-                Some("deferred_node_uv"),
-            )?;
-
-            let index_view = res.new_image_view(ctx, &index_img)?;
-            let uv_view = res.new_image_view(ctx, &uv_img)?;
-
-            let node_index_img = res.insert_image(index_img);
-            let node_index_view = res.insert_image_view(index_view);
-
-            let node_uv_img = res.insert_image(uv_img);
-            let node_uv_view = res.insert_image_view(uv_view);
-
-            Ok(Self {
                 dims,
+                [
+                    ("deferred_node_index", Self::NODE_INDEX_FORMAT),
+                    ("deferred_node_iv", Self::NODE_UV_FORMAT),
+                ],
+            )?;
 
-                node_index_img,
-                node_index_view,
-
-                node_uv_img,
-                node_uv_view,
-            })
+            Ok(Self { attachment_set })
         })?;
 
-        // transition images
-        engine.submit_queue_fn(|ctx, res, alloc, cmd| {
-            let index_img = &res[result.node_index_img];
-            let uv_img = &res[result.node_uv_img];
-
-            VkEngine::transition_image(
-                cmd,
-                ctx.device(),
-                index_img.image,
-                vk::AccessFlags::empty(),
-                vk::PipelineStageFlags::TOP_OF_PIPE,
-                vk::AccessFlags::COLOR_ATTACHMENT_WRITE,
-                vk::PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT,
-                vk::ImageLayout::UNDEFINED,
-                vk::ImageLayout::COLOR_ATTACHMENT_OPTIMAL,
-            );
-
-            VkEngine::transition_image(
-                cmd,
-                ctx.device(),
-                uv_img.image,
-                vk::AccessFlags::empty(),
-                vk::PipelineStageFlags::TOP_OF_PIPE,
-                vk::AccessFlags::COLOR_ATTACHMENT_WRITE,
-                vk::PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT,
-                vk::ImageLayout::UNDEFINED,
-                vk::ImageLayout::COLOR_ATTACHMENT_OPTIMAL,
-            );
-
-            Ok(())
-        })?;
+        result.attachment_set.initialize(engine)?;
 
         Ok(result)
     }
@@ -848,21 +753,6 @@ impl DeferredAttachments {
         res: &mut GpuResources,
         pass: RenderPassIx,
     ) -> Result<vk::Framebuffer> {
-        let index_view = res[self.node_index_view];
-        let uv_view = res[self.node_uv_view];
-
-        let attchs = [index_view, uv_view];
-
-        let [width, height] = self.dims;
-
-        res.create_framebuffer(ctx, pass, &attchs, width, height)
-    }
-
-    pub fn reallocate(
-        &mut self,
-        engine: &mut VkEngine,
-        dims: [u32; 2],
-    ) -> Result<()> {
-        todo!();
+        self.attachment_set.framebuffer(ctx, res, pass)
     }
 }

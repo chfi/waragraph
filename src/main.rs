@@ -322,67 +322,31 @@ fn main() -> anyhow::Result<()> {
 
     let (effect, eff_fb) = waragraph::postprocessing::test_effect_instance(&mut engine)?;
 
+    let eff_desc_set = 
+        waragraph::gui::layer::create_image_desc_set(
+            &mut engine.resources, 
+            &mut compositor, 
+            effect.attachments.view
+        )?;
+
+    let mut postprocessing = waragraph::postprocessing::Postprocessing::initialize(&mut engine)?;
+
     let mut effect_input = None;
-    let mut effect_sampler = None;
 
     if let Some(viewer_2d) = viewer_2d.as_mut() {
         viewer_2d.update(&mut engine, &mut compositor)?;
 
-        
-        let (vx_buf, ix_buf, ix_count, inst_count, ubo) = compositor.with_layer(Viewer2D::LAYER_NAME, |layer| {
-            let sublayer = layer.get_sublayer_mut(Viewer2D::NODE_SUBLAYER).unwrap();
-            let data = &sublayer.draw_data[0];
-
-            let vx = data.vertex_buffer();
-            let (ix, ix_count) = data.indices().unwrap();
-            let vertex_count = data.vertex_count();
-
-            let inst_count = data.instance_count();
-
-            let (instances, index_count) = if inst_count > 1 {
-                (ix_count as u32, vertex_count as u32)
-            } else {
-                (1, ix_count as u32)
-            };
-
-            let ubo = data.sets()[0];
-
-            Ok((vx, ix, index_count, instances, ubo))
-
-        })?;
-        
-        {
-            let renderer = deferred_graph_renderer.as_ref().unwrap();
-
-            let sampler = {
-                let sampler_info = vk::SamplerCreateInfo::builder()
-                    .mag_filter(vk::Filter::NEAREST)
-                    .min_filter(vk::Filter::NEAREST)
-                    .address_mode_u(vk::SamplerAddressMode::CLAMP_TO_EDGE)
-                    .address_mode_v(vk::SamplerAddressMode::CLAMP_TO_EDGE)
-                    .address_mode_w(vk::SamplerAddressMode::CLAMP_TO_EDGE)
-                    .anisotropy_enable(false)
-                    // .anisotropy_enable(true)
-                    // .max_anisotropy(16.0)
-                    .mipmap_mode(vk::SamplerMipmapMode::LINEAR)
-                    .mip_lod_bias(0.0)
-                    .min_lod(0.0)
-                    .max_lod(1.0)
-                    .unnormalized_coordinates(false)
-                    .build();
-    
-                engine
-                    .resources
-                    .insert_sampler(&engine.context, sampler_info)?
-            };
-
-            effect_sampler = Some(sampler);
-
-            let input = renderer.attachments.create_desc_set_for_shader(&mut engine.resources, effect.def.frag, 0, sampler)?;
-            
-            effect_input = Some(input);
-        }
-
+        let renderer = deferred_graph_renderer.as_ref().unwrap();
+        let input = renderer
+            .attachments
+            .attachment_set
+            .create_desc_set_for_shader(
+                &mut engine.resources, 
+                effect.def.frag, 
+                0, 
+                postprocessing.nn_sampler
+            )?;
+        effect_input = Some(input);
     }
 
     let debug_layer_id = 0usize;
@@ -657,8 +621,12 @@ bed::load_bed_file(bed_path, bed_name, column_map)
                         )?;
             
                         renderer.first_pass_barrier(ctx, res, cmd);
+                        
+                        effect.attachments.transition_to_write(ctx.device(), res, cmd);
 
                         effect.draw(ctx.device(), res, effect_input.unwrap(), eff_fb, cmd)?;
+
+                        // effect.attachments.transition_to_read(ctx.device(), res, cmd);
             
                         Ok(())
                     }).unwrap();
