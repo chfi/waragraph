@@ -23,6 +23,8 @@ void main() {
   uint node_id = texelFetch(usampler2D(u_index_img, u_sampler), pixel, 0).r;
 
   vec4 bp_v = texture(sampler2D(u_uv_img, u_sampler), i_uv);
+
+  int bp = int(bp_v.x);
   
-  o_color = (node_id == 0xffffffff) ? vec4(0.0) : vec4(1.0);
+  o_color = (node_id == 0xffffffff) ? vec4(0.0) : vec4(bp % 50, 0.3, bp_v.y, 1.0);
 }
