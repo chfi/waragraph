@@ -15,5 +15,11 @@ layout (push_constant) uniform Input {
 } inputs;
 
 void main() {
-  f_color = texture(sampler2D(u_src, u_sampler), i_uv);
+
+  vec2 pos = gl_FragCoord.xy / inputs.window_dims;
+  
+  // f_color = vec4(1.0, pos.x, pos.y, 1.0);
+  // f_color = texture(sampler2D(u_src, u_sampler), i_uv);
+
+  f_color = texture(sampler2D(u_src, u_sampler), pos * vec2(1024));
 }
