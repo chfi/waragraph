@@ -225,8 +225,43 @@ impl GraphRenderer {
         let dst_stage = vk::PipelineStageFlags::FRAGMENT_SHADER;
 
         self.attachments.attachment_set.transition(
-            ctx.device(), res, cmd, src_access, dst_access, src_stage, dst_stage,
-            layout, layout,
+            ctx.device(),
+            res,
+            cmd,
+            src_access,
+            dst_access,
+            src_stage,
+            dst_stage,
+            layout,
+            layout,
+        );
+    }
+
+    pub fn reset_barrier(
+        &self,
+        ctx: &VkContext,
+        res: &GpuResources,
+        cmd: vk::CommandBuffer,
+    ) {
+        let old_layout = vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL;
+        let new_layout = vk::ImageLayout::COLOR_ATTACHMENT_OPTIMAL;
+
+        let src_access = vk::AccessFlags::COLOR_ATTACHMENT_WRITE;
+        let dst_access = vk::AccessFlags::SHADER_READ;
+
+        let src_stage = vk::PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT;
+        let dst_stage = vk::PipelineStageFlags::FRAGMENT_SHADER;
+
+        self.attachments.attachment_set.transition(
+            ctx.device(),
+            res,
+            cmd,
+            src_access,
+            dst_access,
+            src_stage,
+            dst_stage,
+            old_layout,
+            new_layout,
         );
     }
 
@@ -722,7 +757,7 @@ impl DeferredAttachments {
                 dims,
                 [
                     ("deferred_node_index", Self::NODE_INDEX_FORMAT),
-                    ("deferred_node_iv", Self::NODE_UV_FORMAT),
+                    ("deferred_node_uv", Self::NODE_UV_FORMAT),
                 ],
             )?;
 

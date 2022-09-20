@@ -627,6 +627,7 @@ bed::load_bed_file(bed_path, bed_name, column_map)
 
                         effect.draw(ctx.device(), res, effect_input.unwrap(), eff_fb, cmd)?;
 
+                        renderer.reset_barrier(ctx, res, cmd);
                         // effect.attachments.transition_to_read(ctx.device(), res, cmd);
             
                         Ok(())
