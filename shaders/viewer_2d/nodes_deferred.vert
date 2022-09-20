@@ -55,8 +55,7 @@ void main() {
 
   vec2 n_a = vec2(-n.y, n.x / aspect);
 
-  // float n_w = inputs.node_width;
-  float n_w = 50.0;
+  float n_w = inputs.node_width;
 
   vec2 p0_na = n_a * n_w / inputs.window_dims.x;
   vec2 p1_na = n_a * n_w / inputs.window_dims.x;
@@ -90,7 +89,6 @@ void main() {
     o_bp = float(node_len);
     o_v = 1.0;
   }
-
 
   // or should this be instance index
   // o_node_index = gl_VertexIndex / 6;
