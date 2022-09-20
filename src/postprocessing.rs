@@ -182,7 +182,7 @@ impl EffectAttachments {
             old_layout, new_layout,
         );
     }
-    
+
     pub fn transition_to_write(
         &self,
         device: &ash::Device,
@@ -543,11 +543,28 @@ pub fn test_effect_instance(
             img.image,
             vk::AccessFlags::empty(),
             vk::PipelineStageFlags::TOP_OF_PIPE,
+            // vk::AccessFlags::COLOR_ATTACHMENT_WRITE,
+            // vk::PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT,
+            vk::AccessFlags::SHADER_WRITE,
+            vk::PipelineStageFlags::ALL_GRAPHICS,
+            vk::ImageLayout::UNDEFINED,
+            // vk::ImageLayout::COLOR_ATTACHMENT_OPTIMAL,
+            vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL,
+        );
+
+        /*
+        VkEngine::transition_image(
+            cmd,
+            ctx.device(),
+            img.image,
+            vk::AccessFlags::empty(),
+            vk::PipelineStageFlags::TOP_OF_PIPE,
             vk::AccessFlags::COLOR_ATTACHMENT_WRITE,
             vk::PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT,
             vk::ImageLayout::UNDEFINED,
             vk::ImageLayout::COLOR_ATTACHMENT_OPTIMAL,
         );
+        */
 
         Ok(())
     })?;

@@ -99,7 +99,7 @@ fn main() -> anyhow::Result<()> {
         let gfa: GFA<usize, ()> = parser.parse_file(&gfa_path)?;
         gfa
     };
-    
+
 
     let db_cfg = sled::Config::default()
         .temporary(true)
@@ -248,20 +248,20 @@ fn main() -> anyhow::Result<()> {
         std::process::exit(1);
     }
 
-    let mut deferred_graph_renderer = None; 
-    
+    let mut deferred_graph_renderer = None;
+
     let mut viewer_2d = if let Some(path) = viewer_args.layout_path {
 
         let path_to_show = waragraph::graph::Path::from(9usize);
 
-        let viewer = Viewer2D::new(&mut engine, 
-                                             &mut compositor, 
-                                             &graph, 
-                                             path,
-                                            //  None,
-                                             Some(path_to_show),
-                                            )?;
-    
+        let viewer = Viewer2D::new(&mut engine,
+                                   &mut compositor,
+                                   &graph,
+                                   path,
+                                   //  None,
+                                   Some(path_to_show),
+        )?;
+
         deferred_graph_renderer = Some(GraphRenderer::initialize(&mut engine, &graph, &viewer.layout, [1024, 1024])?);
 
         Some(viewer)
@@ -320,10 +320,10 @@ fn main() -> anyhow::Result<()> {
 
     let (effect, eff_fb) = waragraph::postprocessing::test_effect_instance(&mut engine)?;
 
-    let eff_desc_set = 
+    let eff_desc_set =
         waragraph::gui::layer::create_image_desc_set(
-            &mut engine.resources, 
-            &mut compositor, 
+            &mut engine.resources,
+            &mut compositor,
             effect.attachments.view
         )?;
 
@@ -342,9 +342,9 @@ fn main() -> anyhow::Result<()> {
             .attachments
             .attachment_set
             .create_desc_set_for_shader(
-                &mut engine.resources, 
-                effect.def.frag, 
-                0, 
+                &mut engine.resources,
+                effect.def.frag,
+                0,
                 postprocessing.nn_sampler
             )?;
         effect_input = Some(input);
@@ -576,60 +576,60 @@ bed::load_bed_file(bed_path, bed_name, column_map)
                 if let Err(e) = verlet.update_layer(&mut compositor, "verlet") {
                     log::error!("Verlet layer update error: {:?}", e);
                 }
-                
+
                 if let Some(viewer_2d) = viewer_2d.as_mut() {
                     if let Err(e) = viewer_2d.update(&mut engine, &mut compositor) {
                         log::error!("2D viewer update error: {:?}", e);
                     }
-                    
+
                     let (vx_buf, ix_buf, ix_count, inst_count, ubo) = compositor.with_layer(Viewer2D::LAYER_NAME, |layer| {
                         let sublayer = layer.get_sublayer_mut(Viewer2D::NODE_SUBLAYER).unwrap();
                         let data = &sublayer.draw_data[0];
-    
+
                         let vx = data.vertex_buffer();
                         let (ix, ix_count) = data.indices().unwrap();
                         let vertex_count = data.vertex_count();
-    
+
                         let inst_count = data.instance_count();
-            
+
                         let (instances, index_count) = if inst_count > 1 {
                             (ix_count as u32, vertex_count as u32)
                         } else {
                             (1, ix_count as u32)
                         };
-            
+
                         let ubo = data.sets()[0];
-            
+
                         Ok((vx, ix, index_count, instances, ubo))
-            
+
                     }).unwrap();
-            
+
                     engine.submit_queue_fn(|ctx, res, alloc, cmd| {
                         let node_width = 10.0;
-            
+
                         let renderer = deferred_graph_renderer.as_ref().unwrap();
-            
+
                         renderer.draw_first_pass(
-                            ctx.device(), 
-                            res, 
-                            // vx_buf, 
-                            ix_buf, 
-                            ubo, 
-                            ix_count, 
-                            inst_count, 
-                            node_width, 
+                            ctx.device(),
+                            res,
+                            // vx_buf,
+                            ix_buf,
+                            ubo,
+                            ix_count,
+                            inst_count,
+                            node_width,
                             cmd
                         )?;
-            
+
                         renderer.first_pass_barrier(ctx, res, cmd);
-                        
+
                         effect.attachments.transition_to_write(ctx.device(), res, cmd);
 
                         effect.draw(ctx.device(), res, effect_input.unwrap(), eff_fb, cmd)?;
 
                         renderer.reset_barrier(ctx, res, cmd);
                         // effect.attachments.transition_to_read(ctx.device(), res, cmd);
-            
+
                         Ok(())
                     }).unwrap();
                 }
@@ -990,8 +990,8 @@ bed::load_bed_file(bed_path, bed_name, column_map)
                                         } else if matches!(kc, VK::Right) {
                                            1.0
                                         } else { 0.0 };
-                                    
-                                    let dy = 
+
+                                    let dy =
                                         if matches!(kc, VK::Up) {
                                             -1.0
                                         } else if matches!(kc, VK::Down) {
