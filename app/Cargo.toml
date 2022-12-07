@@ -6,3 +6,26 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+winit = "0.27"
+env_logger = "0.9"
+log = "0.4"
+
+egui = { git = "https://github.com/emilk/egui.git", rev = "4c82519" }
+egui-wgpu = { git = "https://github.com/emilk/egui.git", rev = "4c82519" }
+egui-winit = { git = "https://github.com/emilk/egui.git", rev = "4c82519" }
+
+wgpu = { version = "0.14.0", features = ["spirv"] }
+# naga = { version = "0.10", features = ["clone", "spv-in", "glsl-in", "spv-out"] }
+
+bytemuck = { version = "1.4", features = [ "derive" ] }
+ultraviolet = { version = "0.9", features = ["bytemuck", "f64"]}
+
+
+raving-wgpu = { path = "../../raving-wgpu" }
+# raving-wgpu = { git = "https://github.com/chfi/raving-wgpu" }
+lyon = "1.0"
+
+anyhow = "1.0"
+
+pollster = "0.2"
+rhai = { version = "1.10.1", features = ["sync", "f32_float"]}
