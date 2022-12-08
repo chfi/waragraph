@@ -1,3 +1,5 @@
+use app::PathIndex;
+use egui::epaint::tessellator::path;
 use egui_winit::EventResponse;
 
 use lyon::lyon_tessellation::geometry_builder::SimpleBuffersBuilder;
@@ -9,14 +11,15 @@ use lyon::math::point;
 use lyon::path::FillRule;
 
 use std::collections::HashMap;
+use std::path::PathBuf;
 
 use winit::event::{ElementState, Event, VirtualKeyCode, WindowEvent};
 use winit::event_loop::{ControlFlow, EventLoop, EventLoopWindowTarget};
 use winit::window::Window;
 
 use raving_wgpu::camera::{DynamicCamera2d, TouchHandler, TouchOutput};
-use raving_wgpu::gui::EguiCtx;
 use raving_wgpu::graph::dfrog::{Graph, InputResource};
+use raving_wgpu::gui::EguiCtx;
 use raving_wgpu::{NodeId, State};
 // use raving_wgpu as wgpu;
 use wgpu::util::DeviceExt;
@@ -24,6 +27,13 @@ use wgpu::util::DeviceExt;
 use anyhow::Result;
 
 use ultraviolet::*;
+
+#[derive(Debug)]
+struct Args {
+    gfa: PathBuf,
+    tsv: PathBuf,
+    path_name: String,
+}
 
 #[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
 #[repr(C)]
@@ -67,6 +77,9 @@ impl GfaLayout {
 struct PathRenderer {
     render_graph: Graph,
     egui: EguiCtx,
+
+    path_index: PathIndex,
+    layout: GfaLayout,
 
     camera: DynamicCamera2d,
     touch: TouchHandler,
@@ -322,7 +335,9 @@ impl PathRenderer {
     fn init(
         event_loop: &EventLoopWindowTarget<()>,
         state: &State,
-        points: Vec<Vec2>,
+        path_index: PathIndex,
+        layout: GfaLayout,
+        path_name: &str,
     ) -> Result<Self> {
         let mut graph = Graph::new();
 
@@ -358,6 +373,27 @@ impl PathRenderer {
                 &[state.surface_format],
             )?
         };
+
+        let points = path_index
+            .path_steps(path_name)
+            .unwrap()
+            .into_iter()
+            // .flat_map(|(seg, rev)| {
+            .flat_map(|step| {
+                let seg = step.node;
+                let rev = step.reverse;
+                let ix = seg as usize - 1;
+                let a = ix * 2;
+                let b = a + 1;
+                let va = layout.positions[a]; 
+                let vb = layout.positions[b]; 
+                if rev {
+                    [vb, va]
+                } else {
+                    [va, vb]
+                }
+            })
+            .collect::<Vec<_>>();
 
         let camera = {
             let mut min = Vec2::broadcast(f32::MAX);
@@ -403,13 +439,14 @@ impl PathRenderer {
         // set 0, binding 0, transform matrix
         graph.add_link_from_transient("transform", draw_node, 3);
 
-        // let path_buffers = LyonBuffers::example2(state)?;
-
         let path_buffers = LyonBuffers::stroke_from_path(state, points)?;
 
         Ok(Self {
             render_graph: graph,
             egui,
+
+            path_index,
+
             camera,
             touch,
             graph_scalars: rhai::Map::default(),
@@ -417,6 +454,7 @@ impl PathRenderer {
             annotations: Vec::new(),
             path_buffers: Some(path_buffers),
             draw_node,
+            layout,
         })
     }
 
@@ -530,7 +568,102 @@ impl PathRenderer {
     }
 }
 
-async fn run(points: Vec<Vec2>) -> anyhow::Result<()> {
+// async fn run(path_index: PathIndex, layout: GfaLayout, path_name: &str) -> Result<()> {
+async fn run(args: Args) -> Result<()> {
+    let (event_loop, window, mut state) = raving_wgpu::initialize().await?;
+
+    let path_index = PathIndex::from_gfa(&args.gfa)?;
+    let layout = GfaLayout::from_layout_tsv(&args.tsv)?;
+
+    let mut app = PathRenderer::init(
+        &event_loop,
+        &state,
+        path_index,
+        layout,
+        &args.path_name,
+    )?;
+
+    let mut first_resize = true;
+    let mut prev_frame_t = std::time::Instant::now();
+
+    event_loop.run(move |event, _, control_flow| {
+        match &event {
+            Event::WindowEvent { window_id, event } => {
+                let mut consumed = false;
+
+                let size = window.inner_size();
+                let dims = [size.width, size.height];
+                consumed = app.on_event(dims, event);
+
+                if !consumed {
+                    match &event {
+                        WindowEvent::KeyboardInput { input, .. } => {
+                            use VirtualKeyCode as Key;
+                            if let Some(code) = input.virtual_keycode {
+                                if let Key::Escape = code {
+                                    *control_flow = ControlFlow::Exit;
+                                }
+                            }
+                        }
+                        WindowEvent::CloseRequested => {
+                            *control_flow = ControlFlow::Exit
+                        }
+                        WindowEvent::Resized(phys_size) => {
+                            // for some reason i get a validation error if i actually attempt
+                            // to execute the first resize
+                            if first_resize {
+                                first_resize = false;
+                            } else {
+                                let old = state.size;
+                                let new = *phys_size;
+
+                                state.resize(*phys_size);
+
+                                // let old = Vec2::new(
+                                //     old.width as f32,
+                                //     old.height as f32,
+                                // );
+                                // let new = Vec2::new(
+                                //     new.width as f32,
+                                //     new.height as f32,
+                                // );
+
+                                // let div = new / old;
+                            }
+                        }
+                        WindowEvent::ScaleFactorChanged {
+                            new_inner_size,
+                            ..
+                        } => {
+                            state.resize(**new_inner_size);
+                        }
+                        _ => {}
+                    }
+                }
+            }
+
+            Event::RedrawRequested(window_id) if *window_id == window.id() => {
+                app.render(&mut state).unwrap();
+            }
+            Event::MainEventsCleared => {
+                // RedrawRequested will only trigger once, unless we manually
+                // request it.
+
+                let dt = prev_frame_t.elapsed().as_secs_f32();
+                prev_frame_t = std::time::Instant::now();
+
+                app.update(&window, dt);
+
+                window.request_redraw();
+            }
+
+            _ => {}
+        }
+    })
+}
+
+/*
+async fn run_old(points: Vec<Vec2>) -> anyhow::Result<()> {
     let (event_loop, window, mut state) = raving_wgpu::initialize().await?;
 
     let mut app = PathRenderer::init(&event_loop, &state, points)?;
@@ -621,52 +754,40 @@ async fn run(points: Vec<Vec2>) -> anyhow::Result<()> {
         }
     })
 }
+*/
 
 pub fn main() -> Result<()> {
     env_logger::builder()
         .filter_level(log::LevelFilter::Warn)
         .init();
 
-    let args = std::env::args().collect::<Vec<_>>();
-
-    if args.len() < 4 {
-        println!("Usage: {} <gfa> <layout tsv> <path name>", &args[0]);
+    let args = if let Ok(args) = parse_args() {
+        args
+    } else {
+        let name = std::env::args().next().unwrap();
+        println!("Usage: {name} <gfa> <layout tsv> <path name>");
         std::process::exit(0);
-    }
+    };
 
-    let gfa = &args[1];
-    let tsv = &args[2];
-    let path = &args[3];
-
-    // let gfa = "amy.29.gfa";
-    // let path = "HG02080#1#JAHEOW010000048.1_16689583_17097287_0";
-    // let tsv = "amy.29.tsv";
-
-    let vertices = load_layout_tsv(tsv)?;
-
-    let steps = parse_gfa_path(gfa, path).unwrap();
-
-    println!("parsed {} steps", steps.len());
-
-    let points = steps
-        .into_iter()
-        .flat_map(|(seg, rev)| {
-            let ix = seg as usize - 1;
-            let a = ix * 2;
-            let b = a + 1;
-            let va = vertices[a];
-            let vb = vertices[b];
-            if rev {
-                [vb, va]
-            } else {
-                [va, vb]
-            }
-        })
-        .collect::<Vec<_>>();
-
-    if let Err(e) = pollster::block_on(run(points)) {
+    if let Err(e) = pollster::block_on(run(args)) {
         log::error!("{:?}", e);
     }
 
     Ok(())
+}
+
+fn parse_args() -> std::result::Result<Args, pico_args::Error> {
+    let mut pargs = pico_args::Arguments::from_env();
+
+    let args = Args {
+        gfa: pargs.free_from_os_str(parse_path)?,
+        tsv: pargs.free_from_os_str(parse_path)?,
+        path_name: pargs.free_from_str()?,
+    };
+
+    Ok(args)
+}
+
+fn parse_path(s: &std::ffi::OsStr) -> Result<std::path::PathBuf, &'static str> {
+    Ok(s.into())
 }

@@ -4,7 +4,6 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::io::prelude::*;
 use std::{io::BufReader, path::PathBuf};
 
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct PathStep {
     pub node: u32,
@@ -42,6 +41,11 @@ impl<'a> Iterator for PathStepRangeIter<'a> {
 }
 
 impl PathIndex {
+    pub fn path_steps<'a>(&'a self, path_name: &str) -> Option<&'a [PathStep]> {
+        let ix = self.path_names.get(path_name)?;
+        self.path_steps.get(*ix).map(|s| s.as_slice())
+    }
+
     pub fn path_step_range_iter<'a>(
         &'a self,
         path_name: &str,
@@ -180,7 +184,7 @@ impl PathIndex {
                 let seg_id = btoi::btou::<usize>(seg)?;
                 let seg_ix = seg_id - seg_id_range.0;
                 let len = seg_lens[seg_ix];
-                
+
                 let is_rev = orient == b"+";
 
                 let step = PathStep {
@@ -189,7 +193,7 @@ impl PathIndex {
                 };
                 parsed_steps.push(step);
                 offsets.push(pos as u32);
-                
+
                 pos += len;
             }
 
