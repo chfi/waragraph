@@ -4,6 +4,8 @@ use std::collections::BTreeMap;
 use std::io::prelude::*;
 use std::io::BufReader;
 
+pub mod annotations;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct PathStep {
     pub node: u32,
