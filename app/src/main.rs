@@ -198,11 +198,6 @@ impl LyonBuffers {
 
         // FillOptions::tolerance(tolerance).with_fill_rule(FillRule::NonZero);
 
-        // let mut buf_build =
-        //     BuffersBuilder::new(&mut geometry, |vx: FillVertex| GpuVertex {
-        //         pos: vx.position().to_array(),
-        //     });
-
         let mut buf_build =
             BuffersBuilder::new(&mut geometry, |vx: StrokeVertex| GpuVertex {
                 pos: vx.position().to_array(),
@@ -338,6 +333,7 @@ impl PathRenderer {
         path_index: PathIndex,
         layout: GfaLayout,
         path_name: &str,
+        // points: Vec<Vec2>,
     ) -> Result<Self> {
         let mut graph = Graph::new();
 
@@ -382,11 +378,11 @@ impl PathRenderer {
             .flat_map(|step| {
                 let seg = step.node;
                 let rev = step.reverse;
-                let ix = seg as usize - 1;
+                let ix = seg as usize - path_index.segment_id_range.0;
                 let a = ix * 2;
                 let b = a + 1;
-                let va = layout.positions[a]; 
-                let vb = layout.positions[b]; 
+                let va = layout.positions[a];
+                let vb = layout.positions[b];
                 if rev {
                     [vb, va]
                 } else {
@@ -394,6 +390,8 @@ impl PathRenderer {
                 }
             })
             .collect::<Vec<_>>();
+
+        dbg!(points.len());
 
         let camera = {
             let mut min = Vec2::broadcast(f32::MAX);
@@ -569,11 +567,17 @@ impl PathRenderer {
 }
 
 // async fn run(path_index: PathIndex, layout: GfaLayout, path_name: &str) -> Result<()> {
-async fn run(args: Args) -> Result<()> {
+async fn run(args: Args, points: Vec<Vec2>) -> Result<()> {
     let (event_loop, window, mut state) = raving_wgpu::initialize().await?;
 
     let path_index = PathIndex::from_gfa(&args.gfa)?;
     let layout = GfaLayout::from_layout_tsv(&args.tsv)?;
+
+    println!("path index approach");
+    let steps = path_index.path_steps(&args.path_name).unwrap();
+    for (ix, step) in steps.iter().take(20).enumerate() {
+        println!("{ix}\t{}", step.node);
+    }
 
     let mut app = PathRenderer::init(
         &event_loop,
@@ -581,6 +585,7 @@ async fn run(args: Args) -> Result<()> {
         path_index,
         layout,
         &args.path_name,
+        // points,
     )?;
 
     let mut first_resize = true;
@@ -769,7 +774,34 @@ pub fn main() -> Result<()> {
         std::process::exit(0);
     };
 
-    if let Err(e) = pollster::block_on(run(args)) {
+    let vertices = load_layout_tsv(&args.tsv).unwrap();
+
+    let steps = parse_gfa_path(&args.gfa, &args.path_name).unwrap();
+
+    println!("old approach");
+    for (ix, step) in steps.iter().take(20).enumerate() {
+        println!("{ix}\t{}", step.0);
+    }
+
+    let points = steps
+        .into_iter()
+        .flat_map(|(seg, rev)| {
+            let ix = seg as usize - 1;
+            let a = ix * 2;
+            let b = a + 1;
+            let va = vertices[a];
+            let vb = vertices[b];
+            if rev {
+                [vb, va]
+            } else {
+                [va, vb]
+            }
+        })
+        .collect::<Vec<_>>();
+
+    dbg!(points.len());
+
+    if let Err(e) = pollster::block_on(run(args, points)) {
         log::error!("{:?}", e);
     }
 

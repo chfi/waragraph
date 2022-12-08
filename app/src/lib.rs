@@ -11,8 +11,8 @@ pub struct PathStep {
 }
 
 pub struct PathIndex {
-    segment_id_range: (usize, usize),
-    segment_lens: Vec<usize>,
+    pub segment_id_range: (usize, usize),
+    pub segment_lens: Vec<usize>,
 
     path_names: BTreeMap<String, usize>,
     // path_names: Vec<String>,
