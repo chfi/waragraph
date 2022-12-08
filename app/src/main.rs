@@ -1,5 +1,5 @@
 use app::annotations::AnnotationStore;
-use app::{PathIndex, GfaLayout};
+use app::{GfaLayout, PathIndex};
 use egui::epaint::tessellator::path;
 use egui_winit::EventResponse;
 
@@ -45,7 +45,6 @@ struct GpuVertex {
     // tex_coord: [f32; 2],
 }
 
-
 struct PathRenderer {
     render_graph: Graph,
     egui: EguiCtx,
@@ -63,13 +62,31 @@ struct PathRenderer {
     annotations: AnnotationStore,
     annotation_cache: Vec<(Vec2, String)>,
 
-    // annotations: Vec<(Vec2, String)>,
-    // annotations: Vec<(std::ops::Range<usize>, String)>,
     path_buffers: Option<LyonBuffers>,
-    // uniform_buf: wgpu::Buffer,
-    // vertex_buf: wgpu::Buffer,
-    // index_buf: wgpu::Buffer,
     draw_node: NodeId,
+}
+
+fn draw_annotations(
+    cache: &[(Vec2, String)],
+    painter: &egui::Painter,
+    window_dims: Vec2,
+    camera: &DynamicCamera2d,
+) {
+    for (pos, text) in cache.iter() {
+        let norm_p = camera.transform_world_to_screen(*pos);
+        let size = window_dims;
+        let p = norm_p * size;
+
+        let anchor = egui::Align2::CENTER_CENTER;
+        let font = egui::FontId::proportional(16.0);
+        painter.text(
+            egui::pos2(p.x, p.y),
+            anchor,
+            text,
+            font,
+            egui::Color32::WHITE,
+        );
+    }
 }
 
 struct LyonBuffers {
@@ -168,24 +185,14 @@ impl PathRenderer {
             let stroke = egui::Stroke::new(1.0, egui::Color32::WHITE);
             let p = egui::pos2(p.x, p.y);
 
-            painter.circle_stroke(p, 5.0, stroke);
-
-            for (pos, text) in self.annotation_cache.iter() {
-                let norm_p = self.camera.transform_world_to_screen(*pos);
-                let size = window.inner_size();
-                let size = Vec2::new(size.width as f32, size.height as f32);
-                let p = norm_p * size;
-
-                let anchor = egui::Align2::CENTER_CENTER;
-                let font = egui::FontId::proportional(12.0);
-                painter.text(
-                    egui::pos2(p.x, p.y),
-                    anchor,
-                    text,
-                    font,
-                    egui::Color32::WHITE,
-                );
-            }
+            let size = window.inner_size();
+            let window_dims = Vec2::new(size.width as f32, size.height as f32);
+            draw_annotations(
+                &self.annotation_cache,
+                &painter,
+                window_dims,
+                &self.camera,
+            );
         });
 
         if !touches.is_empty() {
@@ -503,7 +510,9 @@ async fn run(args: Args) -> Result<()> {
 
     if let Some(bed) = args.annotations.as_ref() {
         app.annotations.fill_from_bed(bed)?;
-        let cache = app.annotations.layout_positions(&app.path_index, &app.layout);
+        let cache = app
+            .annotations
+            .layout_positions(&app.path_index, &app.layout);
         app.annotation_cache = cache;
     }
 
@@ -540,18 +549,19 @@ async fn run(args: Args) -> Result<()> {
                             } else {
                                 state.resize(*phys_size);
 
-                                // let old = state.size;
-                                // let new = *phys_size;
-                                // let old = Vec2::new(
-                                //     old.width as f32,
-                                //     old.height as f32,
-                                // );
-                                // let new = Vec2::new(
-                                //     new.width as f32,
-                                //     new.height as f32,
-                                // );
+                                let old = state.size;
+                                let new = *phys_size;
+                                let old = Vec2::new(
+                                    old.width as f32,
+                                    old.height as f32,
+                                );
+                                let new = Vec2::new(
+                                    new.width as f32,
+                                    new.height as f32,
+                                );
 
-                                // let div = new / old;
+                                let div = new / old;
+                                app.camera.resize_relative(div)
                             }
                         }
                         WindowEvent::ScaleFactorChanged {
@@ -569,9 +579,6 @@ async fn run(args: Args) -> Result<()> {
                 app.render(&mut state).unwrap();
             }
             Event::MainEventsCleared => {
-                // RedrawRequested will only trigger once, unless we manually
-                // request it.
-
                 let dt = prev_frame_t.elapsed().as_secs_f32();
                 prev_frame_t = std::time::Instant::now();
 
