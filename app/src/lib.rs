@@ -1,5 +1,6 @@
 use anyhow::Result;
 use roaring::RoaringBitmap;
+use ultraviolet::Vec2;
 use std::collections::BTreeMap;
 use std::io::prelude::*;
 use std::io::BufReader;
@@ -46,6 +47,14 @@ impl PathIndex {
     pub fn path_steps<'a>(&'a self, path_name: &str) -> Option<&'a [PathStep]> {
         let ix = self.path_names.get(path_name)?;
         self.path_steps.get(*ix).map(|s| s.as_slice())
+    }
+
+    pub fn step_at_pos(&self, path_name: &str, pos: usize) -> Option<PathStep> {
+        let path_id = *self.path_names.get(path_name)?;
+        let offsets = self.path_step_offsets.get(path_id)?;
+        let steps = self.path_steps.get(path_id)?;
+        let pos_rank = offsets.rank(pos as u32) as usize;
+        steps.get(pos_rank).copied()
     }
 
     pub fn path_step_range_iter<'a>(
@@ -211,5 +220,44 @@ impl PathIndex {
             segment_id_range: seg_id_range,
             segment_lens: seg_lens,
         })
+    }
+}
+
+pub struct GfaLayout {
+    pub positions: Vec<Vec2>,
+}
+
+impl GfaLayout {
+    pub fn pos_for_node(&self, node: usize) -> Option<(Vec2, Vec2)> {
+        let ix = node / 2;
+        let a = *self.positions.get(ix)?;
+        let b = *self.positions.get(ix + 1)?;
+        Some((a, b))
+    }
+
+    pub fn from_layout_tsv(tsv_path: impl AsRef<std::path::Path>) -> Result<Self> {
+        use std::fs::File;
+        // use std::io::{prelude::*, BufReader};
+        let mut lines = File::open(tsv_path).map(BufReader::new)?.lines();
+
+        let _header = lines.next();
+        let mut positions = Vec::new();
+
+        fn parse_row(line: &str) -> Option<Vec2> {
+            let mut fields = line.split('\t');
+            let _idx = fields.next();
+            let x = fields.next()?.parse::<f32>().ok()?;
+            let y = fields.next()?.parse::<f32>().ok()?;
+            Some(Vec2::new(x, y))
+        }
+
+        for line in lines {
+            let line = line?;
+            if let Some(v) = parse_row(&line) {
+                positions.push(v);
+            }
+        }
+
+        Ok(GfaLayout { positions })
     }
 }

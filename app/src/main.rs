@@ -1,4 +1,5 @@
-use app::PathIndex;
+use app::annotations::AnnotationStore;
+use app::{PathIndex, GfaLayout};
 use egui::epaint::tessellator::path;
 use egui_winit::EventResponse;
 
@@ -33,6 +34,8 @@ struct Args {
     gfa: PathBuf,
     tsv: PathBuf,
     path_name: String,
+
+    annotations: Option<PathBuf>,
 }
 
 #[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
@@ -42,37 +45,6 @@ struct GpuVertex {
     // tex_coord: [f32; 2],
 }
 
-struct GfaLayout {
-    positions: Vec<Vec2>,
-}
-
-impl GfaLayout {
-    fn from_layout_tsv(tsv_path: impl AsRef<std::path::Path>) -> Result<Self> {
-        use std::fs::File;
-        use std::io::{prelude::*, BufReader};
-        let mut lines = File::open(tsv_path).map(BufReader::new)?.lines();
-
-        let _header = lines.next();
-        let mut positions = Vec::new();
-
-        fn parse_row(line: &str) -> Option<Vec2> {
-            let mut fields = line.split('\t');
-            let _idx = fields.next();
-            let x = fields.next()?.parse::<f32>().ok()?;
-            let y = fields.next()?.parse::<f32>().ok()?;
-            Some(Vec2::new(x, y))
-        }
-
-        for line in lines {
-            let line = line?;
-            if let Some(v) = parse_row(&line) {
-                positions.push(v);
-            }
-        }
-
-        Ok(GfaLayout { positions })
-    }
-}
 
 struct PathRenderer {
     render_graph: Graph,
@@ -88,8 +60,11 @@ struct PathRenderer {
 
     uniform_buf: wgpu::Buffer,
 
-    annotations: Vec<(std::ops::Range<usize>, String)>,
+    annotations: AnnotationStore,
+    annotation_cache: Vec<(Vec2, String)>,
 
+    // annotations: Vec<(Vec2, String)>,
+    // annotations: Vec<(std::ops::Range<usize>, String)>,
     path_buffers: Option<LyonBuffers>,
     // uniform_buf: wgpu::Buffer,
     // vertex_buf: wgpu::Buffer,
@@ -104,7 +79,6 @@ struct LyonBuffers {
     index_buffer: wgpu::Buffer,
     // num_instances: u32,
 }
-
 
 impl LyonBuffers {
     fn stroke_from_path(
@@ -163,8 +137,6 @@ impl LyonBuffers {
             },
         );
 
-        // let num_instances = geometry.v
-
         Ok(Self {
             vertices,
             indices,
@@ -195,13 +167,28 @@ impl PathRenderer {
 
             let stroke = egui::Stroke::new(1.0, egui::Color32::WHITE);
             let p = egui::pos2(p.x, p.y);
-            // dbg!(&p);
+
             painter.circle_stroke(p, 5.0, stroke);
+
+            for (pos, text) in self.annotation_cache.iter() {
+                let norm_p = self.camera.transform_world_to_screen(*pos);
+                let size = window.inner_size();
+                let size = Vec2::new(size.width as f32, size.height as f32);
+                let p = norm_p * size;
+
+                let anchor = egui::Align2::CENTER_CENTER;
+                let font = egui::FontId::proportional(12.0);
+                painter.text(
+                    egui::pos2(p.x, p.y),
+                    anchor,
+                    text,
+                    font,
+                    egui::Color32::WHITE,
+                );
+            }
         });
 
         if !touches.is_empty() {
-            // let cam_size = self.camera.size;
-            // dbg!(&cam_size);
             self.camera.stop();
         }
 
@@ -333,8 +320,6 @@ impl PathRenderer {
                 min = min.min_by_component(point);
                 max = max.max_by_component(point);
             }
-            let mid = min + (max - min) / 2.0;
-            // dbg!(&mid);
 
             let center = Vec2::zero();
             let size = Vec2::new(4.0, 3.0);
@@ -371,6 +356,8 @@ impl PathRenderer {
 
         let path_buffers = LyonBuffers::stroke_from_path(state, points)?;
 
+        let annotations = AnnotationStore::default();
+
         Ok(Self {
             render_graph: graph,
             egui,
@@ -381,7 +368,8 @@ impl PathRenderer {
             touch,
             graph_scalars: rhai::Map::default(),
             uniform_buf,
-            annotations: Vec::new(),
+            annotations,
+            annotation_cache: Vec::new(),
             path_buffers: Some(path_buffers),
             draw_node,
             layout,
@@ -505,20 +493,19 @@ async fn run(args: Args) -> Result<()> {
     let path_index = PathIndex::from_gfa(&args.gfa)?;
     let layout = GfaLayout::from_layout_tsv(&args.tsv)?;
 
-    println!("path index approach");
-    let steps = path_index.path_steps(&args.path_name).unwrap();
-    for (ix, step) in steps.iter().take(20).enumerate() {
-        println!("{ix}\t{}", step.node);
-    }
-
     let mut app = PathRenderer::init(
         &event_loop,
         &state,
         path_index,
         layout,
         &args.path_name,
-        // points,
     )?;
+
+    if let Some(bed) = args.annotations.as_ref() {
+        app.annotations.fill_from_bed(bed)?;
+        let cache = app.annotations.layout_positions(&app.path_index, &app.layout);
+        app.annotation_cache = cache;
+    }
 
     let mut first_resize = true;
     let mut prev_frame_t = std::time::Instant::now();
@@ -598,7 +585,6 @@ async fn run(args: Args) -> Result<()> {
     })
 }
 
-
 pub fn main() -> Result<()> {
     env_logger::builder()
         .filter_level(log::LevelFilter::Warn)
@@ -626,6 +612,7 @@ fn parse_args() -> std::result::Result<Args, pico_args::Error> {
         gfa: pargs.free_from_os_str(parse_path)?,
         tsv: pargs.free_from_os_str(parse_path)?,
         path_name: pargs.free_from_str()?,
+        annotations: pargs.opt_value_from_os_str("--bed", parse_path)?,
     };
 
     Ok(args)
