@@ -105,68 +105,6 @@ struct LyonBuffers {
     // num_instances: u32,
 }
 
-fn load_layout_tsv(tsv_path: impl AsRef<std::path::Path>) -> Result<Vec<Vec2>> {
-    use std::fs::File;
-    use std::io::{prelude::*, BufReader};
-    let mut lines = File::open(tsv_path).map(BufReader::new)?.lines();
-
-    let _header = lines.next();
-    let mut output = Vec::new();
-
-    fn parse_row(line: &str) -> Option<Vec2> {
-        let mut fields = line.split('\t');
-        let _idx = fields.next();
-        let x = fields.next()?.parse::<f32>().ok()?;
-        let y = fields.next()?.parse::<f32>().ok()?;
-        Some(Vec2::new(x, y))
-    }
-
-    for line in lines {
-        let line = line?;
-        if let Some(v) = parse_row(&line) {
-            output.push(v);
-        }
-    }
-
-    Ok(output)
-}
-
-fn parse_gfa_path(
-    gfa_path: impl AsRef<std::path::Path>,
-    path_name: &str,
-) -> Result<Vec<(u32, bool)>> {
-    use std::fs::File;
-    use std::io::{prelude::*, BufReader};
-    let lines = File::open(gfa_path).map(BufReader::new)?.lines();
-
-    let mut output = Vec::new();
-
-    for line in lines {
-        let line = line?;
-        if !line.starts_with("P") {
-            continue;
-        }
-
-        let mut fields = line.trim().split('\t');
-        let _ = fields.next();
-        let name = fields.next();
-
-        if Some(path_name) != name {
-            continue;
-        }
-
-        let steps = fields.next().unwrap().split(',');
-
-        for step in steps {
-            let (seg, orient) = step.split_at(step.len() - 1);
-            let seg_id = seg.parse::<u32>()?;
-            let rev = orient == "-";
-            output.push((seg_id, rev));
-        }
-    }
-
-    Ok(output)
-}
 
 impl LyonBuffers {
     fn stroke_from_path(
@@ -259,8 +197,6 @@ impl PathRenderer {
             let p = egui::pos2(p.x, p.y);
             // dbg!(&p);
             painter.circle_stroke(p, 5.0, stroke);
-
-            // for (range, )
         });
 
         if !touches.is_empty() {
@@ -333,7 +269,6 @@ impl PathRenderer {
         path_index: PathIndex,
         layout: GfaLayout,
         path_name: &str,
-        // points: Vec<Vec2>,
     ) -> Result<Self> {
         let mut graph = Graph::new();
 
@@ -374,11 +309,10 @@ impl PathRenderer {
             .path_steps(path_name)
             .unwrap()
             .into_iter()
-            // .flat_map(|(seg, rev)| {
             .flat_map(|step| {
                 let seg = step.node;
                 let rev = step.reverse;
-                let ix = seg as usize - path_index.segment_id_range.0;
+                let ix = seg as usize;
                 let a = ix * 2;
                 let b = a + 1;
                 let va = layout.positions[a];
@@ -390,8 +324,6 @@ impl PathRenderer {
                 }
             })
             .collect::<Vec<_>>();
-
-        dbg!(points.len());
 
         let camera = {
             let mut min = Vec2::broadcast(f32::MAX);
@@ -567,7 +499,7 @@ impl PathRenderer {
 }
 
 // async fn run(path_index: PathIndex, layout: GfaLayout, path_name: &str) -> Result<()> {
-async fn run(args: Args, points: Vec<Vec2>) -> Result<()> {
+async fn run(args: Args) -> Result<()> {
     let (event_loop, window, mut state) = raving_wgpu::initialize().await?;
 
     let path_index = PathIndex::from_gfa(&args.gfa)?;
@@ -619,11 +551,10 @@ async fn run(args: Args, points: Vec<Vec2>) -> Result<()> {
                             if first_resize {
                                 first_resize = false;
                             } else {
-                                let old = state.size;
-                                let new = *phys_size;
-
                                 state.resize(*phys_size);
 
+                                // let old = state.size;
+                                // let new = *phys_size;
                                 // let old = Vec2::new(
                                 //     old.width as f32,
                                 //     old.height as f32,
@@ -667,99 +598,6 @@ async fn run(args: Args, points: Vec<Vec2>) -> Result<()> {
     })
 }
 
-/*
-async fn run_old(points: Vec<Vec2>) -> anyhow::Result<()> {
-    let (event_loop, window, mut state) = raving_wgpu::initialize().await?;
-
-    let mut app = PathRenderer::init(&event_loop, &state, points)?;
-
-    {
-        let mk_ann = |a: usize, b: usize, s: &str| {
-            (a..b, s.to_string())
-        };
-        let anns = [mk_ann(10_000, 15_000, "a region")];
-        app.annotations.extend(anns);
-    }
-
-    let mut first_resize = true;
-    let mut prev_frame_t = std::time::Instant::now();
-
-    event_loop.run(move |event, _, control_flow| {
-        match &event {
-            Event::WindowEvent { window_id, event } => {
-                let mut consumed = false;
-
-                let size = window.inner_size();
-                let dims = [size.width, size.height];
-                consumed = app.on_event(dims, event);
-
-                if !consumed {
-                    match &event {
-                        WindowEvent::KeyboardInput { input, .. } => {
-                            use VirtualKeyCode as Key;
-                            if let Some(code) = input.virtual_keycode {
-                                if let Key::Escape = code {
-                                    *control_flow = ControlFlow::Exit;
-                                }
-                            }
-                        }
-                        WindowEvent::CloseRequested => {
-                            *control_flow = ControlFlow::Exit
-                        }
-                        WindowEvent::Resized(phys_size) => {
-                            // for some reason i get a validation error if i actually attempt
-                            // to execute the first resize
-                            if first_resize {
-                                first_resize = false;
-                            } else {
-                                let old = state.size;
-                                let new = *phys_size;
-
-                                state.resize(*phys_size);
-
-                                // let old = Vec2::new(
-                                //     old.width as f32,
-                                //     old.height as f32,
-                                // );
-                                // let new = Vec2::new(
-                                //     new.width as f32,
-                                //     new.height as f32,
-                                // );
-
-                                // let div = new / old;
-                            }
-                        }
-                        WindowEvent::ScaleFactorChanged {
-                            new_inner_size,
-                            ..
-                        } => {
-                            state.resize(**new_inner_size);
-                        }
-                        _ => {}
-                    }
-                }
-            }
-
-            Event::RedrawRequested(window_id) if *window_id == window.id() => {
-                app.render(&mut state).unwrap();
-            }
-            Event::MainEventsCleared => {
-                // RedrawRequested will only trigger once, unless we manually
-                // request it.
-
-                let dt = prev_frame_t.elapsed().as_secs_f32();
-                prev_frame_t = std::time::Instant::now();
-
-                app.update(&window, dt);
-
-                window.request_redraw();
-            }
-
-            _ => {}
-        }
-    })
-}
-*/
 
 pub fn main() -> Result<()> {
     env_logger::builder()
@@ -774,34 +612,7 @@ pub fn main() -> Result<()> {
         std::process::exit(0);
     };
 
-    let vertices = load_layout_tsv(&args.tsv).unwrap();
-
-    let steps = parse_gfa_path(&args.gfa, &args.path_name).unwrap();
-
-    println!("old approach");
-    for (ix, step) in steps.iter().take(20).enumerate() {
-        println!("{ix}\t{}", step.0);
-    }
-
-    let points = steps
-        .into_iter()
-        .flat_map(|(seg, rev)| {
-            let ix = seg as usize - 1;
-            let a = ix * 2;
-            let b = a + 1;
-            let va = vertices[a];
-            let vb = vertices[b];
-            if rev {
-                [vb, va]
-            } else {
-                [va, vb]
-            }
-        })
-        .collect::<Vec<_>>();
-
-    dbg!(points.len());
-
-    if let Err(e) = pollster::block_on(run(args, points)) {
+    if let Err(e) = pollster::block_on(run(args)) {
         log::error!("{:?}", e);
     }
 

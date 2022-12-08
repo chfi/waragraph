@@ -1,8 +1,8 @@
 use anyhow::Result;
 use roaring::RoaringBitmap;
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
 use std::io::prelude::*;
-use std::{io::BufReader, path::PathBuf};
+use std::io::BufReader;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct PathStep {
@@ -185,7 +185,7 @@ impl PathIndex {
                 let seg_ix = seg_id - seg_id_range.0;
                 let len = seg_lens[seg_ix];
 
-                let is_rev = orient == b"+";
+                let is_rev = orient == b"-";
 
                 let step = PathStep {
                     node: seg_ix as u32,
