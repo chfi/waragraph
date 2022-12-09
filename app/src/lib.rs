@@ -1,5 +1,5 @@
 use anyhow::Result;
-use roaring::RoaringBitmap;
+use roaring::RoaringTreemap;
 use ultraviolet::Vec2;
 use std::collections::BTreeMap;
 use std::io::prelude::*;
@@ -17,6 +17,7 @@ pub struct PathStep {
 }
 
 pub struct PathIndex {
+    pub segment_offsets: roaring::RoaringTreemap,
     sequence_total_len: usize,
     pub segment_id_range: (usize, usize),
     pub segment_lens: Vec<usize>,
@@ -26,12 +27,12 @@ pub struct PathIndex {
     path_steps: Vec<Vec<PathStep>>,
 
     // path_step_offsets: Vec<Vec<usize>>,
-    path_step_offsets: Vec<roaring::RoaringBitmap>,
+    path_step_offsets: Vec<roaring::RoaringTreemap>,
 }
 
 pub struct PathStepRangeIter<'a> {
     path_id: usize,
-    pos_range: std::ops::Range<u32>,
+    pos_range: std::ops::Range<u64>,
     // start_pos: usize,
     // end_pos: usize,
     steps: Box<dyn Iterator<Item = (usize, &'a PathStep)> + 'a>,
@@ -61,14 +62,14 @@ impl PathIndex {
         let path_id = *self.path_names.get(path_name)?;
         let offsets = self.path_step_offsets.get(path_id)?;
         let steps = self.path_steps.get(path_id)?;
-        let pos_rank = offsets.rank(pos as u32) as usize;
+        let pos_rank = offsets.rank(pos as u64) as usize;
         steps.get(pos_rank).copied()
     }
 
     pub fn path_step_range_iter<'a>(
         &'a self,
         path_name: &str,
-        pos_range: std::ops::Range<u32>,
+        pos_range: std::ops::Range<u64>,
     ) -> Option<PathStepRangeIter<'a>> {
         let path_id = *self.path_names.get(path_name)?;
         let offsets = self.path_step_offsets.get(path_id)?;
@@ -109,6 +110,7 @@ impl PathIndex {
 
         let mut line_buf = Vec::new();
 
+        let mut segment_offsets = roaring::RoaringTreemap::new();
         let mut seg_lens = Vec::new();
         let mut sequence_total_len = 0;
 
@@ -146,7 +148,9 @@ impl PathIndex {
             seg_id_range.1 = seg_id_range.1.max(seg_id);
 
             let len = seq.len();
+
             sequence_total_len += len;
+            segment_offsets.push(sequence_total_len as u64);
             seg_lens.push(len);
         }
 
@@ -163,7 +167,7 @@ impl PathIndex {
         let mut path_names = BTreeMap::default();
 
         let mut path_steps: Vec<Vec<PathStep>> = Vec::new();
-        let mut path_step_offsets: Vec<RoaringBitmap> = Vec::new();
+        let mut path_step_offsets: Vec<RoaringTreemap> = Vec::new();
         // let mut path_pos: Vec<Vec<usize>> = Vec::new();
 
         loop {
@@ -196,7 +200,7 @@ impl PathIndex {
 
             let mut parsed_steps = Vec::new();
 
-            let mut offsets = RoaringBitmap::new();
+            let mut offsets = RoaringTreemap::new();
 
             let steps = steps.split(|&c| c == b',');
 
@@ -213,7 +217,7 @@ impl PathIndex {
                     reverse: is_rev,
                 };
                 parsed_steps.push(step);
-                offsets.push(pos as u32);
+                offsets.push(pos as u64);
 
                 pos += len;
             }
@@ -227,6 +231,7 @@ impl PathIndex {
             path_steps,
             path_step_offsets,
 
+            segment_offsets,
             segment_id_range: seg_id_range,
             segment_lens: seg_lens,
             sequence_total_len,
