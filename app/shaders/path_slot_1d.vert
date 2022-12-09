@@ -5,7 +5,7 @@ layout (location = 1) in vec2 i_size;
 
 layout (location = 0) out vec2 o_uv;
 
-layout (set = 1, binding = 0) uniform Cfg {
+layout (set = 0, binding = 0) uniform Cfg {
     vec2 window_dims;
 } cfg;
 

@@ -37,7 +37,8 @@ struct Viewer1D {
     view: std::ops::Range<usize>,
 
     vertices: wgpu::Buffer,
-    uniform: wgpu::Buffer,
+    vert_uniform: wgpu::Buffer,
+    frag_uniform: wgpu::Buffer,
 }
 
 impl Viewer1D {
@@ -83,24 +84,34 @@ impl Viewer1D {
             )?
         };
 
-        let uniform = {
+        let (vert_uniform, frag_uniform) = {
             let data = [win_dims[0] as f32, win_dims[1] as f32];
             let usage = BufferUsages::UNIFORM | BufferUsages::COPY_DST;
 
-            let uniform =
+            let vert_uniform =
+                state.device.create_buffer_init(&BufferInitDescriptor {
+                    label: None,
+                    contents: bytemuck::cast_slice(&[data]),
+                    usage,
+                });
+                
+            let data = [0.7f32, 0.1, 0.85, 1.0];
+            let usage = BufferUsages::UNIFORM | BufferUsages::COPY_DST;
+            let frag_uniform =
                 state.device.create_buffer_init(&BufferInitDescriptor {
                     label: None,
                     contents: bytemuck::cast_slice(&[data]),
                     usage,
                 });
 
-            uniform
+            (vert_uniform, frag_uniform)
         };
 
         let draw_node = graph.add_node(draw_schema);
         graph.add_link_from_transient("vertices", draw_node, 0);
         graph.add_link_from_transient("swapchain", draw_node, 1);
-        graph.add_link_from_transient("cfg", draw_node, 2);
+        graph.add_link_from_transient("vert_cfg", draw_node, 2);
+        graph.add_link_from_transient("frag_cfg", draw_node, 3);
 
         let vertices = {
             let data = [100.0f32, 100.0, 200.0, 100.0];
@@ -132,7 +143,8 @@ impl Viewer1D {
             pangenome_len,
             view: 0..pangenome_len,
             vertices,
-            uniform,
+            vert_uniform,
+            frag_uniform,
         })
     }
 
@@ -200,46 +212,22 @@ impl Viewer1D {
             );
 
             transient_res.insert(
-                "cfg".into(),
+                "vert_cfg".into(),
                 InputResource::Buffer {
                     size: 2 * 4,
                     stride: None,
-                    buffer: &self.uniform,
-                },
-            );
-
-            /*
-            let stride = 8;
-            let v_size = stride * buffers.vertices;
-            let i_size = 4 * buffers.indices;
-
-            transient_res.insert(
-                "vertices".into(),
-                InputResource::Buffer {
-                    size: v_size,
-                    stride: Some(stride),
-                    buffer: &buffers.vertex_buffer,
+                    buffer: &self.vert_uniform,
                 },
             );
 
             transient_res.insert(
-                "indices".into(),
+                "frag_cfg".into(),
                 InputResource::Buffer {
-                    size: i_size,
-                    stride: Some(4),
-                    buffer: &buffers.index_buffer,
-                },
-            );
-
-            transient_res.insert(
-                "transform".into(),
-                InputResource::Buffer {
-                    size: 16 * 4,
+                    size: 2 * 4,
                     stride: None,
-                    buffer: &self.uniform_buf,
+                    buffer: &self.frag_uniform,
                 },
             );
-            */
 
             self.render_graph.update_transient_cache(&transient_res);
 

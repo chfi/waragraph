@@ -16,12 +16,12 @@ layout (set = 1, binding = 0) readonly buffer Colors {
 } colors;
 */
 
-// layout (set = 1, binding = 0) uniform Cfg {
-//     vec2 window_dims;
-// } cfg;
+layout (set = 1, binding = 0) uniform FragCfg {
+    vec4 color;
+} cfg;
 
 void main() {
-  f_color = vec4(1.0, 0.0, 0.0, 1.0);
+  f_color = cfg.color;
   /*
   uint offset = i_offset_len.x / 4;
   uint len = i_offset_len.y / 4;
