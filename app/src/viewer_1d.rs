@@ -1,8 +1,8 @@
 use crate::annotations::AnnotationStore;
-use crate::{PathIndex};
+use crate::PathIndex;
 use egui::epaint::tessellator::path;
 use egui_winit::EventResponse;
-
+use wgpu::BufferUsages;
 
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -16,12 +16,11 @@ use raving_wgpu::graph::dfrog::{Graph, InputResource};
 use raving_wgpu::gui::EguiCtx;
 use raving_wgpu::{NodeId, State};
 // use raving_wgpu as wgpu;
-use wgpu::util::DeviceExt;
+use wgpu::util::{BufferInitDescriptor, DeviceExt};
 
 use anyhow::Result;
 
 use ultraviolet::*;
-
 
 #[derive(Debug)]
 pub struct Args {
@@ -36,15 +35,18 @@ struct Viewer1D {
 
     pangenome_len: usize,
     view: std::ops::Range<usize>,
+
+    vertices: wgpu::Buffer,
+    uniform: wgpu::Buffer,
 }
 
 impl Viewer1D {
     fn init(
         event_loop: &EventLoopWindowTarget<()>,
+        win_dims: [u32; 2],
         state: &State,
         path_index: PathIndex,
     ) -> Result<Self> {
-
         let mut graph = Graph::new();
 
         let draw_schema = {
@@ -76,12 +78,198 @@ impl Viewer1D {
                 primitive,
                 wgpu::VertexStepMode::Instance,
                 ["vertex_in"],
-                Some("indices"),
+                None,
                 &[state.surface_format],
             )?
         };
 
+        let uniform = {
+            let data = [win_dims[0] as f32, win_dims[1] as f32];
+            let usage = BufferUsages::UNIFORM | BufferUsages::COPY_DST;
+
+            let uniform =
+                state.device.create_buffer_init(&BufferInitDescriptor {
+                    label: None,
+                    contents: bytemuck::cast_slice(&[data]),
+                    usage,
+                });
+
+            uniform
+        };
+
+        let draw_node = graph.add_node(draw_schema);
+        graph.add_link_from_transient("vertices", draw_node, 0);
+        graph.add_link_from_transient("swapchain", draw_node, 1);
+        graph.add_link_from_transient("cfg", draw_node, 2);
+
+        let vertices = {
+            let data = [100.0f32, 100.0, 200.0, 100.0];
+            let usage = BufferUsages::VERTEX | BufferUsages::COPY_DST;
+
+            let buffer =
+                state.device.create_buffer_init(&BufferInitDescriptor {
+                    label: None,
+                    contents: bytemuck::cast_slice(&[data]),
+                    usage,
+                });
+
+            buffer
+        };
+
+        let egui = EguiCtx::init(event_loop, state, None);
+        let pangenome_len = path_index.pangenome_len();
+
+        Ok(Viewer1D {
+            render_graph: graph,
+            egui,
+            path_index,
+            draw_path_slot: draw_node,
+            pangenome_len,
+            view: 0..pangenome_len,
+            vertices,
+            uniform,
+        })
+    }
+
+    fn update(&mut self, window: &winit::window::Window, dt: f32) {
         todo!();
+    }
+
+    fn on_event(&mut self, window_dims: [u32; 2], event: &WindowEvent) -> bool {
+        let mut consume = false;
+
+        // if self.touch.on_event(window_dims, event) {
+        //     consume = true;
+        // }
+
+        consume
+    }
+
+    fn render(&mut self, state: &mut State) -> Result<()> {
+        let dims = state.size;
+        let size = [dims.width, dims.height];
+
+        let mut transient_res: HashMap<String, InputResource<'_>> =
+            HashMap::default();
+
+        // let Some(buffers) = self.path_buffers.as_ref() else {
+        //     return Ok(());
+        // };
+
+        if let Ok(output) = state.surface.get_current_texture() {
+            // {
+            //     let uniform_data = self.camera.to_matrix();
+            //     state.queue.write_buffer(
+            //         &self.uniform_buf,
+            //         0,
+            //         bytemuck::cast_slice(&[uniform_data]),
+            //     );
+            // }
+
+            let output_view = output
+                .texture
+                .create_view(&wgpu::TextureViewDescriptor::default());
+
+            let format = state.surface_format;
+
+            transient_res.insert(
+                "swapchain".into(),
+                InputResource::Texture {
+                    size,
+                    format,
+                    texture: None,
+                    view: Some(&output_view),
+                    sampler: None,
+                },
+            );
+
+            let v_stride = std::mem::size_of::<[f32; 4]>();
+            let v_size = 1 * v_stride;
+            transient_res.insert(
+                "vertices".into(),
+                InputResource::Buffer {
+                    size: v_size,
+                    stride: Some(v_stride),
+                    buffer: &self.vertices,
+                },
+            );
+            
+            transient_res.insert(
+                "cfg".into(),
+                InputResource::Buffer {
+                    size: 2 * 4,
+                    stride: None,
+                    buffer: &self.uniform,
+                },
+            );
+
+            /*
+            let stride = 8;
+            let v_size = stride * buffers.vertices;
+            let i_size = 4 * buffers.indices;
+
+            transient_res.insert(
+                "vertices".into(),
+                InputResource::Buffer {
+                    size: v_size,
+                    stride: Some(stride),
+                    buffer: &buffers.vertex_buffer,
+                },
+            );
+
+            transient_res.insert(
+                "indices".into(),
+                InputResource::Buffer {
+                    size: i_size,
+                    stride: Some(4),
+                    buffer: &buffers.index_buffer,
+                },
+            );
+
+            transient_res.insert(
+                "transform".into(),
+                InputResource::Buffer {
+                    size: 16 * 4,
+                    stride: None,
+                    buffer: &self.uniform_buf,
+                },
+            );
+            */
+
+            self.render_graph.update_transient_cache(&transient_res);
+
+            let valid = self
+                .render_graph
+                .validate(&transient_res, &rhai::Map::default())
+                .unwrap();
+
+            if !valid {
+                log::error!("graph validation error");
+            }
+
+            let _sub_index = self
+                .render_graph
+                .execute(&state, &transient_res, &rhai::Map::default())
+                .unwrap();
+
+            let mut encoder = state.device.create_command_encoder(
+                &wgpu::CommandEncoderDescriptor {
+                    label: Some("egui render"),
+                },
+            );
+
+            self.egui.render(state, &output_view, &mut encoder);
+
+            state.queue.submit(Some(encoder.finish()));
+
+            state.device.poll(wgpu::MaintainBase::Wait);
+
+            output.present();
+        } else {
+            state.resize(state.size);
+        }
+
+        Ok(())
     }
 }
 
@@ -92,7 +280,90 @@ struct SlotBuffer {
 struct SlotDataCache {
     buffers: Vec<wgpu::Buffer>,
 }
+pub async fn run(args: Args) -> Result<()> {
+    let (event_loop, window, mut state) = raving_wgpu::initialize().await?;
 
+    let path_index = PathIndex::from_gfa(&args.gfa)?;
+    // let layout = GfaLayout::from_layout_tsv(&args.tsv)?;
+
+    let dims = {
+        let s = window.inner_size();
+        [s.width, s.height]
+    };
+
+    let mut app = Viewer1D::init(&event_loop, dims, &state, path_index)?;
+
+    /*
+    if let Some(bed) = args.annotations.as_ref() {
+        app.annotations.fill_from_bed(bed)?;
+        let cache = app
+            .annotations
+            .layout_positions(&app.path_index, &app.layout);
+        app.annotation_cache = cache;
+    }
+    */
+
+    let mut first_resize = true;
+    let mut prev_frame_t = std::time::Instant::now();
+
+    event_loop.run(move |event, _, control_flow| {
+        match &event {
+            Event::WindowEvent { window_id, event } => {
+                let mut consumed = false;
+
+                let size = window.inner_size();
+                let dims = [size.width, size.height];
+                // consumed = app.on_event(dims, event);
+
+                if !consumed {
+                    match &event {
+                        WindowEvent::KeyboardInput { input, .. } => {
+                            use VirtualKeyCode as Key;
+                            if let Some(code) = input.virtual_keycode {
+                                if let Key::Escape = code {
+                                    *control_flow = ControlFlow::Exit;
+                                }
+                            }
+                        }
+                        WindowEvent::CloseRequested => {
+                            *control_flow = ControlFlow::Exit
+                        }
+                        WindowEvent::Resized(phys_size) => {
+                            // for some reason i get a validation error if i actually attempt
+                            // to execute the first resize
+                            if first_resize {
+                                first_resize = false;
+                            } else {
+                                state.resize(*phys_size);
+                            }
+                        }
+                        WindowEvent::ScaleFactorChanged {
+                            new_inner_size,
+                            ..
+                        } => {
+                            state.resize(**new_inner_size);
+                        }
+                        _ => {}
+                    }
+                }
+            }
+
+            Event::RedrawRequested(window_id) if *window_id == window.id() => {
+                app.render(&mut state).unwrap();
+            }
+            Event::MainEventsCleared => {
+                let dt = prev_frame_t.elapsed().as_secs_f32();
+                prev_frame_t = std::time::Instant::now();
+
+                app.update(&window, dt);
+
+                window.request_redraw();
+            }
+
+            _ => {}
+        }
+    })
+}
 
 pub fn parse_args() -> std::result::Result<Args, pico_args::Error> {
     let mut pargs = pico_args::Arguments::from_env();
