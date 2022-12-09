@@ -293,6 +293,7 @@ impl PathRenderer {
                 vert_src,
                 frag_src,
                 primitive,
+                wgpu::VertexStepMode::Vertex,
                 ["vertex_in"],
                 Some("indices"),
                 &[state.surface_format],
