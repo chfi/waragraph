@@ -17,6 +17,7 @@ pub struct PathStep {
 }
 
 pub struct PathIndex {
+    sequence_total_len: usize,
     pub segment_id_range: (usize, usize),
     pub segment_lens: Vec<usize>,
 
@@ -47,6 +48,10 @@ impl<'a> Iterator for PathStepRangeIter<'a> {
 }
 
 impl PathIndex {
+    pub fn pangenome_len(&self) -> usize {
+        self.sequence_total_len
+    }
+
     pub fn path_steps<'a>(&'a self, path_name: &str) -> Option<&'a [PathStep]> {
         let ix = self.path_names.get(path_name)?;
         self.path_steps.get(*ix).map(|s| s.as_slice())
@@ -105,6 +110,7 @@ impl PathIndex {
         let mut line_buf = Vec::new();
 
         let mut seg_lens = Vec::new();
+        let mut sequence_total_len = 0;
 
         let mut seg_id_range = (std::usize::MAX, 0usize);
         // dbg!();
@@ -140,6 +146,7 @@ impl PathIndex {
             seg_id_range.1 = seg_id_range.1.max(seg_id);
 
             let len = seq.len();
+            sequence_total_len += len;
             seg_lens.push(len);
         }
 
@@ -222,6 +229,7 @@ impl PathIndex {
 
             segment_id_range: seg_id_range,
             segment_lens: seg_lens,
+            sequence_total_len,
         })
     }
 }
