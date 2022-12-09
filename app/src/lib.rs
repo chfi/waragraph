@@ -5,6 +5,8 @@ use std::collections::BTreeMap;
 use std::io::prelude::*;
 use std::io::BufReader;
 
+pub mod viewer_2d;
+
 pub mod annotations;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
