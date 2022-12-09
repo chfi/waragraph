@@ -16,9 +16,9 @@ layout (set = 1, binding = 0) readonly buffer Colors {
 } colors;
 */
 
-layout (set = 0, binding = 0) uniform Cfg {
-    vec2 window_dims;
-} cfg;
+// layout (set = 1, binding = 0) uniform Cfg {
+//     vec2 window_dims;
+// } cfg;
 
 void main() {
   f_color = vec4(1.0, 0.0, 0.0, 1.0);

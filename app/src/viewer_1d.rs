@@ -113,6 +113,11 @@ impl Viewer1D {
                     usage,
                 });
 
+            graph.set_node_preprocess_fn(draw_node, move |_ctx, op_state| {
+                op_state.vertices = Some(0..6);
+                op_state.instances = Some(0..1);
+            });
+
             buffer
         };
 
@@ -132,7 +137,7 @@ impl Viewer1D {
     }
 
     fn update(&mut self, window: &winit::window::Window, dt: f32) {
-        todo!();
+        // TODO
     }
 
     fn on_event(&mut self, window_dims: [u32; 2], event: &WindowEvent) -> bool {
@@ -193,7 +198,7 @@ impl Viewer1D {
                     buffer: &self.vertices,
                 },
             );
-            
+
             transient_res.insert(
                 "cfg".into(),
                 InputResource::Buffer {
