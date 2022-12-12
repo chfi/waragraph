@@ -10,6 +10,8 @@ pub mod viewer_2d;
 
 pub mod annotations;
 
+pub mod gpu_cache;
+
 
 pub struct GfaLayout {
     pub positions: Vec<Vec2>,
