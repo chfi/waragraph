@@ -1,8 +1,11 @@
 [package]
-name = "lib"
+name = "waragraph-core"
 version = "0.1.0"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+log = "0.4"
+roaring = "0.10"
+btoi = "0.4.2"
