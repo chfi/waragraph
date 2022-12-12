@@ -1,5 +1,5 @@
 use crate::annotations::AnnotationStore;
-use crate::{GfaLayout, PathIndex};
+use crate::{GfaLayout};
 use egui::epaint::tessellator::path;
 use egui_winit::EventResponse;
 
@@ -28,6 +28,8 @@ use wgpu::util::DeviceExt;
 use anyhow::Result;
 
 use ultraviolet::*;
+
+use waragraph_core::graph::PathIndex;
 
 #[derive(Debug)]
 pub struct Args {
@@ -305,9 +307,9 @@ impl PathRenderer {
             .unwrap()
             .into_iter()
             .flat_map(|step| {
-                let seg = step.node;
-                let rev = step.reverse;
-                let ix = seg as usize;
+                let seg = step.node();
+                let rev = step.is_reverse();
+                let ix = seg.ix();
                 let a = ix * 2;
                 let b = a + 1;
                 let va = layout.positions[a];

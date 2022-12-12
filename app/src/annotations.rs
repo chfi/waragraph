@@ -2,7 +2,9 @@ use anyhow::Result;
 use std::collections::HashMap;
 use ultraviolet::Vec2;
 
-use crate::{GfaLayout, PathIndex};
+use crate::GfaLayout;
+
+use waragraph_core::graph::PathIndex;
 
 #[derive(Default, Clone)]
 pub struct AnnotationStore {
@@ -22,7 +24,7 @@ impl AnnotationStore {
         let world_pos_for_offset = |path: &str, pos: usize| {
             path_index
                 .step_at_pos(path, pos)
-                .and_then(|s| layout.pos_for_node(s.node as usize))
+                .and_then(|s| layout.pos_for_node(s.node().ix()))
         };
 
         for (path, annots) in self.path_annotations.iter() {

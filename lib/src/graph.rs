@@ -1,8 +1,7 @@
-use roaring::RoaringTreemap;
+use roaring::{RoaringBitmap, RoaringTreemap};
 use std::collections::BTreeMap;
 use std::io::prelude::*;
 use std::io::BufReader;
-
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(C)]
@@ -12,24 +11,80 @@ pub struct Node(u32);
 #[repr(C)]
 pub struct OrientedNode(u32);
 
+impl Node {
+    #[inline]
+    pub fn ix(&self) -> usize {
+        self.0 as usize
+    }
 
+    #[inline]
+    pub fn as_forward(&self) -> OrientedNode {
+        OrientedNode::new(self.0, false)
+    }
+
+    #[inline]
+    pub fn as_reverse(&self) -> OrientedNode {
+        OrientedNode::new(self.0, true)
+    }
+}
+
+impl From<u32> for Node {
+    fn from(u: u32) -> Node {
+        Node(u)
+    }
+}
+
+impl From<usize> for Node {
+    fn from(u: usize) -> Node {
+        Node(u as u32)
+    }
+}
+
+impl OrientedNode {
+    #[inline]
+    pub fn new(id: u32, reverse: bool) -> Self {
+        OrientedNode((id << 1) | reverse as u32)
+    }
+
+    #[inline]
+    pub fn node(&self) -> Node {
+        Node(self.0 >> 1)
+    }
+
+    #[inline]
+    pub fn is_reverse(&self) -> bool {
+        (self.0 & 1) == 1
+    }
+}
+
+
+#[derive(Debug, Clone)]
 pub struct Waragraph {
     path_index: PathIndex,
+    path_node_sets: Vec<RoaringBitmap>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct PathStep {
-    pub node: u32,
-    pub reverse: bool,
+
+impl Waragraph {
+    pub fn from_gfa(
+        gfa_path: impl AsRef<std::path::Path>,
+    ) -> std::io::Result<Self> {
+        let path_index = PathIndex::from_gfa(gfa_path)?;
+
+        // for (path_id, steps) in path_index.path_
+
+        todo!();
+    }
 }
 
+#[derive(Debug, Clone)]
 pub struct PathIndex {
     pub segment_offsets: roaring::RoaringTreemap,
     sequence_total_len: usize,
     pub segment_id_range: (u32, u32),
 
     path_names: BTreeMap<String, usize>,
-    path_steps: Vec<Vec<PathStep>>,
+    path_steps: Vec<Vec<OrientedNode>>,
 
     path_step_offsets: Vec<roaring::RoaringTreemap>,
 }
@@ -39,13 +94,13 @@ pub struct PathStepRangeIter<'a> {
     pos_range: std::ops::Range<u64>,
     // start_pos: usize,
     // end_pos: usize,
-    steps: Box<dyn Iterator<Item = (usize, &'a PathStep)> + 'a>,
+    steps: Box<dyn Iterator<Item = (usize, &'a OrientedNode)> + 'a>,
     // first_step_start_pos: u32,
     // last_step_end_pos: u32,
 }
 
 impl<'a> Iterator for PathStepRangeIter<'a> {
-    type Item = (usize, &'a PathStep);
+    type Item = (usize, &'a OrientedNode);
 
     fn next(&mut self) -> Option<Self::Item> {
         self.steps.next()
@@ -57,12 +112,12 @@ impl PathIndex {
         self.sequence_total_len
     }
 
-    pub fn path_steps<'a>(&'a self, path_name: &str) -> Option<&'a [PathStep]> {
+    pub fn path_steps<'a>(&'a self, path_name: &str) -> Option<&'a [OrientedNode]> {
         let ix = self.path_names.get(path_name)?;
         self.path_steps.get(*ix).map(|s| s.as_slice())
     }
 
-    pub fn step_at_pos(&self, path_name: &str, pos: usize) -> Option<PathStep> {
+    pub fn step_at_pos(&self, path_name: &str, pos: usize) -> Option<OrientedNode> {
         let path_id = *self.path_names.get(path_name)?;
         let offsets = self.path_step_offsets.get(path_id)?;
         let steps = self.path_steps.get(path_id)?;
@@ -110,7 +165,7 @@ impl PathIndex {
 
     pub fn from_gfa(
         gfa_path: impl AsRef<std::path::Path>,
-    ) -> Result<Self, Box<dyn std::error::Error>> {
+    ) -> std::io::Result<Self> {
         let gfa = std::fs::File::open(&gfa_path)?;
         let mut gfa_reader = BufReader::new(gfa);
 
@@ -121,7 +176,6 @@ impl PathIndex {
         let mut sequence_total_len = 0;
 
         let mut seg_id_range = (std::u32::MAX, 0u32);
-        // dbg!();
 
         loop {
             line_buf.clear();
@@ -132,8 +186,6 @@ impl PathIndex {
             }
 
             let line = &line_buf[..len - 1];
-            // let line_str = std::str::from_utf8(&line)?;
-            // println!("{line_str}");
 
             if !matches!(line.first(), Some(b'S')) {
                 continue;
@@ -148,7 +200,10 @@ impl PathIndex {
             }) else {
                 continue;
             };
-            let seg_id = btoi::btou::<u32>(name)?;
+            
+            let seg_id = btoi::btou::<u32>(name).map_err(|e| {
+                std::io::Error::new(std::io::ErrorKind::InvalidData, e)
+            })?;
 
             seg_id_range.0 = seg_id_range.0.min(seg_id);
             seg_id_range.1 = seg_id_range.1.max(seg_id);
@@ -172,7 +227,7 @@ impl PathIndex {
 
         let mut path_names = BTreeMap::default();
 
-        let mut path_steps: Vec<Vec<PathStep>> = Vec::new();
+        let mut path_steps: Vec<Vec<OrientedNode>> = Vec::new();
         let mut path_step_offsets: Vec<RoaringTreemap> = Vec::new();
         // let mut path_pos: Vec<Vec<usize>> = Vec::new();
 
@@ -199,7 +254,9 @@ impl PathIndex {
                 continue;
             };
 
-            let name = std::str::from_utf8(name)?;
+            let name = std::str::from_utf8(name).map_err(|e| {
+                std::io::Error::new(std::io::ErrorKind::InvalidData, e)
+            })?;
             path_names.insert(name.to_string(), path_steps.len());
 
             let mut pos = 0;
@@ -212,16 +269,16 @@ impl PathIndex {
 
             for step in steps {
                 let (seg, orient) = step.split_at(step.len() - 1);
-                let seg_id = btoi::btou::<u32>(seg)?;
+                let seg_id = btoi::btou::<u32>(seg).map_err(|e| {
+                    std::io::Error::new(std::io::ErrorKind::InvalidData, e)
+                })?;
                 let seg_ix = seg_id - seg_id_range.0;
                 let len = seg_lens[seg_ix as usize];
 
                 let is_rev = orient == b"-";
 
-                let step = PathStep {
-                    node: seg_ix as u32,
-                    reverse: is_rev,
-                };
+                let step = OrientedNode::new(seg_ix as u32, is_rev);
+                
                 parsed_steps.push(step);
                 offsets.push(pos as u64);
 

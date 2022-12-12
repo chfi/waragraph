@@ -91,31 +91,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "216261ddc8289130e551ddcd5ce8a064710c0d064a4d2895c67151c92b5443f6"
 
 [[package]]
-name = "app"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "btoi",
- "bytemuck",
- "egui",
- "egui-wgpu",
- "egui-winit",
- "env_logger",
- "log",
- "lyon",
- "memchr",
- "noodles",
- "pico-args",
- "pollster",
- "raving-wgpu",
- "rhai",
- "roaring",
- "ultraviolet",
- "wgpu",
- "winit",
-]
-
-[[package]]
 name = "arboard"
 version = "3.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1234,10 +1209,6 @@ dependencies = [
  "lexical-util",
  "static_assertions",
 ]
-
-[[package]]
-name = "lib"
-version = "0.1.0"
 
 [[package]]
 name = "libc"
@@ -2501,6 +2472,41 @@ dependencies = [
  "same-file",
  "winapi",
  "winapi-util",
+]
+
+[[package]]
+name = "waragraph"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "btoi",
+ "bytemuck",
+ "egui",
+ "egui-wgpu",
+ "egui-winit",
+ "env_logger",
+ "log",
+ "lyon",
+ "memchr",
+ "noodles",
+ "pico-args",
+ "pollster",
+ "raving-wgpu",
+ "rhai",
+ "roaring",
+ "ultraviolet",
+ "waragraph-core",
+ "wgpu",
+ "winit",
+]
+
+[[package]]
+name = "waragraph-core"
+version = "0.1.0"
+dependencies = [
+ "btoi",
+ "log",
+ "roaring",
 ]
 
 [[package]]

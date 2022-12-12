@@ -1,5 +1,4 @@
 use crate::annotations::AnnotationStore;
-use crate::PathIndex;
 use egui::epaint::tessellator::path;
 use egui_winit::EventResponse;
 use wgpu::BufferUsages;
@@ -15,12 +14,11 @@ use raving_wgpu::camera::{DynamicCamera2d, TouchHandler, TouchOutput};
 use raving_wgpu::graph::dfrog::{Graph, InputResource};
 use raving_wgpu::gui::EguiCtx;
 use raving_wgpu::{NodeId, State};
-// use raving_wgpu as wgpu;
 use wgpu::util::{BufferInitDescriptor, DeviceExt};
 
 use anyhow::Result;
 
-use ultraviolet::*;
+use waragraph_core::graph::PathIndex;
 
 #[derive(Debug)]
 pub struct Args {
