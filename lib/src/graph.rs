@@ -57,13 +57,11 @@ impl OrientedNode {
     }
 }
 
-
 #[derive(Debug, Clone)]
 pub struct Waragraph {
-    path_index: PathIndex,
-    path_node_sets: Vec<RoaringBitmap>,
+    pub path_index: PathIndex,
+    pub path_node_sets: Vec<RoaringBitmap>,
 }
-
 
 impl Waragraph {
     pub fn from_gfa(
@@ -71,9 +69,19 @@ impl Waragraph {
     ) -> std::io::Result<Self> {
         let path_index = PathIndex::from_gfa(gfa_path)?;
 
-        // for (path_id, steps) in path_index.path_
+        let mut path_node_sets = Vec::new();
 
-        todo!();
+        for steps in path_index.path_steps.iter() {
+            let set =
+                steps.iter().map(|s| s.node().0).collect::<RoaringBitmap>();
+
+            path_node_sets.push(set);
+        }
+
+        Ok(Waragraph {
+            path_index,
+            path_node_sets,
+        })
     }
 }
 
@@ -112,12 +120,19 @@ impl PathIndex {
         self.sequence_total_len
     }
 
-    pub fn path_steps<'a>(&'a self, path_name: &str) -> Option<&'a [OrientedNode]> {
+    pub fn path_steps<'a>(
+        &'a self,
+        path_name: &str,
+    ) -> Option<&'a [OrientedNode]> {
         let ix = self.path_names.get(path_name)?;
         self.path_steps.get(*ix).map(|s| s.as_slice())
     }
 
-    pub fn step_at_pos(&self, path_name: &str, pos: usize) -> Option<OrientedNode> {
+    pub fn step_at_pos(
+        &self,
+        path_name: &str,
+        pos: usize,
+    ) -> Option<OrientedNode> {
         let path_id = *self.path_names.get(path_name)?;
         let offsets = self.path_step_offsets.get(path_id)?;
         let steps = self.path_steps.get(path_id)?;
@@ -200,7 +215,7 @@ impl PathIndex {
             }) else {
                 continue;
             };
-            
+
             let seg_id = btoi::btou::<u32>(name).map_err(|e| {
                 std::io::Error::new(std::io::ErrorKind::InvalidData, e)
             })?;
@@ -278,7 +293,7 @@ impl PathIndex {
                 let is_rev = orient == b"-";
 
                 let step = OrientedNode::new(seg_ix as u32, is_rev);
-                
+
                 parsed_steps.push(step);
                 offsets.push(pos as u64);
 

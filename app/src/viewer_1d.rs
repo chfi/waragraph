@@ -20,6 +20,8 @@ use anyhow::Result;
 
 use waragraph_core::graph::PathIndex;
 
+pub mod sampling;
+
 #[derive(Debug)]
 pub struct Args {
     gfa: PathBuf,
