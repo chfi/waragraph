@@ -52,6 +52,7 @@ fn path_frag_example_uniforms(
     let usage = BufferUsages::STORAGE | BufferUsages::COPY_DST;
 
     let color = {
+        /*
         let len = 256;
         let colors = (0..len)
             .flat_map(|i| {
@@ -63,9 +64,33 @@ fn path_frag_example_uniforms(
                 [r as f32 / max, g as f32 / max, b as f32 / max, 1.0]
             })
             .collect::<Vec<_>>();
+            */
+
+        let rgba = |r: u8, g: u8, b: u8| {
+            let max = u8::MAX as f32;
+            [r as f32 / max, g as f32 / max, b as f32 / max, 1.0]
+        };
+
+        let colors = [
+            rgba(255, 255, 255),
+            rgba(196, 196, 196),
+            rgba(128, 128, 128),
+            rgba(158, 1, 66),
+            rgba(213, 62, 79),
+            rgba(244, 109, 67),
+            rgba(253, 174, 97),
+            rgba(254, 224, 139),
+            rgba(255, 255, 191),
+            rgba(230, 245, 152),
+            rgba(171, 221, 164),
+            rgba(102, 194, 165),
+            rgba(50, 136, 189),
+            rgba(94, 79, 162),
+        ];
+        let len = colors.len();
 
         let mut data: Vec<u8> = vec![];
-        data.extend(bytemuck::cast_slice(&[len]));
+        data.extend(bytemuck::cast_slice(&[len, 0, 0, 0]));
         data.extend(bytemuck::cast_slice(&colors));
 
         (
@@ -79,13 +104,11 @@ fn path_frag_example_uniforms(
     };
 
     let data = {
-        let values = (0..100)
-            .map(|i| if i < 50 { 0 } else { 100 })
-            .collect::<Vec<u32>>();
+        let values = (0..100).map(|i| i / 10).collect::<Vec<u32>>();
         let len = values.len();
 
         let mut data: Vec<u8> = vec![];
-        data.extend(bytemuck::cast_slice(&[len]));
+        data.extend(bytemuck::cast_slice(&[len, 0, 0, 0]));
         data.extend(bytemuck::cast_slice(&values));
 
         (
