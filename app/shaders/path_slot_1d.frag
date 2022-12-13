@@ -10,10 +10,10 @@ layout (set = 1, binding = 0) readonly buffer DataBuf {
   uint values[];
 } data;
 
-// layout (set = 2, binding = 0) readonly buffer Colors {
-//   uint len;
-//   vec4 colors[];
-// } colors;
+layout (set = 1, binding = 1) readonly buffer Colors {
+  uint len;
+  vec4 colors[];
+} colors;
 
 /*
 layout (set = 0, binding = 0) readonly buffer DataBuf {
@@ -26,18 +26,15 @@ layout (set = 1, binding = 0) readonly buffer Colors {
 } colors;
 */
 
-// layout (set = 1, binding = 0) uniform FragCfg {
+// layout (set = 1, binding = 1) uniform FragCfg {
 //     vec4 color;
 // } cfg;
 
 void main() {
-  // uint data_ix = uint(i_uv.x * float(data.len));
-  // uint val = data.values[data_ix];
-  // vec4 color = colors.colors[val % colors.len];
-  // f_color = color;
-
-  f_color = vec4(1.0, 0.0, 0.0, 1.0);
-
+  uint data_ix = uint(i_uv.x * float(data.len - 1));
+  uint val = data.values[data_ix];
+  vec4 color = colors.colors[val % colors.len];
+  f_color = color;
 
   /*
   uint offset = i_offset_len.x / 4;

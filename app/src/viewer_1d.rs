@@ -49,16 +49,18 @@ struct Viewer1D {
 fn path_frag_example_uniforms(
     device: &wgpu::Device,
 ) -> Result<((wgpu::Buffer, usize), (wgpu::Buffer, usize))> {
-    let usage =
-        BufferUsages::STORAGE | BufferUsages::COPY_DST;
+    let usage = BufferUsages::STORAGE | BufferUsages::COPY_DST;
 
     let color = {
         let len = 256;
         let colors = (0..len)
             .flat_map(|i| {
-                let color = colorous::SPECTRAL.eval_rational(i, len);
+                let gradient = colorous::MAGMA;
+                // let gradient = colorous::SPECTRAL;
+                let color = gradient.eval_rational(i, len);
                 let [r, g, b] = color.as_array();
-                [r as f32 / 255.0, g as f32 / 255.0, b as f32 / 255.0, 1.0]
+                let max = u8::MAX as f32;
+                [r as f32 / max, g as f32 / max, b as f32 / max, 1.0]
             })
             .collect::<Vec<_>>();
 
@@ -77,7 +79,9 @@ fn path_frag_example_uniforms(
     };
 
     let data = {
-        let values = (0..100).collect::<Vec<u32>>();
+        let values = (0..100)
+            .map(|i| if i < 50 { 0 } else { 100 })
+            .collect::<Vec<u32>>();
         let len = values.len();
 
         let mut data: Vec<u8> = vec![];
@@ -150,7 +154,7 @@ impl Viewer1D {
                     contents: bytemuck::cast_slice(&[data]),
                     usage,
                 });
-                
+
             let data = [0.7f32, 0.1, 0.85, 1.0];
             let usage = BufferUsages::UNIFORM | BufferUsages::COPY_DST;
             let frag_uniform =
@@ -166,8 +170,12 @@ impl Viewer1D {
         let draw_node = graph.add_node(draw_schema);
         graph.add_link_from_transient("vertices", draw_node, 0);
         graph.add_link_from_transient("swapchain", draw_node, 1);
+
         graph.add_link_from_transient("vert_cfg", draw_node, 2);
-        graph.add_link_from_transient("frag_cfg", draw_node, 3);
+        // graph.add_link_from_transient("frag_cfg", draw_node, 3);
+
+        graph.add_link_from_transient("data", draw_node, 3);
+        graph.add_link_from_transient("color", draw_node, 4);
 
         let vertices = {
             let data = [100.0f32, 100.0, 200.0, 100.0];
@@ -191,6 +199,9 @@ impl Viewer1D {
         let egui = EguiCtx::init(event_loop, state, None);
         let pangenome_len = path_index.pangenome_len();
 
+        let ((color_uniform, color_size), (data_uniform, data_size)) =
+            path_frag_example_uniforms(&state.device)?;
+
         Ok(Viewer1D {
             render_graph: graph,
             egui,
@@ -201,6 +212,11 @@ impl Viewer1D {
             vertices,
             vert_uniform,
             frag_uniform,
+
+            color_uniform,
+            color_size,
+            data_uniform,
+            data_size,
         })
     }
 
@@ -273,6 +289,24 @@ impl Viewer1D {
                     size: 2 * 4,
                     stride: None,
                     buffer: &self.vert_uniform,
+                },
+            );
+
+            transient_res.insert(
+                "data".into(),
+                InputResource::Buffer {
+                    size: self.data_size,
+                    stride: None,
+                    buffer: &self.data_uniform,
+                },
+            );
+
+            transient_res.insert(
+                "color".into(),
+                InputResource::Buffer {
+                    size: self.color_size,
+                    stride: None,
+                    buffer: &self.color_uniform,
                 },
             );
 
