@@ -22,6 +22,8 @@ wgpu = { version = "0.14.0", features = ["spirv"] }
 bytemuck = { version = "1.4", features = [ "derive" ] }
 ultraviolet = { version = "0.9", features = ["bytemuck", "f64"]}
 
+palette = "0.6"
+colorous = "1.0"
 
 raving-wgpu = { path = "../../raving-wgpu" }
 # raving-wgpu = { git = "https://github.com/chfi/raving-wgpu" }

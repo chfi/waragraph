@@ -39,6 +39,62 @@ struct Viewer1D {
     vertices: wgpu::Buffer,
     vert_uniform: wgpu::Buffer,
     frag_uniform: wgpu::Buffer,
+
+    data_uniform: wgpu::Buffer,
+    data_size: usize,
+    color_uniform: wgpu::Buffer,
+    color_size: usize,
+}
+
+fn path_frag_example_uniforms(
+    device: &wgpu::Device,
+) -> Result<((wgpu::Buffer, usize), (wgpu::Buffer, usize))> {
+    let usage =
+        BufferUsages::STORAGE | BufferUsages::COPY_DST;
+
+    let color = {
+        let len = 256;
+        let colors = (0..len)
+            .flat_map(|i| {
+                let color = colorous::SPECTRAL.eval_rational(i, len);
+                let [r, g, b] = color.as_array();
+                [r as f32 / 255.0, g as f32 / 255.0, b as f32 / 255.0, 1.0]
+            })
+            .collect::<Vec<_>>();
+
+        let mut data: Vec<u8> = vec![];
+        data.extend(bytemuck::cast_slice(&[len]));
+        data.extend(bytemuck::cast_slice(&colors));
+
+        (
+            device.create_buffer_init(&BufferInitDescriptor {
+                label: None,
+                contents: data.as_slice(),
+                usage,
+            }),
+            data.len(),
+        )
+    };
+
+    let data = {
+        let values = (0..100).collect::<Vec<u32>>();
+        let len = values.len();
+
+        let mut data: Vec<u8> = vec![];
+        data.extend(bytemuck::cast_slice(&[len]));
+        data.extend(bytemuck::cast_slice(&values));
+
+        (
+            device.create_buffer_init(&BufferInitDescriptor {
+                label: None,
+                contents: bytemuck::cast_slice(&data),
+                usage,
+            }),
+            data.len(),
+        )
+    };
+
+    Ok((color, data))
 }
 
 impl Viewer1D {
