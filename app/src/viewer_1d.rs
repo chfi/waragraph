@@ -40,15 +40,52 @@ struct Viewer1D {
     vert_uniform: wgpu::Buffer,
     frag_uniform: wgpu::Buffer,
 
-    data_uniform: wgpu::Buffer,
-    data_size: usize,
-    color_uniform: wgpu::Buffer,
-    color_size: usize,
+    path_viz_cache: PathVizCache,
+    // data_uniform: wgpu::Buffer,
+    // data_size: usize,
+    // color_uniform: wgpu::Buffer,
+    // color_size: usize,
+}
+
+#[derive(Debug)]
+struct BufferDesc {
+    buffer: wgpu::Buffer,
+    size: usize,
+    deleted: bool,
+}
+
+impl BufferDesc {
+    fn new(buffer: wgpu::Buffer, size: usize) -> Self {
+        Self {
+            buffer,
+            size,
+            deleted: false,
+        }
+    }
+}
+
+#[derive(Debug, Default)]
+struct PathVizCache {
+    buffer_names: HashMap<String, usize>,
+    buffers: Vec<BufferDesc>,
+}
+
+impl PathVizCache {
+    fn get(&self, name: &str) -> Option<&BufferDesc> {
+        let ix = self.buffer_names.get(name)?;
+        self.buffers.get(*ix)
+    }
+
+    fn insert(&mut self, name: &str, desc: BufferDesc) {
+        let ix = self.buffers.len();
+        self.buffer_names.insert(name.into(), ix);
+        self.buffers.push(desc);
+    }
 }
 
 fn path_frag_example_uniforms(
     device: &wgpu::Device,
-) -> Result<((wgpu::Buffer, usize), (wgpu::Buffer, usize))> {
+) -> Result<(BufferDesc, BufferDesc)> {
     let usage = BufferUsages::STORAGE | BufferUsages::COPY_DST;
 
     let color = {
@@ -93,14 +130,13 @@ fn path_frag_example_uniforms(
         data.extend(bytemuck::cast_slice(&[len, 0, 0, 0]));
         data.extend(bytemuck::cast_slice(&colors));
 
-        (
-            device.create_buffer_init(&BufferInitDescriptor {
-                label: None,
-                contents: data.as_slice(),
-                usage,
-            }),
-            data.len(),
-        )
+        let buffer = device.create_buffer_init(&BufferInitDescriptor {
+            label: None,
+            contents: data.as_slice(),
+            usage,
+        });
+
+        BufferDesc::new(buffer, data.len())
     };
 
     let data = {
@@ -111,14 +147,13 @@ fn path_frag_example_uniforms(
         data.extend(bytemuck::cast_slice(&[len, 0, 0, 0]));
         data.extend(bytemuck::cast_slice(&values));
 
-        (
-            device.create_buffer_init(&BufferInitDescriptor {
-                label: None,
-                contents: bytemuck::cast_slice(&data),
-                usage,
-            }),
-            data.len(),
-        )
+        let buffer = device.create_buffer_init(&BufferInitDescriptor {
+            label: None,
+            contents: bytemuck::cast_slice(&data),
+            usage,
+        });
+
+        BufferDesc::new(buffer, data.len())
     };
 
     Ok((color, data))
@@ -222,8 +257,11 @@ impl Viewer1D {
         let egui = EguiCtx::init(event_loop, state, None);
         let pangenome_len = path_index.pangenome_len();
 
-        let ((color_uniform, color_size), (data_uniform, data_size)) =
-            path_frag_example_uniforms(&state.device)?;
+        let (color, data) = path_frag_example_uniforms(&state.device)?;
+
+        let mut path_viz_cache = PathVizCache::default();
+        path_viz_cache.insert("color", color);
+        path_viz_cache.insert("data", data);
 
         Ok(Viewer1D {
             render_graph: graph,
@@ -236,10 +274,7 @@ impl Viewer1D {
             vert_uniform,
             frag_uniform,
 
-            color_uniform,
-            color_size,
-            data_uniform,
-            data_size,
+            path_viz_cache,
         })
     }
 
@@ -264,19 +299,7 @@ impl Viewer1D {
         let mut transient_res: HashMap<String, InputResource<'_>> =
             HashMap::default();
 
-        // let Some(buffers) = self.path_buffers.as_ref() else {
-        //     return Ok(());
-        // };
-
         if let Ok(output) = state.surface.get_current_texture() {
-            // {
-            //     let uniform_data = self.camera.to_matrix();
-            //     state.queue.write_buffer(
-            //         &self.uniform_buf,
-            //         0,
-            //         bytemuck::cast_slice(&[uniform_data]),
-            //     );
-            // }
 
             let output_view = output
                 .texture
@@ -315,23 +338,18 @@ impl Viewer1D {
                 },
             );
 
-            transient_res.insert(
-                "data".into(),
-                InputResource::Buffer {
-                    size: self.data_size,
-                    stride: None,
-                    buffer: &self.data_uniform,
-                },
-            );
-
-            transient_res.insert(
-                "color".into(),
-                InputResource::Buffer {
-                    size: self.color_size,
-                    stride: None,
-                    buffer: &self.color_uniform,
-                },
-            );
+            for name in ["data", "color"] {
+                if let Some(desc) = self.path_viz_cache.get(name) {
+                    transient_res.insert(
+                        name.into(),
+                        InputResource::Buffer {
+                            size: desc.size,
+                            stride: None,
+                            buffer: &desc.buffer,
+                        },
+                    );
+                }
+            }
 
             transient_res.insert(
                 "frag_cfg".into(),
