@@ -258,7 +258,6 @@ impl<K: std::hash::Hash + Eq> BufferCache<K> {
     }
 }
 
-
 // #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 // pub enum BlockState {
 //     Unknown,
@@ -275,7 +274,6 @@ where
     usage: wgpu::BufferUsages,
     buffer: wgpu::Buffer,
     // bind_group: wgpu::BindGroup,
-
     cache: BufferCache<K>,
 }
 
@@ -291,7 +289,8 @@ where
         block_size: usize,
         block_capacity: usize,
     ) -> Result<Self> {
-        let cache: BufferCache<K> = BufferCache::new(elem_size, block_size, block_capacity);
+        let cache: BufferCache<K> =
+            BufferCache::new(elem_size, block_size, block_capacity);
         let capacity = cache.buffer_size();
 
         let usage = usage | wgpu::BufferUsages::COPY_DST;

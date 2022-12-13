@@ -1,7 +1,5 @@
 use anyhow::Result;
-use roaring::RoaringTreemap;
 use ultraviolet::Vec2;
-use std::collections::BTreeMap;
 use std::io::prelude::*;
 use std::io::BufReader;
 
