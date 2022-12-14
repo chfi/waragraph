@@ -2,7 +2,7 @@ use anyhow::Result;
 use std::collections::HashMap;
 use ultraviolet::Vec2;
 
-use crate::GfaLayout;
+use crate::viewer_2d::layout::GraphPaths;
 
 use waragraph_core::graph::PathIndex;
 
@@ -17,14 +17,14 @@ impl AnnotationStore {
     pub fn layout_positions(
         &self,
         path_index: &PathIndex,
-        layout: &GfaLayout,
+        graph_paths: &GraphPaths,
     ) -> Vec<(Vec2, String)> {
         let mut out = Vec::new();
 
         let world_pos_for_offset = |path: &str, pos: usize| {
             path_index
                 .step_at_pos(path, pos)
-                .and_then(|s| layout.pos_for_node(s.node().ix()))
+                .and_then(|s| graph_paths.pos_for_node(s.node().ix()))
         };
 
         for (path, annots) in self.path_annotations.iter() {

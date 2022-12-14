@@ -8,10 +8,10 @@ use lyon::math::point;
 use lyon::math::Point;
 use lyon::path::EndpointId;
 use lyon::path::PathCommands;
-use wgpu::util::DeviceExt;
 use std::io::prelude::*;
 use std::io::BufReader;
 use ultraviolet::Vec2;
+use wgpu::util::DeviceExt;
 
 use waragraph_core::graph::PathIndex;
 
@@ -22,7 +22,6 @@ pub struct GraphPaths {
 }
 
 impl GraphPaths {
-
     pub(super) fn tessellate_paths(
         &self,
         device: &wgpu::Device,
@@ -64,25 +63,23 @@ impl GraphPaths {
                 &mut buf_build,
             )?;
         }
-        
+
         let vertices = geometry.vertices.len();
         let indices = geometry.indices.len();
 
-        let vertex_buffer = device.create_buffer_init(
-            &wgpu::util::BufferInitDescriptor {
+        let vertex_buffer =
+            device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
                 label: Some("Vertex Buffer"),
                 contents: bytemuck::cast_slice(&geometry.vertices),
                 usage: wgpu::BufferUsages::VERTEX,
-            },
-        );
+            });
 
-        let index_buffer = device.create_buffer_init(
-            &wgpu::util::BufferInitDescriptor {
+        let index_buffer =
+            device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
                 label: Some("Index Buffer"),
                 contents: bytemuck::cast_slice(&geometry.indices),
                 usage: wgpu::BufferUsages::INDEX,
-            },
-        );
+            });
 
         Ok(super::LyonBuffers {
             vertices,
@@ -92,12 +89,12 @@ impl GraphPaths {
         })
     }
 
-    // pub fn pos_for_node(&self, node: usize) -> Option<(Vec2, Vec2)> {
-    //     let ix = node / 2;
-    //     let a = *self.endpoints.get(ix)?;
-    //     let b = *self.endpoints.get(ix + 1)?;
-    //     Some((a, b))
-    // }
+    pub fn pos_for_node(&self, node: usize) -> Option<(Vec2, Vec2)> {
+        let ix = node / 2;
+        let a = *self.endpoints.get(ix)?;
+        let b = *self.endpoints.get(ix + 1)?;
+        Some((a.to_array().into(), b.to_array().into()))
+    }
 
     pub fn from_path_index_and_layout_tsv(
         path_index: &PathIndex,
@@ -162,7 +159,8 @@ impl GraphPaths {
             gfa_paths.push(builder.build());
         }
 
-        let endpoints = positions.into_iter().map(|p| point(p.x, p.y)).collect();
+        let endpoints =
+            positions.into_iter().map(|p| point(p.x, p.y)).collect();
 
         Ok(GraphPaths {
             aabb,

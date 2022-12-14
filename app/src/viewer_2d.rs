@@ -1,20 +1,15 @@
 use crate::annotations::AnnotationStore;
-use crate::{GfaLayout};
-use egui::epaint::tessellator::path;
-use egui_winit::EventResponse;
 
-use lyon::lyon_tessellation::geometry_builder::SimpleBuffersBuilder;
 use lyon::lyon_tessellation::{
-    BuffersBuilder, FillOptions, FillTessellator, FillVertex, StrokeOptions,
+    BuffersBuilder, StrokeOptions,
     StrokeTessellator, StrokeVertex, VertexBuffers,
 };
 use lyon::math::point;
-use lyon::path::FillRule;
 
 use std::collections::HashMap;
 use std::path::PathBuf;
 
-use winit::event::{ElementState, Event, VirtualKeyCode, WindowEvent};
+use winit::event::{Event, VirtualKeyCode, WindowEvent};
 use winit::event_loop::{ControlFlow, EventLoop, EventLoopWindowTarget};
 use winit::window::Window;
 
@@ -57,7 +52,6 @@ struct PathRenderer {
     path_index: PathIndex,
     graph_paths: layout::GraphPaths,
     // layout: GfaLayout,
-
     camera: DynamicCamera2d,
     touch: TouchHandler,
 
@@ -306,7 +300,6 @@ impl PathRenderer {
             )?
         };
 
-
         let camera = {
             let center = Vec2::zero();
             let size = Vec2::new(4.0, 3.0);
@@ -340,9 +333,9 @@ impl PathRenderer {
         // set 0, binding 0, transform matrix
         graph.add_link_from_transient("transform", draw_node, 3);
 
-
         let path_ids = 0..path_index.path_names.len();
-        let path_buffers = graph_paths.tessellate_paths(&state.device, path_ids)?;
+        let path_buffers =
+            graph_paths.tessellate_paths(&state.device, path_ids)?;
 
         // let path_buffers = LyonBuffers::stroke_from_path(state, points)?;
 
@@ -483,7 +476,8 @@ pub async fn run(args: Args) -> Result<()> {
     let (event_loop, window, mut state) = raving_wgpu::initialize().await?;
 
     let path_index = PathIndex::from_gfa(&args.gfa)?;
-    let graph_paths = GraphPaths::from_path_index_and_layout_tsv(&path_index, &args.tsv)?;
+    let graph_paths =
+        GraphPaths::from_path_index_and_layout_tsv(&path_index, &args.tsv)?;
     // let layout = GfaLayout::from_layout_tsv(&args.tsv)?;
 
     let mut app = PathRenderer::init(
@@ -494,15 +488,13 @@ pub async fn run(args: Args) -> Result<()> {
         &args.path_name,
     )?;
 
-    /*
     if let Some(bed) = args.annotations.as_ref() {
         app.annotations.fill_from_bed(bed)?;
         let cache = app
             .annotations
-            .layout_positions(&app.path_index, &app.layout);
+            .layout_positions(&app.path_index, &app.graph_paths);
         app.annotation_cache = cache;
     }
-    */
 
     let mut first_resize = true;
     let mut prev_frame_t = std::time::Instant::now();
@@ -579,7 +571,6 @@ pub async fn run(args: Args) -> Result<()> {
         }
     })
 }
-
 
 pub fn parse_args() -> std::result::Result<Args, pico_args::Error> {
     let mut pargs = pico_args::Arguments::from_env();
