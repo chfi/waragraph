@@ -16,11 +16,13 @@ use ultraviolet::Vec2;
 use waragraph_core::graph::PathIndex;
 
 pub struct GraphPaths {
+    pub aabb: (Vec2, Vec2),
     endpoints: Vec<Point>,
     gfa_paths: Vec<PathCommands>,
 }
 
 impl GraphPaths {
+
     pub(super) fn tessellate_paths(
         &self,
         device: &wgpu::Device,
@@ -116,17 +118,25 @@ impl GraphPaths {
             Some(Vec2::new(x, y))
         }
 
+        let mut min = Vec2::broadcast(f32::MAX);
+        let mut max = Vec2::broadcast(f32::MIN);
+
         for line in lines {
             let line = line?;
             if let Some(v) = parse_row(&line) {
+                min = min.min_by_component(v);
+                max = max.max_by_component(v);
                 positions.push(v);
             }
         }
+        let aabb = (min, max);
 
         let mut gfa_paths = Vec::with_capacity(path_index.path_names.len());
 
-        for steps in path_index.path_steps.iter() {
+        for (ix, steps) in path_index.path_steps.iter().enumerate() {
             let mut builder = PathCommands::builder();
+
+            let mut started = false;
 
             for (ix, &step) in steps.iter().enumerate() {
                 let seg = step.node();
@@ -139,8 +149,9 @@ impl GraphPaths {
                     pts.reverse();
                 }
 
-                if ix == 0 {
+                if !started {
                     builder.begin(EndpointId(pts[0]));
+                    started = true;
                 }
                 pts.into_iter().for_each(|b| {
                     builder.line_to(EndpointId(b));
@@ -154,6 +165,7 @@ impl GraphPaths {
         let endpoints = positions.into_iter().map(|p| point(p.x, p.y)).collect();
 
         Ok(GraphPaths {
+            aabb,
             endpoints,
             gfa_paths,
         })

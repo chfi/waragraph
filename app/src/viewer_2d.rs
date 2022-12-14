@@ -31,6 +31,8 @@ use ultraviolet::*;
 
 use waragraph_core::graph::PathIndex;
 
+use self::layout::GraphPaths;
+
 pub mod layout;
 
 #[derive(Debug)]
@@ -53,7 +55,8 @@ struct PathRenderer {
     egui: EguiCtx,
 
     path_index: PathIndex,
-    layout: GfaLayout,
+    graph_paths: layout::GraphPaths,
+    // layout: GfaLayout,
 
     camera: DynamicCamera2d,
     touch: TouchHandler,
@@ -264,7 +267,7 @@ impl PathRenderer {
         event_loop: &EventLoopWindowTarget<()>,
         state: &State,
         path_index: PathIndex,
-        layout: GfaLayout,
+        graph_paths: GraphPaths,
         path_name: &str,
     ) -> Result<Self> {
         let mut graph = Graph::new();
@@ -303,40 +306,12 @@ impl PathRenderer {
             )?
         };
 
-        let points = path_index
-            .path_steps(path_name)
-            .unwrap()
-            .into_iter()
-            .flat_map(|step| {
-                let seg = step.node();
-                let rev = step.is_reverse();
-                let ix = seg.ix();
-                let a = ix * 2;
-                let b = a + 1;
-                let va = layout.positions[a];
-                let vb = layout.positions[b];
-                if rev {
-                    [vb, va]
-                } else {
-                    [va, vb]
-                }
-            })
-            .collect::<Vec<_>>();
 
         let camera = {
-            let mut min = Vec2::broadcast(f32::MAX);
-            let mut max = Vec2::broadcast(f32::MIN);
-
-            for &point in points.iter() {
-                min = min.min_by_component(point);
-                max = max.max_by_component(point);
-            }
-
             let center = Vec2::zero();
             let size = Vec2::new(4.0, 3.0);
-
+            let (min, max) = graph_paths.aabb;
             let mut camera = DynamicCamera2d::new(center, size);
-
             camera.fit_region_keep_aspect(min, max);
             camera
         };
@@ -365,7 +340,11 @@ impl PathRenderer {
         // set 0, binding 0, transform matrix
         graph.add_link_from_transient("transform", draw_node, 3);
 
-        let path_buffers = LyonBuffers::stroke_from_path(state, points)?;
+
+        let path_ids = 0..path_index.path_names.len();
+        let path_buffers = graph_paths.tessellate_paths(&state.device, path_ids)?;
+
+        // let path_buffers = LyonBuffers::stroke_from_path(state, points)?;
 
         let annotations = AnnotationStore::default();
 
@@ -383,7 +362,9 @@ impl PathRenderer {
             annotation_cache: Vec::new(),
             path_buffers: Some(path_buffers),
             draw_node,
-            layout,
+
+            graph_paths,
+            // layout,
         })
     }
 
@@ -502,16 +483,18 @@ pub async fn run(args: Args) -> Result<()> {
     let (event_loop, window, mut state) = raving_wgpu::initialize().await?;
 
     let path_index = PathIndex::from_gfa(&args.gfa)?;
-    let layout = GfaLayout::from_layout_tsv(&args.tsv)?;
+    let graph_paths = GraphPaths::from_path_index_and_layout_tsv(&path_index, &args.tsv)?;
+    // let layout = GfaLayout::from_layout_tsv(&args.tsv)?;
 
     let mut app = PathRenderer::init(
         &event_loop,
         &state,
         path_index,
-        layout,
+        graph_paths,
         &args.path_name,
     )?;
 
+    /*
     if let Some(bed) = args.annotations.as_ref() {
         app.annotations.fill_from_bed(bed)?;
         let cache = app
@@ -519,6 +502,7 @@ pub async fn run(args: Args) -> Result<()> {
             .layout_positions(&app.path_index, &app.layout);
         app.annotation_cache = cache;
     }
+    */
 
     let mut first_resize = true;
     let mut prev_frame_t = std::time::Instant::now();
