@@ -88,13 +88,13 @@ impl Waragraph {
 #[derive(Debug, Clone)]
 pub struct PathIndex {
     pub segment_offsets: roaring::RoaringTreemap,
-    sequence_total_len: usize,
+    pub sequence_total_len: usize,
     pub segment_id_range: (u32, u32),
 
-    path_names: BTreeMap<String, usize>,
-    path_steps: Vec<Vec<OrientedNode>>,
+    pub path_names: BTreeMap<String, usize>,
+    pub path_steps: Vec<Vec<OrientedNode>>,
 
-    path_step_offsets: Vec<roaring::RoaringTreemap>,
+    pub path_step_offsets: Vec<roaring::RoaringTreemap>,
 }
 
 pub struct PathStepRangeIter<'a> {

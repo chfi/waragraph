@@ -31,6 +31,8 @@ use ultraviolet::*;
 
 use waragraph_core::graph::PathIndex;
 
+pub mod layout;
+
 #[derive(Debug)]
 pub struct Args {
     pub gfa: PathBuf,
