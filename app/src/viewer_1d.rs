@@ -24,7 +24,7 @@ pub mod sampling;
 
 #[derive(Debug)]
 pub struct Args {
-    gfa: PathBuf,
+    pub gfa: PathBuf,
 }
 
 struct Viewer1D {

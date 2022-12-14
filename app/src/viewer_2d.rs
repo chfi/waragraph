@@ -33,11 +33,10 @@ use waragraph_core::graph::PathIndex;
 
 #[derive(Debug)]
 pub struct Args {
-    gfa: PathBuf,
-    tsv: PathBuf,
-    path_name: String,
-
-    annotations: Option<PathBuf>,
+    pub gfa: PathBuf,
+    pub tsv: PathBuf,
+    pub path_name: String,
+    pub annotations: Option<PathBuf>,
 }
 
 #[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
