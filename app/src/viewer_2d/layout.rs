@@ -1,32 +1,38 @@
 use anyhow::Result;
-use lyon::lyon_tessellation::BuffersBuilder;
-use lyon::lyon_tessellation::StrokeOptions;
-use lyon::lyon_tessellation::StrokeTessellator;
-use lyon::lyon_tessellation::StrokeVertex;
-use lyon::lyon_tessellation::VertexBuffers;
-use lyon::math::point;
-use lyon::math::Point;
-use lyon::path::EndpointId;
-use lyon::path::PathCommands;
-use std::io::prelude::*;
-use std::io::BufReader;
+use lyon::lyon_tessellation::{
+    BuffersBuilder, StrokeOptions, StrokeTessellator, StrokeVertex,
+    VertexBuffers,
+};
+use lyon::math::{point, Point};
+use lyon::path::{EndpointId, PathCommands};
+use std::collections::HashMap;
+use std::io::{prelude::*, BufReader};
 use ultraviolet::Vec2;
 use wgpu::util::DeviceExt;
 
 use waragraph_core::graph::PathIndex;
 
-pub struct GraphPaths {
+pub struct GraphPathCurves {
     pub aabb: (Vec2, Vec2),
     endpoints: Vec<Point>,
     gfa_paths: Vec<PathCommands>,
 }
 
-impl GraphPaths {
+pub struct PathCurveBuffers {
+    pub(super) total_vertices: usize,
+    pub(super) total_indices: usize,
+    pub(super) vertex_buffer: wgpu::Buffer,
+    pub(super) index_buffer: wgpu::Buffer,
+
+    pub(super) path_indices: HashMap<usize, std::ops::Range<usize>>,
+}
+
+impl GraphPathCurves {
     pub(super) fn tessellate_paths(
         &self,
         device: &wgpu::Device,
         path_ids: impl IntoIterator<Item = usize>,
-    ) -> Result<super::LyonBuffers> {
+    ) -> Result<PathCurveBuffers> {
         let mut geometry: VertexBuffers<super::GpuVertex, u32> =
             VertexBuffers::new();
         let tolerance = 10.0;
@@ -42,18 +48,13 @@ impl GraphPaths {
                 }
             });
 
-        for path in path_ids {
-            let path = &self.gfa_paths[path];
-            let slice: lyon::path::commands::CommandsPathSlice<
-                lyon::geom::euclid::Point2D<
-                    f32,
-                    lyon::geom::euclid::UnknownUnit,
-                >,
-                lyon::geom::euclid::Point2D<
-                    f32,
-                    lyon::geom::euclid::UnknownUnit,
-                >,
-            > = path.path_slice(&self.endpoints, &self.endpoints);
+        let mut path_indices = HashMap::default();
+
+        for path_id in path_ids {
+            let path = &self.gfa_paths[path_id];
+            let slice = path.path_slice(&self.endpoints, &self.endpoints);
+
+            let ixs_start = buf_build.buffers().indices.len();
 
             stroke_tess.tessellate_with_ids(
                 path.iter(),
@@ -62,6 +63,10 @@ impl GraphPaths {
                 &opts,
                 &mut buf_build,
             )?;
+
+            let ixs_end = buf_build.buffers().indices.len();
+
+            path_indices.insert(path_id, ixs_start..ixs_end);
         }
 
         let vertices = geometry.vertices.len();
@@ -81,11 +86,14 @@ impl GraphPaths {
                 usage: wgpu::BufferUsages::INDEX,
             });
 
-        Ok(super::LyonBuffers {
-            vertices,
-            indices,
+        Ok(PathCurveBuffers {
+            total_vertices: vertices,
+            total_indices: indices,
+
             vertex_buffer,
             index_buffer,
+
+            path_indices,
         })
     }
 
@@ -130,12 +138,12 @@ impl GraphPaths {
 
         let mut gfa_paths = Vec::with_capacity(path_index.path_names.len());
 
-        for (ix, steps) in path_index.path_steps.iter().enumerate() {
+        for steps in path_index.path_steps.iter() {
             let mut builder = PathCommands::builder();
 
             let mut started = false;
 
-            for (ix, &step) in steps.iter().enumerate() {
+            for &step in steps.iter() {
                 let seg = step.node();
                 let rev = step.is_reverse();
                 let ix = seg.ix();
@@ -162,7 +170,7 @@ impl GraphPaths {
         let endpoints =
             positions.into_iter().map(|p| point(p.x, p.y)).collect();
 
-        Ok(GraphPaths {
+        Ok(GraphPathCurves {
             aabb,
             endpoints,
             gfa_paths,

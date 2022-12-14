@@ -1,11 +1,5 @@
 use crate::annotations::AnnotationStore;
 
-use lyon::lyon_tessellation::{
-    BuffersBuilder, StrokeOptions,
-    StrokeTessellator, StrokeVertex, VertexBuffers,
-};
-use lyon::math::point;
-
 use std::collections::HashMap;
 use std::path::PathBuf;
 
@@ -26,7 +20,7 @@ use ultraviolet::*;
 
 use waragraph_core::graph::PathIndex;
 
-use self::layout::GraphPaths;
+use self::layout::{GraphPathCurves, PathCurveBuffers};
 
 pub mod layout;
 
@@ -49,7 +43,7 @@ struct PathRenderer {
     egui: EguiCtx,
 
     path_index: PathIndex,
-    graph_paths: layout::GraphPaths,
+    graph_curves: layout::GraphPathCurves,
     // layout: GfaLayout,
     camera: DynamicCamera2d,
     touch: TouchHandler,
@@ -61,7 +55,7 @@ struct PathRenderer {
     annotations: AnnotationStore,
     annotation_cache: Vec<(Vec2, String)>,
 
-    path_buffers: Option<LyonBuffers>,
+    path_curve_buffers: PathCurveBuffers,
     draw_node: NodeId,
 }
 
@@ -85,81 +79,6 @@ fn draw_annotations(
             font,
             egui::Color32::WHITE,
         );
-    }
-}
-
-struct LyonBuffers {
-    vertices: usize,
-    indices: usize,
-    vertex_buffer: wgpu::Buffer,
-    index_buffer: wgpu::Buffer,
-    // num_instances: u32,
-}
-
-impl LyonBuffers {
-    fn stroke_from_path(
-        state: &State,
-        points: impl IntoIterator<Item = Vec2>,
-    ) -> Result<Self> {
-        let mut geometry: VertexBuffers<GpuVertex, u32> = VertexBuffers::new();
-
-        let tolerance = 10.0;
-
-        let mut stroke_tess = StrokeTessellator::new();
-
-        let mut builder = lyon::path::Path::builder();
-
-        let mut points = points.into_iter();
-
-        let first = points.next().unwrap();
-
-        builder.begin(point(first.x, first.y));
-
-        for p in points {
-            builder.line_to(point(p.x, p.y));
-        }
-
-        builder.end(false);
-        let path = builder.build();
-
-        let opts = StrokeOptions::tolerance(tolerance).with_line_width(150.0);
-
-        // FillOptions::tolerance(tolerance).with_fill_rule(FillRule::NonZero);
-
-        let mut buf_build =
-            BuffersBuilder::new(&mut geometry, |vx: StrokeVertex| GpuVertex {
-                pos: vx.position().to_array(),
-            });
-
-        // fill_tess.tessellate_path(&path, &opts, &mut buf_build)?;
-        stroke_tess.tessellate_path(&path, &opts, &mut buf_build)?;
-
-        let vertices = geometry.vertices.len();
-        let indices = geometry.indices.len();
-
-        let vertex_buffer = state.device.create_buffer_init(
-            &wgpu::util::BufferInitDescriptor {
-                label: Some("Vertex Buffer"),
-                contents: bytemuck::cast_slice(&geometry.vertices),
-                usage: wgpu::BufferUsages::VERTEX,
-            },
-        );
-
-        let index_buffer = state.device.create_buffer_init(
-            &wgpu::util::BufferInitDescriptor {
-                label: Some("Index Buffer"),
-                contents: bytemuck::cast_slice(&geometry.indices),
-                usage: wgpu::BufferUsages::INDEX,
-            },
-        );
-
-        Ok(Self {
-            vertices,
-            indices,
-            vertex_buffer,
-            index_buffer,
-            //     num_instances: todo!(),
-        })
     }
 }
 
@@ -260,7 +179,7 @@ impl PathRenderer {
         event_loop: &EventLoopWindowTarget<()>,
         state: &State,
         path_index: PathIndex,
-        graph_paths: GraphPaths,
+        graph_curves: GraphPathCurves,
     ) -> Result<Self> {
         let mut graph = Graph::new();
 
@@ -301,7 +220,7 @@ impl PathRenderer {
         let camera = {
             let center = Vec2::zero();
             let size = Vec2::new(4.0, 3.0);
-            let (min, max) = graph_paths.aabb;
+            let (min, max) = graph_curves.aabb;
             let mut camera = DynamicCamera2d::new(center, size);
             camera.fit_region_keep_aspect(min, max);
             camera
@@ -331,11 +250,10 @@ impl PathRenderer {
         // set 0, binding 0, transform matrix
         graph.add_link_from_transient("transform", draw_node, 3);
 
-        let path_ids = 0..path_index.path_names.len();
-        let path_buffers =
-            graph_paths.tessellate_paths(&state.device, path_ids)?;
 
-        // let path_buffers = LyonBuffers::stroke_from_path(state, points)?;
+        let path_ids = 0..path_index.path_names.len();
+        let path_curve_buffers =
+            graph_curves.tessellate_paths(&state.device, path_ids)?;
 
         let annotations = AnnotationStore::default();
 
@@ -351,10 +269,10 @@ impl PathRenderer {
             uniform_buf,
             annotations,
             annotation_cache: Vec::new(),
-            path_buffers: Some(path_buffers),
+            path_curve_buffers,
             draw_node,
 
-            graph_paths,
+            graph_curves,
             // layout,
         })
     }
@@ -366,9 +284,7 @@ impl PathRenderer {
         let mut transient_res: HashMap<String, InputResource<'_>> =
             HashMap::default();
 
-        let Some(buffers) = self.path_buffers.as_ref() else {
-            return Ok(());
-        };
+        let buffers = &self.path_curve_buffers;
 
         if let Ok(output) = state.surface.get_current_texture() {
             {
@@ -398,8 +314,8 @@ impl PathRenderer {
             );
 
             let stride = 8;
-            let v_size = stride * buffers.vertices;
-            let i_size = 4 * buffers.indices;
+            let v_size = stride * buffers.total_vertices;
+            let i_size = 4 * buffers.total_indices;
 
             transient_res.insert(
                 "vertices".into(),
@@ -474,21 +390,19 @@ pub async fn run(args: Args) -> Result<()> {
     let (event_loop, window, mut state) = raving_wgpu::initialize().await?;
 
     let path_index = PathIndex::from_gfa(&args.gfa)?;
-    let graph_paths =
-        GraphPaths::from_path_index_and_layout_tsv(&path_index, &args.tsv)?;
-
-    let mut app = PathRenderer::init(
-        &event_loop,
-        &state,
-        path_index,
-        graph_paths,
+    let graph_curves = GraphPathCurves::from_path_index_and_layout_tsv(
+        &path_index,
+        &args.tsv,
     )?;
+
+    let mut app =
+        PathRenderer::init(&event_loop, &state, path_index, graph_curves)?;
 
     if let Some(bed) = args.annotations.as_ref() {
         app.annotations.fill_from_bed(bed)?;
         let cache = app
             .annotations
-            .layout_positions(&app.path_index, &app.graph_paths);
+            .layout_positions(&app.path_index, &app.graph_curves);
         app.annotation_cache = cache;
     }
 

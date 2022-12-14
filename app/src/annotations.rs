@@ -2,7 +2,7 @@ use anyhow::Result;
 use std::collections::HashMap;
 use ultraviolet::Vec2;
 
-use crate::viewer_2d::layout::GraphPaths;
+use crate::viewer_2d::layout::GraphPathCurves;
 
 use waragraph_core::graph::PathIndex;
 
@@ -17,7 +17,7 @@ impl AnnotationStore {
     pub fn layout_positions(
         &self,
         path_index: &PathIndex,
-        graph_paths: &GraphPaths,
+        graph_paths: &GraphPathCurves,
     ) -> Vec<(Vec2, String)> {
         let mut out = Vec::new();
 
