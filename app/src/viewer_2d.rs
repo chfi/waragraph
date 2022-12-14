@@ -34,7 +34,6 @@ pub mod layout;
 pub struct Args {
     pub gfa: PathBuf,
     pub tsv: PathBuf,
-    pub path_name: String,
     pub annotations: Option<PathBuf>,
 }
 
@@ -262,7 +261,6 @@ impl PathRenderer {
         state: &State,
         path_index: PathIndex,
         graph_paths: GraphPaths,
-        path_name: &str,
     ) -> Result<Self> {
         let mut graph = Graph::new();
 
@@ -478,14 +476,12 @@ pub async fn run(args: Args) -> Result<()> {
     let path_index = PathIndex::from_gfa(&args.gfa)?;
     let graph_paths =
         GraphPaths::from_path_index_and_layout_tsv(&path_index, &args.tsv)?;
-    // let layout = GfaLayout::from_layout_tsv(&args.tsv)?;
 
     let mut app = PathRenderer::init(
         &event_loop,
         &state,
         path_index,
         graph_paths,
-        &args.path_name,
     )?;
 
     if let Some(bed) = args.annotations.as_ref() {
@@ -578,7 +574,6 @@ pub fn parse_args() -> std::result::Result<Args, pico_args::Error> {
     let args = Args {
         gfa: pargs.free_from_os_str(parse_path)?,
         tsv: pargs.free_from_os_str(parse_path)?,
-        path_name: pargs.free_from_str()?,
         annotations: pargs.opt_value_from_os_str("--bed", parse_path)?,
     };
 

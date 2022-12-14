@@ -6,7 +6,6 @@ use anyhow::Result;
 pub struct Args {
     gfa: PathBuf,
     tsv: Option<PathBuf>,
-    path_name: Option<String>,
     annotations: Option<PathBuf>,
 }
 
@@ -16,11 +15,10 @@ pub fn main() -> Result<()> {
         .init();
 
     if let Ok(args) = parse_args() {
-        if args.tsv.is_some() && args.path_name.is_some() {
+        if let Some(tsv) = args.tsv {
             let args_2d = waragraph::viewer_2d::Args {
                 gfa: args.gfa,
-                tsv: args.tsv.unwrap(),
-                path_name: args.path_name.unwrap(),
+                tsv,
                 annotations: args.annotations,
             };
 
@@ -38,6 +36,11 @@ pub fn main() -> Result<()> {
                 log::error!("{:?}", e);
             }
         }
+    } else {
+        let name = std::env::args().next().unwrap();
+        println!("Usage: {name} <gfa> [tsv]");
+        println!("4-column BED file can be provided using the --bed flag");
+        std::process::exit(0);
     }
 
 
@@ -50,7 +53,6 @@ pub fn parse_args() -> std::result::Result<Args, pico_args::Error> {
     let args = Args {
         gfa: pargs.free_from_os_str(parse_path)?,
         tsv: pargs.opt_free_from_os_str(parse_path)?,
-        path_name: pargs.opt_free_from_str()?,
         annotations: pargs.opt_value_from_os_str("--bed", parse_path)?,
     };
 
