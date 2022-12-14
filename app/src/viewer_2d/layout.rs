@@ -1,6 +1,14 @@
 use anyhow::Result;
+use lyon::lyon_tessellation::BuffersBuilder;
+use lyon::lyon_tessellation::StrokeOptions;
+use lyon::lyon_tessellation::StrokeTessellator;
+use lyon::lyon_tessellation::StrokeVertex;
+use lyon::lyon_tessellation::VertexBuffers;
+use lyon::math::point;
+use lyon::math::Point;
 use lyon::path::EndpointId;
 use lyon::path::PathCommands;
+use wgpu::util::DeviceExt;
 use std::io::prelude::*;
 use std::io::BufReader;
 use ultraviolet::Vec2;
@@ -8,17 +16,86 @@ use ultraviolet::Vec2;
 use waragraph_core::graph::PathIndex;
 
 pub struct GraphPaths {
-    endpoints: Vec<Vec2>,
+    endpoints: Vec<Point>,
     gfa_paths: Vec<PathCommands>,
 }
 
 impl GraphPaths {
-    pub fn pos_for_node(&self, node: usize) -> Option<(Vec2, Vec2)> {
-        let ix = node / 2;
-        let a = *self.endpoints.get(ix)?;
-        let b = *self.endpoints.get(ix + 1)?;
-        Some((a, b))
+    pub(super) fn tessellate_paths(
+        &self,
+        device: &wgpu::Device,
+        path_ids: impl IntoIterator<Item = usize>,
+    ) -> Result<super::LyonBuffers> {
+        let mut geometry: VertexBuffers<super::GpuVertex, u32> =
+            VertexBuffers::new();
+        let tolerance = 10.0;
+
+        let opts = StrokeOptions::tolerance(tolerance).with_line_width(150.0);
+
+        let mut stroke_tess = StrokeTessellator::new();
+
+        let mut buf_build =
+            BuffersBuilder::new(&mut geometry, |vx: StrokeVertex| {
+                super::GpuVertex {
+                    pos: vx.position().to_array(),
+                }
+            });
+
+        for path in path_ids {
+            let path = &self.gfa_paths[path];
+            let slice: lyon::path::commands::CommandsPathSlice<
+                lyon::geom::euclid::Point2D<
+                    f32,
+                    lyon::geom::euclid::UnknownUnit,
+                >,
+                lyon::geom::euclid::Point2D<
+                    f32,
+                    lyon::geom::euclid::UnknownUnit,
+                >,
+            > = path.path_slice(&self.endpoints, &self.endpoints);
+
+            stroke_tess.tessellate_with_ids(
+                path.iter(),
+                &slice,
+                None,
+                &opts,
+                &mut buf_build,
+            )?;
+        }
+        
+        let vertices = geometry.vertices.len();
+        let indices = geometry.indices.len();
+
+        let vertex_buffer = device.create_buffer_init(
+            &wgpu::util::BufferInitDescriptor {
+                label: Some("Vertex Buffer"),
+                contents: bytemuck::cast_slice(&geometry.vertices),
+                usage: wgpu::BufferUsages::VERTEX,
+            },
+        );
+
+        let index_buffer = device.create_buffer_init(
+            &wgpu::util::BufferInitDescriptor {
+                label: Some("Index Buffer"),
+                contents: bytemuck::cast_slice(&geometry.indices),
+                usage: wgpu::BufferUsages::INDEX,
+            },
+        );
+
+        Ok(super::LyonBuffers {
+            vertices,
+            indices,
+            vertex_buffer,
+            index_buffer,
+        })
     }
+
+    // pub fn pos_for_node(&self, node: usize) -> Option<(Vec2, Vec2)> {
+    //     let ix = node / 2;
+    //     let a = *self.endpoints.get(ix)?;
+    //     let b = *self.endpoints.get(ix + 1)?;
+    //     Some((a, b))
+    // }
 
     pub fn from_path_index_and_layout_tsv(
         path_index: &PathIndex,
@@ -74,7 +151,7 @@ impl GraphPaths {
             gfa_paths.push(builder.build());
         }
 
-        let endpoints = positions;
+        let endpoints = positions.into_iter().map(|p| point(p.x, p.y)).collect();
 
         Ok(GraphPaths {
             endpoints,
