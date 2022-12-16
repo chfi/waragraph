@@ -21,6 +21,7 @@ use anyhow::Result;
 use waragraph_core::graph::PathIndex;
 
 pub mod sampling;
+pub mod util;
 
 #[derive(Debug)]
 pub struct Args {
