@@ -433,7 +433,6 @@ pub async fn run(args: Args) -> Result<()> {
     let (event_loop, window, mut state) = raving_wgpu::initialize().await?;
 
     let path_index = PathIndex::from_gfa(&args.gfa)?;
-    // let layout = GfaLayout::from_layout_tsv(&args.tsv)?;
 
     let dims = {
         let s = window.inner_size();

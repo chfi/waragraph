@@ -38,9 +38,75 @@ pub fn sample_path_data<'a, T>(
 // }
 
 pub struct PathDataBinIter<'index, 'data> {
-    path_index: &'index PathIndex,
+    path_id: usize,
+
+    segment_offsets: &'index roaring::RoaringTreemap,
+    path_nodes: &'index roaring::RoaringBitmap,
     data: &'data [f32],
+
+    ix_range: std::ops::Range<usize>,
+
+    offset: u64,
+    index: u64,
+    /*
+    path_index: &'index PathIndex,
+    path_id: usize,
+    data: &'data [f32],
+    */
 }
+
+impl<'index, 'data> PathDataBinIter<'index, 'data> {
+    pub(crate) fn new(
+        path_index: &'index PathIndex,
+        path_id: usize,
+        data: &'data [f32],
+        pos_range: std::ops::Range<u64>,
+    ) -> Option<Self> {
+
+        let segment_offsets = &path_index.segment_offsets;
+        let path_nodes = path_index.path_node_sets.get(path_id)?;
+
+        let start =pos_range.start;
+        let end = pos_range.end;
+        let offset = pos_range.start;
+        let start_rank = segment_offsets.rank(start);
+        let end_rank = segment_offsets.rank(end);
+        
+        let rank_range = start_rank..end_rank;
+
+        // let index = path_nodes.rank(node_ix)
+
+        todo!();
+    }
+
+    fn next_impl(&mut self) -> Option<(f32, u64)> {
+        todo!();
+    }
+}
+
+/*
+impl<'index, 'data> Iterator for PathDataBinIter<'index, 'data> {
+    type Item = (f32, u64);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.index >= self.ix_range.end {
+            return None;
+        }
+
+        let path_set = self.path_index.path_node_sets.get(self.path_id)?;
+        let data_ix = self.index;
+        // let node_ix = self.path_index.
+
+        // let node_offset = self.path_index.segment_offsets.select()
+        // let value = self.data[self.index];
+        // let length =
+
+        self.index += 1;
+
+        todo!();
+    }
+}
+*/
 
 pub struct PathDepthData {
     pub(crate) node_depth_per_path: Vec<Vec<f32>>,
