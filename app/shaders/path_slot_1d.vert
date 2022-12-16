@@ -2,8 +2,10 @@
 
 layout (location = 0) in vec2 i_position;
 layout (location = 1) in vec2 i_size;
+layout (location = 2) in uint i_slot_id;
 
 layout (location = 0) out vec2 o_uv;
+layout (location = 1) out uint o_slot_id;
 
 layout (set = 0, binding = 0) uniform Cfg {
     vec2 window_dims;
@@ -28,4 +30,6 @@ void main() {
       gl_Position = vec4(origin + size, 0.0, 1.0);
       o_uv = vec2(1.0, 1.0);
   }
+
+  o_slot_id = i_slot_id;
 }
