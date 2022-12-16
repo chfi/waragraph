@@ -15,6 +15,8 @@ void main() {
   uint i = gl_VertexIndex % 6;
 
   vec2 origin = (2.0 * i_position / cfg.window_dims) - vec2(1.0);
+  origin.y *= -1.0;
+  
   vec2 size = (2.0 * i_size) / cfg.window_dims;
 
   if (i == 0) {

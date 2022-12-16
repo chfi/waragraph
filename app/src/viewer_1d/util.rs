@@ -74,7 +74,7 @@ pub(super) fn path_slot_vertex_buffer(
     device: &wgpu::Device,
     paths: impl IntoIterator<Item = usize>,
 ) -> Result<BufferDesc> {
-    let g_offset = Vec2::new(50.0, 150.0);
+    let g_offset = Vec2::new(50.0, 50.0);
     let g_del = Vec2::new(0.0, 30.0);
     let g_size = Vec2::new(700.0, 20.0);
 
