@@ -1,8 +1,86 @@
 use waragraph_core::graph::{Node, PathIndex};
 
-pub trait PathDataSource<T> {
-    fn get(&self, node: Node) -> Option<T>;
+pub trait PathPangenomeRangeData<T> {
+    fn get(
+        &self,
+        path_index: &PathIndex,
+        path: usize,
+        pan_range: std::ops::Range<u64>,
+    ) -> Option<T>;
 }
+
+pub fn sample_path_data<'a, T>(
+    index: &PathIndex,
+    path_id: usize,
+    data: &'a [T],
+    pos: u64,
+) -> Option<&'a T> {
+    // pangenome pos -> node ID
+    let node_ix = index.segment_offsets.rank(pos) as u32;
+
+    let path_set = index.path_node_sets.get(path_id)?;
+    if !path_set.contains(node_ix) {
+        return None;
+    }
+
+    let data_id = path_set.rank(node_ix);
+    data.get(data_id as usize)
+}
+
+// pub fn path_data_bin_iter<'d>(path_index: &PathIndex,
+// path: usize,
+// data: &'d [f32],
+// pan_range: std::ops::Range<u64>,
+// ) -> PathDataBinIter<'d> {
+
+// }
+
+pub struct PathDataBinIter<'index, 'data> {
+    path_index: &'index PathIndex,
+    data: &'data [f32],
+}
+
+pub struct PathDepthData {
+    pub(crate) node_depth_per_path: Vec<Vec<f32>>,
+}
+
+impl PathDepthData {
+    pub fn new(path_index: &PathIndex) -> Self {
+        let mut data = Vec::new();
+        for (path_id, offsets) in
+            path_index.path_step_offsets.iter().enumerate()
+        {
+            let mut path_data = vec![0.0; offsets.len() as usize];
+            for step in path_index.path_steps[path_id].iter() {
+                path_data[step.node().ix()] += 1.0;
+            }
+            data.push(path_data);
+        }
+        Self {
+            node_depth_per_path: data,
+        }
+    }
+}
+
+impl PathPangenomeRangeData<f32> for PathDepthData {
+    fn get(
+        &self,
+        path_index: &PathIndex,
+        path: usize,
+        pan_range: std::ops::Range<u64>,
+    ) -> Option<f32> {
+        if pan_range.end - pan_range.start == 0 {
+            return None;
+        }
+
+        todo!();
+    }
+}
+
+
+// pub trait PathDataSource<T> {
+//     fn get(&self, node: Node) -> Option<T>;
+// }
 
 /*
 

@@ -6,12 +6,12 @@ use wgpu::util::{DeviceExt, BufferInitDescriptor};
 
 use super::{sampling::PathDepthData, BufferDesc};
 
-pub fn path_depth_data_viz_buffer(
+pub(super) fn path_depth_data_viz_buffer(
     device: &wgpu::Device,
-    index: &PathIndex,
-    data: PathDepthData,
+    // index: &PathIndex,
+    // data: PathDepthData,
     paths: impl IntoIterator<Item = usize>,
-    view_range: std::ops::Range<u64>,
+    // view_range: std::ops::Range<u64>,
     bins: usize,
 ) -> Result<BufferDesc> {
     let paths = paths.into_iter().collect::<Vec<_>>();
@@ -34,6 +34,8 @@ pub fn path_depth_data_viz_buffer(
         bin_buf.clear();
 
         // TODO: sample the data
+        bin_buf.extend((0..bins).map(|i| i as f32));
+
 
         buf_data.extend(bytemuck::cast_slice(&bin_buf));
     }
@@ -45,17 +47,18 @@ pub fn path_depth_data_viz_buffer(
         contents: buf_data.as_slice(),
         usage,
     });
+
     Ok(BufferDesc::new(buffer, buf_data.len()))
 }
 
-pub fn path_slot_vertex_buffer(
+pub(super) fn path_slot_vertex_buffer(
     device: &wgpu::Device,
     paths: impl IntoIterator<Item = usize>,
 ) -> Result<BufferDesc> {
 
-    let g_offset = Vec2::new(50.0, 50.0);
+    let g_offset = Vec2::new(50.0, 150.0);
     let g_del = Vec2::new(0.0, 30.0);
-    let g_size = Vec2::new(700.0, 30.0);
+    let g_size = Vec2::new(700.0, 20.0);
 
     let data = paths.into_iter().enumerate().flat_map(|(ix, _path)| {
         let mut vx = [0u8; 4 * 5];
