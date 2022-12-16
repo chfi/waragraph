@@ -85,6 +85,11 @@ impl Waragraph {
     }
 }
 
+#[derive(Default, Clone)]
+pub struct NodeSet {
+    set: roaring::RoaringBitmap,
+}
+
 #[derive(Debug, Clone)]
 pub struct PathIndex {
     pub segment_offsets: roaring::RoaringTreemap,
@@ -95,7 +100,7 @@ pub struct PathIndex {
     pub path_steps: Vec<Vec<OrientedNode>>,
 
     pub path_step_offsets: Vec<roaring::RoaringTreemap>,
-    path_node_sets: Vec<roaring::RoaringBitmap>,
+    pub path_node_sets: Vec<roaring::RoaringBitmap>,
 }
 
 pub struct PathStepRangeIter<'a> {
@@ -117,6 +122,7 @@ impl<'a> Iterator for PathStepRangeIter<'a> {
 }
 
 impl PathIndex {
+
     pub fn pangenome_len(&self) -> usize {
         self.sequence_total_len
     }

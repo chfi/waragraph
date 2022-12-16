@@ -20,6 +20,9 @@ use anyhow::Result;
 
 use waragraph_core::graph::PathIndex;
 
+use self::sampling::{PathDataBinIter, PathDepthData};
+use self::util::path_depth_data_viz_buffer;
+
 pub mod sampling;
 pub mod util;
 
@@ -37,7 +40,8 @@ struct Viewer1D {
     pangenome_len: usize,
     view: std::ops::Range<usize>,
 
-    vertices: wgpu::Buffer,
+    // vertices: wgpu::Buffer,
+    vertices: BufferDesc,
     vert_uniform: wgpu::Buffer,
     frag_uniform: wgpu::Buffer,
 
@@ -233,9 +237,17 @@ impl Viewer1D {
         graph.add_link_from_transient("vert_cfg", draw_node, 2);
         // graph.add_link_from_transient("frag_cfg", draw_node, 3);
 
-        graph.add_link_from_transient("data", draw_node, 3);
+        // graph.add_link_from_transient("data", draw_node, 3);
+        graph.add_link_from_transient("depth", draw_node, 3);
         graph.add_link_from_transient("color", draw_node, 4);
 
+        let vertices = util::path_slot_vertex_buffer(&state.device, 0..10)?;
+        graph.set_node_preprocess_fn(draw_node, move |_ctx, op_state| {
+            op_state.vertices = Some(0..6);
+            op_state.instances = Some(0..10);
+        });
+
+        /*
         let vertices = {
             let data = [100.0f32, 100.0, 200.0, 100.0];
             let usage = BufferUsages::VERTEX | BufferUsages::COPY_DST;
@@ -254,15 +266,29 @@ impl Viewer1D {
 
             buffer
         };
+        */
 
         let egui = EguiCtx::init(event_loop, state, None);
         let pangenome_len = path_index.pangenome_len();
 
         let (color, data) = path_frag_example_uniforms(&state.device)?;
 
+        let depth_data = PathDepthData::new(&path_index);
+
+        let depth = path_depth_data_viz_buffer(
+            &state.device,
+            &path_index,
+            &depth_data,
+            0..10,
+            // 0..50_000,
+            0..400_000,
+            700,
+        )?;
+
         let mut path_viz_cache = PathVizCache::default();
         path_viz_cache.insert("color", color);
         path_viz_cache.insert("data", data);
+        path_viz_cache.insert("depth", depth);
 
         Ok(Viewer1D {
             render_graph: graph,
@@ -301,7 +327,6 @@ impl Viewer1D {
             HashMap::default();
 
         if let Ok(output) = state.surface.get_current_texture() {
-
             let output_view = output
                 .texture
                 .create_view(&wgpu::TextureViewDescriptor::default());
@@ -319,14 +344,13 @@ impl Viewer1D {
                 },
             );
 
-            let v_stride = std::mem::size_of::<[f32; 4]>();
-            let v_size = 1 * v_stride;
+            let v_stride = std::mem::size_of::<[f32; 5]>();
             transient_res.insert(
                 "vertices".into(),
                 InputResource::Buffer {
-                    size: v_size,
+                    size: self.vertices.size,
                     stride: Some(v_stride),
-                    buffer: &self.vertices,
+                    buffer: &self.vertices.buffer,
                 },
             );
 
@@ -339,7 +363,7 @@ impl Viewer1D {
                 },
             );
 
-            for name in ["data", "color"] {
+            for name in ["data", "color", "depth"] {
                 if let Some(desc) = self.path_viz_cache.get(name) {
                     transient_res.insert(
                         name.into(),

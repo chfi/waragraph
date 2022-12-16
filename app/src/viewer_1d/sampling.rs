@@ -1,3 +1,5 @@
+use std::collections::BTreeMap;
+
 use waragraph_core::graph::{Node, PathIndex};
 
 pub trait PathPangenomeRangeData<T> {
@@ -47,15 +49,18 @@ pub struct PathDepthData {
 impl PathDepthData {
     pub fn new(path_index: &PathIndex) -> Self {
         let mut data = Vec::new();
-        for (path_id, offsets) in
-            path_index.path_step_offsets.iter().enumerate()
+
+        for (path_id, node_set) in path_index.path_node_sets.iter().enumerate()
         {
-            let mut path_data = vec![0.0; offsets.len() as usize];
+            let mut path_data: BTreeMap<Node, f32> = BTreeMap::default();
             for step in path_index.path_steps[path_id].iter() {
-                path_data[step.node().ix()] += 1.0;
+                *path_data.entry(step.node()).or_default() += 1.0;
             }
+            let path_data =
+                path_data.into_iter().map(|(_, v)| v).collect::<Vec<_>>();
             data.push(path_data);
         }
+
         Self {
             node_depth_per_path: data,
         }
@@ -69,14 +74,19 @@ impl PathPangenomeRangeData<f32> for PathDepthData {
         path: usize,
         pan_range: std::ops::Range<u64>,
     ) -> Option<f32> {
-        if pan_range.end - pan_range.start == 0 {
+        let s = pan_range.start;
+        let e = pan_range.end;
+        if e - s == 0 {
             return None;
         }
 
-        todo!();
+        let mid = s + (e - s) / 2;
+
+        let data = &self.node_depth_per_path[path];
+        let val = sample_path_data(path_index, path, data, mid)?;
+        Some(*val)
     }
 }
-
 
 // pub trait PathDataSource<T> {
 //     fn get(&self, node: Node) -> Option<T>;
@@ -107,7 +117,6 @@ pub fn sample_path_prefix_sum_mean(
     data: &[f32],
     bin_range: std::ops::Range<u64>,
 ) -> f32 {
-    
     todo!();
 }
 
@@ -147,5 +156,14 @@ pub fn sample_pangenome_single_node(
         let sample_size = sample_width as u32;
 
         samples.push((node, node_size as u32, sample_size));
+    }
+}
+
+#[cfg(test)]
+mod tests {
+
+    #[test]
+    fn sample_single_bp_data() {
+        //
     }
 }
