@@ -95,6 +95,7 @@ pub struct PathIndex {
     pub path_steps: Vec<Vec<OrientedNode>>,
 
     pub path_step_offsets: Vec<roaring::RoaringTreemap>,
+    path_node_sets: Vec<roaring::RoaringBitmap>,
 }
 
 pub struct PathStepRangeIter<'a> {
@@ -244,6 +245,7 @@ impl PathIndex {
 
         let mut path_steps: Vec<Vec<OrientedNode>> = Vec::new();
         let mut path_step_offsets: Vec<RoaringTreemap> = Vec::new();
+        let mut path_node_sets: Vec<RoaringBitmap> = Vec::new();
         // let mut path_pos: Vec<Vec<usize>> = Vec::new();
 
         loop {
@@ -279,6 +281,7 @@ impl PathIndex {
             let mut parsed_steps = Vec::new();
 
             let mut offsets = RoaringTreemap::new();
+            let mut path_nodes = RoaringBitmap::new();
 
             let steps = steps.split(|&c| c == b',');
 
@@ -296,18 +299,21 @@ impl PathIndex {
 
                 parsed_steps.push(step);
                 offsets.push(pos as u64);
+                path_nodes.insert(seg_ix);
 
                 pos += len;
             }
 
             path_steps.push(parsed_steps);
             path_step_offsets.push(offsets);
+            path_node_sets.push(path_nodes);
         }
 
         Ok(Self {
             path_names,
             path_steps,
             path_step_offsets,
+            path_node_sets,
 
             segment_offsets,
             segment_id_range: seg_id_range,
