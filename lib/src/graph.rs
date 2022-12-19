@@ -59,6 +59,24 @@ impl OrientedNode {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[repr(C)]
+pub struct Bp(pub u64);
+
+
+impl From<u64> for Bp {
+    fn from(u: u64) -> Bp {
+        Bp(u)
+    }
+}
+
+impl From<Bp> for u64 {
+    fn from(bp: Bp) -> u64 {
+        bp.0
+    }
+}
+
+
 #[derive(Debug, Clone)]
 pub struct Waragraph {
     pub path_index: PathIndex,
@@ -95,7 +113,7 @@ pub struct NodeSet {
 #[derive(Debug, Clone)]
 pub struct PathIndex {
     pub segment_offsets: roaring::RoaringTreemap,
-    pub sequence_total_len: usize,
+    pub sequence_total_len: Bp,
     pub segment_id_range: (u32, u32),
 
     pub path_names: BTreeMap<String, usize>,
@@ -124,21 +142,35 @@ impl<'a> Iterator for PathStepRangeIter<'a> {
 }
 
 impl PathIndex {
-    pub fn pangenome_len(&self) -> usize {
+    pub fn pangenome_len(&self) -> Bp {
         self.sequence_total_len
     }
 
     #[inline]
-    pub fn node_length(&self, node: Node) -> usize {
+    pub fn node_offset_length(&self, node: Node) -> (Bp, Bp) {
+        let i = node.0 as u64;
         let i = node.0 as u64;
         let offset =
-            self.segment_offsets.select(i).unwrap_or_default() as usize;
+            self.segment_offsets.select(i).unwrap_or_default();
         let next = self
             .segment_offsets
             .select(i + 1)
-            .unwrap_or(self.pangenome_len() as u64) as usize;
+            .unwrap_or(self.pangenome_len().0);
 
-        next - offset
+        let length = Bp(next - offset);
+        let offset = Bp(offset);
+
+        (offset, length)
+    }
+
+    #[inline]
+    pub fn node_offset(&self, node: Node) -> Bp {
+        self.node_offset_length(node).0
+    }
+
+    #[inline]
+    pub fn node_length(&self, node: Node) -> Bp {
+        self.node_offset_length(node).1
     }
 
     pub fn pos_range_nodes(
@@ -375,7 +407,7 @@ impl PathIndex {
 
             segment_offsets,
             segment_id_range: seg_id_range,
-            sequence_total_len,
+            sequence_total_len: Bp(sequence_total_len as u64),
         })
     }
 }
@@ -384,7 +416,7 @@ impl PathIndex {
 mod tests {
     use super::*;
 
-    const GFA_PATH: &'static str = concat!(
+    pub(crate) const GFA_PATH: &'static str = concat!(
         env!("CARGO_MANIFEST_DIR"),
         "/../test/data/",
         "A-3105.fa.353ea42.34ee7b1.1576367.smooth.fix.gfa"
@@ -395,7 +427,7 @@ mod tests {
         let index = PathIndex::from_gfa(GFA_PATH).unwrap();
 
         let node_lengths = (0..10)
-            .map(|i| index.node_length(Node(i)))
+            .map(|i| index.node_length(Node(i)).0)
             .collect::<Vec<_>>();
 
         let expected = vec![44, 12, 19, 1, 1, 13, 1, 1, 1, 2];
@@ -411,14 +443,13 @@ mod tests {
         let pos_range = 44..55;
         let range0 = index.pos_range_nodes(pos_range);
         
-        let mut last_start = (total_len - 12) as u64;
+        let mut last_start = (total_len.0 - 12);
         last_start -= 1;
-
-        let pos_range = last_start..total_len as u64;
+        
+        let pos_range = last_start..total_len.0;
         let range1 = index.pos_range_nodes(pos_range);
 
         assert_eq!(range0, Node(1)..=Node(1));
         assert_eq!(range1, Node(4964)..=Node(4965));
     }
-
 }

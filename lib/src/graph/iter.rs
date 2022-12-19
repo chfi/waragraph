@@ -1,6 +1,4 @@
-use roaring::RoaringTreemap;
-
-use super::{Node, PathIndex};
+use super::{Node, PathIndex, Bp};
 
 /// Iterator over a compact range of nodes in the pangenome (i.e. node ID) order,
 /// returning the nodes with their lengths
@@ -21,7 +19,7 @@ impl<'index> PangenomeNodeIter<'index> {
     }
 
     #[inline]
-    fn next_impl(&mut self) -> Option<(Node, usize)> {
+    fn next_impl(&mut self) -> Option<(Node, Bp)> {
         let index = self.node_index_range.next()?;
         let node = Node(index as u32);
         let length = self.index.node_length(node);
@@ -30,9 +28,31 @@ impl<'index> PangenomeNodeIter<'index> {
 }
 
 impl<'index> Iterator for PangenomeNodeIter<'index> {
-    type Item = (Node, usize);
+    type Item = (Node, Bp);
 
     fn next(&mut self) -> Option<Self::Item> {
         self.next_impl()
+    }
+}
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use crate::graph::tests::GFA_PATH;
+
+    #[test]
+    fn pangenome_nodes_range_iter() {
+        let index = PathIndex::from_gfa(GFA_PATH).unwrap();
+
+        let iter = PangenomeNodeIter::new_index_range(&index, 0..10);
+
+        let expected = [44, 12, 19, 1, 1, 13, 1, 1, 1, 2]
+            .into_iter()
+            .enumerate()
+            .map(|(i, v)| (Node(i as u32), Bp(v)));
+
+        assert!(iter.eq(expected));
     }
 }
