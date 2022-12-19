@@ -3,6 +3,8 @@ use std::collections::BTreeMap;
 use std::io::prelude::*;
 use std::io::BufReader;
 
+pub mod iter;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(C)]
 pub struct Node(u32);
@@ -149,8 +151,8 @@ impl PathIndex {
         let start_rank = self.segment_offsets.rank(s);
         let end_rank = self.segment_offsets.rank(e);
 
-        let first = Node::from(start_rank as usize);
-        let last = Node::from(end_rank as usize);
+        let first = Node::from(start_rank as usize - 1);
+        let last = Node::from(end_rank as usize - 1);
 
         first..=last
     }
@@ -400,4 +402,23 @@ mod tests {
 
         assert_eq!(node_lengths, expected);
     }
+
+    #[test]
+    fn pangenome_nodes_range() {
+        let index = PathIndex::from_gfa(GFA_PATH).unwrap();
+        let total_len = index.pangenome_len();
+        
+        let pos_range = 44..55;
+        let range0 = index.pos_range_nodes(pos_range);
+        
+        let mut last_start = (total_len - 12) as u64;
+        last_start -= 1;
+
+        let pos_range = last_start..total_len as u64;
+        let range1 = index.pos_range_nodes(pos_range);
+
+        assert_eq!(range0, Node(1)..=Node(1));
+        assert_eq!(range1, Node(4964)..=Node(4965));
+    }
+
 }
