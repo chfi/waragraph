@@ -377,3 +377,27 @@ impl PathIndex {
         })
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const GFA_PATH: &'static str = concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../test/data/",
+        "A-3105.fa.353ea42.34ee7b1.1576367.smooth.fix.gfa"
+    );
+
+    #[test]
+    fn node_lengths() {
+        let index = PathIndex::from_gfa(GFA_PATH).unwrap();
+
+        let node_lengths = (0..10)
+            .map(|i| index.node_length(Node(i)))
+            .collect::<Vec<_>>();
+
+        let expected = vec![44, 12, 19, 1, 1, 13, 1, 1, 1, 2];
+
+        assert_eq!(node_lengths, expected);
+    }
+}
