@@ -62,16 +62,15 @@ impl<'index, 'data> PathDataBinIter<'index, 'data> {
         data: &'data [f32],
         pos_range: std::ops::Range<u64>,
     ) -> Option<Self> {
-
         let segment_offsets = &path_index.segment_offsets;
         let path_nodes = path_index.path_node_sets.get(path_id)?;
 
-        let start =pos_range.start;
+        let start = pos_range.start;
         let end = pos_range.end;
         let offset = pos_range.start;
         let start_rank = segment_offsets.rank(start);
         let end_rank = segment_offsets.rank(end);
-        
+
         let rank_range = start_rank..end_rank;
 
         // let index = path_nodes.rank(node_ix)

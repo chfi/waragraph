@@ -122,10 +122,60 @@ impl<'a> Iterator for PathStepRangeIter<'a> {
 }
 
 impl PathIndex {
-
     pub fn pangenome_len(&self) -> usize {
         self.sequence_total_len
     }
+
+    #[inline]
+    pub fn node_length(&self, node: Node) -> usize {
+        let i = node.0 as u64;
+        let offset =
+            self.segment_offsets.select(i).unwrap_or_default() as usize;
+        let next = self
+            .segment_offsets
+            .select(i + 1)
+            .unwrap_or(self.pangenome_len() as u64) as usize;
+
+        next - offset
+    }
+
+    pub fn pos_range_nodes(
+        &self,
+        pos_range: std::ops::Range<u64>,
+    ) -> std::ops::RangeInclusive<Node> {
+        let s = pos_range.start;
+        let e = pos_range.end;
+
+        let start_rank = self.segment_offsets.rank(s);
+        let end_rank = self.segment_offsets.rank(e);
+
+        let first = Node::from(start_rank as usize);
+        let last = Node::from(end_rank as usize);
+
+        first..=last
+    }
+
+    /*
+    pub fn pos_range_nodes_lengths_iter(
+        &self,
+        pos_range: std::ops::Range<u64>,
+    ) -> impl Iterator<Item = (Node, usize)> {
+        let (s, e) = self.pos_range_nodes(pos_range).into_inner();
+        let node_id_range = s.0..=e.0;
+        node_id_range.map(|i| {
+            let node = Node(i);
+            let len = self.segm
+        })
+        // let x = nodes.map(|s| s);
+        todo!();
+    }
+    */
+
+    // pub fn pos_range_nodes_in_path(
+    //     &self,
+    //     pos_range: std::ops::Range<u64>,
+    //     path_id: usize,
+    // ) -> impl Iterator
 
     pub fn path_steps<'a>(
         &'a self,
