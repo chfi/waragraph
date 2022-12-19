@@ -282,8 +282,8 @@ impl PathIndex {
 
             let len = seq.len();
 
-            sequence_total_len += len;
             segment_offsets.push(sequence_total_len as u64);
+            sequence_total_len += len;
             seg_lens.push(len);
         }
 
