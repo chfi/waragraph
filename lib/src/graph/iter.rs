@@ -123,6 +123,7 @@ impl<'index, 'data, T> PangenomePathDataPosRangeIter<'index, 'data, T> {
 
         let start_ix = path_nodes.rank(start_id as u32) as usize;
         let end_ix = path_nodes.rank(end_id as u32) as usize;
+        let start_ix = start_ix.checked_sub(1).unwrap_or_default();
 
         let data_iter = data[start_ix..end_ix].iter();
 
@@ -142,7 +143,10 @@ impl<'index, 'data, T> Iterator
     type Item = ((Node, Bp), &'data T);
 
     fn next(&mut self) -> Option<Self::Item> {
-        let node = self.node_iter.next()?;
+        let mut node = self.node_iter.next()?;
+        while !self.path_nodes.contains(node.0 .0) {
+            node = self.node_iter.next()?;
+        }
         let data = self.data_iter.next()?;
         Some((node, data))
     }
@@ -201,19 +205,52 @@ mod tests {
         let index = PathIndex::from_gfa(GFA_PATH).unwrap();
         let depth_data = PathDepthData::new(&index);
 
-        let path_id = 0;
+        let pos_range = 10..60;
 
+        let make_expected = |vals: &[(u32, u64, u32)]| {
+            vals.iter()
+                .map(|&(n, l, v)| {
+                    (
+                        (Node::from(n - index.segment_id_range.0), Bp(l)),
+                        v as f32,
+                    )
+                })
+                .collect::<Vec<_>>()
+        };
 
-        let end = index.pangenome_len().0;
+        let expected = [
+            vec![(2, 12, 1), (3, 4, 1)],
+            vec![(2, 12, 1), (3, 4, 1)],
+            vec![(2, 12, 1), (3, 4, 1)],
+            vec![(2, 12, 1), (3, 4, 1)],
+            vec![(2, 12, 1), (3, 4, 1)],
+            vec![],
+            vec![(2, 12, 1), (3, 4, 1)],
+            vec![(2, 12, 1), (3, 4, 1)],
+            vec![(2, 12, 1), (3, 4, 1)],
+            vec![(1, 34, 1), (2, 12, 2), (3, 4, 3)],
+            vec![(1, 34, 1), (2, 12, 2), (3, 4, 3)],
+        ]
+        .into_iter()
+        .map(|s| make_expected(s.as_slice()))
+        .collect::<Vec<_>>();
 
-        // let pos_range = 0..100;
-        let pos_range = (end-1000)..end;
+        let mut path_names = index.path_names.iter().collect::<Vec<_>>();
+        path_names.sort_by_key(|(_, i)| *i);
 
-        let data = &depth_data.node_depth_per_path[0];
-        let iter = PangenomePathDataPosRangeIter::new_pos_range(&index, pos_range, path_id, data);
+        for ((_path_name, path_id), expected) in path_names.iter().zip(expected)
+        {
+            let data = &depth_data.node_depth_per_path[**path_id];
+            let iter = PangenomePathDataPosRangeIter::new_pos_range(
+                &index,
+                pos_range.clone(),
+                **path_id,
+                data,
+            );
 
-        for ((node, len), val) in iter {
-            println!("{node:?}\t{len:?}:\t{val}");
+            let result = iter.map(|(a, v)| (a, *v)).collect::<Vec<_>>();
+
+            assert_eq!(expected, result);
         }
     }
 }
