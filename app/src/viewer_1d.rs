@@ -273,20 +273,22 @@ impl Viewer1D {
         let depth_data = PathDepthData::new(&path_index);
 
         let len = pangenome_len as u64;
-        let view_range = 0..200;
+        // let view_range = 0..800;
+        // let view_range = 0..5_00;
+        let view_range = 0..len;
         // let view_range = (len-500)..len;
         // let view_range = (len-5000)..len;
 
-        let depth = path_viz_buffer_test(&state.device, 200)?;
+        // let depth = path_viz_buffer_test(&state.device, 200)?;
 
-        // let depth = path_depth_data_viz_buffer(
-        //     &state.device,
-        //     &path_index,
-        //     &depth_data,
-        //     0..10,
-        //     view_range,
-        //     200,
-        // )?;
+        let depth = path_depth_data_viz_buffer(
+            &state.device,
+            &path_index,
+            &depth_data,
+            0..10,
+            view_range,
+            1024,
+        )?;
 
         let mut path_viz_cache = PathVizCache::default();
         path_viz_cache.insert("color", color);

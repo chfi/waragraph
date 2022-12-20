@@ -12,13 +12,6 @@ pub(super) fn path_viz_buffer_test(
     device: &wgpu::Device,
     bins: usize,
 ) -> Result<BufferDesc> {
-    let mut rows_data: Vec<Vec<u8>> = Vec::new();
-
-    // fn mk_row(f: impl Fn(usize) -> f32) -> Vec<f32> {
-    //     let row_size = 100;
-    //     (0..row_size).map(f).collect::<Vec<_>>()
-    // }
-
     let row_size = 100;
 
     let mk_row = |f: fn(usize) -> f32| (0..row_size).map(f).collect::<Vec<_>>();
@@ -66,6 +59,8 @@ pub(super) fn path_depth_data_viz_buffer(
     bins: usize,
 ) -> Result<BufferDesc> {
     let paths = paths.into_iter().collect::<Vec<_>>();
+
+    let bins = ((view_range.end - view_range.start) as usize).min(bins);
 
     let row_size = bins;
     let total_size = row_size * paths.len();
