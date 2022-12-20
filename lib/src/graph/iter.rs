@@ -1,6 +1,8 @@
 use std::iter::FusedIterator;
 
-use super::{Node, PathIndex, Bp};
+use roaring::RoaringBitmap;
+
+use super::{Bp, Node, PathIndex};
 
 /// Iterator over a compact range of nodes in the pangenome (i.e. node ID) order,
 /// returning the nodes with their lengths
@@ -33,7 +35,6 @@ impl<'index> Iterator for PangenomeNodeIter<'index> {
     }
 }
 
-
 pub struct PangenomeNodePosRangeIter<'index> {
     index: &'index PathIndex,
     node_index_range: std::ops::RangeInclusive<usize>,
@@ -51,7 +52,8 @@ impl<'index> PangenomeNodePosRangeIter<'index> {
             start..end
         };
 
-        let (start, end) = index.pos_range_nodes(pos_range.clone()).into_inner();
+        let (start, end) =
+            index.pos_range_nodes(pos_range.clone()).into_inner();
         let i_s = start.0 as usize;
         let i_e = end.0 as usize;
 
@@ -85,12 +87,54 @@ impl<'index> Iterator for PangenomeNodePosRangeIter<'index> {
         let end = vis_end;
         let new_start = end.min(self.pos_range.end);
         self.pos_range = new_start..self.pos_range.end;
-        
+
         Some((node, Bp(length)))
     }
 }
 
 impl<'index> FusedIterator for PangenomeNodePosRangeIter<'index> {}
+
+pub struct PangenomePathDataPosRangeIter<'index, 'data, T> {
+    path_id: usize,
+    path_nodes: &'index RoaringBitmap,
+
+    node_iter: PangenomeNodePosRangeIter<'index>,
+    data_iter: std::slice::Iter<'data, T>,
+}
+
+impl<'index, 'data, T> PangenomePathDataPosRangeIter<'index, 'data, T> {
+    pub(super) fn new_pos_range(
+        index: &'index PathIndex,
+        pos_range: std::ops::Range<u64>,
+        path_id: usize,
+        data: &'data [T],
+    ) -> Self {
+        let path_nodes = &index.path_node_sets[path_id];
+        assert_eq!(
+            data.len(),
+            path_nodes.len() as usize,
+            "Data vector must contain exactly one value per node in path"
+        );
+
+        let node_iter =
+            PangenomeNodePosRangeIter::new_pos_range(index, pos_range);
+        let (start_id, end_id) =
+            node_iter.node_index_range.clone().into_inner();
+
+        let start_ix = path_nodes.rank(start_id as u32) as usize;
+        let end_ix = path_nodes.rank(end_id as u32) as usize;
+
+        let data_iter = data[start_ix..end_ix].iter();
+
+        Self {
+            path_id,
+            path_nodes,
+
+            node_iter,
+            data_iter,
+        }
+    }
+}
 
 #[cfg(test)]
 mod tests {
