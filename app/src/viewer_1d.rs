@@ -20,7 +20,7 @@ use anyhow::Result;
 
 use waragraph_core::graph::{sampling::PathDepthData, PathIndex};
 
-use self::util::path_depth_data_viz_buffer;
+use self::util::{path_depth_data_viz_buffer, path_viz_buffer_test};
 
 // pub mod sampling;
 pub mod util;
@@ -93,7 +93,6 @@ fn path_frag_example_uniforms(
     let usage = BufferUsages::STORAGE | BufferUsages::COPY_DST;
 
     let color = {
-        /*
         let len = 256;
         let colors = (0..len)
             .flat_map(|i| {
@@ -105,7 +104,6 @@ fn path_frag_example_uniforms(
                 [r as f32 / max, g as f32 / max, b as f32 / max, 1.0]
             })
             .collect::<Vec<_>>();
-            */
 
         let rgba = |r: u8, g: u8, b: u8| {
             let max = u8::MAX as f32;
@@ -274,15 +272,21 @@ impl Viewer1D {
 
         let depth_data = PathDepthData::new(&path_index);
 
-        let depth = path_depth_data_viz_buffer(
-            &state.device,
-            &path_index,
-            &depth_data,
-            0..10,
-            // 0..50_000,
-            0..400_000,
-            700,
-        )?;
+        let len = pangenome_len as u64;
+        let view_range = 0..200;
+        // let view_range = (len-500)..len;
+        // let view_range = (len-5000)..len;
+
+        let depth = path_viz_buffer_test(&state.device, 200)?;
+
+        // let depth = path_depth_data_viz_buffer(
+        //     &state.device,
+        //     &path_index,
+        //     &depth_data,
+        //     0..10,
+        //     view_range,
+        //     200,
+        // )?;
 
         let mut path_viz_cache = PathVizCache::default();
         path_viz_cache.insert("color", color);

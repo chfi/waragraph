@@ -19,7 +19,7 @@ layout (set = 1, binding = 1) readonly buffer Colors {
 void main() {
   uint row_offset = i_slot_id * data.row_size;
   uint data_ix = uint(i_uv.x * float(data.row_size - 1));
-  float val = data.values[data_ix];
+  float val = data.values[row_offset + data_ix];
   uint ix = min(uint(val), colors.len - 1);
   vec4 color = colors.colors[ix];
   f_color = color;
