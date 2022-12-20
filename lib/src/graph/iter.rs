@@ -45,6 +45,12 @@ impl<'index> PangenomeNodePosRangeIter<'index> {
         index: &'index PathIndex,
         pos_range: std::ops::Range<u64>,
     ) -> Self {
+        let pos_range = {
+            let start = pos_range.start.min(index.pangenome_len().0);
+            let end = pos_range.end.min(index.pangenome_len().0);
+            start..end
+        };
+
         let (start, end) = index.pos_range_nodes(pos_range.clone()).into_inner();
         let i_s = start.0 as usize;
         let i_e = end.0 as usize;
@@ -74,7 +80,7 @@ impl<'index> Iterator for PangenomeNodePosRangeIter<'index> {
         let vis_start = self.pos_range.start.max(node_start);
         let vis_end = self.pos_range.end.min(node_end);
 
-        let length = vis_end - vis_start;
+        let length = vis_end.checked_sub(vis_start)?;
 
         let end = vis_end;
         let new_start = end.min(self.pos_range.end);
@@ -110,15 +116,22 @@ mod tests {
     fn pangenome_nodes_pos_range_iter() {
         let index = PathIndex::from_gfa(GFA_PATH).unwrap();
 
-        let test_range = |start: u64, end: u64| {
+        let test_range = |start: u64, end: u64, expected: u64| {
             let range = start..end;
             let iter = PangenomeNodePosRangeIter::new_pos_range(&index, range);
 
             let vis_len = iter.map(|(_, l)| l.0).sum::<u64>();
-            assert_eq!(end - start, vis_len);
+            assert_eq!(expected, vis_len);
         };
 
-        test_range(0, 60);
-        test_range(40, 100);
+        test_range(0, 60, 60);
+        test_range(40, 100, 60);
+
+        let len = index.pangenome_len().0;
+
+        test_range(len / 2, (len / 2) + 200, 200);
+
+        test_range(len - 100, len, 100);
+        test_range(len - 100, len + 100, 100);
     }
 }

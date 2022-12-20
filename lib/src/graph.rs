@@ -63,7 +63,6 @@ impl OrientedNode {
 #[repr(C)]
 pub struct Bp(pub u64);
 
-
 impl From<u64> for Bp {
     fn from(u: u64) -> Bp {
         Bp(u)
@@ -75,7 +74,6 @@ impl From<Bp> for u64 {
         bp.0
     }
 }
-
 
 #[derive(Debug, Clone)]
 pub struct Waragraph {
@@ -151,8 +149,7 @@ impl PathIndex {
     pub fn node_offset_length(&self, node: Node) -> (Bp, Bp) {
         let i = node.0 as u64;
         let i = node.0 as u64;
-        let offset =
-            self.segment_offsets.select(i).unwrap_or_default();
+        let offset = self.segment_offsets.select(i).unwrap_or_default();
         let next = self
             .segment_offsets
             .select(i + 1)
@@ -437,19 +434,27 @@ mod tests {
         let expected = vec![44, 12, 19, 1, 1, 13, 1, 1, 1, 2];
 
         assert_eq!(node_lengths, expected);
+
+        let n = index.node_count as u32;
+        let node_lengths = ((n - 10)..n)
+            .map(|i| index.node_length(Node(i)).0)
+            .collect::<Vec<_>>();
+
+        let expected = vec![1, 1, 1, 3, 1, 1, 2, 1, 1, 12];
+        assert_eq!(node_lengths, expected);
     }
 
     #[test]
     fn pangenome_nodes_range() {
         let index = PathIndex::from_gfa(GFA_PATH).unwrap();
         let total_len = index.pangenome_len();
-        
+
         let pos_range = 44..55;
         let range0 = index.pos_range_nodes(pos_range);
-        
+
         let mut last_start = (total_len.0 - 12);
         last_start -= 1;
-        
+
         let pos_range = last_start..total_len.0;
         let range1 = index.pos_range_nodes(pos_range);
 
