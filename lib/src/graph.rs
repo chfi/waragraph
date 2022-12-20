@@ -4,6 +4,7 @@ use std::io::prelude::*;
 use std::io::BufReader;
 
 pub mod iter;
+pub mod sampling;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(C)]

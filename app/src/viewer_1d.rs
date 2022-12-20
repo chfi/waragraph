@@ -18,12 +18,11 @@ use wgpu::util::{BufferInitDescriptor, DeviceExt};
 
 use anyhow::Result;
 
-use waragraph_core::graph::PathIndex;
+use waragraph_core::graph::{sampling::PathDepthData, PathIndex};
 
-use self::sampling::{PathDataBinIter, PathDepthData};
 use self::util::path_depth_data_viz_buffer;
 
-pub mod sampling;
+// pub mod sampling;
 pub mod util;
 
 #[derive(Debug)]

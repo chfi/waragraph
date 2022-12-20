@@ -4,10 +4,9 @@ use waragraph_core::graph::PathIndex;
 use anyhow::Result;
 use wgpu::util::{BufferInitDescriptor, DeviceExt};
 
-use super::{
-    sampling::{PathDepthData, PathPangenomeRangeData},
-    BufferDesc,
-};
+use waragraph_core::graph::sampling::{PathDepthData, PathPangenomeRangeData};
+
+use super::BufferDesc;
 
 pub(super) fn path_depth_data_viz_buffer(
     device: &wgpu::Device,
