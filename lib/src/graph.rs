@@ -113,6 +113,7 @@ pub struct NodeSet {
 #[derive(Debug, Clone)]
 pub struct PathIndex {
     pub segment_offsets: roaring::RoaringTreemap,
+    pub node_count: usize,
     pub sequence_total_len: Bp,
     pub segment_id_range: (u32, u32),
 
@@ -328,6 +329,8 @@ impl PathIndex {
         seg_id_range.1 - seg_id_range.0,
         );
 
+        let node_count = seg_lens.len();
+
         let gfa = std::fs::File::open(&gfa_path)?;
         let mut gfa_reader = BufReader::new(gfa);
 
@@ -406,6 +409,7 @@ impl PathIndex {
             path_node_sets,
 
             segment_offsets,
+            node_count,
             segment_id_range: seg_id_range,
             sequence_total_len: Bp(sequence_total_len as u64),
         })

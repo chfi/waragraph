@@ -68,13 +68,13 @@ impl<'index> Iterator for PangenomeNodePosRangeIter<'index> {
         let node = Node(index as u32);
         let (offset, length) = self.index.node_offset_length(node);
 
-        let start = self.pos_range.start.max(offset.0);
-        let end = self.pos_range.end.min(start + length.0);
+        let skipped = self.pos_range.start - offset.0;
+        let length = length.0 - skipped;
 
-        let length = end - start;
-
-        self.pos_range = start..(self.pos_range.end);
-
+        let end = self.pos_range.start + length;
+        let new_start = end.min(self.pos_range.end);
+        self.pos_range = new_start..self.pos_range.end;
+        
         Some((node, Bp(length)))
     }
 }
@@ -99,5 +99,23 @@ mod tests {
             .map(|(i, v)| (Node(i as u32), Bp(v)));
 
         assert!(iter.eq(expected));
+    }
+
+    #[test]
+    fn pangenome_nodes_pos_range_iter() {
+        let index = PathIndex::from_gfa(GFA_PATH).unwrap();
+
+        // let pos_range = 0..100;
+        // let pos_range = 10..100;
+
+        // let pos_range = 0..50;
+        let pos_range = 0..60;
+
+        let iter = PangenomeNodePosRangeIter::new_pos_range(&index, pos_range);
+
+        for (node, len) in iter {
+            println!("{node:?},{len:?}");
+        }
+        
     }
 }
