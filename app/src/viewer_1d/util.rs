@@ -51,8 +51,18 @@ pub(super) fn path_depth_data_viz_buffer(
 
         for bin_ix in 0..bins {
             let range = bin_range(bin_ix);
-            let val = data.get(index, path, range).unwrap_or(0.0);
-            bin_buf.push(val);
+            let data = &data.node_depth_per_path[path];
+            let iter = index.path_data_pan_range_iter(range, path, data);
+
+            let mut sum_len = 0;
+            let mut sum_val = 0.0;
+
+            for ((_node, len), val) in iter {
+                sum_len += len.0;
+                sum_val += *val;
+            }
+
+            bin_buf.push(sum_val / sum_len as f32);
         }
 
         buf_data.extend(bytemuck::cast_slice(&bin_buf));

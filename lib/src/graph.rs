@@ -3,6 +3,9 @@ use std::collections::BTreeMap;
 use std::io::prelude::*;
 use std::io::BufReader;
 
+use self::iter::PangenomeNodePosRangeIter;
+use self::iter::PangenomePathDataPosRangeIter;
+
 pub mod iter;
 pub mod sampling;
 
@@ -188,27 +191,23 @@ impl PathIndex {
         first..=last
     }
 
-    /*
-    pub fn pos_range_nodes_lengths_iter(
-        &self,
-        pos_range: std::ops::Range<u64>,
-    ) -> impl Iterator<Item = (Node, usize)> {
-        let (s, e) = self.pos_range_nodes(pos_range).into_inner();
-        let node_id_range = s.0..=e.0;
-        node_id_range.map(|i| {
-            let node = Node(i);
-            let len = self.segm
-        })
-        // let x = nodes.map(|s| s);
-        todo!();
+    pub fn nodes_pan_range_iter<'i>(
+        &'i self,
+        pan_range: std::ops::Range<u64>,
+    ) -> PangenomeNodePosRangeIter<'i> {
+        PangenomeNodePosRangeIter::new_pos_range(self, pan_range)
     }
-    */
 
-    // pub fn pos_range_nodes_in_path(
-    //     &self,
-    //     pos_range: std::ops::Range<u64>,
-    //     path_id: usize,
-    // ) -> impl Iterator
+    pub fn path_data_pan_range_iter<'index, 'data, T>(
+        &'index self,
+        pan_range: std::ops::Range<u64>,
+        path_id: usize,
+        data: &'data [T],
+    ) -> PangenomePathDataPosRangeIter<'index, 'data, T> {
+        PangenomePathDataPosRangeIter::new_pos_range(
+            self, pan_range, path_id, data,
+        )
+    }
 
     pub fn path_steps<'a>(
         &'a self,

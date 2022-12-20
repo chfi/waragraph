@@ -94,6 +94,8 @@ impl<'index> Iterator for PangenomeNodePosRangeIter<'index> {
 
 impl<'index> FusedIterator for PangenomeNodePosRangeIter<'index> {}
 
+// TODO: reimplement by stepping through the data slice, using the enumerated
+// index with the path set to avoid using the dense node position iterator
 pub struct PangenomePathDataPosRangeIter<'index, 'data, T> {
     path_id: usize,
     path_nodes: &'index RoaringBitmap,
@@ -101,6 +103,7 @@ pub struct PangenomePathDataPosRangeIter<'index, 'data, T> {
     node_iter: PangenomeNodePosRangeIter<'index>,
     data_iter: std::slice::Iter<'data, T>,
 }
+
 
 impl<'index, 'data, T> PangenomePathDataPosRangeIter<'index, 'data, T> {
     pub(super) fn new_pos_range(
