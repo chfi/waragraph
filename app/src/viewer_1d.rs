@@ -269,7 +269,7 @@ impl Viewer1D {
         */
 
         let egui = EguiCtx::init(event_loop, state, None);
-        let pangenome_len = path_index.pangenome_len();
+        let pangenome_len = path_index.pangenome_len().0 as usize;
 
         let (color, data) = path_frag_example_uniforms(&state.device)?;
 
