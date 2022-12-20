@@ -136,11 +136,28 @@ impl<'index, 'data, T> PangenomePathDataPosRangeIter<'index, 'data, T> {
     }
 }
 
+impl<'index, 'data, T> Iterator
+    for PangenomePathDataPosRangeIter<'index, 'data, T>
+{
+    type Item = ((Node, Bp), &'data T);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let node = self.node_iter.next()?;
+        let data = self.data_iter.next()?;
+        Some((node, data))
+    }
+}
+
+impl<'index, 'data, T> FusedIterator
+    for PangenomePathDataPosRangeIter<'index, 'data, T>
+{
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    use crate::graph::tests::GFA_PATH;
+    use crate::graph::{sampling::PathDepthData, tests::GFA_PATH};
 
     #[test]
     fn pangenome_nodes_range_iter() {
@@ -177,5 +194,26 @@ mod tests {
 
         test_range(len - 100, len, 100);
         test_range(len - 100, len + 100, 100);
+    }
+
+    #[test]
+    fn pangenome_path_data_iter() {
+        let index = PathIndex::from_gfa(GFA_PATH).unwrap();
+        let depth_data = PathDepthData::new(&index);
+
+        let path_id = 0;
+
+
+        let end = index.pangenome_len().0;
+
+        // let pos_range = 0..100;
+        let pos_range = (end-1000)..end;
+
+        let data = &depth_data.node_depth_per_path[0];
+        let iter = PangenomePathDataPosRangeIter::new_pos_range(&index, pos_range, path_id, data);
+
+        for ((node, len), val) in iter {
+            println!("{node:?}\t{len:?}:\t{val}");
+        }
     }
 }
