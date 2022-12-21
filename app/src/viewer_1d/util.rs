@@ -8,49 +8,37 @@ use waragraph_core::graph::sampling::{PathDepthData, PathPangenomeRangeData};
 
 use super::BufferDesc;
 
-pub(super) fn path_viz_buffer_test(
+pub(super) fn path_depth_data_viz_buffer(
     device: &wgpu::Device,
+    index: &PathIndex,
+    data: &PathDepthData,
+    paths: impl IntoIterator<Item = usize>,
+    view_range: std::ops::Range<u64>,
     bins: usize,
 ) -> Result<BufferDesc> {
-    let row_size = 100;
+    let paths = paths.into_iter().collect::<Vec<_>>();
+    let prefix_size = std::mem::size_of::<u32>() * 4;
+    let elem_size = std::mem::size_of::<f32>();
+    let needed_size = prefix_size + elem_size * bins * paths.len();
 
-    let mk_row = |f: fn(usize) -> f32| (0..row_size).map(f).collect::<Vec<_>>();
+    let mut buf = vec![0u8; needed_size];
 
-    let row_size = 100;
+    waragraph_core::graph::sampling::sample_path_data_into_buffer(
+        index, data, paths, bins, view_range, &mut buf,
+    );
 
-    let row0 = mk_row(|i| (i / 10) as f32);
-    let mut row1 = row0.clone();
-    row1.reverse();
-    let row2 = mk_row(|i| if i < 100 / 2 { 4.0 } else { 8.0 });
-
-
-    let total_size = 3 * row_size;
-
-    let mut buf_data: Vec<u8> = Vec::with_capacity(total_size + 4 * 4);
-    
-    buf_data.extend(bytemuck::cast_slice(&[
-        total_size as u32,
-        row_size as u32,
-        0,
-        0,
-    ]));
-
-    buf_data.extend_from_slice(bytemuck::cast_slice(&row0));
-    buf_data.extend_from_slice(bytemuck::cast_slice(&row1));
-    buf_data.extend_from_slice(bytemuck::cast_slice(&row2));
-    
     let usage = wgpu::BufferUsages::STORAGE;
 
     let buffer = device.create_buffer_init(&BufferInitDescriptor {
         label: None,
-        contents: buf_data.as_slice(),
+        contents: buf.as_slice(),
         usage,
     });
 
-    Ok(BufferDesc::new(buffer, buf_data.len()))
+    Ok(BufferDesc::new(buffer, buf.len()))
 }
 
-pub(super) fn path_depth_data_viz_buffer(
+pub(super) fn path_depth_data_viz_buffer_old(
     device: &wgpu::Device,
     index: &PathIndex,
     data: &PathDepthData,
@@ -154,15 +142,43 @@ pub(super) fn path_slot_vertex_buffer(
     Ok(BufferDesc::new(buffer, data.len()))
 }
 
-/*
-pub fn path_depth_viz_buffers(
+pub(super) fn path_viz_buffer_test(
     device: &wgpu::Device,
-    index: &PathIndex,
-    paths: impl IntoIterator<Item = usize>,
-    view_range: std::ops::Range<u64>,
     bins: usize,
-) -> Result<(wgpu::Buffer, usize)> {
+) -> Result<BufferDesc> {
+    let row_size = 100;
 
-    let usage = wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::
+    let mk_row = |f: fn(usize) -> f32| (0..row_size).map(f).collect::<Vec<_>>();
+
+    let row_size = 100;
+
+    let row0 = mk_row(|i| (i / 10) as f32);
+    let mut row1 = row0.clone();
+    row1.reverse();
+    let row2 = mk_row(|i| if i < 100 / 2 { 4.0 } else { 8.0 });
+
+    let total_size = 3 * row_size;
+
+    let mut buf_data: Vec<u8> = Vec::with_capacity(total_size + 4 * 4);
+
+    buf_data.extend(bytemuck::cast_slice(&[
+        total_size as u32,
+        row_size as u32,
+        0,
+        0,
+    ]));
+
+    buf_data.extend_from_slice(bytemuck::cast_slice(&row0));
+    buf_data.extend_from_slice(bytemuck::cast_slice(&row1));
+    buf_data.extend_from_slice(bytemuck::cast_slice(&row2));
+
+    let usage = wgpu::BufferUsages::STORAGE;
+
+    let buffer = device.create_buffer_init(&BufferInitDescriptor {
+        label: None,
+        contents: buf_data.as_slice(),
+        usage,
+    });
+
+    Ok(BufferDesc::new(buffer, buf_data.len()))
 }
-*/

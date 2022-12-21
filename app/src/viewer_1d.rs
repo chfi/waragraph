@@ -273,9 +273,9 @@ impl Viewer1D {
         let depth_data = PathDepthData::new(&path_index);
 
         let len = pangenome_len as u64;
+        let view_range = 0..len;
         // let view_range = 0..800;
         // let view_range = 0..5_00;
-        let view_range = 0..len;
         // let view_range = (len-500)..len;
         // let view_range = (len-5000)..len;
 

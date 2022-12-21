@@ -8,7 +8,7 @@ pub trait PathData<T> {
 
 pub fn sample_path_data_into_buffer<D>(
     index: &PathIndex,
-    data: D,
+    data: &D,
     paths: impl IntoIterator<Item = usize>,
     bins: usize,
     view_range: std::ops::Range<u64>,
@@ -66,7 +66,7 @@ pub fn sample_path_data_into_buffer<D>(
             let range = bin_range(bin_ix);
             let iter =
                 index.path_data_pan_range_iter(range, path_id, path_data);
-            
+
             let mut sum_len = 0;
             let mut sum_val = 0.0;
 
