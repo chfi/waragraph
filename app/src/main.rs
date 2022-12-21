@@ -7,6 +7,8 @@ pub struct Args {
     gfa: PathBuf,
     tsv: Option<PathBuf>,
     annotations: Option<PathBuf>,
+
+    init_range: Option<std::ops::Range<u64>>,
 }
 
 pub fn main() -> Result<()> {
@@ -28,7 +30,10 @@ pub fn main() -> Result<()> {
                 log::error!("{:?}", e);
             }
         } else {
-            let args_1d = waragraph::viewer_1d::Args { gfa: args.gfa };
+            let args_1d = waragraph::viewer_1d::Args {
+                gfa: args.gfa,
+                init_range: args.init_range,
+            };
 
             if let Err(e) =
                 pollster::block_on(waragraph::viewer_1d::run(args_1d))
@@ -43,7 +48,6 @@ pub fn main() -> Result<()> {
         std::process::exit(0);
     }
 
-
     Ok(())
 }
 
@@ -54,9 +58,32 @@ pub fn parse_args() -> std::result::Result<Args, pico_args::Error> {
         gfa: pargs.free_from_os_str(parse_path)?,
         tsv: pargs.opt_free_from_os_str(parse_path)?,
         annotations: pargs.opt_value_from_os_str("--bed", parse_path)?,
+
+        init_range: pargs.opt_value_from_fn("--range", parse_range)?,
     };
 
     Ok(args)
+}
+
+fn parse_range(s: &str) -> Result<std::ops::Range<u64>> {
+    const ERROR_MSG: &'static str = "Range must be in the format `start-end`,\
+where `start` and `end` are nonnegative integers and `start` < `end`";
+
+    dbg!();
+    let fields = s.trim().split('-').take(2).collect::<Vec<_>>();
+
+    dbg!(&fields);
+    if fields.len() != 2 {
+        anyhow::bail!(ERROR_MSG);
+    }
+
+    let start = fields[0].parse::<u64>()?;
+    let end = fields[1].parse::<u64>()?;
+    if start >= end {
+        anyhow::bail!(ERROR_MSG);
+    }
+
+    Ok(start..end)
 }
 
 fn parse_path(s: &std::ffi::OsStr) -> Result<std::path::PathBuf, &'static str> {

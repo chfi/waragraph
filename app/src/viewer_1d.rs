@@ -28,6 +28,7 @@ pub mod util;
 #[derive(Debug)]
 pub struct Args {
     pub gfa: PathBuf,
+    pub init_range: Option<std::ops::Range<u64>>,
 }
 
 struct Viewer1D {
@@ -167,6 +168,7 @@ impl Viewer1D {
         win_dims: [u32; 2],
         state: &State,
         path_index: PathIndex,
+        init_range: Option<std::ops::Range<u64>>,
     ) -> Result<Self> {
         let mut graph = Graph::new();
 
@@ -273,11 +275,7 @@ impl Viewer1D {
         let depth_data = PathDepthData::new(&path_index);
 
         let len = pangenome_len as u64;
-        let view_range = 0..len;
-        // let view_range = 0..800;
-        // let view_range = 0..5_00;
-        // let view_range = (len-500)..len;
-        // let view_range = (len-5000)..len;
+        let view_range = init_range.unwrap_or(0..len);
 
         // let depth = path_viz_buffer_test(&state.device, 200)?;
 
@@ -444,7 +442,13 @@ pub async fn run(args: Args) -> Result<()> {
         [s.width, s.height]
     };
 
-    let mut app = Viewer1D::init(&event_loop, dims, &state, path_index)?;
+    let mut app = Viewer1D::init(
+        &event_loop,
+        dims,
+        &state,
+        path_index,
+        args.init_range.clone(),
+    )?;
 
     /*
     if let Some(bed) = args.annotations.as_ref() {
@@ -516,18 +520,4 @@ pub async fn run(args: Args) -> Result<()> {
             _ => {}
         }
     })
-}
-
-pub fn parse_args() -> std::result::Result<Args, pico_args::Error> {
-    let mut pargs = pico_args::Arguments::from_env();
-
-    let args = Args {
-        gfa: pargs.free_from_os_str(parse_path)?,
-    };
-
-    Ok(args)
-}
-
-fn parse_path(s: &std::ffi::OsStr) -> Result<std::path::PathBuf, &'static str> {
-    Ok(s.into())
 }
