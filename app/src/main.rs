@@ -17,6 +17,7 @@ pub fn main() -> Result<()> {
         .init();
 
     if let Ok(args) = parse_args() {
+        dbg!();
         if let Some(tsv) = args.tsv {
             let args_2d = waragraph::viewer_2d::Args {
                 gfa: args.gfa,
@@ -54,12 +55,15 @@ pub fn main() -> Result<()> {
 pub fn parse_args() -> std::result::Result<Args, pico_args::Error> {
     let mut pargs = pico_args::Arguments::from_env();
 
+    let annotations = pargs.opt_value_from_os_str("--bed", parse_path)?;
+    let init_range = pargs.opt_value_from_fn("--range", parse_range)?;
+
     let args = Args {
         gfa: pargs.free_from_os_str(parse_path)?,
         tsv: pargs.opt_free_from_os_str(parse_path)?,
-        annotations: pargs.opt_value_from_os_str("--bed", parse_path)?,
 
-        init_range: pargs.opt_value_from_fn("--range", parse_range)?,
+        annotations,
+        init_range,
     };
 
     Ok(args)
@@ -69,10 +73,8 @@ fn parse_range(s: &str) -> Result<std::ops::Range<u64>> {
     const ERROR_MSG: &'static str = "Range must be in the format `start-end`,\
 where `start` and `end` are nonnegative integers and `start` < `end`";
 
-    dbg!();
     let fields = s.trim().split('-').take(2).collect::<Vec<_>>();
 
-    dbg!(&fields);
     if fields.len() != 2 {
         anyhow::bail!(ERROR_MSG);
     }
