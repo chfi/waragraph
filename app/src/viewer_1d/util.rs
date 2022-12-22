@@ -4,7 +4,7 @@ use waragraph_core::graph::PathIndex;
 use anyhow::Result;
 use wgpu::util::{BufferInitDescriptor, DeviceExt};
 
-use waragraph_core::graph::sampling::{PathDepthData, PathPangenomeRangeData};
+use waragraph_core::graph::sampling::{PathDepthData};
 
 use super::BufferDesc;
 
@@ -19,9 +19,9 @@ pub(super) fn path_depth_data_viz_buffer(
     let paths = paths.into_iter().collect::<Vec<_>>();
     let prefix_size = std::mem::size_of::<u32>() * 4;
     let elem_size = std::mem::size_of::<f32>();
-    let needed_size = prefix_size + elem_size * bins * paths.len();
+    let max_size = prefix_size + elem_size * bins * paths.len();
 
-    let mut buf = vec![0u8; needed_size];
+    let mut buf = vec![0u8; max_size];
 
     waragraph_core::graph::sampling::sample_path_data_into_buffer(
         index, data, paths, bins, view_range, &mut buf,
@@ -38,78 +38,6 @@ pub(super) fn path_depth_data_viz_buffer(
     Ok(BufferDesc::new(buffer, buf.len()))
 }
 
-pub(super) fn path_depth_data_viz_buffer_old(
-    device: &wgpu::Device,
-    index: &PathIndex,
-    data: &PathDepthData,
-    paths: impl IntoIterator<Item = usize>,
-    view_range: std::ops::Range<u64>,
-    bins: usize,
-) -> Result<BufferDesc> {
-    let paths = paths.into_iter().collect::<Vec<_>>();
-
-    let bins = ((view_range.end - view_range.start) as usize).min(bins);
-
-    let row_size = bins;
-    let total_size = row_size * paths.len();
-
-    let mut buf_data: Vec<u8> = Vec::new();
-
-    buf_data.extend(bytemuck::cast_slice(&[
-        total_size as u32,
-        row_size as u32,
-        0,
-        0,
-    ]));
-
-    let mut bin_buf: Vec<f32> = Vec::with_capacity(bins);
-
-    let bin_range = {
-        let s = view_range.start;
-        let e = view_range.end;
-        let len = e - s;
-
-        let bin_size = len / bins as u64;
-
-        move |bin_ix: usize| {
-            let start = s + bin_size * bin_ix as u64;
-            let end = start + bin_size;
-            start..end
-        }
-    };
-
-    for path in paths {
-        bin_buf.clear();
-
-        for bin_ix in 0..bins {
-            let range = bin_range(bin_ix);
-            let data = &data.node_depth_per_path[path];
-            let iter = index.path_data_pan_range_iter(range, path, data);
-
-            let mut sum_len = 0;
-            let mut sum_val = 0.0;
-
-            for ((_node, len), val) in iter {
-                sum_len += len.0;
-                sum_val += *val * len.0 as f32;
-            }
-
-            bin_buf.push(sum_val / sum_len as f32);
-        }
-
-        buf_data.extend(bytemuck::cast_slice(&bin_buf));
-    }
-
-    let usage = wgpu::BufferUsages::STORAGE;
-
-    let buffer = device.create_buffer_init(&BufferInitDescriptor {
-        label: None,
-        contents: buf_data.as_slice(),
-        usage,
-    });
-
-    Ok(BufferDesc::new(buffer, buf_data.len()))
-}
 
 pub(super) fn path_slot_vertex_buffer(
     device: &wgpu::Device,
