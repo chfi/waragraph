@@ -37,6 +37,66 @@ pub struct FlexLayout<T> {
     root: Option<Node>,
 }
 
+pub fn test_layout() -> taffy::error::TaffyResult<FlexLayout<String>> {
+    let mut taffy = Taffy::new();
+
+    let mut node_data: BTreeMap<Node, String> = BTreeMap::default();
+
+    let mut children = Vec::new();
+
+    let style = Style {
+        size: Size {
+            // width: Dimension::Auto,
+            width: Dimension::Percent(1.0),
+            // width: Dimension::Points(20.0),
+            // width: Dimension::Undefined,
+            height: Dimension::Points(20.0),
+        },
+        ..Default::default()
+    };
+
+    for ix in 0..10 {
+        let node = taffy.new_leaf(style.clone())?;
+        node_data.insert(node, format!("node:{ix}"));
+        children.push(node);
+    }
+
+    let root = taffy.new_with_children(
+        Style {
+            flex_direction: FlexDirection::Column,
+            size: Size {
+                width: Dimension::Points(800.0),
+                height: Dimension::Points(600.0),
+            },
+            gap: Size {
+                width: Dimension::Undefined,
+                height: Dimension::Points(10.0),
+            },
+            padding: Rect {
+                left: Dimension::Points(4.0),
+                right: Dimension::Points(4.0),
+                top: Dimension::Points(0.0),
+                bottom: Dimension::Points(0.0),
+            },
+            ..Default::default()
+        },
+        children.as_slice(),
+    )?;
+
+    let width = AvailableSpace::Definite(800.0);
+    let height = AvailableSpace::Definite(600.0);
+
+    let space = Size { width, height };
+    taffy.compute_layout(root, space)?;
+    taffy::debug::print_tree(&taffy, root);
+
+    Ok(FlexLayout {
+        taffy,
+        node_data,
+        root: Some(root),
+    })
+}
+
 pub fn draw_with_layout<T>(
     painter: &egui::Painter,
     dims: ultraviolet::Vec2,
@@ -82,6 +142,8 @@ pub fn taffy_test() -> Result<(), taffy::error::TaffyError> {
             gap: Size {
                 width: Dimension::Points(10.0),
                 height: Dimension::Undefined,
+                // width: Dimension::Undefined,
+                // height: Dimension::Points(10.0),
             },
             ..Default::default()
         },
