@@ -297,6 +297,23 @@ impl Viewer1D {
 
         let flex = crate::gui::test_layout()?;
 
+        let flex = {
+            use taffy::prelude::*;
+            let dim = |percent: f32| Dimension::Percent(percent);
+
+            let elem = |label, percent| (label, Dimension::Percent(percent));
+
+            let rows = vec![
+                [elem("node:0", 0.2), elem("node:0:b", 0.8)],
+                [elem("node:1", 0.2), elem("node:1:b", 0.8)],
+                [elem("node:2", 0.2), elem("node:2:b", 0.8)],
+            ];
+
+            crate::gui::layout_from_rows_iter(
+                rows.iter().map(|s| s.as_slice()),
+            )?
+        };
+
         Ok(Viewer1D {
             render_graph: graph,
             egui,
@@ -315,7 +332,7 @@ impl Viewer1D {
     }
 
     fn update(&mut self, window: &winit::window::Window, dt: f32) {
-        // TODO
+        // TODO debug FlexLayout rendering should use a render graph
         self.egui.run(window, |ctx| {
             let painter = ctx.debug_painter();
 
@@ -449,10 +466,10 @@ impl Viewer1D {
                 log::error!("graph validation error");
             }
 
-            let _sub_index = self
-                .render_graph
-                .execute(&state, &transient_res, &rhai::Map::default())
-                .unwrap();
+            // let _sub_index = self
+            //     .render_graph
+            //     .execute(&state, &transient_res, &rhai::Map::default())
+            //     .unwrap();
 
             let mut encoder = state.device.create_command_encoder(
                 &wgpu::CommandEncoderDescriptor {
