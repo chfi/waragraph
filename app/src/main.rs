@@ -16,6 +16,11 @@ pub fn main() -> Result<()> {
         .filter_level(log::LevelFilter::Warn)
         .init();
 
+    {
+        waragraph::gui::taffy_test()?;
+        // std::process::exit(0);
+    }
+
     if let Ok(args) = parse_args() {
         dbg!();
         if let Some(tsv) = args.tsv {
