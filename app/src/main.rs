@@ -16,13 +16,13 @@ pub fn main() -> Result<()> {
         .filter_level(log::LevelFilter::Warn)
         .init();
 
-    {
-        let layout = waragraph::gui::test_layout()?;
-        println!("-----------------");
-        waragraph::gui::taffy_test()?;
+    // {
+    //     let layout = waragraph::gui::test_layout()?;
+    //     println!("-----------------");
+    //     // waragraph::gui::taffy_test()?;
         
-        std::process::exit(0);
-    }
+    //     std::process::exit(0);
+    // }
 
     if let Ok(args) = parse_args() {
         dbg!();

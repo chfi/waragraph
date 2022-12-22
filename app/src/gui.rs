@@ -46,8 +46,8 @@ pub fn test_layout() -> taffy::error::TaffyResult<FlexLayout<String>> {
 
     let style = Style {
         size: Size {
-            // width: Dimension::Auto,
-            width: Dimension::Percent(1.0),
+            width: Dimension::Auto,
+            // width: Dimension::Percent(1.0),
             // width: Dimension::Points(20.0),
             // width: Dimension::Undefined,
             height: Dimension::Points(20.0),
@@ -57,6 +57,7 @@ pub fn test_layout() -> taffy::error::TaffyResult<FlexLayout<String>> {
 
     for ix in 0..10 {
         let node = taffy.new_leaf(style.clone())?;
+        // taffy.set_measure(node, measure)
         node_data.insert(node, format!("node:{ix}"));
         children.push(node);
     }
@@ -64,9 +65,20 @@ pub fn test_layout() -> taffy::error::TaffyResult<FlexLayout<String>> {
     let root = taffy.new_with_children(
         Style {
             flex_direction: FlexDirection::Column,
+            flex_wrap: FlexWrap::Wrap,
+            // align_items: AlignItems::Stretch,
+            // align_self: AlignSelf::Stretch,
+            // align_content: AlignContent::Stretch,
+            min_size: Size {
+                // width: Dimension::Percent(100.0),
+                width: Dimension::Auto,
+                height: Dimension::Auto,
+            },
             size: Size {
-                width: Dimension::Points(800.0),
-                height: Dimension::Points(600.0),
+                // width: Dimension::Percent(100.0),
+                // height: Dimension::Percent(1.0),
+                width: Dimension::Auto,
+                height: Dimension::Auto,
             },
             gap: Size {
                 width: Dimension::Undefined,
@@ -83,12 +95,12 @@ pub fn test_layout() -> taffy::error::TaffyResult<FlexLayout<String>> {
         children.as_slice(),
     )?;
 
-    let width = AvailableSpace::Definite(800.0);
-    let height = AvailableSpace::Definite(600.0);
+    // let width = AvailableSpace::Definite(800.0);
+    // let height = AvailableSpace::Definite(600.0);
 
-    let space = Size { width, height };
-    taffy.compute_layout(root, space)?;
-    taffy::debug::print_tree(&taffy, root);
+    // let space = Size { width, height };
+    // taffy.compute_layout(root, space)?;
+    // taffy::debug::print_tree(&taffy, root);
 
     Ok(FlexLayout {
         taffy,
@@ -109,9 +121,17 @@ pub fn draw_with_layout<T>(
 
         let space = Size { width, height };
 
-        // let space = Size::MAX_CONTENT.map_height(|_|)
-        // .map()
-        // Size::
+        let new_style = {
+            let style = layout.taffy.style(root)?;
+            Style {
+                size: Size {
+                    width: Dimension::Points(dims.x),
+                    height: Dimension::Points(dims.y),
+                },
+                ..style.clone()
+            }
+        };
+        layout.taffy.set_style(root, new_style)?;
         layout.taffy.compute_layout(root, space)?;
     }
 
@@ -156,3 +176,4 @@ pub fn taffy_test() -> Result<(), taffy::error::TaffyError> {
 
     Ok(())
 }
+

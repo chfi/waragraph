@@ -1,4 +1,5 @@
 use crate::annotations::AnnotationStore;
+use crate::gui::FlexLayout;
 use egui::epaint::tessellator::path;
 use egui_winit::EventResponse;
 use wgpu::BufferUsages;
@@ -50,6 +51,7 @@ struct Viewer1D {
     // data_size: usize,
     // color_uniform: wgpu::Buffer,
     // color_size: usize,
+    flex: FlexLayout<String>,
 }
 
 #[derive(Debug)]
@@ -293,6 +295,8 @@ impl Viewer1D {
         path_viz_cache.insert("data", data);
         path_viz_cache.insert("depth", depth);
 
+        let flex = crate::gui::test_layout()?;
+
         Ok(Viewer1D {
             render_graph: graph,
             egui,
@@ -305,11 +309,57 @@ impl Viewer1D {
             frag_uniform,
 
             path_viz_cache,
+
+            flex,
         })
     }
 
     fn update(&mut self, window: &winit::window::Window, dt: f32) {
         // TODO
+        self.egui.run(window, |ctx| {
+            let painter = ctx.debug_painter();
+
+            let size = window.inner_size();
+            let size =
+                ultraviolet::Vec2::new(size.width as f32, size.height as f32);
+
+            let stroke = egui::Stroke {
+                width: 1.0,
+                color: egui::Color32::RED,
+            };
+
+            if let Err(e) = crate::gui::draw_with_layout(
+                &painter,
+                size,
+                &mut self.flex,
+                |painter, layout, label| {
+                    let btm_left = layout.location;
+                    let size = layout.size;
+                    let size = egui::vec2(size.width, size.height);
+
+                    // egui::Rect::from
+                    let bl = egui::pos2(btm_left.x, btm_left.y);
+                    let center = bl + egui::vec2(size.x / 2.0, -size.y / 2.0);
+                    let rect = egui::Rect::from_center_size(center, size);
+
+                    painter.rect_stroke(
+                        rect,
+                        egui::Rounding::default(),
+                        stroke,
+                    );
+
+                    painter.text(
+                        rect.left_center(),
+                        egui::Align2::LEFT_CENTER,
+                        label,
+                        egui::FontId::monospace(16.0),
+                        egui::Color32::WHITE,
+                    );
+                },
+            ) {
+                eprintln!("draw layout error: {e:?}");
+            }
+        });
     }
 
     fn on_event(&mut self, window_dims: [u32; 2], event: &WindowEvent) -> bool {
