@@ -216,3 +216,13 @@ pub fn draw_with_layout<T>(
 
     Ok(())
 }
+
+pub fn layout_egui_rect(layout: &Layout) -> egui::Rect {
+    let btm_left = layout.location;
+    let size = layout.size;
+    let size = egui::vec2(size.width, size.height);
+
+    let bl = egui::pos2(btm_left.x, btm_left.y);
+    let center = bl + egui::vec2(size.x / 2.0, -size.y / 2.0);
+    egui::Rect::from_center_size(center, size)
+}

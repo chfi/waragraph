@@ -51,7 +51,6 @@ struct Viewer1D {
     // data_size: usize,
     // color_uniform: wgpu::Buffer,
     // color_size: usize,
-    flex: FlexLayout<String>,
 
     slot_layout: FlexLayout<GuiElem>,
 }
@@ -244,11 +243,6 @@ impl Viewer1D {
         graph.add_link_from_transient("depth", draw_node, 3);
         graph.add_link_from_transient("color", draw_node, 4);
 
-        let vertices = util::path_slot_vertex_buffer(&state.device, 0..10)?;
-        graph.set_node_preprocess_fn(draw_node, move |_ctx, op_state| {
-            op_state.vertices = Some(0..6);
-            op_state.instances = Some(0..10);
-        });
 
         /*
         let vertices = {
@@ -297,22 +291,6 @@ impl Viewer1D {
         path_viz_cache.insert("data", data);
         path_viz_cache.insert("depth", depth);
 
-        let flex = {
-            use taffy::prelude::*;
-
-            let elem = |label, percent| (label, Dimension::Percent(percent));
-
-            let rows = vec![
-                [elem("name:0", 0.2), elem("slot:0", 0.8)],
-                [elem("name:1", 0.2), elem("slot:1", 0.8)],
-                [elem("name:2", 0.2), elem("slot:2", 0.8)],
-            ];
-
-            let flex = FlexLayout::from_rows_iter(rows)?;
-
-            flex.map_node_data(String::from)
-        };
-
         let slot_layout = {
             use taffy::prelude::*;
 
@@ -323,7 +301,7 @@ impl Viewer1D {
 
             rows.push(vec![mk_entry(1.0, GuiElem::Label { id: "view_range" })]);
 
-            for (slot_id, (_path_name, path_id)) in
+            for (slot_id, (path_id, _path_name)) in
                 path_index.path_names.iter().enumerate()
             {
                 let path_id = *path_id;
@@ -343,6 +321,12 @@ impl Viewer1D {
 
             FlexLayout::from_rows_iter(rows)?
         };
+        
+        let vertices = util::path_slot_vertex_buffer(&state.device, 0..10)?;
+        graph.set_node_preprocess_fn(draw_node, move |_ctx, op_state| {
+            op_state.vertices = Some(0..6);
+            op_state.instances = Some(0..10);
+        });
 
         Ok(Viewer1D {
             render_graph: graph,
@@ -356,8 +340,6 @@ impl Viewer1D {
             frag_uniform,
 
             path_viz_cache,
-
-            flex,
 
             slot_layout,
         })
@@ -380,15 +362,9 @@ impl Viewer1D {
             if let Err(e) = crate::gui::draw_with_layout(
                 &painter,
                 size,
-                &mut self.flex,
-                |painter, layout, label| {
-                    let btm_left = layout.location;
-                    let size = layout.size;
-                    let size = egui::vec2(size.width, size.height);
-
-                    let bl = egui::pos2(btm_left.x, btm_left.y);
-                    let center = bl + egui::vec2(size.x / 2.0, -size.y / 2.0);
-                    let rect = egui::Rect::from_center_size(center, size);
+                &mut self.slot_layout,
+                |painter, layout, elem| {
+                    let rect = crate::gui::layout_egui_rect(layout);
 
                     painter.rect_stroke(
                         rect,
@@ -396,13 +372,38 @@ impl Viewer1D {
                         stroke,
                     );
 
-                    painter.text(
-                        rect.left_center(),
-                        egui::Align2::LEFT_CENTER,
-                        label,
-                        egui::FontId::monospace(16.0),
-                        egui::Color32::WHITE,
-                    );
+                    match elem {
+                        GuiElem::PathSlot {
+                            slot_id,
+                            path_id,
+                            data,
+                        } => {
+                            // TODO
+                        }
+                        GuiElem::PathName { path_id } => {
+                            let path_name = self
+                                .path_index
+                                .path_names
+                                .get_by_left(path_id)
+                                .unwrap();
+                            painter.text(
+                                rect.left_center(),
+                                egui::Align2::LEFT_CENTER,
+                                path_name,
+                                egui::FontId::monospace(16.0),
+                                egui::Color32::WHITE,
+                            );
+                        }
+                        GuiElem::Label { id } => {
+                            painter.text(
+                                rect.center(),
+                                egui::Align2::CENTER_CENTER,
+                                id,
+                                egui::FontId::monospace(16.0),
+                                egui::Color32::WHITE,
+                            );
+                        }
+                    }
                 },
             ) {
                 eprintln!("draw layout error: {e:?}");
