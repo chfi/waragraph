@@ -5,6 +5,7 @@ use egui_winit::EventResponse;
 use wgpu::BufferUsages;
 
 use std::collections::HashMap;
+use std::num::NonZeroU64;
 use std::path::PathBuf;
 
 use winit::event::{ElementState, Event, VirtualKeyCode, WindowEvent};
@@ -38,8 +39,11 @@ struct Viewer1D {
     path_index: PathIndex,
     draw_path_slot: NodeId,
 
-    pangenome_len: usize,
-    view: std::ops::Range<usize>,
+    pangenome_len: u64,
+    view: std::ops::Range<u64>,
+    rendered_view: std::ops::Range<u64>,
+
+    depth_data: PathDepthData,
 
     // vertices: wgpu::Buffer,
     vertices: BufferDesc,
@@ -242,45 +246,26 @@ impl Viewer1D {
         graph.add_link_from_transient("depth", draw_node, 3);
         graph.add_link_from_transient("color", draw_node, 4);
 
-        /*
-        let vertices = {
-            let data = [100.0f32, 100.0, 200.0, 100.0];
-            let usage = BufferUsages::VERTEX | BufferUsages::COPY_DST;
-
-            let buffer =
-                state.device.create_buffer_init(&BufferInitDescriptor {
-                    label: None,
-                    contents: bytemuck::cast_slice(&[data]),
-                    usage,
-                });
-
-            graph.set_node_preprocess_fn(draw_node, move |_ctx, op_state| {
-                op_state.vertices = Some(0..6);
-                op_state.instances = Some(0..1);
-            });
-
-            buffer
-        };
-        */
-
         let egui = EguiCtx::init(event_loop, state, None);
-        let pangenome_len = path_index.pangenome_len().0 as usize;
+        let pangenome_len = path_index.pangenome_len().0;
 
         let (color, data) = path_frag_example_uniforms(&state.device)?;
 
         let depth_data = PathDepthData::new(&path_index);
 
         let len = pangenome_len as u64;
-        let view_range = init_range.unwrap_or(0..len);
+        let view_range = init_range.unwrap_or(0..(len / 10));
 
         // let depth = path_viz_buffer_test(&state.device, 200)?;
+
+        let paths = 0..(path_index.path_names.len().min(64));
 
         let depth = path_depth_data_viz_buffer(
             &state.device,
             &path_index,
             &depth_data,
-            0..10,
-            view_range,
+            paths,
+            view_range.clone(),
             1024,
         )?;
 
@@ -347,7 +332,12 @@ impl Viewer1D {
             path_index,
             draw_path_slot: draw_node,
             pangenome_len,
-            view: 0..pangenome_len,
+
+            view: view_range.clone(),
+            rendered_view: view_range,
+
+            depth_data,
+
             vertices,
             vert_uniform,
             frag_uniform,
@@ -356,6 +346,39 @@ impl Viewer1D {
 
             slot_layout,
         })
+    }
+
+    fn sample_into_data_buffer(
+        state: &State,
+        index: &PathIndex,
+        data: &PathDepthData,
+        paths: impl IntoIterator<Item = usize>,
+        view_range: std::ops::Range<u64>,
+        gpu_buffer: &BufferDesc,
+        // bins: usize,
+    ) -> Result<()> {
+        let bins = 1024;
+        // let gpu_buf =
+        let paths = paths.into_iter().collect::<Vec<_>>();
+        let prefix_size = std::mem::size_of::<u32>() * 4;
+        let elem_size = std::mem::size_of::<f32>();
+        let size = prefix_size + elem_size * bins * paths.len();
+
+        let size = NonZeroU64::new(size as u64).unwrap();
+
+        let mut view =
+            state.queue.write_buffer_with(&gpu_buffer.buffer, 0, size);
+
+        waragraph_core::graph::sampling::sample_path_data_into_buffer(
+            index,
+            data,
+            paths,
+            bins,
+            view_range,
+            view.as_mut(),
+        );
+
+        Ok(())
     }
 
     fn slot_vertices(
@@ -397,7 +420,29 @@ impl Viewer1D {
         Ok((slots, slot_count as u32))
     }
 
-    fn update(&mut self, window: &winit::window::Window, dt: f32) {
+    fn update(
+        &mut self,
+        state: &State,
+        window: &winit::window::Window,
+        dt: f32,
+    ) {
+        if self.rendered_view != self.view {
+            let paths = 0..(self.path_index.path_names.len().min(64));
+            let gpu_buffer = self.path_viz_cache.get("depth").unwrap();
+
+            Self::sample_into_data_buffer(
+                state,
+                &self.path_index,
+                &self.depth_data,
+                paths,
+                self.view.clone(),
+                gpu_buffer,
+            )
+            .unwrap();
+
+            self.rendered_view = self.view.clone();
+        }
+
         // TODO debug FlexLayout rendering should use a render graph
         self.egui.run(window, |ctx| {
             let painter = ctx.debug_painter();
@@ -710,7 +755,7 @@ pub async fn run(args: Args) -> Result<()> {
                 let dt = prev_frame_t.elapsed().as_secs_f32();
                 prev_frame_t = std::time::Instant::now();
 
-                app.update(&window, dt);
+                app.update(&state, &window, dt);
 
                 window.request_redraw();
             }
