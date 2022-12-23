@@ -8,7 +8,7 @@ use std::collections::HashMap;
 use std::num::NonZeroU64;
 use std::path::PathBuf;
 
-use winit::event::{ElementState, Event, VirtualKeyCode, WindowEvent};
+use winit::event::{Event, VirtualKeyCode, WindowEvent};
 use winit::event_loop::{ControlFlow, EventLoop, EventLoopWindowTarget};
 use winit::window::Window;
 
@@ -507,6 +507,34 @@ impl Viewer1D {
         //     consume = true;
         // }
 
+        if let WindowEvent::KeyboardInput { input, .. } = event {
+            if let Some(key) = input.virtual_keycode {
+                use winit::event::ElementState;
+                use winit::event::VirtualKeyCode as Key;
+                let pressed = matches!(input.state, ElementState::Pressed);
+
+                let mut l = self.view.start;
+                let mut r = self.view.end;
+                let len = r - l;
+
+                if pressed {
+                    match key {
+                        Key::Right => {
+                            r = (r + len / 10).min(self.pangenome_len);
+                            l = r.checked_sub(len).unwrap_or_default();
+                        }
+                        Key::Left => {
+                            l = l.checked_sub(len / 10).unwrap_or_default();
+                            r = l + len;
+                        }
+                        _ => (),
+                    }
+                }
+
+                self.view = l..r;
+            }
+        }
+
         consume
     }
 
@@ -697,11 +725,7 @@ pub async fn run(args: Args) -> Result<()> {
                 let mut consumed = false;
 
                 let size = window.inner_size();
-                let dims = ultraviolet::Vec2::new(
-                    size.width as f32,
-                    size.height as f32,
-                );
-                // consumed = app.on_event(dims, event);
+                consumed = app.on_event([size.width, size.height], event);
 
                 if !consumed {
                     match &event {
@@ -724,11 +748,6 @@ pub async fn run(args: Args) -> Result<()> {
                             } else {
                                 state.resize(*phys_size);
                             }
-
-                            // let new_size = ultraviolet::Vec2::new(
-                            //     phys_size.width as f32,
-                            //     phys_size.height as f32,
-                            // );
 
                             let size = window.inner_size();
                             let new_size = ultraviolet::Vec2::new(

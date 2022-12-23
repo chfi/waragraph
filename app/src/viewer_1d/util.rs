@@ -27,7 +27,7 @@ pub(super) fn path_depth_data_viz_buffer(
         index, data, paths, bins, view_range, &mut buf,
     );
 
-    let usage = wgpu::BufferUsages::STORAGE;
+    let usage = wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST;
 
     let buffer = device.create_buffer_init(&BufferInitDescriptor {
         label: None,
