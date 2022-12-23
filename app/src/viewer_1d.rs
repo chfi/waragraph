@@ -51,7 +51,6 @@ struct Viewer1D {
     // data_size: usize,
     // color_uniform: wgpu::Buffer,
     // color_size: usize,
-
     slot_layout: FlexLayout<GuiElem>,
 }
 
@@ -243,7 +242,6 @@ impl Viewer1D {
         graph.add_link_from_transient("depth", draw_node, 3);
         graph.add_link_from_transient("color", draw_node, 4);
 
-
         /*
         let vertices = {
             let data = [100.0f32, 100.0, 200.0, 100.0];
@@ -291,7 +289,7 @@ impl Viewer1D {
         path_viz_cache.insert("data", data);
         path_viz_cache.insert("depth", depth);
 
-        let slot_layout = {
+        let mut slot_layout = {
             use taffy::prelude::*;
 
             let mut rows = Vec::new();
@@ -321,11 +319,58 @@ impl Viewer1D {
 
             FlexLayout::from_rows_iter(rows)?
         };
-        
-        let vertices = util::path_slot_vertex_buffer(&state.device, 0..10)?;
+
+        // let vertices = util::path_slot_vertex_buffer(&state.device, 0..10)?;
+
+        let (vertices, vxs, insts) = {
+            let size =
+                ultraviolet::Vec2::new(win_dims[0] as f32, win_dims[1] as f32);
+
+            let mut data_buf: Vec<u8> = Vec::new();
+
+            let stride = std::mem::size_of::<[f32; 5]>();
+
+            slot_layout.visit_layout(size, |layout, elem| {
+                if let GuiElem::PathSlot {
+                    slot_id,
+                    path_id,
+                    data,
+                } = elem
+                {
+                    let rect = crate::gui::layout_egui_rect(&layout);
+                    // let v_pos = rect.left_top().to_vec2();
+                    let v_pos = rect.left_bottom().to_vec2();
+                    let v_size = rect.size();
+
+                    data_buf.extend(bytemuck::cast_slice(&[v_pos, v_size]));
+                    data_buf.extend(bytemuck::cast_slice(&[*slot_id as u32]));
+                }
+            })?;
+            let slot_count = data_buf.len() / stride;
+
+            let usage = wgpu::BufferUsages::VERTEX;
+
+            let buffer =
+                state.device.create_buffer_init(&BufferInitDescriptor {
+                    label: None,
+                    contents: data_buf.as_slice(),
+                    usage,
+                });
+
+            let slots = BufferDesc::new(buffer, data_buf.len());
+
+            let vxs = 0..6;
+            let insts = 0..slot_count as u32;
+            println!("slot_count: {slot_count}");
+
+            (slots, vxs, insts)
+        };
+
         graph.set_node_preprocess_fn(draw_node, move |_ctx, op_state| {
-            op_state.vertices = Some(0..6);
-            op_state.instances = Some(0..10);
+            // op_state.vertices = Some(0..6);
+            // op_state.instances = Some(0..10);
+            op_state.vertices = Some(vxs.clone());
+            op_state.instances = Some(insts.clone());
         });
 
         Ok(Viewer1D {
@@ -359,53 +404,45 @@ impl Viewer1D {
                 color: egui::Color32::RED,
             };
 
-            if let Err(e) = crate::gui::draw_with_layout(
-                &painter,
-                size,
-                &mut self.slot_layout,
-                |painter, layout, elem| {
-                    let rect = crate::gui::layout_egui_rect(layout);
+            let result = self.slot_layout.visit_layout(size, |layout, elem| {
+                let rect = crate::gui::layout_egui_rect(&layout);
 
-                    painter.rect_stroke(
-                        rect,
-                        egui::Rounding::default(),
-                        stroke,
-                    );
+                painter.rect_stroke(rect, egui::Rounding::default(), stroke);
 
-                    match elem {
-                        GuiElem::PathSlot {
-                            slot_id,
-                            path_id,
-                            data,
-                        } => {
-                            // TODO
-                        }
-                        GuiElem::PathName { path_id } => {
-                            let path_name = self
-                                .path_index
-                                .path_names
-                                .get_by_left(path_id)
-                                .unwrap();
-                            painter.text(
-                                rect.left_center(),
-                                egui::Align2::LEFT_CENTER,
-                                path_name,
-                                egui::FontId::monospace(16.0),
-                                egui::Color32::WHITE,
-                            );
-                        }
-                        GuiElem::Label { id } => {
-                            painter.text(
-                                rect.center(),
-                                egui::Align2::CENTER_CENTER,
-                                id,
-                                egui::FontId::monospace(16.0),
-                                egui::Color32::WHITE,
-                            );
-                        }
+                match elem {
+                    GuiElem::PathSlot {
+                        slot_id,
+                        path_id,
+                        data,
+                    } => {
+                        // TODO
                     }
-                },
-            ) {
+                    GuiElem::PathName { path_id } => {
+                        let path_name = self
+                            .path_index
+                            .path_names
+                            .get_by_left(path_id)
+                            .unwrap();
+                        painter.text(
+                            rect.left_center(),
+                            egui::Align2::LEFT_CENTER,
+                            path_name,
+                            egui::FontId::monospace(16.0),
+                            egui::Color32::WHITE,
+                        );
+                    }
+                    GuiElem::Label { id } => {
+                        painter.text(
+                            rect.center(),
+                            egui::Align2::CENTER_CENTER,
+                            id,
+                            egui::FontId::monospace(16.0),
+                            egui::Color32::WHITE,
+                        );
+                    }
+                }
+            });
+            if let Err(e) = result {
                 eprintln!("draw layout error: {e:?}");
             }
         });
@@ -498,10 +535,10 @@ impl Viewer1D {
                 log::error!("graph validation error");
             }
 
-            // let _sub_index = self
-            //     .render_graph
-            //     .execute(&state, &transient_res, &rhai::Map::default())
-            //     .unwrap();
+            let _sub_index = self
+                .render_graph
+                .execute(&state, &transient_res, &rhai::Map::default())
+                .unwrap();
 
             let mut encoder = state.device.create_command_encoder(
                 &wgpu::CommandEncoderDescriptor {

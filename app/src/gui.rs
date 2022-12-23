@@ -152,69 +152,66 @@ impl<T> FlexLayout<T> {
             root: Some(root),
         })
     }
-}
 
-pub fn draw_with_layout<T>(
-    painter: &egui::Painter,
-    dims: ultraviolet::Vec2,
-    layout: &mut FlexLayout<T>,
-    cb: impl Fn(&egui::Painter, &Layout, &T),
-) -> taffy::error::TaffyResult<()> {
-    let mut stack: Vec<(Vec2, Node)> = Vec::new();
+    pub fn visit_layout(
+        &mut self,
+        dims: Vec2,
+        mut v: impl FnMut(Layout, &T),
+    ) -> Result<(), TaffyError> {
+        let mut stack: Vec<(Vec2, Node)> = Vec::new();
 
-    if let Some(root) = layout.root {
-        let width = AvailableSpace::Definite(dims.x);
-        let height = AvailableSpace::Definite(dims.y);
+        if let Some(root) = self.root {
+            let width = AvailableSpace::Definite(dims.x);
+            let height = AvailableSpace::Definite(dims.y);
 
-        let space = Size { width, height };
+            let space = Size { width, height };
 
-        let new_style = {
-            let style = layout.taffy.style(root)?;
-            Style {
-                size: Size {
-                    width: Dimension::Points(dims.x),
-                    height: Dimension::Points(dims.y),
-                },
-                ..style.clone()
-            }
-        };
-        // dbg!(&space);
-        layout.taffy.set_style(root, new_style)?;
-        layout.taffy.compute_layout(root, space)?;
+            let new_style = {
+                let style = self.taffy.style(root)?;
+                Style {
+                    size: Size {
+                        width: Dimension::Points(dims.x),
+                        height: Dimension::Points(dims.y),
+                    },
+                    ..style.clone()
+                }
+            };
+            // dbg!(&space);
+            self.taffy.set_style(root, new_style)?;
+            self.taffy.compute_layout(root, space)?;
 
-        stack.push((Vec2::zero(), root));
-    }
-
-    // /*
-
-    let mut visited = HashSet::new();
-
-    while let Some((offset, node)) = stack.pop() {
-        visited.insert(node);
-        let mut this_layout = *layout.taffy.layout(node)?;
-        // let mut this_layout = *this_layout;
-
-        let children = LayoutTree::children(&layout.taffy, node);
-        // let offset = this_layout.
-
-        let loc = this_layout.location;
-        let this_pos = Vec2::new(loc.x, loc.y);
-        let offset = offset + this_pos;
-
-        if let Some(data) = layout.node_data.get(&node) {
-            this_layout.location.x = offset.x;
-            this_layout.location.y = offset.y;
-            cb(painter, &this_layout, data);
+            stack.push((Vec2::zero(), root));
         }
 
-        for &inner in children {
-            if !visited.contains(&inner) {
-                stack.push((offset, inner));
+        let mut visited = HashSet::new();
+
+        while let Some((offset, node)) = stack.pop() {
+            visited.insert(node);
+            let mut this_layout = *self.taffy.layout(node)?;
+            // let mut this_layout = *this_layout;
+
+            let children = LayoutTree::children(&self.taffy, node);
+            // let offset = this_layout.
+
+            let loc = this_layout.location;
+            let this_pos = Vec2::new(loc.x, loc.y);
+            let offset = offset + this_pos;
+
+            if let Some(data) = self.node_data.get(&node) {
+                this_layout.location.x = offset.x;
+                this_layout.location.y = offset.y;
+                v(this_layout, data);
+            }
+
+            for &inner in children {
+                if !visited.contains(&inner) {
+                    stack.push((offset, inner));
+                }
             }
         }
-    }
 
-    Ok(())
+        Ok(())
+    }
 }
 
 pub fn layout_egui_rect(layout: &Layout) -> egui::Rect {
