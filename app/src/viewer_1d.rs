@@ -1,5 +1,5 @@
 use crate::annotations::AnnotationStore;
-use crate::gui::FlexLayout;
+use crate::gui::{FlexLayout, GuiElem};
 use egui::epaint::tessellator::path;
 use egui_winit::EventResponse;
 use wgpu::BufferUsages;
@@ -52,6 +52,8 @@ struct Viewer1D {
     // color_uniform: wgpu::Buffer,
     // color_size: usize,
     flex: FlexLayout<String>,
+
+    slot_layout: FlexLayout<GuiElem>,
 }
 
 #[derive(Debug)]
@@ -311,6 +313,37 @@ impl Viewer1D {
             flex.map_node_data(String::from)
         };
 
+        let slot_layout = {
+            use taffy::prelude::*;
+
+            let mut rows = Vec::new();
+
+            let mk_entry =
+                |perc: f32, elem: GuiElem| (elem, Dimension::Percent(perc));
+
+            rows.push(vec![mk_entry(1.0, GuiElem::Label { id: "view_range" })]);
+
+            for (slot_id, (_path_name, path_id)) in
+                path_index.path_names.iter().enumerate()
+            {
+                let path_id = *path_id;
+
+                rows.push(vec![
+                    mk_entry(0.2, GuiElem::PathName { path_id }),
+                    mk_entry(
+                        0.8,
+                        GuiElem::PathSlot {
+                            slot_id,
+                            path_id,
+                            data: "depth",
+                        },
+                    ),
+                ]);
+            }
+
+            FlexLayout::from_rows_iter(rows)?
+        };
+
         Ok(Viewer1D {
             render_graph: graph,
             egui,
@@ -325,6 +358,8 @@ impl Viewer1D {
             path_viz_cache,
 
             flex,
+
+            slot_layout,
         })
     }
 
