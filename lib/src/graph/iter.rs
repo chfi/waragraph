@@ -239,9 +239,9 @@ mod tests {
         .collect::<Vec<_>>();
 
         let mut path_names = index.path_names.iter().collect::<Vec<_>>();
-        path_names.sort_by_key(|(_, i)| *i);
+        path_names.sort_by_key(|(i, _)| *i);
 
-        for ((_path_name, path_id), expected) in path_names.iter().zip(expected)
+        for ((path_id, _path_name), expected) in path_names.iter().zip(expected)
         {
             let data = &depth_data.node_depth_per_path[**path_id];
             let iter = PangenomePathDataPosRangeIter::new_pos_range(

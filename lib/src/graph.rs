@@ -1,3 +1,4 @@
+use bimap::BiBTreeMap;
 use roaring::{RoaringBitmap, RoaringTreemap};
 use std::collections::BTreeMap;
 use std::io::prelude::*;
@@ -119,7 +120,8 @@ pub struct PathIndex {
     pub sequence_total_len: Bp,
     pub segment_id_range: (u32, u32),
 
-    pub path_names: BTreeMap<String, usize>,
+    pub path_names: BiBTreeMap<usize, String>,
+    // pub path_names: BTreeMap<String, usize>,
     pub path_steps: Vec<Vec<OrientedNode>>,
 
     pub path_step_offsets: Vec<roaring::RoaringTreemap>,
@@ -213,7 +215,7 @@ impl PathIndex {
         &'a self,
         path_name: &str,
     ) -> Option<&'a [OrientedNode]> {
-        let ix = self.path_names.get(path_name)?;
+        let ix = self.path_names.get_by_right(path_name)?;
         self.path_steps.get(*ix).map(|s| s.as_slice())
     }
 
@@ -222,7 +224,7 @@ impl PathIndex {
         path_name: &str,
         pos: usize,
     ) -> Option<OrientedNode> {
-        let path_id = *self.path_names.get(path_name)?;
+        let path_id = *self.path_names.get_by_right(path_name)?;
         let offsets = self.path_step_offsets.get(path_id)?;
         let steps = self.path_steps.get(path_id)?;
         let pos_rank = offsets.rank(pos as u64) as usize;
@@ -234,7 +236,7 @@ impl PathIndex {
         path_name: &str,
         pos_range: std::ops::Range<u64>,
     ) -> Option<PathStepRangeIter<'a>> {
-        let path_id = *self.path_names.get(path_name)?;
+        let path_id = *self.path_names.get_by_right(path_name)?;
         let offsets = self.path_step_offsets.get(path_id)?;
 
         let start = pos_range.start;
@@ -331,7 +333,7 @@ impl PathIndex {
         let gfa = std::fs::File::open(&gfa_path)?;
         let mut gfa_reader = BufReader::new(gfa);
 
-        let mut path_names = BTreeMap::default();
+        let mut path_names = BiBTreeMap::default();
 
         let mut path_steps: Vec<Vec<OrientedNode>> = Vec::new();
         let mut path_step_offsets: Vec<RoaringTreemap> = Vec::new();
@@ -364,7 +366,7 @@ impl PathIndex {
             let name = std::str::from_utf8(name).map_err(|e| {
                 std::io::Error::new(std::io::ErrorKind::InvalidData, e)
             })?;
-            path_names.insert(name.to_string(), path_steps.len());
+            path_names.insert(path_steps.len(), name.to_string());
 
             let mut pos = 0;
 
