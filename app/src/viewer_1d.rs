@@ -295,8 +295,7 @@ impl Viewer1D {
         path_viz_cache.insert("data", data);
         path_viz_cache.insert("depth", depth);
 
-        println!("creating using layout_from_rows_iter");
-        let mut flex = {
+        let flex = {
             use taffy::prelude::*;
 
             let elem = |label, percent| (label, Dimension::Percent(percent));
@@ -307,20 +306,10 @@ impl Viewer1D {
                 [elem("name:2", 0.2), elem("slot:2", 0.8)],
             ];
 
-            crate::gui::layout_from_rows_iter(
-                rows.iter().map(|s| s.as_slice()),
-            )?
+            let flex = FlexLayout::from_rows_iter(rows)?;
+
+            flex.map_node_data(String::from)
         };
-
-        // println!("creating using test_layout");
-        // let mut flex = crate::gui::test_layout()?;
-
-        println!("printing");
-        if let Some(root) = flex.root {
-            flex.taffy
-                .compute_layout(root, taffy::prelude::Size::MAX_CONTENT)?;
-            taffy::debug::print_tree(&flex.taffy, root);
-        }
 
         Ok(Viewer1D {
             render_graph: graph,
@@ -360,21 +349,11 @@ impl Viewer1D {
                 |painter, layout, label| {
                     let btm_left = layout.location;
                     let size = layout.size;
-
-                    // println!("{label}:\t{btm_left:?}\t{size:?}");
-                    // if label == "node:0" || label =="name:0" {
-                    //     println!("{btm_left:?}\t{size:?}");
-                    // }
-                    // println!("{label}");
                     let size = egui::vec2(size.width, size.height);
 
-                    // egui::Rect::from
                     let bl = egui::pos2(btm_left.x, btm_left.y);
                     let center = bl + egui::vec2(size.x / 2.0, -size.y / 2.0);
                     let rect = egui::Rect::from_center_size(center, size);
-                    // let rect = egui::Rect::from_min_max(min, max)
-
-                    // println!("{label}:\t{rect:?}");
 
                     painter.rect_stroke(
                         rect,
