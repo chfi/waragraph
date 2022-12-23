@@ -325,45 +325,13 @@ impl Viewer1D {
         let (vertices, vxs, insts) = {
             let size =
                 ultraviolet::Vec2::new(win_dims[0] as f32, win_dims[1] as f32);
-
-            let mut data_buf: Vec<u8> = Vec::new();
-
-            let stride = std::mem::size_of::<[f32; 5]>();
-
-            slot_layout.visit_layout(size, |layout, elem| {
-                if let GuiElem::PathSlot {
-                    slot_id,
-                    path_id,
-                    data,
-                } = elem
-                {
-                    let rect = crate::gui::layout_egui_rect(&layout);
-                    // let v_pos = rect.left_top().to_vec2();
-                    let v_pos = rect.left_bottom().to_vec2();
-                    let v_size = rect.size();
-
-                    data_buf.extend(bytemuck::cast_slice(&[v_pos, v_size]));
-                    data_buf.extend(bytemuck::cast_slice(&[*slot_id as u32]));
-                }
-            })?;
-            let slot_count = data_buf.len() / stride;
-
-            let usage = wgpu::BufferUsages::VERTEX;
-
-            let buffer =
-                state.device.create_buffer_init(&BufferInitDescriptor {
-                    label: None,
-                    contents: data_buf.as_slice(),
-                    usage,
-                });
-
-            let slots = BufferDesc::new(buffer, data_buf.len());
-
+            let (buffer, insts) =
+                Self::slot_vertices(&state.device, size, &mut slot_layout)?;
             let vxs = 0..6;
-            let insts = 0..slot_count as u32;
-            println!("slot_count: {slot_count}");
+            let insts = 0..insts;
+            // println!("slot_count: {slot_count}");
 
-            (slots, vxs, insts)
+            (buffer, vxs, insts)
         };
 
         graph.set_node_preprocess_fn(draw_node, move |_ctx, op_state| {
@@ -388,6 +356,45 @@ impl Viewer1D {
 
             slot_layout,
         })
+    }
+
+    fn slot_vertices(
+        device: &wgpu::Device,
+        win_dims: ultraviolet::Vec2,
+        layout: &mut FlexLayout<GuiElem>,
+    ) -> Result<(BufferDesc, u32)> {
+        let mut data_buf: Vec<u8> = Vec::new();
+
+        let stride = std::mem::size_of::<[f32; 5]>();
+
+        layout.visit_layout(win_dims, |layout, elem| {
+            if let GuiElem::PathSlot {
+                slot_id,
+                path_id,
+                data,
+            } = elem
+            {
+                let rect = crate::gui::layout_egui_rect(&layout);
+                let v_pos = rect.left_bottom().to_vec2();
+                let v_size = rect.size();
+
+                data_buf.extend(bytemuck::cast_slice(&[v_pos, v_size]));
+                data_buf.extend(bytemuck::cast_slice(&[*slot_id as u32]));
+            }
+        })?;
+        let slot_count = data_buf.len() / stride;
+
+        let usage = wgpu::BufferUsages::VERTEX;
+
+        let buffer = device.create_buffer_init(&BufferInitDescriptor {
+            label: None,
+            contents: data_buf.as_slice(),
+            usage,
+        });
+
+        let slots = BufferDesc::new(buffer, data_buf.len());
+
+        Ok((slots, slot_count as u32))
     }
 
     fn update(&mut self, window: &winit::window::Window, dt: f32) {
@@ -456,6 +463,46 @@ impl Viewer1D {
         // }
 
         consume
+    }
+
+    fn resize(
+        &mut self,
+        state: &State,
+        new_size: ultraviolet::Vec2,
+    ) -> Result<()> {
+        let (vertices, vxs, insts) = {
+            let (buffer, insts) = Self::slot_vertices(
+                &state.device,
+                new_size,
+                &mut self.slot_layout,
+            )?;
+            let vxs = 0..6;
+            let insts = 0..insts;
+
+            (buffer, vxs, insts)
+        };
+
+        self.render_graph.set_node_preprocess_fn(
+            self.draw_path_slot,
+            move |_ctx, op_state| {
+                // op_state.vertices = Some(0..6);
+                // op_state.instances = Some(0..10);
+                op_state.vertices = Some(vxs.clone());
+                op_state.instances = Some(insts.clone());
+            },
+        );
+
+        self.vertices = vertices;
+
+        let uniform_data = [new_size.x, new_size.y];
+
+        state.queue.write_buffer(
+            &self.vert_uniform,
+            0,
+            bytemuck::cast_slice(uniform_data.as_slice()),
+        );
+
+        Ok(())
     }
 
     fn render(&mut self, state: &mut State) -> Result<()> {
@@ -605,7 +652,10 @@ pub async fn run(args: Args) -> Result<()> {
                 let mut consumed = false;
 
                 let size = window.inner_size();
-                let dims = [size.width, size.height];
+                let dims = ultraviolet::Vec2::new(
+                    size.width as f32,
+                    size.height as f32,
+                );
                 // consumed = app.on_event(dims, event);
 
                 if !consumed {
@@ -629,6 +679,18 @@ pub async fn run(args: Args) -> Result<()> {
                             } else {
                                 state.resize(*phys_size);
                             }
+
+                            // let new_size = ultraviolet::Vec2::new(
+                            //     phys_size.width as f32,
+                            //     phys_size.height as f32,
+                            // );
+
+                            let size = window.inner_size();
+                            let new_size = ultraviolet::Vec2::new(
+                                size.width as f32,
+                                size.height as f32,
+                            );
+                            app.resize(&state, new_size).unwrap();
                         }
                         WindowEvent::ScaleFactorChanged {
                             new_inner_size,
