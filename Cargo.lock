@@ -916,12 +916,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "geometric_algebra"
-version = "0.2.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a7101f1a0f8ecb66eaf1c2569e863e9e991bd18bebf404697cf11a547247306a"
-
-[[package]]
 name = "gethostname"
 version = "0.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2019,6 +2013,7 @@ checksum = "63e935c45e09cc6dcf00d2f0b2d630a58f4095320223d47fc68918722f0538b6"
 [[package]]
 name = "raving-wgpu"
 version = "0.1.0"
+source = "git+https://github.com/chfi/raving-wgpu#277437556013749fe963f8da5aabfc6390b647a4"
 dependencies = [
  "anyhow",
  "bytemuck",
@@ -2028,7 +2023,6 @@ dependencies = [
  "egui-wgpu",
  "egui-winit",
  "env_logger",
- "geometric_algebra",
  "image",
  "jni 0.19.0",
  "libc",
