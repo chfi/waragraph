@@ -3,15 +3,14 @@ use crate::annotations::AnnotationStore;
 use std::collections::HashMap;
 use std::path::PathBuf;
 
-use winit::event::{Event, VirtualKeyCode, WindowEvent};
-use winit::event_loop::{ControlFlow, EventLoop, EventLoopWindowTarget};
+use winit::event_loop::{EventLoop, EventLoopWindowTarget};
 use winit::window::Window;
 
 use raving_wgpu::camera::{DynamicCamera2d, TouchHandler, TouchOutput};
 use raving_wgpu::graph::dfrog::{Graph, InputResource};
 use raving_wgpu::gui::EguiCtx;
 use raving_wgpu::{NodeId, State};
-// use raving_wgpu as wgpu;
+
 use wgpu::util::DeviceExt;
 
 use anyhow::Result;
@@ -188,7 +187,7 @@ impl PathRenderer {
 impl crate::AppWindow for PathRenderer {
     fn update(
         &mut self,
-        state: &raving_wgpu::State,
+        _state: &raving_wgpu::State,
         window: &winit::window::Window,
         dt: f32,
     ) {
@@ -289,7 +288,7 @@ impl crate::AppWindow for PathRenderer {
 
     fn resize(
         &mut self,
-        state: &raving_wgpu::State,
+        _state: &raving_wgpu::State,
         old_window_dims: [u32; 2],
         new_window_dims: [u32; 2],
     ) -> anyhow::Result<()> {
@@ -437,105 +436,6 @@ pub fn init(
     }
 
     Ok(Box::new(app))
-}
-
-// async fn run(path_index: PathIndex, layout: GfaLayout, path_name: &str) -> Result<()> {
-pub async fn run(args: Args) -> Result<()> {
-    use crate::AppWindow;
-
-    let (event_loop, window, mut state) = raving_wgpu::initialize().await?;
-
-    let path_index = PathIndex::from_gfa(&args.gfa)?;
-    let graph_curves = GraphPathCurves::from_path_index_and_layout_tsv(
-        &path_index,
-        &args.tsv,
-    )?;
-
-    let mut app =
-        PathRenderer::init(&event_loop, &state, path_index, graph_curves)?;
-
-    if let Some(bed) = args.annotations.as_ref() {
-        app.annotations.fill_from_bed(bed)?;
-        let cache = app
-            .annotations
-            .layout_positions(&app.path_index, &app.graph_curves);
-        app.annotation_cache = cache;
-    }
-
-    let mut first_resize = true;
-    let mut prev_frame_t = std::time::Instant::now();
-
-    event_loop.run(move |event, _, control_flow| {
-        match &event {
-            Event::WindowEvent { window_id, event } => {
-                let mut consumed = false;
-
-                let size = window.inner_size();
-                let dims = [size.width, size.height];
-                consumed = app.on_event(dims, event);
-
-                if !consumed {
-                    match &event {
-                        WindowEvent::KeyboardInput { input, .. } => {
-                            use VirtualKeyCode as Key;
-                            if let Some(code) = input.virtual_keycode {
-                                if let Key::Escape = code {
-                                    *control_flow = ControlFlow::Exit;
-                                }
-                            }
-                        }
-                        WindowEvent::CloseRequested => {
-                            *control_flow = ControlFlow::Exit
-                        }
-                        WindowEvent::Resized(phys_size) => {
-                            // for some reason i get a validation error if i actually attempt
-                            // to execute the first resize
-                            if first_resize {
-                                first_resize = false;
-                            } else {
-                                state.resize(*phys_size);
-
-                                let old = state.size;
-                                let new = *phys_size;
-                                let old = Vec2::new(
-                                    old.width as f32,
-                                    old.height as f32,
-                                );
-                                let new = Vec2::new(
-                                    new.width as f32,
-                                    new.height as f32,
-                                );
-
-                                let div = new / old;
-                                app.camera.resize_relative(div)
-                            }
-                        }
-                        WindowEvent::ScaleFactorChanged {
-                            new_inner_size,
-                            ..
-                        } => {
-                            state.resize(**new_inner_size);
-                        }
-                        _ => {}
-                    }
-                }
-            }
-
-            Event::RedrawRequested(window_id) if *window_id == window.id() => {
-                app.render(&mut state).unwrap();
-            }
-            Event::MainEventsCleared => {
-                let dt = prev_frame_t.elapsed().as_secs_f32();
-                prev_frame_t = std::time::Instant::now();
-
-                app.update(&state, &window, dt);
-
-                window.request_redraw();
-            }
-
-            _ => {}
-        }
-    })
 }
 
 pub fn parse_args() -> std::result::Result<Args, pico_args::Error> {

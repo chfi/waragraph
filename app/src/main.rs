@@ -45,16 +45,26 @@ pub async fn run(
                             *control_flow = ControlFlow::Exit
                         }
                         WindowEvent::Resized(phys_size) => {
+                            let old_size = state.size;
+
                             // for some reason i get a validation error if i actually attempt
                             // to execute the first resize
+                            // NB: i think there's another event I should wait on before
+                            // trying to do any rendering and/or resizing
                             if first_resize {
                                 first_resize = false;
                             } else {
                                 state.resize(*phys_size);
                             }
 
-                            app.resize(&state, window.inner_size().into())
-                                .unwrap();
+                            let new_size = window.inner_size();
+
+                            app.resize(
+                                &state,
+                                old_size.into(),
+                                new_size.into(),
+                            )
+                            .unwrap();
                         }
                         WindowEvent::ScaleFactorChanged {
                             new_inner_size,
@@ -110,8 +120,7 @@ pub fn main() -> Result<()> {
             annotations: args.annotations,
         };
 
-        // waragraph::viewer_2d::init(&event_loop, &window, &state, args_2d)?
-        todo!();
+        waragraph::viewer_2d::init(&event_loop, &window, &state, args_2d)?
     } else {
         let args_1d = waragraph::viewer_1d::Args {
             gfa: args.gfa,
@@ -123,55 +132,6 @@ pub fn main() -> Result<()> {
 
     if let Err(e) = pollster::block_on(run(event_loop, window, state, app)) {
         log::error!("{e}");
-    }
-
-    Ok(())
-}
-
-pub fn old_main() -> Result<()> {
-    env_logger::builder()
-        .filter_level(log::LevelFilter::Warn)
-        .init();
-
-    // {
-    //     let layout = waragraph::gui::test_layout()?;
-    //     println!("-----------------");
-    //     // waragraph::gui::taffy_test()?;
-
-    //     std::process::exit(0);
-    // }
-
-    if let Ok(args) = parse_args() {
-        dbg!();
-        if let Some(tsv) = args.tsv {
-            let args_2d = waragraph::viewer_2d::Args {
-                gfa: args.gfa,
-                tsv,
-                annotations: args.annotations,
-            };
-
-            if let Err(e) =
-                pollster::block_on(waragraph::viewer_2d::run(args_2d))
-            {
-                log::error!("{:?}", e);
-            }
-        } else {
-            let args_1d = waragraph::viewer_1d::Args {
-                gfa: args.gfa,
-                init_range: args.init_range,
-            };
-
-            if let Err(e) =
-                pollster::block_on(waragraph::viewer_1d::run(args_1d))
-            {
-                log::error!("{:?}", e);
-            }
-        }
-    } else {
-        let name = std::env::args().next().unwrap();
-        println!("Usage: {name} <gfa> [tsv]");
-        println!("4-column BED file can be provided using the --bed flag");
-        std::process::exit(0);
     }
 
     Ok(())

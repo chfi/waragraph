@@ -1,15 +1,13 @@
 use crate::annotations::AnnotationStore;
 use crate::gui::{FlexLayout, GuiElem};
-use egui::epaint::tessellator::path;
-use egui_winit::EventResponse;
 use wgpu::BufferUsages;
 
 use std::collections::HashMap;
 use std::num::NonZeroU64;
 use std::path::PathBuf;
 
-use winit::event::{Event, VirtualKeyCode, WindowEvent};
-use winit::event_loop::{ControlFlow, EventLoop, EventLoopWindowTarget};
+use winit::event::WindowEvent;
+use winit::event_loop::{EventLoop, EventLoopWindowTarget};
 use winit::window::Window;
 
 use raving_wgpu::camera::{DynamicCamera2d, TouchHandler, TouchOutput};
@@ -22,7 +20,7 @@ use anyhow::Result;
 
 use waragraph_core::graph::{sampling::PathDepthData, PathIndex};
 
-use self::util::{path_depth_data_viz_buffer, path_viz_buffer_test};
+use self::util::path_depth_data_viz_buffer;
 
 // pub mod sampling;
 pub mod util;
@@ -698,13 +696,11 @@ pub fn init(
     args: Args,
 ) -> Result<Box<dyn crate::AppWindow>> {
     let path_index = PathIndex::from_gfa(&args.gfa)?;
-    dbg!();
 
     let dims = {
         let s = window.inner_size();
         [s.width, s.height]
     };
-    dbg!();
 
     let app = Viewer1D::init(
         &event_loop,
@@ -713,101 +709,6 @@ pub fn init(
         path_index,
         args.init_range.clone(),
     )?;
-    dbg!();
 
     Ok(Box::new(app))
-}
-
-pub async fn run(args: Args) -> Result<()> {
-    use crate::AppWindow;
-
-    let (event_loop, window, mut state) = raving_wgpu::initialize().await?;
-
-    let path_index = PathIndex::from_gfa(&args.gfa)?;
-
-    let dims = {
-        let s = window.inner_size();
-        [s.width, s.height]
-    };
-
-    let mut app = Viewer1D::init(
-        &event_loop,
-        dims,
-        &state,
-        path_index,
-        args.init_range.clone(),
-    )?;
-
-    /*
-    if let Some(bed) = args.annotations.as_ref() {
-        app.annotations.fill_from_bed(bed)?;
-        let cache = app
-            .annotations
-            .layout_positions(&app.path_index, &app.layout);
-        app.annotation_cache = cache;
-    }
-    */
-
-    let mut first_resize = true;
-    let mut prev_frame_t = std::time::Instant::now();
-
-    event_loop.run(move |event, _, control_flow| {
-        match &event {
-            Event::WindowEvent { window_id, event } => {
-                let mut consumed = false;
-
-                let size = window.inner_size();
-                consumed = app.on_event([size.width, size.height], event);
-
-                if !consumed {
-                    match &event {
-                        WindowEvent::KeyboardInput { input, .. } => {
-                            use VirtualKeyCode as Key;
-                            if let Some(code) = input.virtual_keycode {
-                                if let Key::Escape = code {
-                                    *control_flow = ControlFlow::Exit;
-                                }
-                            }
-                        }
-                        WindowEvent::CloseRequested => {
-                            *control_flow = ControlFlow::Exit
-                        }
-                        WindowEvent::Resized(phys_size) => {
-                            // for some reason i get a validation error if i actually attempt
-                            // to execute the first resize
-                            if first_resize {
-                                first_resize = false;
-                            } else {
-                                state.resize(*phys_size);
-                            }
-
-                            app.resize(&state, window.inner_size().into())
-                                .unwrap();
-                        }
-                        WindowEvent::ScaleFactorChanged {
-                            new_inner_size,
-                            ..
-                        } => {
-                            state.resize(**new_inner_size);
-                        }
-                        _ => {}
-                    }
-                }
-            }
-
-            Event::RedrawRequested(window_id) if *window_id == window.id() => {
-                app.render(&mut state).unwrap();
-            }
-            Event::MainEventsCleared => {
-                let dt = prev_frame_t.elapsed().as_secs_f32();
-                prev_frame_t = std::time::Instant::now();
-
-                app.update(&state, &window, dt);
-
-                window.request_redraw();
-            }
-
-            _ => {}
-        }
-    })
 }
