@@ -29,6 +29,7 @@ pub trait AppWindow {
     fn resize(
         &mut self,
         state: &raving_wgpu::State,
+        old_window_dims: [u32; 2],
         new_window_dims: [u32; 2],
     ) -> anyhow::Result<()>;
 

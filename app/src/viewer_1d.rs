@@ -547,6 +547,7 @@ impl crate::AppWindow for Viewer1D {
     fn resize(
         &mut self,
         state: &raving_wgpu::State,
+        _old_window_dims: [u32; 2],
         new_window_dims: [u32; 2],
     ) -> anyhow::Result<()> {
         let [w, h] = new_window_dims;
@@ -688,6 +689,33 @@ impl crate::AppWindow for Viewer1D {
 
         Ok(())
     }
+}
+
+pub fn init(
+    event_loop: &EventLoop<()>,
+    window: &Window,
+    state: &State,
+    args: Args,
+) -> Result<Box<dyn crate::AppWindow>> {
+    let path_index = PathIndex::from_gfa(&args.gfa)?;
+    dbg!();
+
+    let dims = {
+        let s = window.inner_size();
+        [s.width, s.height]
+    };
+    dbg!();
+
+    let app = Viewer1D::init(
+        &event_loop,
+        dims,
+        &state,
+        path_index,
+        args.init_range.clone(),
+    )?;
+    dbg!();
+
+    Ok(Box::new(app))
 }
 
 pub async fn run(args: Args) -> Result<()> {

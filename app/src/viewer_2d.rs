@@ -290,9 +290,18 @@ impl crate::AppWindow for PathRenderer {
     fn resize(
         &mut self,
         state: &raving_wgpu::State,
+        old_window_dims: [u32; 2],
         new_window_dims: [u32; 2],
     ) -> anyhow::Result<()> {
-        // nothing needed here yet
+        let [ow, oh] = old_window_dims;
+        let [nw, nh] = new_window_dims;
+
+        let old = Vec2::new(ow as f32, oh as f32);
+        let new = Vec2::new(nw as f32, nh as f32);
+
+        let div = new / old;
+        self.camera.resize_relative(div);
+
         Ok(())
     }
 
@@ -402,6 +411,32 @@ impl crate::AppWindow for PathRenderer {
 
         Ok(())
     }
+}
+
+pub fn init(
+    event_loop: &EventLoop<()>,
+    window: &Window,
+    state: &State,
+    args: Args,
+) -> Result<Box<dyn crate::AppWindow>> {
+    let path_index = PathIndex::from_gfa(&args.gfa)?;
+    let graph_curves = GraphPathCurves::from_path_index_and_layout_tsv(
+        &path_index,
+        &args.tsv,
+    )?;
+
+    let mut app =
+        PathRenderer::init(&event_loop, &state, path_index, graph_curves)?;
+
+    if let Some(bed) = args.annotations.as_ref() {
+        app.annotations.fill_from_bed(bed)?;
+        let cache = app
+            .annotations
+            .layout_positions(&app.path_index, &app.graph_curves);
+        app.annotation_cache = cache;
+    }
+
+    Ok(Box::new(app))
 }
 
 // async fn run(path_index: PathIndex, layout: GfaLayout, path_name: &str) -> Result<()> {
