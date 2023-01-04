@@ -176,7 +176,6 @@ impl<T> FlexLayout<T> {
                     ..style.clone()
                 }
             };
-            // dbg!(&space);
             self.taffy.set_style(root, new_style)?;
             self.taffy.compute_layout(root, space)?;
 

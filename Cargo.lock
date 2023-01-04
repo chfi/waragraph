@@ -657,37 +657,14 @@ dependencies = [
 
 [[package]]
 name = "egui"
-version = "0.19.0"
-source = "git+https://github.com/emilk/egui.git?rev=4c82519#4c82519fb86dbd00ce617a8657be71eb0da897ef"
-dependencies = [
- "ahash 0.8.2",
- "epaint 0.19.0",
- "nohash-hasher",
- "tracing",
-]
-
-[[package]]
-name = "egui"
 version = "0.20.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "65a5e883a316e53866977450eecfbcac9c48109c2ab3394af29feb83fcde4ea9"
 dependencies = [
  "ahash 0.8.2",
- "epaint 0.20.0",
+ "epaint",
  "nohash-hasher",
  "tracing",
-]
-
-[[package]]
-name = "egui-wgpu"
-version = "0.19.0"
-source = "git+https://github.com/emilk/egui.git?rev=4c82519#4c82519fb86dbd00ce617a8657be71eb0da897ef"
-dependencies = [
- "bytemuck",
- "egui 0.19.0",
- "tracing",
- "type-map",
- "wgpu",
 ]
 
 [[package]]
@@ -697,24 +674,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d3a6edfac4c02455f5024dc7cda997629b94748571935773d1a0cfab8213c80a"
 dependencies = [
  "bytemuck",
- "egui 0.20.1",
+ "egui",
  "tracing",
  "type-map",
  "wgpu",
-]
-
-[[package]]
-name = "egui-winit"
-version = "0.19.0"
-source = "git+https://github.com/emilk/egui.git?rev=4c82519#4c82519fb86dbd00ce617a8657be71eb0da897ef"
-dependencies = [
- "arboard",
- "egui 0.19.0",
- "instant",
- "smithay-clipboard",
- "tracing",
- "webbrowser",
- "winit",
 ]
 
 [[package]]
@@ -724,7 +687,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5696bdbe60898b81157f07ae34fe02dbfd522174bd6e620942c269cd7307901f"
 dependencies = [
  "arboard",
- "egui 0.20.1",
+ "egui",
  "instant",
  "smithay-clipboard",
  "tracing",
@@ -737,14 +700,6 @@ name = "either"
 version = "1.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "90e5c1c8368803113bf0c9584fc495a58b86dc8a29edbf8fe877d21d9507e797"
-
-[[package]]
-name = "emath"
-version = "0.19.0"
-source = "git+https://github.com/emilk/egui.git?rev=4c82519#4c82519fb86dbd00ce617a8657be71eb0da897ef"
-dependencies = [
- "bytemuck",
-]
 
 [[package]]
 name = "emath"
@@ -770,20 +725,6 @@ dependencies = [
 
 [[package]]
 name = "epaint"
-version = "0.19.0"
-source = "git+https://github.com/emilk/egui.git?rev=4c82519#4c82519fb86dbd00ce617a8657be71eb0da897ef"
-dependencies = [
- "ab_glyph",
- "ahash 0.8.2",
- "atomic_refcell",
- "bytemuck",
- "emath 0.19.0",
- "nohash-hasher",
- "parking_lot 0.12.1",
-]
-
-[[package]]
-name = "epaint"
 version = "0.20.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "de14b65fe5e423e0058f77a8beb2c863b056d0566d6c4ce0d097aa5814cb705a"
@@ -793,7 +734,7 @@ dependencies = [
  "atomic_refcell",
  "bytemuck",
  "ecolor",
- "emath 0.20.0",
+ "emath",
  "nohash-hasher",
  "parking_lot 0.12.1",
 ]
@@ -2087,15 +2028,15 @@ checksum = "63e935c45e09cc6dcf00d2f0b2d630a58f4095320223d47fc68918722f0538b6"
 [[package]]
 name = "raving-wgpu"
 version = "0.1.0"
-source = "git+https://github.com/chfi/raving-wgpu#277437556013749fe963f8da5aabfc6390b647a4"
+source = "git+https://github.com/chfi/raving-wgpu#5813690b46940b053bff348c460bc4fddd908afd"
 dependencies = [
  "anyhow",
  "bytemuck",
  "crossbeam",
  "datafrog",
- "egui 0.19.0",
- "egui-wgpu 0.19.0",
- "egui-winit 0.19.0",
+ "egui",
+ "egui-wgpu",
+ "egui-winit",
  "env_logger",
  "image",
  "jni 0.19.0",
@@ -2678,9 +2619,9 @@ dependencies = [
  "btoi",
  "bytemuck",
  "colorous",
- "egui 0.20.1",
- "egui-wgpu 0.20.0",
- "egui-winit 0.20.1",
+ "egui",
+ "egui-wgpu",
+ "egui-winit",
  "env_logger",
  "log",
  "lyon",

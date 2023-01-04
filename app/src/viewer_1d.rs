@@ -419,10 +419,12 @@ impl Viewer1D {
 
         Ok((slots, slot_count as u32))
     }
+}
 
+impl crate::AppWindow for Viewer1D {
     fn update(
         &mut self,
-        state: &State,
+        state: &raving_wgpu::State,
         window: &winit::window::Window,
         dt: f32,
     ) {
@@ -500,7 +502,11 @@ impl Viewer1D {
         });
     }
 
-    fn on_event(&mut self, window_dims: [u32; 2], event: &WindowEvent) -> bool {
+    fn on_event(
+        &mut self,
+        window_dims: [u32; 2],
+        event: &winit::event::WindowEvent,
+    ) -> bool {
         let mut consume = false;
 
         // if self.touch.on_event(window_dims, event) {
@@ -540,9 +546,12 @@ impl Viewer1D {
 
     fn resize(
         &mut self,
-        state: &State,
-        new_size: ultraviolet::Vec2,
-    ) -> Result<()> {
+        state: &raving_wgpu::State,
+        new_window_dims: [u32; 2],
+    ) -> anyhow::Result<()> {
+        let [w, h] = new_window_dims;
+        let new_size = ultraviolet::Vec2::new(w as f32, h as f32);
+
         let (vertices, vxs, insts) = {
             let (buffer, insts) = Self::slot_vertices(
                 &state.device,
@@ -578,7 +587,7 @@ impl Viewer1D {
         Ok(())
     }
 
-    fn render(&mut self, state: &mut State) -> Result<()> {
+    fn render(&mut self, state: &mut raving_wgpu::State) -> anyhow::Result<()> {
         let dims = state.size;
         let size = [dims.width, dims.height];
 
@@ -682,6 +691,8 @@ impl Viewer1D {
 }
 
 pub async fn run(args: Args) -> Result<()> {
+    use crate::AppWindow;
+
     let (event_loop, window, mut state) = raving_wgpu::initialize().await?;
 
     let path_index = PathIndex::from_gfa(&args.gfa)?;
@@ -742,12 +753,8 @@ pub async fn run(args: Args) -> Result<()> {
                                 state.resize(*phys_size);
                             }
 
-                            let size = window.inner_size();
-                            let new_size = ultraviolet::Vec2::new(
-                                size.width as f32,
-                                size.height as f32,
-                            );
-                            app.resize(&state, new_size).unwrap();
+                            app.resize(&state, window.inner_size().into())
+                                .unwrap();
                         }
                         WindowEvent::ScaleFactorChanged {
                             new_inner_size,
