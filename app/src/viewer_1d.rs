@@ -681,13 +681,6 @@ impl Viewer1D {
     }
 }
 
-struct SlotBuffer {
-    buffer: wgpu::Buffer,
-}
-
-struct SlotDataCache {
-    buffers: Vec<wgpu::Buffer>,
-}
 pub async fn run(args: Args) -> Result<()> {
     let (event_loop, window, mut state) = raving_wgpu::initialize().await?;
 
