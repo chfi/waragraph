@@ -83,7 +83,115 @@ fn draw_annotations(
 }
 
 impl PathRenderer {
-    fn update(&mut self, window: &winit::window::Window, dt: f32) {
+    fn init(
+        event_loop: &EventLoopWindowTarget<()>,
+        state: &State,
+        path_index: PathIndex,
+        graph_curves: GraphPathCurves,
+    ) -> Result<Self> {
+        let mut graph = Graph::new();
+
+        let draw_schema = {
+            let vert_src = include_bytes!(concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/shaders/lyon.vert.spv"
+            ));
+            let frag_src = include_bytes!(concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/shaders/flat.frag.spv"
+            ));
+
+            let primitive = wgpu::PrimitiveState {
+                topology: wgpu::PrimitiveTopology::TriangleList,
+                front_face: wgpu::FrontFace::Cw,
+                cull_mode: None,
+                // cull_mode: Some(wgpu::Face::Front),
+                polygon_mode: wgpu::PolygonMode::Fill,
+
+                strip_index_format: None,
+                unclipped_depth: false,
+                conservative: false,
+            };
+
+            graph.add_graphics_schema_custom(
+                state,
+                vert_src,
+                frag_src,
+                primitive,
+                wgpu::VertexStepMode::Vertex,
+                ["vertex_in"],
+                Some("indices"),
+                &[state.surface_format],
+            )?
+        };
+
+        let camera = {
+            let center = Vec2::zero();
+            let size = Vec2::new(4.0, 3.0);
+            let (min, max) = graph_curves.aabb;
+            let mut camera = DynamicCamera2d::new(center, size);
+            camera.fit_region_keep_aspect(min, max);
+            camera
+        };
+
+        let touch = TouchHandler::default();
+
+        let egui = EguiCtx::init(event_loop, state, None);
+
+        let uniform_data = camera.to_matrix();
+
+        let uniform_buf = state.device.create_buffer_init(
+            &wgpu::util::BufferInitDescriptor {
+                label: Some("Uniform Buffer"),
+                contents: bytemuck::cast_slice(&[uniform_data]),
+                usage: wgpu::BufferUsages::UNIFORM
+                    | wgpu::BufferUsages::COPY_DST,
+            },
+        );
+
+        let draw_node = graph.add_node(draw_schema);
+
+        graph.add_link_from_transient("vertices", draw_node, 0);
+        graph.add_link_from_transient("indices", draw_node, 1);
+        graph.add_link_from_transient("swapchain", draw_node, 2);
+
+        // set 0, binding 0, transform matrix
+        graph.add_link_from_transient("transform", draw_node, 3);
+
+        let path_ids = 0..path_index.path_names.len();
+        let path_curve_buffers =
+            graph_curves.tessellate_paths(&state.device, path_ids)?;
+
+        let annotations = AnnotationStore::default();
+
+        Ok(Self {
+            render_graph: graph,
+            egui,
+
+            path_index,
+
+            camera,
+            touch,
+            graph_scalars: rhai::Map::default(),
+            uniform_buf,
+            annotations,
+            annotation_cache: Vec::new(),
+            path_curve_buffers,
+            draw_node,
+
+            graph_curves,
+            // layout,
+        })
+    }
+}
+
+impl crate::AppWindow for PathRenderer {
+    fn update(
+        &mut self,
+        state: &raving_wgpu::State,
+        window: &winit::window::Window,
+        dt: f32,
+    ) {
         let touches = self
             .touch
             .take()
@@ -165,7 +273,11 @@ impl PathRenderer {
         }
     }
 
-    fn on_event(&mut self, window_dims: [u32; 2], event: &WindowEvent) -> bool {
+    fn on_event(
+        &mut self,
+        window_dims: [u32; 2],
+        event: &winit::event::WindowEvent,
+    ) -> bool {
         let mut consume = false;
 
         if self.touch.on_event(window_dims, event) {
@@ -175,109 +287,16 @@ impl PathRenderer {
         consume
     }
 
-    fn init(
-        event_loop: &EventLoopWindowTarget<()>,
-        state: &State,
-        path_index: PathIndex,
-        graph_curves: GraphPathCurves,
-    ) -> Result<Self> {
-        let mut graph = Graph::new();
-
-        let draw_schema = {
-            let vert_src = include_bytes!(concat!(
-                env!("CARGO_MANIFEST_DIR"),
-                "/shaders/lyon.vert.spv"
-            ));
-            let frag_src = include_bytes!(concat!(
-                env!("CARGO_MANIFEST_DIR"),
-                "/shaders/flat.frag.spv"
-            ));
-
-            let primitive = wgpu::PrimitiveState {
-                topology: wgpu::PrimitiveTopology::TriangleList,
-                front_face: wgpu::FrontFace::Cw,
-                cull_mode: None,
-                // cull_mode: Some(wgpu::Face::Front),
-                polygon_mode: wgpu::PolygonMode::Fill,
-
-                strip_index_format: None,
-                unclipped_depth: false,
-                conservative: false,
-            };
-
-            graph.add_graphics_schema_custom(
-                state,
-                vert_src,
-                frag_src,
-                primitive,
-                wgpu::VertexStepMode::Vertex,
-                ["vertex_in"],
-                Some("indices"),
-                &[state.surface_format],
-            )?
-        };
-
-        let camera = {
-            let center = Vec2::zero();
-            let size = Vec2::new(4.0, 3.0);
-            let (min, max) = graph_curves.aabb;
-            let mut camera = DynamicCamera2d::new(center, size);
-            camera.fit_region_keep_aspect(min, max);
-            camera
-        };
-
-        let touch = TouchHandler::default();
-
-        let egui = EguiCtx::init(event_loop, state, None);
-
-        let uniform_data = camera.to_matrix();
-
-        let uniform_buf = state.device.create_buffer_init(
-            &wgpu::util::BufferInitDescriptor {
-                label: Some("Uniform Buffer"),
-                contents: bytemuck::cast_slice(&[uniform_data]),
-                usage: wgpu::BufferUsages::UNIFORM
-                    | wgpu::BufferUsages::COPY_DST,
-            },
-        );
-
-        let draw_node = graph.add_node(draw_schema);
-
-        graph.add_link_from_transient("vertices", draw_node, 0);
-        graph.add_link_from_transient("indices", draw_node, 1);
-        graph.add_link_from_transient("swapchain", draw_node, 2);
-
-        // set 0, binding 0, transform matrix
-        graph.add_link_from_transient("transform", draw_node, 3);
-
-
-        let path_ids = 0..path_index.path_names.len();
-        let path_curve_buffers =
-            graph_curves.tessellate_paths(&state.device, path_ids)?;
-
-        let annotations = AnnotationStore::default();
-
-        Ok(Self {
-            render_graph: graph,
-            egui,
-
-            path_index,
-
-            camera,
-            touch,
-            graph_scalars: rhai::Map::default(),
-            uniform_buf,
-            annotations,
-            annotation_cache: Vec::new(),
-            path_curve_buffers,
-            draw_node,
-
-            graph_curves,
-            // layout,
-        })
+    fn resize(
+        &mut self,
+        state: &raving_wgpu::State,
+        new_window_dims: [u32; 2],
+    ) -> anyhow::Result<()> {
+        // nothing needed here yet
+        Ok(())
     }
 
-    fn render(&mut self, state: &mut State) -> Result<()> {
+    fn render(&mut self, state: &mut raving_wgpu::State) -> anyhow::Result<()> {
         let dims = state.size;
         let size = [dims.width, dims.height];
 
@@ -387,6 +406,8 @@ impl PathRenderer {
 
 // async fn run(path_index: PathIndex, layout: GfaLayout, path_name: &str) -> Result<()> {
 pub async fn run(args: Args) -> Result<()> {
+    use crate::AppWindow;
+
     let (event_loop, window, mut state) = raving_wgpu::initialize().await?;
 
     let path_index = PathIndex::from_gfa(&args.gfa)?;
@@ -472,7 +493,7 @@ pub async fn run(args: Args) -> Result<()> {
                 let dt = prev_frame_t.elapsed().as_secs_f32();
                 prev_frame_t = std::time::Instant::now();
 
-                app.update(&window, dt);
+                app.update(&state, &window, dt);
 
                 window.request_redraw();
             }
