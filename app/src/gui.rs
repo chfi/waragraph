@@ -11,27 +11,6 @@ use std::collections::{BTreeMap, HashSet};
 use taffy::{error::TaffyError, prelude::*};
 use ultraviolet::Vec2;
 
-// placeholder
-pub enum GuiElem {
-    PathSlot {
-        slot_id: usize,
-        path_id: usize,
-        data: &'static str,
-    },
-    PathName {
-        path_id: usize,
-    },
-    Label {
-        id: &'static str,
-    },
-}
-
-pub enum LayoutNode<T> {
-    Single(T),
-    HSplit(T, T),
-    VSplit(T, T),
-}
-
 pub struct FlexLayout<T> {
     pub taffy: Taffy,
     pub node_data: BTreeMap<Node, T>,
@@ -74,8 +53,6 @@ impl<T> FlexLayout<T> {
             size: Size {
                 width: Dimension::Auto,
                 height: Dimension::Auto,
-                // width: Dimension::Points(800.0),
-                // height: Dimension::Points(600.0),
             },
             gap: Size {
                 width: Dimension::Undefined,

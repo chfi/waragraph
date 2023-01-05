@@ -2028,7 +2028,7 @@ checksum = "63e935c45e09cc6dcf00d2f0b2d630a58f4095320223d47fc68918722f0538b6"
 [[package]]
 name = "raving-wgpu"
 version = "0.1.0"
-source = "git+https://github.com/chfi/raving-wgpu#5813690b46940b053bff348c460bc4fddd908afd"
+source = "git+https://github.com/chfi/raving-wgpu#23245d9be786b72aeaf1ba96ee800c08abecb22f"
 dependencies = [
  "anyhow",
  "bytemuck",

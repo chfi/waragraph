@@ -6,7 +6,7 @@ use std::path::PathBuf;
 use winit::event_loop::{EventLoop, EventLoopWindowTarget};
 use winit::window::Window;
 
-use raving_wgpu::camera::{DynamicCamera2d, TouchHandler, TouchOutput};
+use raving_wgpu::camera::DynamicCamera2d;
 use raving_wgpu::graph::dfrog::{Graph, InputResource};
 use raving_wgpu::gui::EguiCtx;
 use raving_wgpu::{NodeId, State};
@@ -45,7 +45,6 @@ struct PathRenderer {
     graph_curves: layout::GraphPathCurves,
     // layout: GfaLayout,
     camera: DynamicCamera2d,
-    touch: TouchHandler,
 
     graph_scalars: rhai::Map,
 
@@ -133,8 +132,6 @@ impl PathRenderer {
             camera
         };
 
-        let touch = TouchHandler::default();
-
         let egui = EguiCtx::init(event_loop, state, None);
 
         let uniform_data = camera.to_matrix();
@@ -170,7 +167,6 @@ impl PathRenderer {
             path_index,
 
             camera,
-            touch,
             graph_scalars: rhai::Map::default(),
             uniform_buf,
             annotations,
@@ -191,11 +187,11 @@ impl crate::AppWindow for PathRenderer {
         window: &winit::window::Window,
         dt: f32,
     ) {
-        let touches = self
-            .touch
-            .take()
-            .map(TouchOutput::flip_y)
-            .collect::<Vec<_>>();
+        // let touches = self
+        //     .touch
+        //     .take()
+        //     .map(TouchOutput::flip_y)
+        //     .collect::<Vec<_>>();
 
         self.egui.run(window, |ctx| {
             let painter = ctx.debug_painter();
@@ -220,55 +216,48 @@ impl crate::AppWindow for PathRenderer {
             );
         });
 
-        if !touches.is_empty() {
+        let any_touches = self.egui.ctx().input().any_touches();
+
+        if any_touches {
             self.camera.stop();
         }
 
+        // if self.egui.ctx().
+        // if self.egui.ctx().
+        // if !touches.is_empty() {
+        //     self.camera.stop();
+        // }
+
         self.camera.update(dt);
 
-        match touches.len() {
-            0 => {
-                // drift
-            }
-            1 => {
-                // pan
-                let mut touch = touches[0];
-                touch.delta *= -1.0;
-                self.camera.blink(touch.delta);
-            }
-            n => {
-                // pinch zoom (only use first two touches)
-                let fst = touches[0];
-                let snd = touches[1];
+        let (delta, primary_down) = {
+            let pointer = &self.egui.ctx().input().pointer;
+            let delta = pointer.delta();
+            let primary_down = pointer.primary_down();
 
-                let p0 = fst.pos;
-                let p1 = snd.pos;
+            (delta, primary_down)
+        };
 
-                let p0_ = fst.pos + fst.delta;
-                let p1_ = snd.pos + snd.delta;
+        let win_size = {
+            let s = window.inner_size();
+            ultraviolet::Vec2::new(s.width as f32, s.height as f32)
+        };
 
-                let dist_pre = (p1 - p0).mag();
-                let dist_post = (p1_ - p0_).mag();
-                let del = (dist_post - dist_pre).abs();
+        let pos = self.egui.pointer_interact_pos();
 
-                let cen = self.camera.center;
-                let tl = cen - self.camera.size / 2.0;
-                let br = cen + self.camera.size / 2.0;
+        if let Some(touch) = self.egui.multi_touch() {
+            let t = touch.translation_delta;
+            let z = touch.zoom_delta;
+            let t = ultraviolet::Vec2::new(t.x / win_size.x, t.y / win_size.y);
 
-                let cam_hyp = self.camera.size.dot(self.camera.size).sqrt();
-                let del = del * cam_hyp;
-
-                // if side_pre > side_post {
-                if dist_pre > dist_post {
-                    let tl = tl - Vec2::new(del, del);
-                    let br = br + Vec2::new(del, del);
-                    self.camera.fit_region_keep_aspect(tl, br);
-                } else {
-                    let tl = tl + Vec2::new(del, del);
-                    let br = br - Vec2::new(del, del);
-                    self.camera.fit_region_keep_aspect(tl, br);
-                }
-            }
+            self.camera.blink(t);
+            self.camera.size *= z;
+        } else if primary_down {
+            let delta = ultraviolet::Vec2::new(
+                -delta.x / win_size.x,
+                delta.y / win_size.y,
+            );
+            self.camera.blink(delta);
         }
     }
 
@@ -279,9 +268,11 @@ impl crate::AppWindow for PathRenderer {
     ) -> bool {
         let mut consume = false;
 
-        if self.touch.on_event(window_dims, event) {
-            consume = true;
-        }
+        let resp = self.egui.on_event(event);
+
+        // if self.touch.on_event(window_dims, event) {
+        //     consume = true;
+        // }
 
         consume
     }

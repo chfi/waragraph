@@ -1,5 +1,5 @@
 use crate::annotations::AnnotationStore;
-use crate::gui::{FlexLayout, GuiElem};
+use crate::gui::FlexLayout;
 use crate::list::ListView;
 use waragraph_core::graph::PathId;
 use wgpu::BufferUsages;
@@ -260,9 +260,7 @@ impl Viewer1D {
         let len = pangenome_len as u64;
         let view_range = init_range.unwrap_or(0..len);
 
-        // let depth = path_viz_buffer_test(&state.device, 200)?;
-
-        let paths = 0..(path_index.path_names.len().min(64));
+        let paths = 0..path_index.path_names.len();
 
         let path_list_view =
             ListView::new(paths.clone().map(PathId::from), Some(32));
@@ -285,8 +283,6 @@ impl Viewer1D {
 
         let mut slot_layout = gui::create_slot_layout(32, "depth")?;
 
-        // let vertices = util::path_slot_vertex_buffer(&state.device, 0..10)?;
-
         let (vertices, vxs, insts) = {
             let size =
                 ultraviolet::Vec2::new(win_dims[0] as f32, win_dims[1] as f32);
@@ -298,7 +294,6 @@ impl Viewer1D {
             )?;
             let vxs = 0..6;
             let insts = 0..insts;
-            // println!("slot_count: {slot_count}");
 
             (buffer, vxs, insts)
         };
@@ -340,7 +335,6 @@ impl Viewer1D {
         index: &PathIndex,
         data: &PathDepthData,
         path_list_view: &ListView<PathId>,
-        // paths: impl IntoIterator<Item = usize>,
         view_range: std::ops::Range<u64>,
         gpu_buffer: &BufferDesc,
         // bins: usize,
@@ -489,6 +483,16 @@ impl crate::AppWindow for Viewer1D {
         event: &winit::event::WindowEvent,
     ) -> bool {
         let mut consume = false;
+
+        let resp = self.egui.on_event(event);
+
+        // if let Some(touch) = self.egui.multi_touch() {
+        //     println!("multitouch: {touch:?}");
+        // }
+
+        // if let Some(pos) = self.egui.pointer_latest_pos() {
+        //     println!("pos: {pos:?}");
+        // }
 
         // if self.touch.on_event(window_dims, event) {
         //     consume = true;
