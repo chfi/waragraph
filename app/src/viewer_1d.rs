@@ -45,6 +45,7 @@ struct Viewer1D {
     pangenome_len: u64,
     view: std::ops::Range<u64>,
     rendered_view: std::ops::Range<u64>,
+    force_resample: bool,
 
     depth_data: PathDepthData,
 
@@ -318,6 +319,7 @@ impl Viewer1D {
 
             view: view_range.clone(),
             rendered_view: view_range,
+            force_resample: false,
 
             depth_data,
 
@@ -414,7 +416,7 @@ impl crate::AppWindow for Viewer1D {
         window: &winit::window::Window,
         dt: f32,
     ) {
-        if self.rendered_view != self.view {
+        if self.rendered_view != self.view || self.force_resample {
             // let paths = path_list_view.visible_iter().copied().collect::<Vec<_>>();
             // let paths = 0..(self.path_index.path_names.len().min(64));
             let gpu_buffer = self.path_viz_cache.get("depth").unwrap();
@@ -429,6 +431,7 @@ impl crate::AppWindow for Viewer1D {
             )
             .unwrap();
 
+            self.force_resample = false;
             self.rendered_view = self.view.clone();
         }
 
@@ -510,6 +513,14 @@ impl crate::AppWindow for Viewer1D {
                         Key::Left => {
                             l = l.checked_sub(len / 10).unwrap_or_default();
                             r = l + len;
+                        }
+                        Key::Up => {
+                            self.path_list_view.scroll_relative(-1);
+                            self.force_resample = true;
+                        }
+                        Key::Down => {
+                            self.path_list_view.scroll_relative(1);
+                            self.force_resample = true;
                         }
                         _ => (),
                     }
