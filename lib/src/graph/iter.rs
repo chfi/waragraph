@@ -2,7 +2,7 @@ use std::iter::FusedIterator;
 
 use roaring::RoaringBitmap;
 
-use super::{Bp, Node, PathIndex};
+use super::{Bp, Node, PathId, PathIndex};
 
 /// Iterator over a compact range of nodes in the pangenome (i.e. node ID) order,
 /// returning the nodes with their lengths
@@ -97,22 +97,21 @@ impl<'index> FusedIterator for PangenomeNodePosRangeIter<'index> {}
 // TODO: reimplement by stepping through the data slice, using the enumerated
 // index with the path set to avoid using the dense node position iterator
 pub struct PangenomePathDataPosRangeIter<'index, 'data, T> {
-    path_id: usize,
+    path_id: PathId,
     path_nodes: &'index RoaringBitmap,
 
     node_iter: PangenomeNodePosRangeIter<'index>,
     data_iter: std::slice::Iter<'data, T>,
 }
 
-
 impl<'index, 'data, T> PangenomePathDataPosRangeIter<'index, 'data, T> {
     pub(super) fn new_pos_range(
         index: &'index PathIndex,
         pos_range: std::ops::Range<u64>,
-        path_id: usize,
+        path_id: PathId,
         data: &'data [T],
     ) -> Self {
-        let path_nodes = &index.path_node_sets[path_id];
+        let path_nodes = &index.path_node_sets[path_id.ix()];
         assert_eq!(
             data.len(),
             path_nodes.len() as usize,

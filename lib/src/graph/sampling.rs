@@ -1,15 +1,15 @@
 use std::collections::BTreeMap;
 
-use super::{Node, PathIndex};
+use super::{Node, PathId, PathIndex};
 
 pub trait PathData<T> {
-    fn get_path(&self, path_id: usize) -> &[T];
+    fn get_path(&self, path_id: PathId) -> &[T];
 }
 
 pub fn sample_path_data_into_buffer<D>(
     index: &PathIndex,
     data: &D,
-    paths: impl IntoIterator<Item = usize>,
+    paths: impl IntoIterator<Item = PathId>,
     bins: usize,
     view_range: std::ops::Range<u64>,
     out: &mut [u8],
@@ -87,8 +87,8 @@ pub struct PathDepthData {
 }
 
 impl PathData<f32> for PathDepthData {
-    fn get_path(&self, path_id: usize) -> &[f32] {
-        &self.node_depth_per_path[path_id]
+    fn get_path(&self, path_id: PathId) -> &[f32] {
+        &self.node_depth_per_path[path_id.ix()]
     }
 }
 

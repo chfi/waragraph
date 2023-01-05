@@ -1,5 +1,7 @@
 use crate::annotations::AnnotationStore;
 use crate::gui::{FlexLayout, GuiElem};
+use crate::list::ListView;
+use waragraph_core::graph::PathId;
 use wgpu::BufferUsages;
 
 use std::collections::HashMap;
@@ -55,6 +57,8 @@ struct Viewer1D {
     // slot_layout: FlexLayout<GuiElem>,
     // gui_layout: FlexLayout<gui::GuiElem>,
     slot_layout: FlexLayout<gui::SlotElem>,
+
+    path_list_view: ListView<PathId>,
 }
 
 #[derive(Debug)]
@@ -253,11 +257,16 @@ impl Viewer1D {
         let depth_data = PathDepthData::new(&path_index);
 
         let len = pangenome_len as u64;
-        let view_range = init_range.unwrap_or(0..(len / 10));
+        let view_range = init_range.unwrap_or(0..len);
 
         // let depth = path_viz_buffer_test(&state.device, 200)?;
 
         let paths = 0..(path_index.path_names.len().min(64));
+
+        let path_list_view =
+            ListView::new(paths.clone().map(PathId::from), Some(32));
+
+        let paths = path_list_view.visible_iter().copied();
 
         let depth = path_depth_data_viz_buffer(
             &state.device,
@@ -284,6 +293,7 @@ impl Viewer1D {
                 &state.device,
                 size,
                 &mut slot_layout,
+                &path_list_view,
             )?;
             let vxs = 0..6;
             let insts = 0..insts;
@@ -319,6 +329,7 @@ impl Viewer1D {
 
             slot_layout,
             // fixed_gui_layout,
+            path_list_view,
         })
     }
 
@@ -326,14 +337,16 @@ impl Viewer1D {
         state: &State,
         index: &PathIndex,
         data: &PathDepthData,
-        paths: impl IntoIterator<Item = usize>,
+        path_list_view: &ListView<PathId>,
+        // paths: impl IntoIterator<Item = usize>,
         view_range: std::ops::Range<u64>,
         gpu_buffer: &BufferDesc,
         // bins: usize,
     ) -> Result<()> {
         let bins = 1024;
 
-        let paths = paths.into_iter().collect::<Vec<_>>();
+        let paths = path_list_view.visible_iter().copied().collect::<Vec<_>>();
+        // let paths = paths.into_iter().collect::<Vec<_>>();
         let prefix_size = std::mem::size_of::<u32>() * 4;
         let elem_size = std::mem::size_of::<f32>();
         let size = prefix_size + elem_size * bins * paths.len();
@@ -355,10 +368,12 @@ impl Viewer1D {
         Ok(())
     }
 
+    // TODO there's no need to reallocate the buffer every time the list is scrolled...
     fn slot_vertex_buffer(
         device: &wgpu::Device,
         win_dims: ultraviolet::Vec2,
         layout: &mut FlexLayout<gui::SlotElem>,
+        path_list_view: &ListView<PathId>,
     ) -> Result<(BufferDesc, u32)> {
         let mut data_buf: Vec<u8> = Vec::new();
 
@@ -366,15 +381,14 @@ impl Viewer1D {
 
         layout.visit_layout(win_dims, |layout, elem| {
             if let gui::SlotElem::PathData { slot_id, data_id } = elem {
-                // get the path id from the list view, via the slot id
-                let path_id = todo!();
+                if let Some(path_id) = path_list_view.get_in_view(*slot_id) {
+                    let rect = crate::gui::layout_egui_rect(&layout);
+                    let v_pos = rect.left_bottom().to_vec2();
+                    let v_size = rect.size();
 
-                let rect = crate::gui::layout_egui_rect(&layout);
-                let v_pos = rect.left_bottom().to_vec2();
-                let v_size = rect.size();
-
-                data_buf.extend(bytemuck::cast_slice(&[v_pos, v_size]));
-                data_buf.extend(bytemuck::cast_slice(&[*slot_id as u32]));
+                    data_buf.extend(bytemuck::cast_slice(&[v_pos, v_size]));
+                    data_buf.extend(bytemuck::cast_slice(&[*slot_id as u32]));
+                }
             }
         })?;
         let slot_count = data_buf.len() / stride;
@@ -401,14 +415,15 @@ impl crate::AppWindow for Viewer1D {
         dt: f32,
     ) {
         if self.rendered_view != self.view {
-            let paths = 0..(self.path_index.path_names.len().min(64));
+            // let paths = path_list_view.visible_iter().copied().collect::<Vec<_>>();
+            // let paths = 0..(self.path_index.path_names.len().min(64));
             let gpu_buffer = self.path_viz_cache.get("depth").unwrap();
 
             Self::sample_into_data_buffer(
                 state,
                 &self.path_index,
                 &self.depth_data,
-                paths,
+                &self.path_list_view,
                 self.view.clone(),
                 gpu_buffer,
             )
@@ -438,7 +453,11 @@ impl crate::AppWindow for Viewer1D {
                 match elem {
                     gui::SlotElem::PathData { .. } => (),
                     gui::SlotElem::PathName { slot_id } => {
-                        let path_id = todo!(); // get from list view
+                        let path_id = self.path_list_view.get_in_view(*slot_id);
+                        if path_id.is_none() {
+                            return;
+                        }
+                        let path_id = path_id.unwrap();
 
                         let path_name = self
                             .path_index
@@ -452,36 +471,7 @@ impl crate::AppWindow for Viewer1D {
                             egui::FontId::monospace(16.0),
                             egui::Color32::WHITE,
                         );
-                    } // GuiElem::PathSlot {
-                      //     slot_id,
-                      //     path_id,
-                      //     data,
-                      // } => {
-                      //     // TODO
-                      // }
-                      // GuiElem::PathName { path_id } => {
-                      //     let path_name = self
-                      //         .path_index
-                      //         .path_names
-                      //         .get_by_left(path_id)
-                      //         .unwrap();
-                      //     painter.text(
-                      //         rect.left_center(),
-                      //         egui::Align2::LEFT_CENTER,
-                      //         path_name,
-                      //         egui::FontId::monospace(16.0),
-                      //         egui::Color32::WHITE,
-                      //     );
-                      // }
-                      // GuiElem::Label { id } => {
-                      //     painter.text(
-                      //         rect.center(),
-                      //         egui::Align2::CENTER_CENTER,
-                      //         id,
-                      //         egui::FontId::monospace(16.0),
-                      //         egui::Color32::WHITE,
-                      //     );
-                      // }
+                    }
                 }
             });
             if let Err(e) = result {
@@ -546,6 +536,7 @@ impl crate::AppWindow for Viewer1D {
                 &state.device,
                 new_size,
                 &mut self.slot_layout,
+                &self.path_list_view,
             )?;
             let vxs = 0..6;
             let insts = 0..insts;
@@ -556,8 +547,6 @@ impl crate::AppWindow for Viewer1D {
         self.render_graph.set_node_preprocess_fn(
             self.draw_path_slot,
             move |_ctx, op_state| {
-                // op_state.vertices = Some(0..6);
-                // op_state.instances = Some(0..10);
                 op_state.vertices = Some(vxs.clone());
                 op_state.instances = Some(insts.clone());
             },

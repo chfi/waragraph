@@ -226,7 +226,7 @@ impl PathIndex {
     pub fn path_data_pan_range_iter<'index, 'data, T>(
         &'index self,
         pan_range: std::ops::Range<u64>,
-        path_id: usize,
+        path_id: PathId,
         data: &'data [T],
     ) -> PangenomePathDataPosRangeIter<'index, 'data, T> {
         PangenomePathDataPosRangeIter::new_pos_range(

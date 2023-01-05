@@ -1,10 +1,10 @@
 use ultraviolet::Vec2;
-use waragraph_core::graph::PathIndex;
+use waragraph_core::graph::{PathId, PathIndex};
 
 use anyhow::Result;
 use wgpu::util::{BufferInitDescriptor, DeviceExt};
 
-use waragraph_core::graph::sampling::{PathDepthData};
+use waragraph_core::graph::sampling::PathDepthData;
 
 use super::BufferDesc;
 
@@ -12,7 +12,7 @@ pub(super) fn path_depth_data_viz_buffer(
     device: &wgpu::Device,
     index: &PathIndex,
     data: &PathDepthData,
-    paths: impl IntoIterator<Item = usize>,
+    paths: impl IntoIterator<Item = PathId>,
     view_range: std::ops::Range<u64>,
     bins: usize,
 ) -> Result<BufferDesc> {
@@ -37,7 +37,6 @@ pub(super) fn path_depth_data_viz_buffer(
 
     Ok(BufferDesc::new(buffer, buf.len()))
 }
-
 
 pub(super) fn path_slot_vertex_buffer(
     device: &wgpu::Device,

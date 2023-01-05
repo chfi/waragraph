@@ -30,6 +30,16 @@ impl<T> ListView<T> {
         Some(val)
     }
 
+    pub fn visible_indices(&self) -> std::ops::Range<usize> {
+        let start = self.offset;
+        let end = start + self.view_len;
+        start..end
+    }
+
+    pub fn visible_iter(&self) -> impl Iterator<Item = &T> {
+        self.values[self.visible_indices()].iter().map(|(_, v)| v)
+    }
+
     pub fn offset(&self) -> usize {
         self.offset
     }
