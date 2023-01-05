@@ -6,6 +6,8 @@ use ultraviolet::Vec2;
 pub mod viewer_1d;
 pub mod viewer_2d;
 
+pub mod window;
+
 pub mod annotations;
 pub mod gpu_cache;
 pub mod gui;
