@@ -22,6 +22,9 @@ use waragraph_core::graph::{sampling::PathDepthData, PathIndex};
 
 use self::util::path_depth_data_viz_buffer;
 
+pub mod events;
+pub mod gui;
+
 // pub mod sampling;
 pub mod util;
 
@@ -43,17 +46,15 @@ struct Viewer1D {
 
     depth_data: PathDepthData,
 
-    // vertices: wgpu::Buffer,
     vertices: BufferDesc,
     vert_uniform: wgpu::Buffer,
     frag_uniform: wgpu::Buffer,
 
     path_viz_cache: PathVizCache,
-    // data_uniform: wgpu::Buffer,
-    // data_size: usize,
-    // color_uniform: wgpu::Buffer,
-    // color_size: usize,
-    slot_layout: FlexLayout<GuiElem>,
+
+    // slot_layout: FlexLayout<GuiElem>,
+    // gui_layout: FlexLayout<gui::GuiElem>,
+    slot_layout: FlexLayout<gui::SlotElem>,
 }
 
 #[derive(Debug)]
@@ -272,44 +273,18 @@ impl Viewer1D {
         path_viz_cache.insert("data", data);
         path_viz_cache.insert("depth", depth);
 
-        let mut slot_layout = {
-            use taffy::prelude::*;
-
-            let mut rows = Vec::new();
-
-            let mk_entry =
-                |perc: f32, elem: GuiElem| (elem, Dimension::Percent(perc));
-
-            rows.push(vec![mk_entry(1.0, GuiElem::Label { id: "view_range" })]);
-
-            for (slot_id, (path_id, _path_name)) in
-                path_index.path_names.iter().enumerate()
-            {
-                let path_id = *path_id;
-
-                rows.push(vec![
-                    mk_entry(0.2, GuiElem::PathName { path_id }),
-                    mk_entry(
-                        0.8,
-                        GuiElem::PathSlot {
-                            slot_id,
-                            path_id,
-                            data: "depth",
-                        },
-                    ),
-                ]);
-            }
-
-            FlexLayout::from_rows_iter(rows)?
-        };
+        let mut slot_layout = gui::create_slot_layout(32, "depth")?;
 
         // let vertices = util::path_slot_vertex_buffer(&state.device, 0..10)?;
 
         let (vertices, vxs, insts) = {
             let size =
                 ultraviolet::Vec2::new(win_dims[0] as f32, win_dims[1] as f32);
-            let (buffer, insts) =
-                Self::slot_vertices(&state.device, size, &mut slot_layout)?;
+            let (buffer, insts) = Self::slot_vertex_buffer(
+                &state.device,
+                size,
+                &mut slot_layout,
+            )?;
             let vxs = 0..6;
             let insts = 0..insts;
             // println!("slot_count: {slot_count}");
@@ -343,6 +318,7 @@ impl Viewer1D {
             path_viz_cache,
 
             slot_layout,
+            // fixed_gui_layout,
         })
     }
 
@@ -356,7 +332,7 @@ impl Viewer1D {
         // bins: usize,
     ) -> Result<()> {
         let bins = 1024;
-        // let gpu_buf =
+
         let paths = paths.into_iter().collect::<Vec<_>>();
         let prefix_size = std::mem::size_of::<u32>() * 4;
         let elem_size = std::mem::size_of::<f32>();
@@ -379,22 +355,20 @@ impl Viewer1D {
         Ok(())
     }
 
-    fn slot_vertices(
+    fn slot_vertex_buffer(
         device: &wgpu::Device,
         win_dims: ultraviolet::Vec2,
-        layout: &mut FlexLayout<GuiElem>,
+        layout: &mut FlexLayout<gui::SlotElem>,
     ) -> Result<(BufferDesc, u32)> {
         let mut data_buf: Vec<u8> = Vec::new();
 
         let stride = std::mem::size_of::<[f32; 5]>();
 
         layout.visit_layout(win_dims, |layout, elem| {
-            if let GuiElem::PathSlot {
-                slot_id,
-                path_id,
-                data,
-            } = elem
-            {
+            if let gui::SlotElem::PathData { slot_id, data_id } = elem {
+                // get the path id from the list view, via the slot id
+                let path_id = todo!();
+
                 let rect = crate::gui::layout_egui_rect(&layout);
                 let v_pos = rect.left_bottom().to_vec2();
                 let v_size = rect.size();
@@ -462,14 +436,10 @@ impl crate::AppWindow for Viewer1D {
                 painter.rect_stroke(rect, egui::Rounding::default(), stroke);
 
                 match elem {
-                    GuiElem::PathSlot {
-                        slot_id,
-                        path_id,
-                        data,
-                    } => {
-                        // TODO
-                    }
-                    GuiElem::PathName { path_id } => {
+                    gui::SlotElem::PathData { .. } => (),
+                    gui::SlotElem::PathName { slot_id } => {
+                        let path_id = todo!(); // get from list view
+
                         let path_name = self
                             .path_index
                             .path_names
@@ -482,16 +452,36 @@ impl crate::AppWindow for Viewer1D {
                             egui::FontId::monospace(16.0),
                             egui::Color32::WHITE,
                         );
-                    }
-                    GuiElem::Label { id } => {
-                        painter.text(
-                            rect.center(),
-                            egui::Align2::CENTER_CENTER,
-                            id,
-                            egui::FontId::monospace(16.0),
-                            egui::Color32::WHITE,
-                        );
-                    }
+                    } // GuiElem::PathSlot {
+                      //     slot_id,
+                      //     path_id,
+                      //     data,
+                      // } => {
+                      //     // TODO
+                      // }
+                      // GuiElem::PathName { path_id } => {
+                      //     let path_name = self
+                      //         .path_index
+                      //         .path_names
+                      //         .get_by_left(path_id)
+                      //         .unwrap();
+                      //     painter.text(
+                      //         rect.left_center(),
+                      //         egui::Align2::LEFT_CENTER,
+                      //         path_name,
+                      //         egui::FontId::monospace(16.0),
+                      //         egui::Color32::WHITE,
+                      //     );
+                      // }
+                      // GuiElem::Label { id } => {
+                      //     painter.text(
+                      //         rect.center(),
+                      //         egui::Align2::CENTER_CENTER,
+                      //         id,
+                      //         egui::FontId::monospace(16.0),
+                      //         egui::Color32::WHITE,
+                      //     );
+                      // }
                 }
             });
             if let Err(e) = result {
@@ -552,7 +542,7 @@ impl crate::AppWindow for Viewer1D {
         let new_size = ultraviolet::Vec2::new(w as f32, h as f32);
 
         let (vertices, vxs, insts) = {
-            let (buffer, insts) = Self::slot_vertices(
+            let (buffer, insts) = Self::slot_vertex_buffer(
                 &state.device,
                 new_size,
                 &mut self.slot_layout,
