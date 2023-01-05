@@ -6,11 +6,10 @@ use ultraviolet::Vec2;
 pub mod viewer_1d;
 pub mod viewer_2d;
 
-pub mod gui;
-
 pub mod annotations;
-
 pub mod gpu_cache;
+pub mod gui;
+pub mod list;
 
 pub trait AppWindow {
     fn update(
