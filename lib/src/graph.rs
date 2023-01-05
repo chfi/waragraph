@@ -18,6 +18,14 @@ pub struct Node(u32);
 #[repr(C)]
 pub struct OrientedNode(u32);
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[repr(C)]
+pub struct Bp(pub u64);
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[repr(C)]
+pub struct PathId(u32);
+
 impl Node {
     #[inline]
     pub fn ix(&self) -> usize {
@@ -64,10 +72,6 @@ impl OrientedNode {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-#[repr(C)]
-pub struct Bp(pub u64);
-
 impl From<u64> for Bp {
     fn from(u: u64) -> Bp {
         Bp(u)
@@ -77,6 +81,25 @@ impl From<u64> for Bp {
 impl From<Bp> for u64 {
     fn from(bp: Bp) -> u64 {
         bp.0
+    }
+}
+
+impl PathId {
+    #[inline]
+    pub fn ix(&self) -> usize {
+        self.0 as usize
+    }
+}
+
+impl From<u32> for PathId {
+    fn from(u: u32) -> PathId {
+        PathId(u)
+    }
+}
+
+impl From<usize> for PathId {
+    fn from(u: usize) -> PathId {
+        PathId(u as u32)
     }
 }
 
@@ -120,7 +143,7 @@ pub struct PathIndex {
     pub sequence_total_len: Bp,
     pub segment_id_range: (u32, u32),
 
-    pub path_names: BiBTreeMap<usize, String>,
+    pub path_names: BiBTreeMap<PathId, String>,
     // pub path_names: BTreeMap<String, usize>,
     pub path_steps: Vec<Vec<OrientedNode>>,
 
@@ -129,7 +152,7 @@ pub struct PathIndex {
 }
 
 pub struct PathStepRangeIter<'a> {
-    path_id: usize,
+    path_id: PathId,
     pos_range: std::ops::Range<u64>,
     // start_pos: usize,
     // end_pos: usize,
@@ -215,8 +238,8 @@ impl PathIndex {
         &'a self,
         path_name: &str,
     ) -> Option<&'a [OrientedNode]> {
-        let ix = self.path_names.get_by_right(path_name)?;
-        self.path_steps.get(*ix).map(|s| s.as_slice())
+        let id = self.path_names.get_by_right(path_name)?;
+        self.path_steps.get(id.ix()).map(|s| s.as_slice())
     }
 
     pub fn step_at_pos(
@@ -224,9 +247,9 @@ impl PathIndex {
         path_name: &str,
         pos: usize,
     ) -> Option<OrientedNode> {
-        let path_id = *self.path_names.get_by_right(path_name)?;
-        let offsets = self.path_step_offsets.get(path_id)?;
-        let steps = self.path_steps.get(path_id)?;
+        let path_id = self.path_names.get_by_right(path_name)?;
+        let offsets = self.path_step_offsets.get(path_id.ix())?;
+        let steps = self.path_steps.get(path_id.ix())?;
         let pos_rank = offsets.rank(pos as u64) as usize;
         steps.get(pos_rank).copied()
     }
@@ -237,7 +260,7 @@ impl PathIndex {
         pos_range: std::ops::Range<u64>,
     ) -> Option<PathStepRangeIter<'a>> {
         let path_id = *self.path_names.get_by_right(path_name)?;
-        let offsets = self.path_step_offsets.get(path_id)?;
+        let offsets = self.path_step_offsets.get(path_id.ix())?;
 
         let start = pos_range.start;
         let end = pos_range.end;
@@ -245,7 +268,7 @@ impl PathIndex {
         let end_rank = offsets.rank(end);
 
         let steps = {
-            let path_steps = self.path_steps.get(path_id)?;
+            let path_steps = self.path_steps.get(path_id.ix())?;
 
             let skip = (start_rank as usize).checked_sub(1).unwrap_or_default();
             let take = end_rank as usize - skip;
@@ -366,7 +389,7 @@ impl PathIndex {
             let name = std::str::from_utf8(name).map_err(|e| {
                 std::io::Error::new(std::io::ErrorKind::InvalidData, e)
             })?;
-            path_names.insert(path_steps.len(), name.to_string());
+            path_names.insert(PathId::from(path_steps.len()), name.to_string());
 
             let mut pos = 0;
 
