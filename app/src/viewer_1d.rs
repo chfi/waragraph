@@ -23,12 +23,14 @@ use anyhow::Result;
 use waragraph_core::graph::{sampling::PathDepthData, PathIndex};
 
 use self::util::path_depth_data_viz_buffer;
+use self::view::View1D;
 
 pub mod events;
 pub mod gui;
 
 // pub mod sampling;
 pub mod util;
+pub mod view;
 
 #[derive(Debug)]
 pub struct Args {
@@ -43,7 +45,9 @@ struct Viewer1D {
     draw_path_slot: NodeId,
 
     pangenome_len: u64,
-    view: std::ops::Range<u64>,
+
+    view: View1D,
+    // view: std::ops::Range<u64>,
     rendered_view: std::ops::Range<u64>,
     force_resample: bool,
 
@@ -258,7 +262,7 @@ impl Viewer1D {
         let depth_data = PathDepthData::new(&path_index);
 
         let len = pangenome_len as u64;
-        let view_range = init_range.unwrap_or(0..len);
+        let mut view = View1D::new(len);
 
         let paths = 0..path_index.path_names.len();
 
@@ -272,7 +276,7 @@ impl Viewer1D {
             &path_index,
             &depth_data,
             paths,
-            view_range.clone(),
+            view.range().clone(),
             1024,
         )?;
 
@@ -305,6 +309,8 @@ impl Viewer1D {
             op_state.instances = Some(insts.clone());
         });
 
+        view.set(0, 10_000);
+
         Ok(Viewer1D {
             render_graph: graph,
             egui,
@@ -312,8 +318,8 @@ impl Viewer1D {
             draw_path_slot: draw_node,
             pangenome_len,
 
-            view: view_range.clone(),
-            rendered_view: view_range,
+            view: view.clone(),
+            rendered_view: view.range().clone(),
             force_resample: false,
 
             depth_data,
@@ -401,6 +407,18 @@ impl Viewer1D {
 
         Ok((slots, slot_count as u32))
     }
+
+    fn scroll_path_list(&mut self, scroll_delta: f32) {
+        todo!();
+    }
+
+    fn scroll_zoom_path_view(&mut self, slot_local_x: f32, scroll_delta: f32) {
+        todo!();
+    }
+
+    fn pan_path_view(&mut self, delta: f32) {
+        todo!();
+    }
 }
 
 impl crate::AppWindow for Viewer1D {
@@ -410,7 +428,7 @@ impl crate::AppWindow for Viewer1D {
         window: &winit::window::Window,
         dt: f32,
     ) {
-        if self.rendered_view != self.view || self.force_resample {
+        if &self.rendered_view != self.view.range() || self.force_resample {
             // let paths = path_list_view.visible_iter().copied().collect::<Vec<_>>();
             // let paths = 0..(self.path_index.path_names.len().min(64));
             let gpu_buffer = self.path_viz_cache.get("depth").unwrap();
@@ -420,13 +438,13 @@ impl crate::AppWindow for Viewer1D {
                 &self.path_index,
                 &self.depth_data,
                 &self.path_list_view,
-                self.view.clone(),
+                self.view.range().clone(),
                 gpu_buffer,
             )
             .unwrap();
 
             self.force_resample = false;
-            self.rendered_view = self.view.clone();
+            self.rendered_view = self.view.range().clone();
         }
 
         // TODO debug FlexLayout rendering should use a render graph
@@ -498,6 +516,9 @@ impl crate::AppWindow for Viewer1D {
                 }
 
                 if path_slot_region.contains(pos) {
+                    let (l, r) = path_slot_region.x_range().into_inner();
+                    let rel_x = (pos.x - l) / (r - l);
+
                     // TODO: zoom path view
                     painter.text(
                         egui::pos2(size.x - 10.0, size.y - 10.0),
@@ -542,19 +563,17 @@ impl crate::AppWindow for Viewer1D {
                 use winit::event::VirtualKeyCode as Key;
                 let pressed = matches!(input.state, ElementState::Pressed);
 
-                let mut l = self.view.start;
-                let mut r = self.view.end;
-                let len = r - l;
+                // let mut l = self.view.start;
+                // let mut r = self.view.end;
+                // let len = r - l;
 
                 if pressed {
                     match key {
                         Key::Right => {
-                            r = (r + len / 10).min(self.pangenome_len);
-                            l = r.checked_sub(len).unwrap_or_default();
+                            self.view.translate_norm_f32(0.1);
                         }
                         Key::Left => {
-                            l = l.checked_sub(len / 10).unwrap_or_default();
-                            r = l + len;
+                            self.view.translate_norm_f32(-0.1);
                         }
                         Key::Up => {
                             self.path_list_view.scroll_relative(-1);
@@ -568,7 +587,7 @@ impl crate::AppWindow for Viewer1D {
                     }
                 }
 
-                self.view = l..r;
+                // self.view = l..r;
             }
         }
 
