@@ -442,14 +442,21 @@ impl crate::AppWindow for Viewer1D {
                 color: egui::Color32::RED,
             };
 
+            let mut path_name_region = egui::Rect::NOTHING;
+            let mut path_slot_region = egui::Rect::NOTHING;
+
             let result = self.slot_layout.visit_layout(size, |layout, elem| {
                 let rect = crate::gui::layout_egui_rect(&layout);
 
                 painter.rect_stroke(rect, egui::Rounding::default(), stroke);
 
                 match elem {
-                    gui::SlotElem::PathData { .. } => (),
+                    gui::SlotElem::PathData { .. } => {
+                        path_slot_region = path_slot_region.union(rect);
+                    }
                     gui::SlotElem::PathName { slot_id } => {
+                        path_name_region = path_name_region.union(rect);
+
                         let path_id = self.path_list_view.get_in_view(*slot_id);
                         if path_id.is_none() {
                             return;
@@ -471,6 +478,37 @@ impl crate::AppWindow for Viewer1D {
                     }
                 }
             });
+
+            // check interactions against `path_name_region` and `path_slot_region`
+            let pos = ctx.pointer_latest_pos();
+            let scroll = {
+                let input = ctx.input();
+                input.scroll_delta
+            };
+            if let Some(pos) = pos {
+                if path_name_region.contains(pos) {
+                    // TODO: scroll path list
+                    painter.text(
+                        egui::pos2(10.0, size.y - 10.0),
+                        egui::Align2::LEFT_CENTER,
+                        scroll.y.to_string(),
+                        egui::FontId::monospace(16.0),
+                        egui::Color32::WHITE,
+                    );
+                }
+
+                if path_slot_region.contains(pos) {
+                    // TODO: zoom path view
+                    painter.text(
+                        egui::pos2(size.x - 10.0, size.y - 10.0),
+                        egui::Align2::RIGHT_CENTER,
+                        scroll.y.to_string(),
+                        egui::FontId::monospace(16.0),
+                        egui::Color32::WHITE,
+                    );
+                }
+            }
+
             if let Err(e) = result {
                 eprintln!("draw layout error: {e:?}");
             }
