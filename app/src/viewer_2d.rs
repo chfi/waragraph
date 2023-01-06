@@ -247,8 +247,8 @@ impl crate::AppWindow for PathRenderer {
 
         if let Some(touch) = self.egui.multi_touch() {
             let t = touch.translation_delta;
-            let z = touch.zoom_delta;
-            let t = ultraviolet::Vec2::new(t.x / win_size.x, t.y / win_size.y);
+            let z = 2.0 - touch.zoom_delta;
+            let t = ultraviolet::Vec2::new(-t.x / win_size.x, t.y / win_size.y);
 
             self.camera.blink(t);
             self.camera.size *= z;
