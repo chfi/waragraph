@@ -114,75 +114,35 @@ pub fn main() -> Result<()> {
     let (event_loop, window, state) =
         pollster::block_on(raving_wgpu::initialize())?;
 
-    let args_1d = waragraph::viewer_1d::Args {
-        gfa: args.gfa.clone(),
-        init_range: args.init_range.clone(),
+    let app_1d = {
+        let args_1d = waragraph::viewer_1d::Args {
+            gfa: args.gfa.clone(),
+            init_range: args.init_range.clone(),
+        };
+        waragraph::viewer_1d::init(&event_loop, &window, &state, args_1d)?
     };
 
-    let args_2d = args.tsv.map(|tsv| waragraph::viewer_2d::Args {
-        gfa: args.gfa,
-        tsv,
-        annotations: args.annotations,
-    });
+    let app_2d = {
+        let args_2d = args.tsv.map(|tsv| waragraph::viewer_2d::Args {
+            gfa: args.gfa,
+            tsv,
+            annotations: args.annotations,
+        });
 
-    let viewer_1d = Some(waragraph::viewer_1d::init(
-        &event_loop,
-        &window,
-        &state,
-        args_1d,
-    )?);
-    let viewer_2d = args_2d.map(|args| {
-        waragraph::viewer_2d::init(&event_loop, &window, &state, args).unwrap()
-    });
+        args_2d
+            .map(|args| {
+                waragraph::viewer_2d::init(&event_loop, &window, &state, args)
+            })
+            .transpose()?
+    };
 
-    let window_handler = WindowHandler::init(viewer_1d, viewer_2d).unwrap();
+    let mut window_handler = WindowHandler::init([app_1d]).unwrap();
+
+    window_handler.add_windows_iter(app_2d);
 
     if let Err(e) =
         pollster::block_on(window_handler.run(event_loop, window, state))
     {
-        log::error!("{e}");
-    }
-
-    Ok(())
-}
-
-pub fn old_main() -> Result<()> {
-    env_logger::builder()
-        .filter_level(log::LevelFilter::Warn)
-        .init();
-
-    let args = parse_args();
-
-    if args.is_err() {
-        let name = std::env::args().next().unwrap();
-        println!("Usage: {name} <gfa> [tsv]");
-        println!("4-column BED file can be provided using the --bed flag");
-        std::process::exit(0);
-    }
-
-    let args = args.unwrap();
-
-    let (event_loop, window, state) =
-        pollster::block_on(raving_wgpu::initialize())?;
-
-    let app = if let Some(tsv) = args.tsv {
-        let args_2d = waragraph::viewer_2d::Args {
-            gfa: args.gfa,
-            tsv,
-            annotations: args.annotations,
-        };
-
-        waragraph::viewer_2d::init(&event_loop, &window, &state, args_2d)?
-    } else {
-        let args_1d = waragraph::viewer_1d::Args {
-            gfa: args.gfa,
-            init_range: args.init_range,
-        };
-
-        waragraph::viewer_1d::init(&event_loop, &window, &state, args_1d)?
-    };
-
-    if let Err(e) = pollster::block_on(run(event_loop, window, state, app)) {
         log::error!("{e}");
     }
 

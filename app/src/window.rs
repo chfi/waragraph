@@ -14,17 +14,12 @@ pub struct WindowHandler {
 
 impl WindowHandler {
     pub fn init(
-        viewer_1d: Option<Box<dyn AppWindow>>,
-        viewer_2d: Option<Box<dyn AppWindow>>,
+        apps: impl IntoIterator<Item = Box<dyn AppWindow>>,
     ) -> Option<Self> {
         let mut app_windows = HashMap::new();
 
-        if let Some(app) = viewer_1d {
-            app_windows.insert(0, app);
-        }
-
-        if let Some(app) = viewer_2d {
-            app_windows.insert(1, app);
+        for (ix, app) in apps.into_iter().enumerate() {
+            app_windows.insert(ix, app);
         }
 
         if app_windows.is_empty() {
@@ -37,6 +32,21 @@ impl WindowHandler {
             active_window,
             app_windows,
         })
+    }
+
+    pub fn add_window(&mut self, app: Box<dyn AppWindow>) {
+        let ix = self.app_windows.len();
+        self.app_windows.insert(ix, app);
+    }
+
+    pub fn add_windows_iter(
+        &mut self,
+        apps: impl IntoIterator<Item = Box<dyn AppWindow>>,
+    ) {
+        for app in apps {
+            let ix = self.app_windows.len();
+            self.app_windows.insert(ix, app);
+        }
     }
 
     pub fn next_window(&mut self) {
