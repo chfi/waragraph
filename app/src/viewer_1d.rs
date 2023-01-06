@@ -46,6 +46,7 @@ struct Viewer1D {
 
     pangenome_len: u64,
 
+    view_delta: f32,
     view: View1D,
     // view: std::ops::Range<u64>,
     rendered_view: std::ops::Range<u64>,
@@ -303,8 +304,6 @@ impl Viewer1D {
         };
 
         graph.set_node_preprocess_fn(draw_node, move |_ctx, op_state| {
-            // op_state.vertices = Some(0..6);
-            // op_state.instances = Some(0..10);
             op_state.vertices = Some(vxs.clone());
             op_state.instances = Some(insts.clone());
         });
@@ -318,6 +317,7 @@ impl Viewer1D {
             draw_path_slot: draw_node,
             pangenome_len,
 
+            view_delta: 0.0,
             view: view.clone(),
             rendered_view: view.range().clone(),
             force_resample: false,
@@ -415,10 +415,6 @@ impl Viewer1D {
     fn scroll_zoom_path_view(&mut self, slot_local_x: f32, scroll_delta: f32) {
         todo!();
     }
-
-    fn pan_path_view(&mut self, delta: f32) {
-        todo!();
-    }
 }
 
 impl crate::AppWindow for Viewer1D {
@@ -445,6 +441,7 @@ impl crate::AppWindow for Viewer1D {
 
             self.force_resample = false;
             self.rendered_view = self.view.range().clone();
+            self.view_delta = 0.0;
         }
 
         // TODO debug FlexLayout rendering should use a render graph
@@ -499,9 +496,11 @@ impl crate::AppWindow for Viewer1D {
 
             // check interactions against `path_name_region` and `path_slot_region`
             let pos = ctx.pointer_latest_pos();
-            let scroll = {
+            let (scroll, primary_down, pointer_delta) = {
                 let input = ctx.input();
-                input.scroll_delta
+                let primary = input.pointer.primary_down();
+                let delta = input.pointer.delta();
+                (input.scroll_delta, primary, delta)
             };
             if let Some(pos) = pos {
                 if path_name_region.contains(pos) {
@@ -518,6 +517,20 @@ impl crate::AppWindow for Viewer1D {
                 if path_slot_region.contains(pos) {
                     let (l, r) = path_slot_region.x_range().into_inner();
                     let rel_x = (pos.x - l) / (r - l);
+                    let dx = pointer_delta.x / (r - l);
+
+                    if primary_down {
+                        self.view.translate_norm_f32(-dx);
+                        self.view_delta += -dx;
+                    }
+
+                    // let min_scroll = 5.0;
+                    let min_scroll = 0.1;
+                    let factor = 0.1;
+                    if scroll.y.abs() > min_scroll {
+                        let dz = 1.0 - scroll.y * factor;
+                        self.view.zoom_around_norm_f32(rel_x, dz);
+                    }
 
                     // TODO: zoom path view
                     painter.text(
@@ -582,6 +595,9 @@ impl crate::AppWindow for Viewer1D {
                         Key::Down => {
                             self.path_list_view.scroll_relative(1);
                             self.force_resample = true;
+                        }
+                        Key::Space => {
+                            self.view.reset();
                         }
                         _ => (),
                     }

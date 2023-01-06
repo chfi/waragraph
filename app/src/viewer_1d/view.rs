@@ -37,7 +37,7 @@ impl View1D {
             self.range.end = self.max();
         }
 
-        let max_offset = self.max - len;
+        let max_offset = self.max.checked_sub(len).unwrap_or_default();
         if self.offset() > max_offset {
             self.range.start = max_offset;
         }
@@ -68,5 +68,32 @@ impl View1D {
     pub fn translate_norm_f32(&mut self, fdelta: f32) {
         let delta = (fdelta * self.len() as f32) as i64;
         self.translate(delta);
+    }
+
+    /// `fix` is a normalized point in the view [0..1] that will not
+    /// move during the zoom
+    pub fn zoom_around_norm_f32(&mut self, fix: f32, zdelta: f32) {
+        println!("zdelta: {zdelta}");
+        let old_len = self.len() as f32;
+        let new_len = old_len * zdelta;
+        let extra = new_len - old_len;
+
+        let mut l = self.range.start as f32;
+        let mut r = self.range.end as f32;
+
+        let left_prop = fix;
+        let right_prop = 1.0 - fix;
+
+        let max = self.max() as f32;
+
+        l -= (left_prop * extra).clamp(0.0, max);
+        r += (right_prop * extra).clamp(l, max);
+
+        let l = l as u64;
+        let r = r as u64;
+        self.range = l..r;
+        println!("new range: {l}..{r}");
+
+        self.make_valid();
     }
 }
