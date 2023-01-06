@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use winit::{
-    event::{Event, VirtualKeyCode, WindowEvent},
+    event::{ElementState, Event, VirtualKeyCode, WindowEvent},
     event_loop::{ControlFlow, EventLoop},
 };
 
@@ -39,6 +39,17 @@ impl WindowHandler {
         })
     }
 
+    pub fn next_window(&mut self) {
+        self.active_window = (self.active_window + 1) % self.app_windows.len()
+    }
+
+    pub fn prev_window(&mut self) {
+        self.active_window = self
+            .active_window
+            .checked_sub(1)
+            .unwrap_or(self.app_windows.len() - 1)
+    }
+
     pub async fn run(
         mut self,
         event_loop: EventLoop<()>,
@@ -62,9 +73,19 @@ impl WindowHandler {
                         match &event {
                             WindowEvent::KeyboardInput { input, .. } => {
                                 use VirtualKeyCode as Key;
+
+                                let pressed = matches!(
+                                    input.state,
+                                    ElementState::Pressed
+                                );
+
                                 if let Some(code) = input.virtual_keycode {
                                     if let Key::Escape = code {
                                         *control_flow = ControlFlow::Exit;
+                                    } else if let Key::F1 = code {
+                                        if pressed {
+                                            self.next_window();
+                                        }
                                     }
                                 }
                             }
