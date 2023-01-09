@@ -2,6 +2,7 @@ use crate::annotations::AnnotationStore;
 
 use std::collections::HashMap;
 use std::path::PathBuf;
+use std::sync::Arc;
 
 use winit::event_loop::{EventLoop, EventLoopWindowTarget};
 use winit::window::Window;
@@ -41,7 +42,7 @@ struct PathRenderer {
     render_graph: Graph,
     egui: EguiCtx,
 
-    path_index: PathIndex,
+    path_index: Arc<PathIndex>,
     graph_curves: layout::GraphPathCurves,
     // layout: GfaLayout,
     camera: DynamicCamera2d,
@@ -84,7 +85,7 @@ impl PathRenderer {
     fn init(
         event_loop: &EventLoopWindowTarget<()>,
         state: &State,
-        path_index: PathIndex,
+        path_index: Arc<PathIndex>,
         graph_curves: GraphPathCurves,
     ) -> Result<Self> {
         let mut graph = Graph::new();
@@ -407,9 +408,9 @@ pub fn init(
     event_loop: &EventLoop<()>,
     window: &Window,
     state: &State,
+    path_index: Arc<PathIndex>,
     args: Args,
 ) -> Result<Box<dyn crate::AppWindow>> {
-    let path_index = PathIndex::from_gfa(&args.gfa)?;
     let graph_curves = GraphPathCurves::from_path_index_and_layout_tsv(
         &path_index,
         &args.tsv,

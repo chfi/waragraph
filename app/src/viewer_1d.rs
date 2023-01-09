@@ -7,6 +7,7 @@ use wgpu::BufferUsages;
 use std::collections::HashMap;
 use std::num::NonZeroU64;
 use std::path::PathBuf;
+use std::sync::Arc;
 
 use winit::event::WindowEvent;
 use winit::event_loop::{EventLoop, EventLoopWindowTarget};
@@ -41,15 +42,12 @@ pub struct Args {
 struct Viewer1D {
     render_graph: Graph,
     egui: EguiCtx,
-    path_index: PathIndex,
+    path_index: Arc<PathIndex>,
     draw_path_slot: NodeId,
 
-    pangenome_len: u64,
-
-    view_delta: f32,
     view: View1D,
-    // view: std::ops::Range<u64>,
     rendered_view: std::ops::Range<u64>,
+
     force_resample: bool,
 
     depth_data: PathDepthData,
@@ -182,7 +180,7 @@ impl Viewer1D {
         event_loop: &EventLoopWindowTarget<()>,
         win_dims: [u32; 2],
         state: &State,
-        path_index: PathIndex,
+        path_index: Arc<PathIndex>,
         init_range: Option<std::ops::Range<u64>>,
     ) -> Result<Self> {
         let mut graph = Graph::new();
@@ -315,9 +313,7 @@ impl Viewer1D {
             egui,
             path_index,
             draw_path_slot: draw_node,
-            pangenome_len,
 
-            view_delta: 0.0,
             view: view.clone(),
             rendered_view: view.range().clone(),
             force_resample: false,
@@ -441,11 +437,27 @@ impl crate::AppWindow for Viewer1D {
 
             self.force_resample = false;
             self.rendered_view = self.view.range().clone();
-            self.view_delta = 0.0;
         }
 
         // TODO debug FlexLayout rendering should use a render graph
         self.egui.run(window, |ctx| {
+            let avail = ctx.available_rect();
+            // println!("available: {avail:?}");
+            // let rect = egui::Rect::from_min_max(egui::pos2(0.0, 0.0),
+            //                                     egui::pos2(
+            let mut main_ui = egui::Ui::new(
+                ctx.clone(),
+                egui::LayerId::new(
+                    egui::Order::Foreground,
+                    "main_layer".into(),
+                ),
+                "main_ui".into(),
+                avail,
+                avail,
+            );
+
+            // egui::Area::new("
+
             let painter = ctx.debug_painter();
 
             let size = window.inner_size();
@@ -502,6 +514,26 @@ impl crate::AppWindow for Viewer1D {
                 let delta = input.pointer.delta();
                 (input.scroll_delta, primary, delta)
             };
+
+            let path_name_interact = main_ui
+                .allocate_rect(path_name_region, egui::Sense::click_and_drag());
+
+            painter.rect_stroke(
+                path_name_region,
+                // path_name_interact.rect,
+                0.0,
+                egui::Stroke {
+                    width: 2.0,
+                    color: egui::Color32::BLUE,
+                },
+            );
+
+            println!("main_ui clip rect: {:?}", main_ui.clip_rect());
+
+            if path_name_interact.clicked() {
+                println!("path names clicked!");
+            }
+
             if let Some(pos) = pos {
                 if path_name_region.contains(pos) {
                     // TODO: scroll path list
@@ -521,7 +553,6 @@ impl crate::AppWindow for Viewer1D {
 
                     if primary_down {
                         self.view.translate_norm_f32(-dx);
-                        self.view_delta += -dx;
                     }
 
                     // let min_scroll = 5.0;
@@ -760,9 +791,10 @@ pub fn init(
     event_loop: &EventLoop<()>,
     window: &Window,
     state: &State,
+    path_index: Arc<PathIndex>,
     args: Args,
 ) -> Result<Box<dyn crate::AppWindow>> {
-    let path_index = PathIndex::from_gfa(&args.gfa)?;
+    // let path_index = PathIndex::from_gfa(&args.gfa)?;
 
     let dims = {
         let s = window.inner_size();
