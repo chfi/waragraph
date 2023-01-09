@@ -51,7 +51,7 @@ struct Viewer1D {
 
     force_resample: bool,
 
-    depth_data: PathDepthData,
+    depth_data: Arc<PathDepthData>,
 
     vertices: BufferDesc,
     vert_uniform: wgpu::Buffer,
@@ -64,6 +64,9 @@ struct Viewer1D {
     slot_layout: FlexLayout<gui::SlotElem>,
 
     path_list_view: ListView<PathId>,
+
+    sample_handle:
+        Option<tokio::task::JoinHandle<(std::ops::Range<u64>, Vec<u8>)>>,
 }
 
 #[derive(Debug)]
@@ -260,7 +263,7 @@ impl Viewer1D {
 
         let (color, data) = path_frag_example_uniforms(&state.device)?;
 
-        let depth_data = PathDepthData::new(&path_index);
+        let depth_data = Arc::new(PathDepthData::new(&path_index));
 
         let len = pangenome_len as u64;
         let mut view = View1D::new(len);
@@ -331,41 +334,81 @@ impl Viewer1D {
             slot_layout,
             // fixed_gui_layout,
             path_list_view,
+
+            sample_handle: None,
         })
     }
 
+    fn sample_buffer_size(bins: usize, rows: usize) -> usize {
+        let prefix_size = std::mem::size_of::<u32>() * 4;
+        let elem_size = std::mem::size_of::<f32>();
+        let size = prefix_size + elem_size * bins * rows;
+        size
+    }
+
+    fn sample_into_vec(
+        index: &PathIndex,
+        data: &PathDepthData,
+        paths: &[PathId],
+        view_range: std::ops::Range<u64>,
+        buffer: &mut Vec<u8>,
+    ) -> Result<()> {
+        let bins = 1024;
+        let size = Self::sample_buffer_size(bins, paths.len());
+        buffer.resize(size, 0u8);
+        Self::sample_into_data_buffer(index, data, paths, view_range, buffer)
+    }
+
     fn sample_into_data_buffer(
+        index: &PathIndex,
+        data: &PathDepthData,
+        paths: &[PathId],
+        view_range: std::ops::Range<u64>,
+        buffer: &mut [u8],
+    ) -> Result<()> {
+        let bins = 1024;
+        let size = Self::sample_buffer_size(bins, paths.len());
+
+        assert!(buffer.len() >= size);
+
+        // let size = NonZeroU64::new(size as u64).unwrap();
+
+        waragraph_core::graph::sampling::sample_path_data_into_buffer(
+            index,
+            data,
+            paths.into_iter().copied(),
+            bins,
+            view_range,
+            buffer,
+        );
+
+        Ok(())
+    }
+
+    fn sample_into_gpu_buffer(
         state: &State,
         index: &PathIndex,
         data: &PathDepthData,
-        path_list_view: &ListView<PathId>,
+        paths: &[PathId],
+        // path_list_view: &ListView<PathId>,
         view_range: std::ops::Range<u64>,
         gpu_buffer: &BufferDesc,
         // bins: usize,
     ) -> Result<()> {
         let bins = 1024;
-
-        let paths = path_list_view.visible_iter().copied().collect::<Vec<_>>();
-        // let paths = paths.into_iter().collect::<Vec<_>>();
-        let prefix_size = std::mem::size_of::<u32>() * 4;
-        let elem_size = std::mem::size_of::<f32>();
-        let size = prefix_size + elem_size * bins * paths.len();
-
+        let size = Self::sample_buffer_size(bins, paths.len());
         let size = NonZeroU64::new(size as u64).unwrap();
 
-        let mut view =
+        let mut buffer_view =
             state.queue.write_buffer_with(&gpu_buffer.buffer, 0, size);
 
-        waragraph_core::graph::sampling::sample_path_data_into_buffer(
+        Self::sample_into_data_buffer(
             index,
             data,
             paths,
-            bins,
             view_range,
-            view.as_mut(),
-        );
-
-        Ok(())
+            buffer_view.as_mut(),
+        )
     }
 
     // TODO there's no need to reallocate the buffer every time the list is scrolled...
@@ -410,28 +453,54 @@ impl Viewer1D {
 impl AppWindow for Viewer1D {
     fn update(
         &mut self,
-        _handle: &tokio::runtime::Handle,
+        tokio_rt: &tokio::runtime::Handle,
         state: &raving_wgpu::State,
         window: &winit::window::Window,
         dt: f32,
     ) {
-        if &self.rendered_view != self.view.range() || self.force_resample {
-            // let paths = path_list_view.visible_iter().copied().collect::<Vec<_>>();
-            // let paths = 0..(self.path_index.path_names.len().min(64));
-            let gpu_buffer = self.path_viz_cache.get("depth").unwrap();
+        if self.sample_handle.is_none()
+            && (&self.rendered_view != self.view.range() || self.force_resample)
+        {
+            let paths = self
+                .path_list_view
+                .visible_iter()
+                .copied()
+                .collect::<Vec<_>>();
 
-            Self::sample_into_data_buffer(
-                state,
-                &self.path_index,
-                &self.depth_data,
-                &self.path_list_view,
-                self.view.range().clone(),
-                gpu_buffer,
-            )
-            .unwrap();
+            let view_range = self.view.range().clone();
 
-            self.force_resample = false;
-            self.rendered_view = self.view.range().clone();
+            let path_index = self.path_index.clone();
+            let data = self.depth_data.clone();
+
+            let join = tokio_rt.spawn_blocking(move || {
+                let mut buf: Vec<u8> = Vec::new();
+
+                Self::sample_into_vec(
+                    &path_index,
+                    &data,
+                    &paths,
+                    view_range.clone(),
+                    &mut buf,
+                )
+                .unwrap();
+
+                (view_range, buf)
+            });
+
+            self.sample_handle = Some(join);
+        }
+
+        if let Some(true) = self.sample_handle.as_ref().map(|j| j.is_finished())
+        {
+            let handle = self.sample_handle.take().unwrap();
+
+            if let Ok((view_range, data)) = tokio_rt.block_on(handle) {
+                let gpu_buffer = self.path_viz_cache.get("depth").unwrap();
+                state.queue.write_buffer(&gpu_buffer.buffer, 0, &data);
+
+                self.rendered_view = view_range;
+                self.force_resample = false;
+            }
         }
 
         // TODO debug FlexLayout rendering should use a render graph
