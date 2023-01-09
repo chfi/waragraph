@@ -1,4 +1,5 @@
 use crate::annotations::AnnotationStore;
+use crate::app::AppWindow;
 
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -181,7 +182,7 @@ impl PathRenderer {
     }
 }
 
-impl crate::AppWindow for PathRenderer {
+impl AppWindow for PathRenderer {
     fn update(
         &mut self,
         _state: &raving_wgpu::State,
@@ -410,7 +411,7 @@ pub fn init(
     state: &State,
     path_index: Arc<PathIndex>,
     args: Args,
-) -> Result<Box<dyn crate::AppWindow>> {
+) -> Result<Box<dyn AppWindow>> {
     let graph_curves = GraphPathCurves::from_path_index_and_layout_tsv(
         &path_index,
         &args.tsv,

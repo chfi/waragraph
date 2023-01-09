@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use waragraph::window::WindowHandler;
+use waragraph::app::WindowHandler;
 use waragraph_core::graph::PathIndex;
 use winit::event::{Event, VirtualKeyCode, WindowEvent};
 use winit::event_loop::{ControlFlow, EventLoop};

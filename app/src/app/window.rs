@@ -5,11 +5,37 @@ use winit::{
     event_loop::{ControlFlow, EventLoop},
 };
 
-use crate::AppWindow;
+pub struct App {
+    window_handler: WindowHandler,
+}
 
 pub struct WindowHandler {
     active_window: usize,
     app_windows: HashMap<usize, Box<dyn AppWindow>>,
+}
+
+pub trait AppWindow {
+    fn update(
+        &mut self,
+        state: &raving_wgpu::State,
+        window: &winit::window::Window,
+        dt: f32,
+    );
+
+    fn on_event(
+        &mut self,
+        window_dims: [u32; 2],
+        event: &winit::event::WindowEvent,
+    ) -> bool;
+
+    fn resize(
+        &mut self,
+        state: &raving_wgpu::State,
+        old_window_dims: [u32; 2],
+        new_window_dims: [u32; 2],
+    ) -> anyhow::Result<()>;
+
+    fn render(&mut self, state: &mut raving_wgpu::State) -> anyhow::Result<()>;
 }
 
 impl WindowHandler {

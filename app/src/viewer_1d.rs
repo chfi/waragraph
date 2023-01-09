@@ -1,4 +1,5 @@
 use crate::annotations::AnnotationStore;
+use crate::app::AppWindow;
 use crate::gui::FlexLayout;
 use crate::list::ListView;
 use waragraph_core::graph::PathId;
@@ -82,6 +83,7 @@ impl BufferDesc {
     }
 }
 
+// TODO this should be more general/shared across the entire app
 #[derive(Debug, Default)]
 struct PathVizCache {
     buffer_names: HashMap<String, usize>,
@@ -413,7 +415,7 @@ impl Viewer1D {
     }
 }
 
-impl crate::AppWindow for Viewer1D {
+impl AppWindow for Viewer1D {
     fn update(
         &mut self,
         state: &raving_wgpu::State,
@@ -793,7 +795,7 @@ pub fn init(
     state: &State,
     path_index: Arc<PathIndex>,
     args: Args,
-) -> Result<Box<dyn crate::AppWindow>> {
+) -> Result<Box<dyn AppWindow>> {
     // let path_index = PathIndex::from_gfa(&args.gfa)?;
 
     let dims = {
