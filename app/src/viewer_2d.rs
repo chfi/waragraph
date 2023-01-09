@@ -185,6 +185,7 @@ impl PathRenderer {
 impl AppWindow for PathRenderer {
     fn update(
         &mut self,
+        _handle: &tokio::runtime::Handle,
         _state: &raving_wgpu::State,
         window: &winit::window::Window,
         dt: f32,

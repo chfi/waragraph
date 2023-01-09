@@ -8,6 +8,8 @@ edition = "2021"
 [dependencies]
 waragraph-core = { path = "../lib" }
 
+tokio = { version = "1", features = ["full"] }
+
 winit = "0.27"
 env_logger = "0.9"
 log = "0.4"

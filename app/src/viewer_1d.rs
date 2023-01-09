@@ -405,19 +405,12 @@ impl Viewer1D {
 
         Ok((slots, slot_count as u32))
     }
-
-    fn scroll_path_list(&mut self, scroll_delta: f32) {
-        todo!();
-    }
-
-    fn scroll_zoom_path_view(&mut self, slot_local_x: f32, scroll_delta: f32) {
-        todo!();
-    }
 }
 
 impl AppWindow for Viewer1D {
     fn update(
         &mut self,
+        _handle: &tokio::runtime::Handle,
         state: &raving_wgpu::State,
         window: &winit::window::Window,
         dt: f32,

@@ -1,41 +1,16 @@
 use std::collections::HashMap;
+use std::sync::Arc;
 
 use winit::{
     event::{ElementState, Event, VirtualKeyCode, WindowEvent},
     event_loop::{ControlFlow, EventLoop},
 };
 
-pub struct App {
-    window_handler: WindowHandler,
-}
+use super::AppWindow;
 
 pub struct WindowHandler {
     active_window: usize,
     app_windows: HashMap<usize, Box<dyn AppWindow>>,
-}
-
-pub trait AppWindow {
-    fn update(
-        &mut self,
-        state: &raving_wgpu::State,
-        window: &winit::window::Window,
-        dt: f32,
-    );
-
-    fn on_event(
-        &mut self,
-        window_dims: [u32; 2],
-        event: &winit::event::WindowEvent,
-    ) -> bool;
-
-    fn resize(
-        &mut self,
-        state: &raving_wgpu::State,
-        old_window_dims: [u32; 2],
-        new_window_dims: [u32; 2],
-    ) -> anyhow::Result<()>;
-
-    fn render(&mut self, state: &mut raving_wgpu::State) -> anyhow::Result<()>;
 }
 
 impl WindowHandler {
@@ -88,6 +63,7 @@ impl WindowHandler {
 
     pub async fn run(
         mut self,
+        tokio_rt: Arc<tokio::runtime::Runtime>,
         event_loop: EventLoop<()>,
         window: winit::window::Window,
         mut state: raving_wgpu::State,
@@ -170,7 +146,7 @@ impl WindowHandler {
                     let dt = prev_frame_t.elapsed().as_secs_f32();
                     prev_frame_t = std::time::Instant::now();
 
-                    app.update(&state, &window, dt);
+                    app.update(tokio_rt.handle(), &state, &window, dt);
 
                     window.request_redraw();
                 }

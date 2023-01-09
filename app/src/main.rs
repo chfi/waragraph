@@ -74,12 +74,11 @@ pub fn main() -> Result<()> {
     };
 
     let mut window_handler = WindowHandler::init([app_1d]).unwrap();
-
     window_handler.add_windows_iter(app_2d);
 
-    if let Err(e) =
-        pollster::block_on(window_handler.run(event_loop, window, state))
-    {
+    let app = waragraph::app::App::init(window_handler)?;
+
+    if let Err(e) = pollster::block_on(app.run(event_loop, window, state)) {
         log::error!("{e}");
     }
 
