@@ -577,13 +577,20 @@ impl AppWindow for Viewer1D {
             let mut path_name_region = egui::Rect::NOTHING;
             let mut path_slot_region = egui::Rect::NOTHING;
 
+            let screen_rect = main_ui.clip_rect();
+
             let result = self.slot_layout.visit_layout(size, |layout, elem| {
                 let rect = crate::gui::layout_egui_rect(&layout);
+
+                // hacky fix for rows that are laid out beyond the limits of the view
+                if !screen_rect.intersects(rect) {
+                    return;
+                }
 
                 painter.rect_stroke(rect, egui::Rounding::default(), stroke);
 
                 match elem {
-                    gui::SlotElem::PathData { .. } => {
+                    gui::SlotElem::PathData { slot_id, .. } => {
                         path_slot_region = path_slot_region.union(rect);
                     }
                     gui::SlotElem::PathName { slot_id } => {
@@ -632,8 +639,6 @@ impl AppWindow for Viewer1D {
                     color: egui::Color32::BLUE,
                 },
             );
-
-            // println!("main_ui clip rect: {:?}", main_ui.clip_rect());
 
             // if path_name_interact.clicked() {
             //     println!("path names clicked!");
