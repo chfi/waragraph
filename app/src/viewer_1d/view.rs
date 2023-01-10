@@ -96,4 +96,39 @@ impl View1D {
 
         self.make_valid();
     }
+
+    /// `t` should be in `[0, 1]`, if `s` > 1.0, the view is zoomed out,
+    /// if `s` < 1.0, it is zoomed in.
+    pub fn zoom_with_focus(&mut self, t: f32, s: f32) {
+        let l0 = self.range.start as f32;
+        let r0 = self.range.end as f32;
+
+        let v = r0 - l0;
+
+        let x = l0 + t * v;
+
+        let p_l = t;
+        let p_r = 1.0 - t;
+
+        let mut v_ = v * s;
+
+        // just so things don't implode
+        if v_ < 1.0 {
+            v_ = 1.0;
+        }
+
+        let x_l = p_l * v_;
+        let x_r = p_r * v_;
+
+        let l1 = x - x_l;
+        let r1 = x + x_r;
+
+        let max = self.max as f32;
+
+        let l = l1.min(r1).clamp(0.0, max);
+        let r = r1.max(l1).clamp(0.0, max);
+
+        let range = (l.round() as u64)..(r.round() as u64);
+        self.range = range;
+    }
 }

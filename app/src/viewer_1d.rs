@@ -661,11 +661,14 @@ impl AppWindow for Viewer1D {
                     }
 
                     // let min_scroll = 5.0;
-                    let min_scroll = 0.1;
-                    let factor = 0.1;
+                    let min_scroll = 1.0;
+                    let factor = 0.01;
                     if scroll.y.abs() > min_scroll {
                         let dz = 1.0 - scroll.y * factor;
-                        self.view.zoom_around_norm_f32(rel_x, dz);
+                        // self.view.zoom_around_norm_f32(rel_x, dz);
+                        println!("rel_x: {rel_x}\tdz: {dz}");
+
+                        self.view.zoom_with_focus(rel_x, dz);
                     }
 
                     // TODO: zoom path view
