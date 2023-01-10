@@ -40,6 +40,10 @@ impl<T> ListView<T> {
         self.values[self.visible_indices()].iter().map(|(_, v)| v)
     }
 
+    pub fn offset_to_end_iter(&self) -> impl Iterator<Item = &T> {
+        self.values[self.offset..].iter().map(|(_, v)| v)
+    }
+
     pub fn offset(&self) -> usize {
         self.offset
     }

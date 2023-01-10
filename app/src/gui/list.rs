@@ -10,7 +10,6 @@ use ultraviolet::Vec2;
 
 use super::FlexLayout;
 
-#[derive(Default)]
 pub struct DynamicListLayout<Row, Elem> {
     layout: FlexLayout<Elem>,
     column_count: usize,
@@ -18,7 +17,22 @@ pub struct DynamicListLayout<Row, Elem> {
     column_getters: Vec<Arc<dyn Fn(&Row) -> (Elem, Dimension) + 'static>>,
 }
 
+impl<Row, Elem> std::default::Default for DynamicListLayout<Row, Elem> {
+    fn default() -> Self {
+        Self {
+            layout: FlexLayout::default(),
+            column_count: 0,
+            column_widths: Vec::new(),
+            column_getters: Vec::new(),
+        }
+    }
+}
+
 impl<Row, Elem> DynamicListLayout<Row, Elem> {
+    pub fn layout(&self) -> &FlexLayout<Elem> {
+        &self.layout
+    }
+
     pub fn push_column(
         &mut self,
         width: Dimension,
@@ -39,16 +53,11 @@ impl<Row, Elem> DynamicListLayout<Row, Elem> {
     }
 
     /// Returns the number of rows processed/laid out
-    pub fn build_layout<'a>(
+    pub fn build_layout(
         &mut self,
-        content_rect: egui::Rect,
-        rows: impl IntoIterator<Item = &'a Row>,
-    ) -> Result<(), TaffyError>
-    where
-        Row: 'a,
-    {
-        let dims = Vec2::new(content_rect.width(), content_rect.height());
-
+        dims: Vec2,
+        rows: impl IntoIterator<Item = Row>,
+    ) -> Result<(), TaffyError> {
         let mut avail_height = dims.y;
 
         let mut row_elems = Vec::new();
@@ -65,7 +74,7 @@ impl<Row, Elem> DynamicListLayout<Row, Elem> {
             for col_ix in 0..self.column_count {
                 let get = &self.column_getters[col_ix];
 
-                let (elem, height) = get(row);
+                let (elem, height) = get(&row);
 
                 let height = match height {
                     Dimension::Points(p) => p,

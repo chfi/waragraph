@@ -1,5 +1,6 @@
 use crate::annotations::AnnotationStore;
 use crate::app::AppWindow;
+use crate::gui::list::DynamicListLayout;
 use crate::gui::FlexLayout;
 use crate::list::ListView;
 use waragraph_core::graph::PathId;
@@ -59,9 +60,8 @@ struct Viewer1D {
 
     path_viz_cache: PathVizCache,
 
-    // slot_layout: FlexLayout<GuiElem>,
-    // gui_layout: FlexLayout<gui::GuiElem>,
-    slot_layout: FlexLayout<gui::SlotElem>,
+    // slot_layout: FlexLayout<gui::SlotElem>,
+    dyn_slot_layout: DynamicListLayout<Vec<gui::SlotElem>, gui::SlotElem>,
 
     path_list_view: ListView<PathId>,
 
@@ -292,7 +292,28 @@ impl Viewer1D {
         path_viz_cache.insert("data", data);
         path_viz_cache.insert("depth", depth);
 
-        let mut slot_layout = gui::create_slot_layout(32, "depth")?;
+        // let mut slot_layout = gui::create_slot_layout(32, "depth")?;
+
+        let dyn_slot_layout = {
+            let width = |p: f32| taffy::style::Dimension::Percent(p);
+
+            let mut layout: DynamicListLayout<
+                Vec<gui::SlotElem>,
+                gui::SlotElem,
+            > = DynamicListLayout::default();
+
+            layout.push_column(width(0.2), |row| {
+                let height = taffy::style::Dimension::Points(20.0);
+                (row[0].clone(), height)
+            });
+
+            layout.push_column(width(0.8), |row| {
+                let height = taffy::style::Dimension::Points(20.0);
+                (row[1].clone(), height)
+            });
+
+            layout
+        };
 
         let (vertices, vxs, insts) = {
             let size =
@@ -300,7 +321,7 @@ impl Viewer1D {
             let (buffer, insts) = Self::slot_vertex_buffer(
                 &state.device,
                 size,
-                &mut slot_layout,
+                dyn_slot_layout.layout(),
                 &path_list_view,
             )?;
             let vxs = 0..6;
@@ -334,7 +355,8 @@ impl Viewer1D {
 
             path_viz_cache,
 
-            slot_layout,
+            // slot_layout,
+            dyn_slot_layout,
             // fixed_gui_layout,
             path_list_view,
 
@@ -442,7 +464,7 @@ impl Viewer1D {
     fn slot_vertex_buffer(
         device: &wgpu::Device,
         win_dims: ultraviolet::Vec2,
-        layout: &mut FlexLayout<gui::SlotElem>,
+        layout: &FlexLayout<gui::SlotElem>,
         path_list_view: &ListView<PathId>,
     ) -> Result<(BufferDesc, u32)> {
         let mut data_buf: Vec<u8> = Vec::new();
@@ -485,6 +507,33 @@ impl AppWindow for Viewer1D {
         window: &winit::window::Window,
         dt: f32,
     ) {
+        {
+            let size = window.inner_size();
+            let dims =
+                ultraviolet::Vec2::new(size.width as f32, size.height as f32);
+
+            if self.dyn_slot_layout.layout().computed_size() != Some(dims) {
+                let data_id = std::sync::Arc::new("depth".to_string());
+                let rows_iter =
+                    self.path_list_view.offset_to_end_iter().enumerate().map(
+                        |(ix, path)| {
+                            let name = gui::SlotElem::PathName { slot_id: ix };
+                            let data = gui::SlotElem::PathData {
+                                slot_id: ix,
+                                data_id: data_id.clone(),
+                            };
+                            vec![name, data]
+                        },
+                    );
+
+                if let Err(e) =
+                    self.dyn_slot_layout.build_layout(dims, rows_iter)
+                {
+                    log::error!("Slot layout error: {e:?}");
+                }
+            }
+        }
+
         if self.sample_handle.is_none()
             && (&self.rendered_view != self.view.range() || self.force_resample)
         {
@@ -579,7 +628,7 @@ impl AppWindow for Viewer1D {
 
             let screen_rect = main_ui.clip_rect();
 
-            let result = self.slot_layout.visit_layout(|layout, elem| {
+            let result = self.dyn_slot_layout.visit_layout(|layout, elem| {
                 let rect = crate::gui::layout_egui_rect(&layout);
 
                 // hacky fix for rows that are laid out beyond the limits of the view
@@ -760,15 +809,11 @@ impl AppWindow for Viewer1D {
         let [w, h] = new_window_dims;
         let new_size = ultraviolet::Vec2::new(w as f32, h as f32);
 
-        if let Err(e) = self.slot_layout.compute_layout(new_size) {
-            log::error!("Layout error: {e:?}");
-        }
-
         let (vertices, vxs, insts) = {
             let (buffer, insts) = Self::slot_vertex_buffer(
                 &state.device,
                 new_size,
-                &mut self.slot_layout,
+                self.dyn_slot_layout.layout(),
                 &self.path_list_view,
             )?;
             let vxs = 0..6;

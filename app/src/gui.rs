@@ -17,6 +17,8 @@ pub struct FlexLayout<T> {
     pub taffy: Taffy,
     pub node_data: BTreeMap<Node, T>,
     pub root: Option<Node>,
+
+    computed_size: Option<Vec2>,
 }
 
 impl<T> std::default::Default for FlexLayout<T> {
@@ -25,6 +27,7 @@ impl<T> std::default::Default for FlexLayout<T> {
             taffy: Taffy::new(),
             node_data: BTreeMap::default(),
             root: None,
+            computed_size: None,
         }
     }
 }
@@ -34,6 +37,11 @@ impl<T> FlexLayout<T> {
         self.taffy.clear();
         self.node_data.clear();
         self.root = None;
+        self.computed_size = None;
+    }
+
+    pub fn computed_size(&self) -> Option<Vec2> {
+        self.computed_size
     }
 
     pub fn map_node_data<F, U>(self, f: F) -> FlexLayout<U>
@@ -47,6 +55,7 @@ impl<T> FlexLayout<T> {
             taffy: self.taffy,
             node_data,
             root: self.root,
+            computed_size: self.computed_size,
         }
     }
 
@@ -179,6 +188,8 @@ impl<T> FlexLayout<T> {
             self.taffy.compute_layout(root, space)?;
         }
 
+        self.computed_size = Some(dims);
+
         Ok(())
     }
 
@@ -197,10 +208,8 @@ impl<T> FlexLayout<T> {
         while let Some((offset, node)) = stack.pop() {
             visited.insert(node);
             let mut this_layout = *self.taffy.layout(node)?;
-            // let mut this_layout = *this_layout;
 
             let children = LayoutTree::children(&self.taffy, node);
-            // let offset = this_layout.
 
             let loc = this_layout.location;
             let this_pos = Vec2::new(loc.x, loc.y);
