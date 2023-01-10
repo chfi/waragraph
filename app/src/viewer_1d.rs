@@ -15,7 +15,6 @@ use winit::event::WindowEvent;
 use winit::event_loop::{EventLoop, EventLoopWindowTarget};
 use winit::window::Window;
 
-use raving_wgpu::camera::{DynamicCamera2d, TouchHandler, TouchOutput};
 use raving_wgpu::graph::dfrog::{Graph, InputResource};
 use raving_wgpu::gui::EguiCtx;
 use raving_wgpu::{NodeId, State};
@@ -630,9 +629,7 @@ impl AppWindow for Viewer1D {
         // TODO debug FlexLayout rendering should use a render graph
         self.egui.run(window, |ctx| {
             let avail = ctx.available_rect();
-            // println!("available: {avail:?}");
-            // let rect = egui::Rect::from_min_max(egui::pos2(0.0, 0.0),
-            //                                     egui::pos2(
+
             let mut main_ui = egui::Ui::new(
                 ctx.clone(),
                 egui::LayerId::new(
@@ -643,8 +640,6 @@ impl AppWindow for Viewer1D {
                 avail,
                 avail,
             );
-
-            // egui::Area::new("
 
             let painter = ctx.debug_painter();
 
@@ -713,23 +708,20 @@ impl AppWindow for Viewer1D {
             let path_name_interact = main_ui
                 .allocate_rect(path_name_region, egui::Sense::click_and_drag());
 
-            painter.rect_stroke(
-                path_name_region,
-                // path_name_interact.rect,
-                0.0,
-                egui::Stroke {
-                    width: 2.0,
-                    color: egui::Color32::BLUE,
-                },
-            );
-
             // if path_name_interact.clicked() {
-            //     println!("path names clicked!");
+            //     println!("names clicked!");
             // }
 
             if let Some(pos) = pos {
                 if path_name_region.contains(pos) {
-                    // TODO: scroll path list
+                    // hardcoded row height for now
+                    let rows = (scroll.y / 20.0).round() as isize;
+
+                    if rows != 0 {
+                        self.path_list_view.scroll_relative(-rows);
+                        self.force_resample = true;
+                    }
+
                     painter.text(
                         egui::pos2(10.0, size.y - 10.0),
                         egui::Align2::LEFT_CENTER,
@@ -781,18 +773,6 @@ impl AppWindow for Viewer1D {
         let mut consume = false;
 
         let resp = self.egui.on_event(event);
-
-        // if let Some(touch) = self.egui.multi_touch() {
-        //     println!("multitouch: {touch:?}");
-        // }
-
-        // if let Some(pos) = self.egui.pointer_latest_pos() {
-        //     println!("pos: {pos:?}");
-        // }
-
-        // if self.touch.on_event(window_dims, event) {
-        //     consume = true;
-        // }
 
         if let WindowEvent::KeyboardInput { input, .. } = event {
             if let Some(key) = input.virtual_keycode {
@@ -953,8 +933,6 @@ pub fn init(
     path_index: Arc<PathIndex>,
     args: Args,
 ) -> Result<Box<dyn AppWindow>> {
-    // let path_index = PathIndex::from_gfa(&args.gfa)?;
-
     let dims = {
         let s = window.inner_size();
         [s.width, s.height]
