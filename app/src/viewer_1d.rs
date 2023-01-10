@@ -449,7 +449,7 @@ impl Viewer1D {
 
         let stride = std::mem::size_of::<[f32; 5]>();
 
-        layout.visit_layout(win_dims, |layout, elem| {
+        layout.visit_layout(|layout, elem| {
             if let gui::SlotElem::PathData { slot_id, data_id } = elem {
                 if let Some(path_id) = path_list_view.get_in_view(*slot_id) {
                     let rect = crate::gui::layout_egui_rect(&layout);
@@ -579,7 +579,7 @@ impl AppWindow for Viewer1D {
 
             let screen_rect = main_ui.clip_rect();
 
-            let result = self.slot_layout.visit_layout(size, |layout, elem| {
+            let result = self.slot_layout.visit_layout(|layout, elem| {
                 let rect = crate::gui::layout_egui_rect(&layout);
 
                 // hacky fix for rows that are laid out beyond the limits of the view
@@ -670,9 +670,6 @@ impl AppWindow for Viewer1D {
                     let factor = 0.01;
                     if scroll.y.abs() > min_scroll {
                         let dz = 1.0 - scroll.y * factor;
-                        // self.view.zoom_around_norm_f32(rel_x, dz);
-                        println!("rel_x: {rel_x}\tdz: {dz}");
-
                         self.view.zoom_with_focus(rel_x, dz);
                     }
 
@@ -762,6 +759,10 @@ impl AppWindow for Viewer1D {
     ) -> anyhow::Result<()> {
         let [w, h] = new_window_dims;
         let new_size = ultraviolet::Vec2::new(w as f32, h as f32);
+
+        if let Err(e) = self.slot_layout.compute_layout(new_size) {
+            log::error!("Layout error: {e:?}");
+        }
 
         let (vertices, vxs, insts) = {
             let (buffer, insts) = Self::slot_vertex_buffer(

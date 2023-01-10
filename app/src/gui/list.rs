@@ -16,7 +16,6 @@ pub struct DynamicListLayout<Row, Elem> {
     column_count: usize,
     column_widths: Vec<Dimension>,
     column_getters: Vec<Arc<dyn Fn(&Row) -> (Elem, Dimension) + 'static>>,
-    // nodes: HashMap<(usize, usize), Node>,
 }
 
 impl<Row, Elem> DynamicListLayout<Row, Elem> {
@@ -91,18 +90,15 @@ impl<Row, Elem> DynamicListLayout<Row, Elem> {
         });
 
         self.layout.fill_with_rows(row_iter)?;
-
-        if let Some(root) = self.layout.root {
-            //
-        }
+        self.layout.compute_layout(dims)?;
 
         Ok(())
     }
 
     pub fn visit_layout(
         &self,
-        mut f: impl FnMut(Layout, &Elem),
+        f: impl FnMut(Layout, &Elem),
     ) -> Result<(), TaffyError> {
-        todo!();
+        self.layout.visit_layout(f)
     }
 }

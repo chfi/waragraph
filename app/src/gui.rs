@@ -158,7 +158,7 @@ impl<T> FlexLayout<T> {
         Ok(layout)
     }
 
-    pub fn compute_layout(&mut self, dims: Vec2) {
+    pub fn compute_layout(&mut self, dims: Vec2) -> Result<(), TaffyError> {
         if let Some(root) = self.root {
             let width = AvailableSpace::Definite(dims.x);
             let height = AvailableSpace::Definite(dims.y);
@@ -178,16 +178,15 @@ impl<T> FlexLayout<T> {
             self.taffy.set_style(root, new_style)?;
             self.taffy.compute_layout(root, space)?;
         }
+
+        Ok(())
     }
 
     pub fn visit_layout(
-        &mut self,
-        dims: Vec2,
+        &self,
         mut v: impl FnMut(Layout, &T),
     ) -> Result<(), TaffyError> {
         let mut stack: Vec<(Vec2, Node)> = Vec::new();
-
-        self.compute_layout(dims);
 
         if let Some(root) = self.root {
             stack.push((Vec2::zero(), root));
