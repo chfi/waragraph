@@ -13,14 +13,29 @@ use ultraviolet::Vec2;
 
 pub mod list;
 
-#[derive(Default)]
 pub struct FlexLayout<T> {
     pub taffy: Taffy,
     pub node_data: BTreeMap<Node, T>,
     pub root: Option<Node>,
 }
 
+impl<T> std::default::Default for FlexLayout<T> {
+    fn default() -> Self {
+        Self {
+            taffy: Taffy::new(),
+            node_data: BTreeMap::default(),
+            root: None,
+        }
+    }
+}
+
 impl<T> FlexLayout<T> {
+    pub fn clear(&mut self) {
+        self.taffy.clear();
+        self.node_data.clear();
+        self.root = None;
+    }
+
     pub fn map_node_data<F, U>(self, f: F) -> FlexLayout<U>
     where
         F: Fn(T) -> U,
@@ -35,7 +50,10 @@ impl<T> FlexLayout<T> {
         }
     }
 
-    pub fn from_rows_iter<Rows, Row>(rows: Rows) -> Result<Self, TaffyError>
+    pub fn fill_with_rows<Rows, Row>(
+        &mut self,
+        rows: Rows,
+    ) -> Result<(), TaffyError>
     where
         Rows: IntoIterator<Item = Row>,
         Row: IntoIterator<Item = (T, Dimension)>,
@@ -100,11 +118,7 @@ impl<T> FlexLayout<T> {
             ..Default::default()
         };
 
-        let mut taffy = Taffy::new();
-
         let mut children = Vec::new();
-
-        let mut node_data = BTreeMap::default();
         let mut inner_children = Vec::new();
 
         for row in rows {
@@ -114,32 +128,37 @@ impl<T> FlexLayout<T> {
                 let mut style = child_style.clone();
                 style.size.width = dim;
 
-                let inner = taffy.new_leaf(style)?;
-                node_data.insert(inner, data);
+                let inner = self.taffy.new_leaf(style)?;
+                self.node_data.insert(inner, data);
                 inner_children.push(inner);
             }
 
             let row_node =
-                taffy.new_with_children(row_style, &inner_children)?;
+                self.taffy.new_with_children(row_style, &inner_children)?;
             children.push(row_node);
         }
 
-        let root = taffy.new_with_children(root_style, children.as_slice())?;
+        let root = self
+            .taffy
+            .new_with_children(root_style, children.as_slice())?;
 
-        Ok(FlexLayout {
-            taffy,
-            node_data,
-            root: Some(root),
-        })
+        self.root = Some(root);
+
+        Ok(())
     }
 
-    pub fn visit_layout(
-        &mut self,
-        dims: Vec2,
-        mut v: impl FnMut(Layout, &T),
-    ) -> Result<(), TaffyError> {
-        let mut stack: Vec<(Vec2, Node)> = Vec::new();
+    pub fn from_rows_iter<Rows, Row>(rows: Rows) -> Result<Self, TaffyError>
+    where
+        Rows: IntoIterator<Item = Row>,
+        Row: IntoIterator<Item = (T, Dimension)>,
+    {
+        let mut layout = FlexLayout::default();
+        layout.fill_with_rows(rows)?;
 
+        Ok(layout)
+    }
+
+    pub fn compute_layout(&mut self, dims: Vec2) {
         if let Some(root) = self.root {
             let width = AvailableSpace::Definite(dims.x);
             let height = AvailableSpace::Definite(dims.y);
@@ -158,7 +177,19 @@ impl<T> FlexLayout<T> {
             };
             self.taffy.set_style(root, new_style)?;
             self.taffy.compute_layout(root, space)?;
+        }
+    }
 
+    pub fn visit_layout(
+        &mut self,
+        dims: Vec2,
+        mut v: impl FnMut(Layout, &T),
+    ) -> Result<(), TaffyError> {
+        let mut stack: Vec<(Vec2, Node)> = Vec::new();
+
+        self.compute_layout(dims);
+
+        if let Some(root) = self.root {
             stack.push((Vec2::zero(), root));
         }
 
