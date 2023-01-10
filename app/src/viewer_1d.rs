@@ -269,7 +269,7 @@ impl Viewer1D {
         let depth_data = Arc::new(PathDepthData::new(&path_index));
 
         let len = pangenome_len as u64;
-        let mut view = View1D::new(len);
+        let view = View1D::new(len);
 
         let paths = 0..path_index.path_names.len();
 
@@ -334,8 +334,6 @@ impl Viewer1D {
             op_state.vertices = Some(vxs.clone());
             op_state.instances = Some(insts.clone());
         });
-
-        view.set(0, 10_000);
 
         Ok(Viewer1D {
             render_graph: graph,
