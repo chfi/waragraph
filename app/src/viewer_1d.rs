@@ -516,7 +516,9 @@ impl AppWindow for Viewer1D {
                 let data_id = std::sync::Arc::new("depth".to_string());
                 let rows_iter =
                     self.path_list_view.offset_to_end_iter().enumerate().map(
-                        |(ix, path)| {
+                        |(ix, _path)| {
+                            // TODO: should get slot id via a cache keyed to paths;
+                            // right now the entire set of rows gets resampled every change
                             let name = gui::SlotElem::PathName { slot_id: ix };
                             let data = gui::SlotElem::PathData {
                                 slot_id: ix,
@@ -531,6 +533,40 @@ impl AppWindow for Viewer1D {
                 {
                     log::error!("Slot layout error: {e:?}");
                 }
+
+                let (vertices, vxs, insts) = {
+                    let (buffer, insts) = Self::slot_vertex_buffer(
+                        &state.device,
+                        dims,
+                        self.dyn_slot_layout.layout(),
+                        &self.path_list_view,
+                    )
+                    .expect(
+                        "Unrecoverable error when creating slot vertex buffer",
+                    );
+                    let vxs = 0..6;
+                    let insts = 0..insts;
+
+                    (buffer, vxs, insts)
+                };
+
+                self.render_graph.set_node_preprocess_fn(
+                    self.draw_path_slot,
+                    move |_ctx, op_state| {
+                        op_state.vertices = Some(vxs.clone());
+                        op_state.instances = Some(insts.clone());
+                    },
+                );
+
+                self.vertices = vertices;
+
+                let uniform_data = [dims.x, dims.y];
+
+                state.queue.write_buffer(
+                    &self.vert_uniform,
+                    0,
+                    bytemuck::cast_slice(uniform_data.as_slice()),
+                );
             }
         }
 
@@ -802,44 +838,10 @@ impl AppWindow for Viewer1D {
 
     fn resize(
         &mut self,
-        state: &raving_wgpu::State,
+        _state: &raving_wgpu::State,
         _old_window_dims: [u32; 2],
-        new_window_dims: [u32; 2],
+        _new_window_dims: [u32; 2],
     ) -> anyhow::Result<()> {
-        let [w, h] = new_window_dims;
-        let new_size = ultraviolet::Vec2::new(w as f32, h as f32);
-
-        let (vertices, vxs, insts) = {
-            let (buffer, insts) = Self::slot_vertex_buffer(
-                &state.device,
-                new_size,
-                self.dyn_slot_layout.layout(),
-                &self.path_list_view,
-            )?;
-            let vxs = 0..6;
-            let insts = 0..insts;
-
-            (buffer, vxs, insts)
-        };
-
-        self.render_graph.set_node_preprocess_fn(
-            self.draw_path_slot,
-            move |_ctx, op_state| {
-                op_state.vertices = Some(vxs.clone());
-                op_state.instances = Some(insts.clone());
-            },
-        );
-
-        self.vertices = vertices;
-
-        let uniform_data = [new_size.x, new_size.y];
-
-        state.queue.write_buffer(
-            &self.vert_uniform,
-            0,
-            bytemuck::cast_slice(uniform_data.as_slice()),
-        );
-
         Ok(())
     }
 
