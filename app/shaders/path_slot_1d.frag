@@ -16,11 +16,29 @@ layout (set = 1, binding = 1) readonly buffer Colors {
   vec4 colors[];
 } colors;
 
+layout (set = 1, binding = 2) uniform Transform {
+  float a;
+  float b;
+} transform;
+
 void main() {
   uint row_offset = i_slot_id * data.row_size;
-  uint data_ix = uint(i_uv.x * float(data.row_size - 1));
+
+  float t = i_uv.x;
+
+  t = transform.a * t + transform.b;
+
+  float c_t = clamp(t, 0.0, 1.0);
+
+  uint data_ix = uint(round(c_t * float(data.row_size - 1)));
+  // uint data_ix = uint(i_uv.x * float(data.row_size - 1));
+
   float val = data.values[row_offset + data_ix];
   uint ix = min(uint(round(val)), colors.len - 2) + 1;
-  vec4 color = colors.colors[ix];
+
+  vec4 color = ((t >= 0.0) && (t <= 1.0))
+               ? colors.colors[ix]
+               : vec4(1.0, 0.0, 0.0, 1.0);
+  // vec4 color = colors.colors[ix];
   f_color = color;
 }

@@ -235,7 +235,9 @@ impl Viewer1D {
                     usage,
                 });
 
-            let data = [0.7f32, 0.1, 0.85, 1.0];
+            // let data = [0.7f32, 0.1, 0.85, 1.0];
+            // let data = [1.0f32, 0.0, 0.0, 1.0];
+            let data = [1.0f32, 0.0];
             let usage = BufferUsages::UNIFORM | BufferUsages::COPY_DST;
             let frag_uniform =
                 state.device.create_buffer_init(&BufferInitDescriptor {
@@ -257,6 +259,7 @@ impl Viewer1D {
         // graph.add_link_from_transient("data", draw_node, 3);
         graph.add_link_from_transient("depth", draw_node, 3);
         graph.add_link_from_transient("color", draw_node, 4);
+        graph.add_link_from_transient("transform", draw_node, 5);
 
         let egui = EguiCtx::init(event_loop, state, None);
         let pangenome_len = path_index.pangenome_len().0;
@@ -339,6 +342,32 @@ impl Viewer1D {
         })
     }
 
+    /// Returns a line equation that defines the transformation
+    /// parameters used by the slot fragment shader
+    ///
+    /// `view0` corresponds to the view that has been sampled and is available
+    /// in the data buffer, while `view1` is the current view.
+    ///
+    /// Usage: If the returned value is [a, b], the transformation
+    /// is applied by a*t + b
+    fn sample_index_transform(
+        view0: &std::ops::Range<u64>,
+        view1: &std::ops::Range<u64>,
+    ) -> [f32; 2] {
+        let l0 = view0.start as f32;
+        let r0 = view0.end as f32;
+        let l1 = view1.start as f32;
+        let r1 = view1.end as f32;
+
+        let v0 = r0 - l0;
+        let v1 = r1 - l1;
+
+        let a = v1 / v0;
+        let b = (l1 - l0) / v0;
+
+        [a, b]
+    }
+
     fn sample_buffer_size(bins: usize, rows: usize) -> usize {
         let prefix_size = std::mem::size_of::<u32>() * 4;
         let elem_size = std::mem::size_of::<f32>();
@@ -370,8 +399,6 @@ impl Viewer1D {
         let size = Self::sample_buffer_size(bins, paths.len());
 
         assert!(buffer.len() >= size);
-
-        // let size = NonZeroU64::new(size as u64).unwrap();
 
         waragraph_core::graph::sampling::sample_path_data_into_buffer(
             index,
@@ -503,6 +530,20 @@ impl AppWindow for Viewer1D {
             }
         }
 
+        // update uniform
+        {
+            let data = Self::sample_index_transform(
+                &self.rendered_view,
+                self.view.range(),
+            );
+
+            state.queue.write_buffer(
+                &self.frag_uniform,
+                0,
+                bytemuck::cast_slice(&data),
+            );
+        }
+
         // TODO debug FlexLayout rendering should use a render graph
         self.egui.run(window, |ctx| {
             let avail = ctx.available_rect();
@@ -592,11 +633,11 @@ impl AppWindow for Viewer1D {
                 },
             );
 
-            println!("main_ui clip rect: {:?}", main_ui.clip_rect());
+            // println!("main_ui clip rect: {:?}", main_ui.clip_rect());
 
-            if path_name_interact.clicked() {
-                println!("path names clicked!");
-            }
+            // if path_name_interact.clicked() {
+            //     println!("path names clicked!");
+            // }
 
             if let Some(pos) = pos {
                 if path_name_region.contains(pos) {
@@ -806,7 +847,7 @@ impl AppWindow for Viewer1D {
             }
 
             transient_res.insert(
-                "frag_cfg".into(),
+                "transform".into(),
                 InputResource::Buffer {
                     size: 2 * 4,
                     stride: None,
