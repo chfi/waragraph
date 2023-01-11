@@ -728,7 +728,6 @@ impl AppWindow for Viewer1D {
                     )
                 };
 
-                // println!("{sep_rect:?}");
                 let column_separator =
                     ui.allocate_rect(sep_rect, egui::Sense::click_and_drag());
 
@@ -742,14 +741,15 @@ impl AppWindow for Viewer1D {
                 }
 
                 if column_separator.dragged_by(egui::PointerButton::Primary) {
-                    let col_width = path_name_region.width();
+                    let old_width = path_name_region.width();
                     let dx = column_separator.drag_delta().x;
-                    let n_dx = dx / col_width;
+                    let new_width = old_width + dx;
+                    let new_p = new_width / old_width;
 
                     if let Dimension::Percent(p) =
                         &mut self.dyn_slot_layout.column_widths_mut()[0]
                     {
-                        *p += n_dx;
+                        *p *= new_p;
                         *p = p.clamp(0.05, 0.95);
                     }
 
