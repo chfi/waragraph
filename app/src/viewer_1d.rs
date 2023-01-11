@@ -260,7 +260,8 @@ impl Viewer1D {
         graph.add_link_from_transient("color", draw_node, 4);
         graph.add_link_from_transient("transform", draw_node, 5);
 
-        let egui = EguiCtx::init(event_loop, state, None);
+        let mut egui = EguiCtx::init(event_loop, state, None);
+
         let pangenome_len = path_index.pangenome_len().0;
 
         let (color, data) = path_frag_example_uniforms(&state.device)?;
@@ -504,67 +505,67 @@ impl AppWindow for Viewer1D {
         window: &winit::window::Window,
         dt: f32,
     ) {
-        {
-            let size = window.inner_size();
-            let dims =
-                ultraviolet::Vec2::new(size.width as f32, size.height as f32);
+        let size = window.inner_size();
 
-            if self.dyn_slot_layout.layout().computed_size() != Some(dims) {
-                let data_id = std::sync::Arc::new("depth".to_string());
-                let rows_iter =
-                    self.path_list_view.offset_to_end_iter().enumerate().map(
-                        |(ix, _path)| {
-                            // TODO: should get slot id via a cache keyed to paths;
-                            // right now the entire set of rows gets resampled every change
-                            let name = gui::SlotElem::PathName { slot_id: ix };
-                            let data = gui::SlotElem::PathData {
-                                slot_id: ix,
-                                data_id: data_id.clone(),
-                            };
-                            vec![name, data]
-                        },
-                    );
+        let dims =
+            ultraviolet::Vec2::new(size.width as f32, size.height as f32);
 
-                if let Err(e) =
-                    self.dyn_slot_layout.build_layout(dims, rows_iter)
-                {
-                    log::error!("Slot layout error: {e:?}");
-                }
+        let screen_rect = egui::Rect::from_min_max(
+            egui::pos2(0.0, 0.0),
+            egui::pos2(dims.x, dims.y),
+        );
 
-                let (vertices, vxs, insts) = {
-                    let (buffer, insts) = Self::slot_vertex_buffer(
-                        &state.device,
-                        dims,
-                        self.dyn_slot_layout.layout(),
-                        &self.path_list_view,
-                    )
-                    .expect(
-                        "Unrecoverable error when creating slot vertex buffer",
-                    );
-                    let vxs = 0..6;
-                    let insts = 0..insts;
-
-                    (buffer, vxs, insts)
-                };
-
-                self.render_graph.set_node_preprocess_fn(
-                    self.draw_path_slot,
-                    move |_ctx, op_state| {
-                        op_state.vertices = Some(vxs.clone());
-                        op_state.instances = Some(insts.clone());
+        if self.dyn_slot_layout.layout().computed_size() != Some(dims) {
+            let data_id = std::sync::Arc::new("depth".to_string());
+            let rows_iter =
+                self.path_list_view.offset_to_end_iter().enumerate().map(
+                    |(ix, _path)| {
+                        // TODO: should get slot id via a cache keyed to paths;
+                        // right now the entire set of rows gets resampled every change
+                        let name = gui::SlotElem::PathName { slot_id: ix };
+                        let data = gui::SlotElem::PathData {
+                            slot_id: ix,
+                            data_id: data_id.clone(),
+                        };
+                        vec![name, data]
                     },
                 );
 
-                self.vertices = vertices;
-
-                let uniform_data = [dims.x, dims.y];
-
-                state.queue.write_buffer(
-                    &self.vert_uniform,
-                    0,
-                    bytemuck::cast_slice(uniform_data.as_slice()),
-                );
+            if let Err(e) = self.dyn_slot_layout.build_layout(dims, rows_iter) {
+                log::error!("Slot layout error: {e:?}");
             }
+
+            let (vertices, vxs, insts) = {
+                let (buffer, insts) = Self::slot_vertex_buffer(
+                    &state.device,
+                    dims,
+                    self.dyn_slot_layout.layout(),
+                    &self.path_list_view,
+                )
+                .expect("Unrecoverable error when creating slot vertex buffer");
+                let vxs = 0..6;
+                let insts = 0..insts;
+
+                (buffer, vxs, insts)
+            };
+
+            self.render_graph.set_node_preprocess_fn(
+                self.draw_path_slot,
+                move |_ctx, op_state| {
+                    op_state.vertices = Some(vxs.clone());
+                    op_state.instances = Some(insts.clone());
+                },
+            );
+
+            self.vertices = vertices;
+
+            let uniform_data = [dims.x, dims.y];
+
+            state.queue.write_buffer(
+                &self.vert_uniform,
+                0,
+                bytemuck::cast_slice(uniform_data.as_slice()),
+            );
         }
 
         if self.sample_handle.is_none()
@@ -626,46 +627,34 @@ impl AppWindow for Viewer1D {
             );
         }
 
-        // TODO debug FlexLayout rendering should use a render graph
-        self.egui.run(window, |ctx| {
-            let avail = ctx.available_rect();
+        self.egui.begin_frame(window);
 
-            let mut main_ui = egui::Ui::new(
-                ctx.clone(),
-                egui::LayerId::new(
-                    egui::Order::Foreground,
-                    "main_layer".into(),
-                ),
-                "main_ui".into(),
-                avail,
-                avail,
-            );
+        let mut path_name_region = egui::Rect::NOTHING;
+        let mut path_slot_region = egui::Rect::NOTHING;
 
-            let painter = ctx.debug_painter();
+        let mut shapes = Vec::new();
 
-            let size = window.inner_size();
-            let size =
-                ultraviolet::Vec2::new(size.width as f32, size.height as f32);
+        let layout_result = {
+            let fonts = self.egui.ctx().fonts();
 
-            let stroke = egui::Stroke {
-                width: 1.0,
-                color: egui::Color32::RED,
-            };
-
-            let mut path_name_region = egui::Rect::NOTHING;
-            let mut path_slot_region = egui::Rect::NOTHING;
-
-            let screen_rect = main_ui.clip_rect();
-
-            let result = self.dyn_slot_layout.visit_layout(|layout, elem| {
+            self.dyn_slot_layout.visit_layout(|layout, elem| {
                 let rect = crate::gui::layout_egui_rect(&layout);
+
+                let stroke = egui::Stroke {
+                    width: 1.0,
+                    color: egui::Color32::RED,
+                };
+                let dbg_rect = egui::Shape::rect_stroke(
+                    rect,
+                    egui::Rounding::default(),
+                    stroke,
+                );
+                shapes.push(dbg_rect);
 
                 // hacky fix for rows that are laid out beyond the limits of the view
                 if !screen_rect.intersects(rect) {
                     return;
                 }
-
-                painter.rect_stroke(rect, egui::Rounding::default(), stroke);
 
                 match elem {
                     gui::SlotElem::PathData { slot_id, .. } => {
@@ -685,16 +674,57 @@ impl AppWindow for Viewer1D {
                             .path_names
                             .get_by_left(path_id)
                             .unwrap();
-                        painter.text(
+
+                        let shape = egui::Shape::text(
+                            &fonts,
                             rect.left_center(),
                             egui::Align2::LEFT_CENTER,
                             path_name,
                             egui::FontId::monospace(16.0),
                             egui::Color32::WHITE,
                         );
+
+                        shapes.push(shape);
                     }
                 }
-            });
+            })
+        };
+
+        if let Err(e) = layout_result {
+            log::error!("GUI layout error: {e:?}");
+        }
+
+        {
+            let ctx = self.egui.ctx();
+            let avail = ctx.available_rect();
+
+            let mut main_ui = egui::Ui::new(
+                ctx.clone(),
+                egui::LayerId::new(egui::Order::Middle, "main_layer".into()),
+                "main_ui".into(),
+                avail,
+                avail,
+            );
+
+            {
+                let rect = egui::Rect::from_center_size(
+                    egui::pos2(50.0, 400.0),
+                    egui::vec2(100.0, 800.0),
+                );
+                let interact =
+                    main_ui.allocate_rect(rect, egui::Sense::click_and_drag());
+                if interact.clicked() {
+                    println!("area clicked");
+                }
+            }
+
+            let size = window.inner_size();
+            let size =
+                ultraviolet::Vec2::new(size.width as f32, size.height as f32);
+
+            let painter = ctx.debug_painter();
+
+            painter.extend(shapes);
 
             // check interactions against `path_name_region` and `path_slot_region`
             let pos = ctx.pointer_latest_pos();
@@ -708,9 +738,9 @@ impl AppWindow for Viewer1D {
             let path_name_interact = main_ui
                 .allocate_rect(path_name_region, egui::Sense::click_and_drag());
 
-            // if path_name_interact.clicked() {
-            //     println!("names clicked!");
-            // }
+            if path_name_interact.clicked() {
+                println!("names clicked!");
+            }
 
             if let Some(pos) = pos {
                 if path_name_region.contains(pos) {
@@ -758,11 +788,9 @@ impl AppWindow for Viewer1D {
                     );
                 }
             }
+        }
 
-            if let Err(e) = result {
-                eprintln!("draw layout error: {e:?}");
-            }
-        });
+        self.egui.end_frame(window);
     }
 
     fn on_event(

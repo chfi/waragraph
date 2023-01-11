@@ -233,12 +233,14 @@ impl AppWindow for PathRenderer {
 
         self.camera.update(dt);
 
-        let (delta, primary_down) = {
-            let pointer = &self.egui.ctx().input().pointer;
+        let (scroll, delta, primary_down) = {
+            let input = &self.egui.ctx().input();
+            let scroll = input.scroll_delta;
+            let pointer = &input.pointer;
             let delta = pointer.delta();
             let primary_down = pointer.primary_down();
 
-            (delta, primary_down)
+            (scroll, delta, primary_down)
         };
 
         let win_size = {
