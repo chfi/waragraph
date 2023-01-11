@@ -3,6 +3,7 @@ use crate::app::AppWindow;
 use crate::gui::list::DynamicListLayout;
 use crate::gui::FlexLayout;
 use crate::list::ListView;
+use taffy::style::Dimension;
 use waragraph_core::graph::PathId;
 use wgpu::BufferUsages;
 
@@ -702,6 +703,8 @@ impl AppWindow for Viewer1D {
         {
             let ctx = self.egui.ctx();
 
+            let mut fg_shapes = Vec::new();
+
             let main_area =
                 egui::Area::new("main_area").movable(false).constrain(true);
 
@@ -713,6 +716,45 @@ impl AppWindow for Viewer1D {
                     path_slot_region,
                     egui::Sense::click_and_drag(),
                 );
+
+                let sep_rect = {
+                    let (top, btm) = path_name_region.y_range().into_inner();
+                    let left = path_name_region.right();
+                    let right = path_slot_region.left();
+
+                    egui::Rect::from_min_max(
+                        egui::pos2(left, top),
+                        egui::pos2(right, btm),
+                    )
+                };
+
+                // println!("{sep_rect:?}");
+                let column_separator =
+                    ui.allocate_rect(sep_rect, egui::Sense::click_and_drag());
+
+                if column_separator.hovered() {
+                    let shape = egui::Shape::rect_filled(
+                        sep_rect,
+                        egui::Rounding::same(2.0),
+                        egui::Color32::from_white_alpha(180),
+                    );
+                    fg_shapes.push(shape);
+                }
+
+                if column_separator.dragged_by(egui::PointerButton::Primary) {
+                    let col_width = path_name_region.width();
+                    let dx = column_separator.drag_delta().x;
+                    let n_dx = dx / col_width;
+
+                    if let Dimension::Percent(p) =
+                        &mut self.dyn_slot_layout.column_widths_mut()[0]
+                    {
+                        *p += n_dx;
+                        *p = p.clamp(0.05, 0.95);
+                    }
+
+                    self.dyn_slot_layout.clear_layout();
+                }
 
                 let scroll = ui.input().scroll_delta;
 
@@ -746,8 +788,15 @@ impl AppWindow for Viewer1D {
                 }
             });
 
-            let painter = ctx.layer_painter(egui::LayerId::background());
+            let painter =
+                self.egui.ctx().layer_painter(egui::LayerId::background());
             painter.extend(shapes);
+
+            let painter = self.egui.ctx().layer_painter(egui::LayerId::new(
+                egui::Order::Foreground,
+                "main_area_fg".into(),
+            ));
+            painter.extend(fg_shapes);
         }
 
         self.egui.end_frame(window);

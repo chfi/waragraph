@@ -33,6 +33,18 @@ impl<Row, Elem> DynamicListLayout<Row, Elem> {
         &self.layout
     }
 
+    pub fn clear_layout(&mut self) {
+        self.layout.clear();
+    }
+
+    pub fn column_widths(&self) -> &[Dimension] {
+        self.column_widths.as_slice()
+    }
+
+    pub fn column_widths_mut(&mut self) -> &mut [Dimension] {
+        self.column_widths.as_mut_slice()
+    }
+
     pub fn push_column(
         &mut self,
         width: Dimension,
