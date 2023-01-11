@@ -657,7 +657,7 @@ impl AppWindow for Viewer1D {
                 }
 
                 match elem {
-                    gui::SlotElem::PathData { slot_id, .. } => {
+                    gui::SlotElem::PathData { .. } => {
                         path_slot_region = path_slot_region.union(rect);
                     }
                     gui::SlotElem::PathName { slot_id } => {
@@ -701,98 +701,53 @@ impl AppWindow for Viewer1D {
 
         {
             let ctx = self.egui.ctx();
-            let avail = ctx.available_rect();
 
-            let mut main_ui = egui::Ui::new(
-                ctx.clone(),
-                egui::LayerId::new(egui::Order::Middle, "main_layer".into()),
-                "main_ui".into(),
-                avail,
-                avail,
-            );
+            let main_area =
+                egui::Area::new("main_area").movable(false).constrain(true);
 
-            {
-                let rect = egui::Rect::from_center_size(
-                    egui::pos2(50.0, 400.0),
-                    egui::vec2(100.0, 800.0),
+            main_area.show(ctx, |ui| {
+                let path_names =
+                    ui.allocate_rect(path_name_region, egui::Sense::hover());
+
+                let path_slots = ui.allocate_rect(
+                    path_slot_region,
+                    egui::Sense::click_and_drag(),
                 );
-                let interact =
-                    main_ui.allocate_rect(rect, egui::Sense::click_and_drag());
-                if interact.clicked() {
-                    println!("area clicked");
-                }
-            }
 
-            let size = window.inner_size();
-            let size =
-                ultraviolet::Vec2::new(size.width as f32, size.height as f32);
+                let scroll = ui.input().scroll_delta;
 
-            let painter = ctx.debug_painter();
-
-            painter.extend(shapes);
-
-            // check interactions against `path_name_region` and `path_slot_region`
-            let pos = ctx.pointer_latest_pos();
-            let (scroll, primary_down, pointer_delta) = {
-                let input = ctx.input();
-                let primary = input.pointer.primary_down();
-                let delta = input.pointer.delta();
-                (input.scroll_delta, primary, delta)
-            };
-
-            let path_name_interact = main_ui
-                .allocate_rect(path_name_region, egui::Sense::click_and_drag());
-
-            if path_name_interact.clicked() {
-                println!("names clicked!");
-            }
-
-            if let Some(pos) = pos {
-                if path_name_region.contains(pos) {
-                    // hardcoded row height for now
+                if path_names.hovered() {
+                    // hardcoded row height for now; should be stored/fetched
                     let rows = (scroll.y / 20.0).round() as isize;
 
                     if rows != 0 {
                         self.path_list_view.scroll_relative(-rows);
                         self.force_resample = true;
                     }
-
-                    painter.text(
-                        egui::pos2(10.0, size.y - 10.0),
-                        egui::Align2::LEFT_CENTER,
-                        scroll.y.to_string(),
-                        egui::FontId::monospace(16.0),
-                        egui::Color32::WHITE,
-                    );
                 }
 
-                if path_slot_region.contains(pos) {
-                    let (l, r) = path_slot_region.x_range().into_inner();
-                    let rel_x = (pos.x - l) / (r - l);
-                    let dx = pointer_delta.x / (r - l);
+                if path_slots.dragged_by(egui::PointerButton::Primary) {
+                    let dx =
+                        path_slots.drag_delta().x / path_slot_region.width();
+                    self.view.translate_norm_f32(-dx);
+                }
 
-                    if primary_down {
-                        self.view.translate_norm_f32(-dx);
-                    }
+                if let Some(pos) = path_slots.hover_pos() {
+                    let left = path_slot_region.left();
+                    let width = path_slot_region.width();
+                    let rel_x = (pos.x - left) / width;
 
-                    // let min_scroll = 5.0;
                     let min_scroll = 1.0;
                     let factor = 0.01;
                     if scroll.y.abs() > min_scroll {
                         let dz = 1.0 - scroll.y * factor;
                         self.view.zoom_with_focus(rel_x, dz);
                     }
-
-                    // TODO: zoom path view
-                    painter.text(
-                        egui::pos2(size.x - 10.0, size.y - 10.0),
-                        egui::Align2::RIGHT_CENTER,
-                        scroll.y.to_string(),
-                        egui::FontId::monospace(16.0),
-                        egui::Color32::WHITE,
-                    );
                 }
-            }
+            });
+
+            let painter = ctx.layer_painter(egui::LayerId::background());
+            painter.extend(shapes);
         }
 
         self.egui.end_frame(window);
