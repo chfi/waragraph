@@ -13,6 +13,8 @@ use ultraviolet::Vec2;
 
 pub mod list;
 
+pub mod util;
+
 pub struct FlexLayout<T> {
     pub taffy: Taffy,
     pub node_data: BTreeMap<Node, T>,

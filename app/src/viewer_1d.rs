@@ -675,14 +675,19 @@ impl AppWindow for Viewer1D {
                             .get_by_left(path_id)
                             .unwrap();
 
-                        let shape = egui::Shape::text(
+                        let galley = crate::gui::util::fit_text_ellipsis(
                             &fonts,
-                            rect.left_center(),
-                            egui::Align2::LEFT_CENTER,
                             path_name,
                             egui::FontId::monospace(16.0),
                             egui::Color32::WHITE,
+                            rect.size().x,
                         );
+
+                        let text_pos = rect.left_top();
+                        let text_shape =
+                            egui::epaint::TextShape::new(text_pos, galley);
+
+                        let shape = egui::Shape::Text(text_shape);
 
                         shapes.push(shape);
                     }
