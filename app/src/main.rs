@@ -1,22 +1,27 @@
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use waragraph::app::WindowHandler;
+use waragraph::app::{Args, NewApp, WindowHandler};
 use waragraph_core::graph::PathIndex;
 use winit::event::{Event, VirtualKeyCode, WindowEvent};
 use winit::event_loop::{ControlFlow, EventLoop};
 
 use anyhow::Result;
 
-#[derive(Debug)]
-pub struct Args {
-    gfa: PathBuf,
-    tsv: Option<PathBuf>,
-    annotations: Option<PathBuf>,
+pub fn main() -> Result<()> {
+    env_logger::builder()
+        .filter_level(log::LevelFilter::Warn)
+        .init();
 
-    init_range: Option<std::ops::Range<u64>>,
+    let args = waragraph::app::parse_args();
+
+    let (event_loop, state) =
+        pollster::block_on(raving_wgpu::initialize_no_window())?;
+
+    Ok(())
 }
 
+/*
 pub fn main() -> Result<()> {
     env_logger::builder()
         .filter_level(log::LevelFilter::Warn)
@@ -84,43 +89,4 @@ pub fn main() -> Result<()> {
 
     Ok(())
 }
-
-pub fn parse_args() -> std::result::Result<Args, pico_args::Error> {
-    let mut pargs = pico_args::Arguments::from_env();
-
-    let annotations = pargs.opt_value_from_os_str("--bed", parse_path)?;
-    let init_range = pargs.opt_value_from_fn("--range", parse_range)?;
-
-    let args = Args {
-        gfa: pargs.free_from_os_str(parse_path)?,
-        tsv: pargs.opt_free_from_os_str(parse_path)?,
-
-        annotations,
-        init_range,
-    };
-
-    Ok(args)
-}
-
-fn parse_range(s: &str) -> Result<std::ops::Range<u64>> {
-    const ERROR_MSG: &'static str = "Range must be in the format `start-end`,\
-where `start` and `end` are nonnegative integers and `start` < `end`";
-
-    let fields = s.trim().split('-').take(2).collect::<Vec<_>>();
-
-    if fields.len() != 2 {
-        anyhow::bail!(ERROR_MSG);
-    }
-
-    let start = fields[0].parse::<u64>()?;
-    let end = fields[1].parse::<u64>()?;
-    if start >= end {
-        anyhow::bail!(ERROR_MSG);
-    }
-
-    Ok(start..end)
-}
-
-fn parse_path(s: &std::ffi::OsStr) -> Result<std::path::PathBuf, &'static str> {
-    Ok(s.into())
-}
+*/

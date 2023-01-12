@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
+use raving_wgpu::{gui::EguiCtx, WindowState};
 use winit::{
     event::{ElementState, Event, VirtualKeyCode, WindowEvent},
     event_loop::{ControlFlow, EventLoop},
@@ -8,10 +9,29 @@ use winit::{
 
 use super::AppWindow;
 
+pub struct AppWindowState {
+    state: WindowState,
+    egui: EguiCtx,
+}
+
 pub struct WindowHandler {
     active_window: usize,
     app_windows: HashMap<usize, Box<dyn AppWindow>>,
 }
+
+/* we want a system where the WindowHandler can create new visualizer
+windows given the necessary parameters
+
+since we want interaction between modes, data also needs to be shared,
+and when creating windows, we need to store & track it -- and it may
+also include data that's being created throughout the program lifetime
+
+we need a store of some kind, probably holding Arc<dyn _>s
+
+where the trait is something like DataSource, ColorScheme, Config,
+etc...
+
+*/
 
 impl WindowHandler {
     pub fn init(
@@ -65,21 +85,26 @@ impl WindowHandler {
         mut self,
         tokio_rt: Arc<tokio::runtime::Runtime>,
         event_loop: EventLoop<()>,
-        window: winit::window::Window,
-        mut state: raving_wgpu::State,
+        state: raving_wgpu::State,
+        mut window: raving_wgpu::WindowState,
     ) -> anyhow::Result<()> {
-        let mut first_resize = true;
+        let mut is_ready = false;
         let mut prev_frame_t = std::time::Instant::now();
 
         event_loop.run(move |event, _, control_flow| {
             let app = self.app_windows.get_mut(&self.active_window).unwrap();
 
             match &event {
+                Event::Resumed => {
+                    if !is_ready {
+                        is_ready = true;
+                    }
+                }
                 Event::WindowEvent { window_id, event } => {
                     let mut consumed = false;
 
-                    let size = window.inner_size();
-                    consumed = app.on_event([size.width, size.height], event);
+                    let size = window.window.inner_size();
+                    consumed = app.on_event(size.into(), event);
 
                     if !consumed {
                         match &event {
@@ -105,19 +130,17 @@ impl WindowHandler {
                                 *control_flow = ControlFlow::Exit
                             }
                             WindowEvent::Resized(phys_size) => {
-                                let old_size = state.size;
+                                let old_size = window.size;
 
                                 // for some reason i get a validation error if i actually attempt
                                 // to execute the first resize
                                 // NB: i think there's another event I should wait on before
                                 // trying to do any rendering and/or resizing
-                                if first_resize {
-                                    first_resize = false;
-                                } else {
-                                    state.resize(*phys_size);
+                                if is_ready {
+                                    window.resize(&state.device);
                                 }
 
-                                let new_size = window.inner_size();
+                                let new_size = window.window.inner_size();
 
                                 app.resize(
                                     &state,
@@ -130,7 +153,9 @@ impl WindowHandler {
                                 new_inner_size,
                                 ..
                             } => {
-                                state.resize(**new_inner_size);
+                                if is_ready {
+                                    window.resize(&state.device);
+                                }
                             }
                             _ => {}
                         }
@@ -138,9 +163,9 @@ impl WindowHandler {
                 }
 
                 Event::RedrawRequested(window_id)
-                    if *window_id == window.id() =>
+                    if *window_id == window.window.id() =>
                 {
-                    app.render(&mut state).unwrap();
+                    app.render(&state, &mut window).unwrap();
                 }
                 Event::MainEventsCleared => {
                     let dt = prev_frame_t.elapsed().as_secs_f32();
@@ -148,7 +173,7 @@ impl WindowHandler {
 
                     app.update(tokio_rt.handle(), &state, &window, dt);
 
-                    window.request_redraw();
+                    window.window.request_redraw();
                 }
 
                 _ => {}

@@ -11,7 +11,7 @@ use winit::window::Window;
 use raving_wgpu::camera::DynamicCamera2d;
 use raving_wgpu::graph::dfrog::{Graph, InputResource};
 use raving_wgpu::gui::EguiCtx;
-use raving_wgpu::{NodeId, State};
+use raving_wgpu::{NodeId, State, WindowState};
 
 use wgpu::util::DeviceExt;
 
@@ -86,6 +86,7 @@ impl PathRenderer {
     fn init(
         event_loop: &EventLoopWindowTarget<()>,
         state: &State,
+        window: &WindowState,
         path_index: Arc<PathIndex>,
         graph_curves: GraphPathCurves,
     ) -> Result<Self> {
@@ -121,7 +122,7 @@ impl PathRenderer {
                 wgpu::VertexStepMode::Vertex,
                 ["vertex_in"],
                 Some("indices"),
-                &[state.surface_format],
+                &[window.surface_format],
             )?
         };
 
@@ -134,7 +135,8 @@ impl PathRenderer {
             camera
         };
 
-        let egui = EguiCtx::init(event_loop, state, None);
+        let egui =
+            EguiCtx::init(state, window.surface_format, event_loop, None);
 
         let uniform_data = camera.to_matrix();
 
@@ -187,7 +189,7 @@ impl AppWindow for PathRenderer {
         &mut self,
         _handle: &tokio::runtime::Handle,
         _state: &raving_wgpu::State,
-        window: &winit::window::Window,
+        window: &raving_wgpu::WindowState,
         dt: f32,
     ) {
         // let touches = self
@@ -196,21 +198,20 @@ impl AppWindow for PathRenderer {
         //     .map(TouchOutput::flip_y)
         //     .collect::<Vec<_>>();
 
-        self.egui.run(window, |ctx| {
+        self.egui.run(&window.window, |ctx| {
             let painter = ctx.debug_painter();
 
             let origin = Vec2::new(40000.0, 180000.0);
             let norm_p = self.camera.transform_world_to_screen(origin);
 
-            let size = window.inner_size();
+            let size = window.window.inner_size();
             let size = Vec2::new(size.width as f32, size.height as f32);
             let p = norm_p * size;
 
             let stroke = egui::Stroke::new(1.0, egui::Color32::WHITE);
             let p = egui::pos2(p.x, p.y);
 
-            let size = window.inner_size();
-            let window_dims = Vec2::new(size.width as f32, size.height as f32);
+            let window_dims = size;
             draw_annotations(
                 &self.annotation_cache,
                 &painter,
@@ -244,7 +245,7 @@ impl AppWindow for PathRenderer {
         };
 
         let win_size = {
-            let s = window.inner_size();
+            let s = window.window.inner_size();
             ultraviolet::Vec2::new(s.width as f32, s.height as f32)
         };
 
@@ -300,16 +301,19 @@ impl AppWindow for PathRenderer {
         Ok(())
     }
 
-    fn render(&mut self, state: &mut raving_wgpu::State) -> anyhow::Result<()> {
-        let dims = state.size;
-        let size = [dims.width, dims.height];
+    fn render(
+        &mut self,
+        state: &raving_wgpu::State,
+        window: &mut WindowState,
+    ) -> anyhow::Result<()> {
+        let size: [u32; 2] = window.window.inner_size().into();
 
         let mut transient_res: HashMap<String, InputResource<'_>> =
             HashMap::default();
 
         let buffers = &self.path_curve_buffers;
 
-        if let Ok(output) = state.surface.get_current_texture() {
+        if let Ok(output) = window.surface.get_current_texture() {
             {
                 let uniform_data = self.camera.to_matrix();
                 state.queue.write_buffer(
@@ -323,7 +327,7 @@ impl AppWindow for PathRenderer {
                 .texture
                 .create_view(&wgpu::TextureViewDescriptor::default());
 
-            let format = state.surface_format;
+            let format = window.surface_format;
 
             transient_res.insert(
                 "swapchain".into(),
@@ -390,7 +394,7 @@ impl AppWindow for PathRenderer {
                 },
             );
 
-            self.egui.render(state, &output_view, &mut encoder);
+            self.egui.render(state, window, &output_view, &mut encoder);
 
             state.queue.submit(Some(encoder.finish()));
 
@@ -401,13 +405,14 @@ impl AppWindow for PathRenderer {
 
             output.present();
         } else {
-            state.resize(state.size);
+            window.resize(&state.device);
         }
 
         Ok(())
     }
 }
 
+/*
 pub fn init(
     event_loop: &EventLoop<()>,
     window: &Window,
@@ -433,6 +438,7 @@ pub fn init(
 
     Ok(Box::new(app))
 }
+*/
 
 pub fn parse_args() -> std::result::Result<Args, pico_args::Error> {
     let mut pargs = pico_args::Arguments::from_env();

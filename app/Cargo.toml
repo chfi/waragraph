@@ -29,8 +29,8 @@ ultraviolet = { version = "0.9", features = ["bytemuck", "f64"]}
 palette = "0.6"
 colorous = "1.0"
 
-# raving-wgpu = { path = "../../raving-wgpu" }
-raving-wgpu = { git = "https://github.com/chfi/raving-wgpu" }
+raving-wgpu = { path = "../../raving-wgpu" }
+# raving-wgpu = { git = "https://github.com/chfi/raving-wgpu" }
 lyon = "1.0"
 
 anyhow = "1.0"

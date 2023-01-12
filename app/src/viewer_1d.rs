@@ -18,7 +18,7 @@ use winit::window::Window;
 
 use raving_wgpu::graph::dfrog::{Graph, InputResource};
 use raving_wgpu::gui::EguiCtx;
-use raving_wgpu::{NodeId, State};
+use raving_wgpu::{NodeId, State, WindowState};
 use wgpu::util::{BufferInitDescriptor, DeviceExt};
 
 use anyhow::Result;
@@ -185,6 +185,7 @@ impl Viewer1D {
         event_loop: &EventLoopWindowTarget<()>,
         win_dims: [u32; 2],
         state: &State,
+        window: &WindowState,
         path_index: Arc<PathIndex>,
         init_range: Option<std::ops::Range<u64>>,
     ) -> Result<Self> {
@@ -220,7 +221,7 @@ impl Viewer1D {
                 wgpu::VertexStepMode::Instance,
                 ["vertex_in"],
                 None,
-                &[state.surface_format],
+                &[window.surface_format],
             )?
         };
 
@@ -261,7 +262,8 @@ impl Viewer1D {
         graph.add_link_from_transient("color", draw_node, 4);
         graph.add_link_from_transient("transform", draw_node, 5);
 
-        let mut egui = EguiCtx::init(event_loop, state, None);
+        let mut egui =
+            EguiCtx::init(state, window.surface_format, event_loop, None);
 
         let pangenome_len = path_index.pangenome_len().0;
 
@@ -503,13 +505,11 @@ impl AppWindow for Viewer1D {
         &mut self,
         tokio_rt: &tokio::runtime::Handle,
         state: &raving_wgpu::State,
-        window: &winit::window::Window,
+        window: &raving_wgpu::WindowState,
         dt: f32,
     ) {
-        let size = window.inner_size();
-
-        let dims =
-            ultraviolet::Vec2::new(size.width as f32, size.height as f32);
+        let [width, height]: [u32; 2] = window.window.inner_size().into();
+        let dims = ultraviolet::Vec2::new(width as f32, height as f32);
 
         let screen_rect = egui::Rect::from_min_max(
             egui::pos2(0.0, 0.0),
@@ -628,7 +628,7 @@ impl AppWindow for Viewer1D {
             );
         }
 
-        self.egui.begin_frame(window);
+        self.egui.begin_frame(&window.window);
 
         let mut path_name_region = egui::Rect::NOTHING;
         let mut path_slot_region = egui::Rect::NOTHING;
@@ -799,7 +799,7 @@ impl AppWindow for Viewer1D {
             painter.extend(fg_shapes);
         }
 
-        self.egui.end_frame(window);
+        self.egui.end_frame(&window.window);
     }
 
     fn on_event(
@@ -860,19 +860,22 @@ impl AppWindow for Viewer1D {
         Ok(())
     }
 
-    fn render(&mut self, state: &mut raving_wgpu::State) -> anyhow::Result<()> {
-        let dims = state.size;
-        let size = [dims.width, dims.height];
+    fn render(
+        &mut self,
+        state: &raving_wgpu::State,
+        window: &mut WindowState,
+    ) -> anyhow::Result<()> {
+        let size: [u32; 2] = window.window.inner_size().into();
 
         let mut transient_res: HashMap<String, InputResource<'_>> =
             HashMap::default();
 
-        if let Ok(output) = state.surface.get_current_texture() {
+        if let Ok(output) = window.surface.get_current_texture() {
             let output_view = output
                 .texture
                 .create_view(&wgpu::TextureViewDescriptor::default());
 
-            let format = state.surface_format;
+            let format = window.surface_format;
 
             transient_res.insert(
                 "swapchain".into(),
@@ -948,7 +951,7 @@ impl AppWindow for Viewer1D {
                 },
             );
 
-            self.egui.render(state, &output_view, &mut encoder);
+            self.egui.render(state, window, &output_view, &mut encoder);
 
             state.queue.submit(Some(encoder.finish()));
 
@@ -956,7 +959,7 @@ impl AppWindow for Viewer1D {
 
             output.present();
         } else {
-            state.resize(state.size);
+            window.resize(&state.device);
         }
 
         Ok(())
@@ -965,20 +968,18 @@ impl AppWindow for Viewer1D {
 
 pub fn init(
     event_loop: &EventLoop<()>,
-    window: &Window,
     state: &State,
+    window: &WindowState,
     path_index: Arc<PathIndex>,
     args: Args,
 ) -> Result<Box<dyn AppWindow>> {
-    let dims = {
-        let s = window.inner_size();
-        [s.width, s.height]
-    };
+    let dims: [u32; 2] = window.window.inner_size().into();
 
     let app = Viewer1D::init(
         &event_loop,
         dims,
-        &state,
+        state,
+        window,
         path_index,
         args.init_range.clone(),
     )?;
