@@ -38,10 +38,9 @@ pub mod view;
 #[derive(Debug)]
 pub struct Args {
     pub gfa: PathBuf,
-    pub init_range: Option<std::ops::Range<u64>>,
 }
 
-struct Viewer1D {
+pub struct Viewer1D {
     render_graph: Graph,
     egui: EguiCtx,
     path_index: Arc<PathIndex>,
@@ -181,13 +180,12 @@ fn path_frag_example_uniforms(
 }
 
 impl Viewer1D {
-    fn init(
+    pub fn init(
         event_loop: &EventLoopWindowTarget<()>,
         win_dims: [u32; 2],
         state: &State,
         window: &WindowState,
         path_index: Arc<PathIndex>,
-        init_range: Option<std::ops::Range<u64>>,
     ) -> Result<Self> {
         let mut graph = Graph::new();
 
@@ -975,14 +973,7 @@ pub fn init(
 ) -> Result<Box<dyn AppWindow>> {
     let dims: [u32; 2] = window.window.inner_size().into();
 
-    let app = Viewer1D::init(
-        &event_loop,
-        dims,
-        state,
-        window,
-        path_index,
-        args.init_range.clone(),
-    )?;
+    let app = Viewer1D::init(&event_loop, dims, state, window, path_index)?;
 
     Ok(Box::new(app))
 }

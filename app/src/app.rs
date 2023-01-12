@@ -2,13 +2,18 @@ mod window;
 
 use raving_wgpu::{gui::EguiCtx, WindowState};
 use tokio::runtime::Runtime;
-use winit::{event_loop::EventLoop, window::WindowId};
+use winit::{
+    event_loop::EventLoop,
+    window::{WindowBuilder, WindowId},
+};
 
 use std::{collections::HashMap, path::PathBuf, sync::Arc};
 
 use anyhow::Result;
 
 pub use window::WindowHandler;
+
+use crate::viewer_1d::Viewer1D;
 
 pub struct SharedState {
     gfa_path: Arc<PathBuf>,
@@ -24,8 +29,10 @@ pub enum AppType {
 }
 
 pub struct AppState {
-    window: Option<WindowId>,
+    // window: Option<WindowId>,
+    window: WindowId,
     app: Box<dyn AppWindow>,
+    egui: EguiCtx,
 }
 
 pub struct NewApp {
@@ -38,13 +45,87 @@ pub struct NewApp {
 
 impl NewApp {
     pub fn init(args: Args) -> Result<Self> {
-        todo!();
+        let runtime = tokio::runtime::Builder::new_multi_thread()
+            .worker_threads(4)
+            .thread_name("waragraph-tokio")
+            .build()?;
+
+        let tokio_rt = Arc::new(runtime);
+
+        let path_index = waragraph_core::graph::PathIndex::from_gfa(&args.gfa)?;
+        let path_index = Arc::new(path_index);
+
+        let shared = {
+            let gfa_path = Arc::new(args.gfa);
+            let tsv_path = args.tsv.map(|p| Arc::new(p));
+
+            SharedState {
+                gfa_path,
+                tsv_path,
+                graph: path_index,
+            }
+        };
+
+        Ok(Self {
+            tokio_rt,
+            shared,
+
+            windows: HashMap::default(),
+            apps: HashMap::default(),
+        })
     }
 
-    // pub fn init_viewer_1d(&mut self,
+    pub fn init_viewer_1d(
+        &mut self,
+        event_loop: &EventLoop<()>,
+        state: &raving_wgpu::State,
+    ) -> Result<()> {
+        let title = "Waragraph 1D".to_string();
+
+        let window =
+            WindowBuilder::new().with_title(title).build(event_loop)?;
+        let window = state.prepare_window(window)?;
+
+        let dims: [u32; 2] = window.window.inner_size().into();
+
+        let winid = window.window.id();
+
+        let app = {
+            let viewer = Viewer1D::init(
+                event_loop,
+                dims,
+                state,
+                &window,
+                self.shared.graph.clone(),
+            )?;
+            let app = Box::new(viewer) as Box<dyn AppWindow>;
+
+            let egui_ctx =
+                EguiCtx::init(&state, window.surface_format, &event_loop, None);
+
+            AppState {
+                window: winid,
+                app,
+                egui: egui_ctx,
+            }
+        };
+
+        self.apps.insert(AppType::Viewer1D, app);
+        self.windows.insert(winid, window);
+
+        Ok(())
+    }
+
+    pub async fn run(
+        self,
+        event_loop: EventLoop<()>,
+        state: raving_wgpu::State,
+    ) -> Result<()> {
+        todo!();
+    }
 }
 
-pub trait NewAppWindow {
+pub trait AppWindow {
     fn update(
         &mut self,
         tokio_handle: &tokio::runtime::Handle,
@@ -75,6 +156,7 @@ pub struct App {
     tokio_rt: Arc<Runtime>,
 }
 
+/*
 pub trait AppWindow {
     fn update(
         &mut self,
@@ -103,6 +185,7 @@ pub trait AppWindow {
         window: &mut raving_wgpu::WindowState,
     ) -> anyhow::Result<()>;
 }
+*/
 
 impl App {
     pub fn init(window_handler: WindowHandler) -> Result<Self> {

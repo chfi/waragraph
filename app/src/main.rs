@@ -15,6 +15,13 @@ pub fn main() -> Result<()> {
 
     let args = waragraph::app::parse_args();
 
+    if args.is_err() {
+        let name = std::env::args().next().unwrap();
+        println!("Usage: {name} <gfa> [tsv]");
+        println!("4-column BED file can be provided using the --bed flag");
+        std::process::exit(0);
+    }
+
     let (event_loop, state) =
         pollster::block_on(raving_wgpu::initialize_no_window())?;
 

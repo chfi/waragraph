@@ -9,29 +9,10 @@ use winit::{
 
 use super::AppWindow;
 
-pub struct AppWindowState {
-    state: WindowState,
-    egui: EguiCtx,
-}
-
 pub struct WindowHandler {
     active_window: usize,
     app_windows: HashMap<usize, Box<dyn AppWindow>>,
 }
-
-/* we want a system where the WindowHandler can create new visualizer
-windows given the necessary parameters
-
-since we want interaction between modes, data also needs to be shared,
-and when creating windows, we need to store & track it -- and it may
-also include data that's being created throughout the program lifetime
-
-we need a store of some kind, probably holding Arc<dyn _>s
-
-where the trait is something like DataSource, ColorScheme, Config,
-etc...
-
-*/
 
 impl WindowHandler {
     pub fn init(
