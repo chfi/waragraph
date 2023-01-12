@@ -39,7 +39,7 @@ struct GpuVertex {
     // tex_coord: [f32; 2],
 }
 
-struct PathRenderer {
+pub struct PathRenderer {
     render_graph: Graph,
     egui: EguiCtx,
 
@@ -83,13 +83,18 @@ fn draw_annotations(
 }
 
 impl PathRenderer {
-    fn init(
+    pub fn init(
         event_loop: &EventLoopWindowTarget<()>,
         state: &State,
         window: &WindowState,
         path_index: Arc<PathIndex>,
-        graph_curves: GraphPathCurves,
+        layout_tsv: impl AsRef<std::path::Path>,
     ) -> Result<Self> {
+        let graph_curves = GraphPathCurves::from_path_index_and_layout_tsv(
+            &path_index,
+            layout_tsv,
+        )?;
+
         let mut graph = Graph::new();
 
         let draw_schema = {

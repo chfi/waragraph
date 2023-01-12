@@ -31,11 +31,8 @@ pub fn main() -> Result<()> {
 
     app.init_viewer_1d(&event_loop, &state)?;
 
-    println!("app count: {}", app.apps.len());
-    println!("window count: {}", app.windows.len());
-
-    for win_id in app.windows.keys() {
-        println!("win_id: {win_id:?}");
+    if app.shared.tsv_path.is_some() {
+        app.init_viewer_2d(&event_loop, &state)?;
     }
 
     app.run(event_loop, state)

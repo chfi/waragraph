@@ -12,13 +12,13 @@ use std::{collections::HashMap, path::PathBuf, sync::Arc};
 
 use anyhow::Result;
 
-use crate::viewer_1d::Viewer1D;
+use crate::{viewer_1d::Viewer1D, viewer_2d::PathRenderer};
 
 pub struct SharedState {
-    gfa_path: Arc<PathBuf>,
-    tsv_path: Option<Arc<PathBuf>>,
+    pub gfa_path: Arc<PathBuf>,
+    pub tsv_path: Option<Arc<PathBuf>>,
 
-    graph: Arc<waragraph_core::graph::PathIndex>,
+    pub graph: Arc<waragraph_core::graph::PathIndex>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -28,7 +28,6 @@ pub enum AppType {
 }
 
 pub struct AppWindowState {
-    // window: Option<WindowId>,
     title: String,
     window: WindowState,
     app: Box<dyn AppWindow>,
@@ -41,20 +40,14 @@ impl AppWindowState {
         state: &raving_wgpu::State,
         title: &str,
         constructor: impl FnOnce(&WindowState) -> Result<Box<dyn AppWindow>>,
-        // app: Box<dyn AppWindow>,
     ) -> Result<Self> {
         let window =
             WindowBuilder::new().with_title(title).build(event_loop)?;
 
         let win_state = state.prepare_window(window)?;
 
-        let egui_ctx = EguiCtx::init(
-            &state,
-            win_state.surface_format,
-            &event_loop,
-            None,
-            // Some(wgpu::Color::BLACK),
-        );
+        let egui_ctx =
+            EguiCtx::init(&state, win_state.surface_format, &event_loop, None);
 
         let app = constructor(&win_state)?;
 
@@ -91,10 +84,6 @@ impl AppWindowState {
         let window = &mut self.window;
 
         if let Ok(output) = window.surface.get_current_texture() {
-            let output_view = output
-                .texture
-                .create_view(&wgpu::TextureViewDescriptor::default());
-
             let mut encoder = state.device.create_command_encoder(
                 &wgpu::CommandEncoderDescriptor {
                     label: Some(&self.title),
@@ -106,6 +95,9 @@ impl AppWindowState {
                 .create_view(&wgpu::TextureViewDescriptor::default());
 
             let result = app.render(state, window, &output_view, &mut encoder);
+            if let Err(e) = result {
+                log::error!("Render error in window {}: {e:?}", &self.title);
+            }
             egui_ctx.render(state, window, &output_view, &mut encoder);
 
             state.queue.submit(Some(encoder.finish()));
@@ -183,6 +175,39 @@ impl NewApp {
 
         self.apps.insert(AppType::Viewer1D, app);
         self.windows.insert(winid, AppType::Viewer1D);
+
+        Ok(())
+    }
+
+    pub fn init_viewer_2d(
+        &mut self,
+        event_loop: &EventLoop<()>,
+        state: &raving_wgpu::State,
+    ) -> Result<()> {
+        let tsv = if let Some(tsv) = self.shared.tsv_path.as_ref() {
+            tsv
+        } else {
+            anyhow::bail!("Can't initialize 2D viewer without layout TSV");
+        };
+
+        let title = "Waragraph 2D";
+
+        let app = AppWindowState::init(event_loop, state, title, |window| {
+            let app = PathRenderer::init(
+                event_loop,
+                state,
+                &window,
+                self.shared.graph.clone(),
+                tsv.as_ref(),
+            )?;
+
+            Ok(Box::new(app))
+        })?;
+
+        let winid = app.window.window.id();
+
+        self.apps.insert(AppType::Viewer2D, app);
+        self.windows.insert(winid, AppType::Viewer2D);
 
         Ok(())
     }
@@ -308,83 +333,16 @@ pub trait AppWindow {
         &mut self,
         state: &raving_wgpu::State,
         window: &WindowState,
-        // window_dims: PhysicalSize<u32>,
         swapchain_view: &wgpu::TextureView,
         encoder: &mut wgpu::CommandEncoder,
     ) -> anyhow::Result<()>;
 }
-
-/*
-pub trait AppWindow {
-    fn update(
-        &mut self,
-        tokio_handle: &tokio::runtime::Handle,
-        state: &raving_wgpu::State,
-        window: &raving_wgpu::WindowState,
-        dt: f32,
-    );
-
-    fn on_event(
-        &mut self,
-        window_dims: [u32; 2],
-        event: &winit::event::WindowEvent,
-    ) -> bool;
-
-    fn resize(
-        &mut self,
-        state: &raving_wgpu::State,
-        old_window_dims: [u32; 2],
-        new_window_dims: [u32; 2],
-    ) -> anyhow::Result<()>;
-
-    fn render(
-        &mut self,
-        state: &raving_wgpu::State,
-        window: &mut raving_wgpu::WindowState,
-    ) -> anyhow::Result<()>;
-}
-*/
-
-/*
-impl App {
-    pub fn init(window_handler: WindowHandler) -> Result<Self> {
-        let runtime = tokio::runtime::Builder::new_multi_thread()
-            .worker_threads(4)
-            .thread_name("waragraph-tokio")
-            .build()?;
-
-        let tokio_rt = Arc::new(runtime);
-
-        Ok(Self {
-            window_handler,
-            tokio_rt,
-        })
-    }
-
-    pub async fn run(
-        self,
-        event_loop: EventLoop<()>,
-        state: raving_wgpu::State,
-        window: raving_wgpu::WindowState,
-    ) -> Result<()> {
-        let Self {
-            window_handler,
-            tokio_rt,
-        } = self;
-
-        window_handler
-            .run(tokio_rt, event_loop, state, window)
-            .await
-    }
-}
-*/
 
 #[derive(Debug)]
 pub struct Args {
     pub gfa: PathBuf,
     pub tsv: Option<PathBuf>,
     pub annotations: Option<PathBuf>,
-    // init_range: Option<std::ops::Range<u64>>,
 }
 
 pub fn parse_args() -> std::result::Result<Args, pico_args::Error> {
