@@ -41,7 +41,6 @@ struct GpuVertex {
 
 pub struct PathRenderer {
     render_graph: Graph,
-    egui: EguiCtx,
 
     path_index: Arc<PathIndex>,
     graph_curves: layout::GraphPathCurves,
@@ -171,7 +170,6 @@ impl PathRenderer {
 
         Ok(Self {
             render_graph: graph,
-            egui,
 
             path_index,
 
@@ -198,13 +196,7 @@ impl AppWindow for PathRenderer {
         egui_ctx: &mut EguiCtx,
         dt: f32,
     ) {
-        // let touches = self
-        //     .touch
-        //     .take()
-        //     .map(TouchOutput::flip_y)
-        //     .collect::<Vec<_>>();
-
-        self.egui.run(&window.window, |ctx| {
+        egui_ctx.run(&window.window, |ctx| {
             let painter = ctx.debug_painter();
 
             let origin = Vec2::new(40000.0, 180000.0);
@@ -226,22 +218,16 @@ impl AppWindow for PathRenderer {
             );
         });
 
-        let any_touches = self.egui.ctx().input().any_touches();
+        let any_touches = egui_ctx.ctx().input().any_touches();
 
         if any_touches {
             self.camera.stop();
         }
 
-        // if self.egui.ctx().
-        // if self.egui.ctx().
-        // if !touches.is_empty() {
-        //     self.camera.stop();
-        // }
-
         self.camera.update(dt);
 
         let (scroll, delta, primary_down) = {
-            let input = &self.egui.ctx().input();
+            let input = &egui_ctx.ctx().input();
             let scroll = input.scroll_delta;
             let pointer = &input.pointer;
             let delta = pointer.delta();
@@ -255,9 +241,9 @@ impl AppWindow for PathRenderer {
             ultraviolet::Vec2::new(s.width as f32, s.height as f32)
         };
 
-        let pos = self.egui.pointer_interact_pos();
+        let pos = egui_ctx.pointer_interact_pos();
 
-        if let Some(touch) = self.egui.multi_touch() {
+        if let Some(touch) = egui_ctx.ctx().multi_touch() {
             let t = touch.translation_delta;
             let z = 2.0 - touch.zoom_delta;
             let t = ultraviolet::Vec2::new(-t.x / win_size.x, t.y / win_size.y);
@@ -278,15 +264,9 @@ impl AppWindow for PathRenderer {
         window_dims: [u32; 2],
         event: &winit::event::WindowEvent,
     ) -> bool {
-        let mut consume = false;
+        // TODO do stuff; currently handled in update() via egui
 
-        let resp = self.egui.on_event(event);
-
-        // if self.touch.on_event(window_dims, event) {
-        //     consume = true;
-        // }
-
-        consume
+        false
     }
 
     fn on_resize(
@@ -395,54 +375,9 @@ impl AppWindow for PathRenderer {
             encoder,
         )?;
 
-        // let mut encoder = state.device.create_command_encoder(
-        //     &wgpu::CommandEncoderDescriptor {
-        //         label: Some("egui render"),
-        //     },
-        // );
-
-        // self.egui.render(state, window, &output_view, &mut encoder);
-
-        // state.queue.submit(Some(encoder.finish()));
-
-        // // probably shouldn't be polling here, but the render graph
-        // // should probably not be submitting by itself, either:
-        // //  better to return the encoders that will be submitted
-        // state.device.poll(wgpu::MaintainBase::Wait);
-
-        // output.present();
-
         Ok(())
     }
 }
-
-/*
-pub fn init(
-    event_loop: &EventLoop<()>,
-    window: &Window,
-    state: &State,
-    path_index: Arc<PathIndex>,
-    args: Args,
-) -> Result<Box<dyn AppWindow>> {
-    let graph_curves = GraphPathCurves::from_path_index_and_layout_tsv(
-        &path_index,
-        &args.tsv,
-    )?;
-
-    let mut app =
-        PathRenderer::init(&event_loop, &state, path_index, graph_curves)?;
-
-    if let Some(bed) = args.annotations.as_ref() {
-        app.annotations.fill_from_bed(bed)?;
-        let cache = app
-            .annotations
-            .layout_positions(&app.path_index, &app.graph_curves);
-        app.annotation_cache = cache;
-    }
-
-    Ok(Box::new(app))
-}
-*/
 
 pub fn parse_args() -> std::result::Result<Args, pico_args::Error> {
     let mut pargs = pico_args::Arguments::from_env();

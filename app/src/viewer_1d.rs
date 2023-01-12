@@ -944,34 +944,6 @@ impl AppWindow for Viewer1D {
             )
             .unwrap();
 
-        // let mut encoder = state.device.create_command_encoder(
-        //     &wgpu::CommandEncoderDescriptor {
-        //         label: Some("egui render"),
-        //     },
-        // );
-
-        // self.egui.render(state, window, &output_view, &mut encoder);
-
-        // state.queue.submit(Some(encoder.finish()));
-
-        // state.device.poll(wgpu::MaintainBase::Wait);
-
-        // output.present();
-
         Ok(())
     }
-}
-
-pub fn init(
-    event_loop: &EventLoop<()>,
-    state: &State,
-    window: &WindowState,
-    path_index: Arc<PathIndex>,
-    args: Args,
-) -> Result<Box<dyn AppWindow>> {
-    let dims: [u32; 2] = window.window.inner_size().into();
-
-    let app = Viewer1D::init(&event_loop, dims, state, window, path_index)?;
-
-    Ok(Box::new(app))
 }
