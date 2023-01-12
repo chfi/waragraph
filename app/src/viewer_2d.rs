@@ -190,6 +190,7 @@ impl AppWindow for PathRenderer {
         _handle: &tokio::runtime::Handle,
         _state: &raving_wgpu::State,
         window: &raving_wgpu::WindowState,
+        egui_ctx: &mut EguiCtx,
         dt: f32,
     ) {
         // let touches = self

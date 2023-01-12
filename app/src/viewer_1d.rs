@@ -43,7 +43,7 @@ pub struct Args {
 
 pub struct Viewer1D {
     render_graph: Graph,
-    egui: EguiCtx,
+    // egui: EguiCtx,
     path_index: Arc<PathIndex>,
     draw_path_slot: NodeId,
 
@@ -261,8 +261,8 @@ impl Viewer1D {
         graph.add_link_from_transient("color", draw_node, 4);
         graph.add_link_from_transient("transform", draw_node, 5);
 
-        let mut egui =
-            EguiCtx::init(state, window.surface_format, event_loop, None);
+        // let mut egui =
+        //     EguiCtx::init(state, window.surface_format, event_loop, None);
 
         let pangenome_len = path_index.pangenome_len().0;
 
@@ -339,7 +339,7 @@ impl Viewer1D {
 
         Ok(Viewer1D {
             render_graph: graph,
-            egui,
+            // egui,
             path_index,
             draw_path_slot: draw_node,
 
@@ -505,6 +505,7 @@ impl AppWindow for Viewer1D {
         tokio_rt: &tokio::runtime::Handle,
         state: &raving_wgpu::State,
         window: &raving_wgpu::WindowState,
+        egui_ctx: &mut EguiCtx,
         dt: f32,
     ) {
         let [width, height]: [u32; 2] = window.window.inner_size().into();
@@ -627,7 +628,7 @@ impl AppWindow for Viewer1D {
             );
         }
 
-        self.egui.begin_frame(&window.window);
+        egui_ctx.begin_frame(&window.window);
 
         let mut path_name_region = egui::Rect::NOTHING;
         let mut path_slot_region = egui::Rect::NOTHING;
@@ -635,7 +636,7 @@ impl AppWindow for Viewer1D {
         let mut shapes = Vec::new();
 
         let layout_result = {
-            let fonts = self.egui.ctx().fonts();
+            let fonts = egui_ctx.ctx().fonts();
 
             self.dyn_slot_layout.visit_layout(|layout, elem| {
                 let rect = crate::gui::layout_egui_rect(&layout);
@@ -700,7 +701,7 @@ impl AppWindow for Viewer1D {
         }
 
         {
-            let ctx = self.egui.ctx();
+            let ctx = egui_ctx.ctx();
 
             let mut fg_shapes = Vec::new();
 
@@ -788,17 +789,17 @@ impl AppWindow for Viewer1D {
             });
 
             let painter =
-                self.egui.ctx().layer_painter(egui::LayerId::background());
+                egui_ctx.ctx().layer_painter(egui::LayerId::background());
             painter.extend(shapes);
 
-            let painter = self.egui.ctx().layer_painter(egui::LayerId::new(
+            let painter = egui_ctx.ctx().layer_painter(egui::LayerId::new(
                 egui::Order::Foreground,
                 "main_area_fg".into(),
             ));
             painter.extend(fg_shapes);
         }
 
-        self.egui.end_frame(&window.window);
+        egui_ctx.end_frame(&window.window);
     }
 
     fn on_event(
@@ -807,8 +808,6 @@ impl AppWindow for Viewer1D {
         event: &winit::event::WindowEvent,
     ) -> bool {
         let mut consume = false;
-
-        let resp = self.egui.on_event(event);
 
         if let WindowEvent::KeyboardInput { input, .. } = event {
             if let Some(key) = input.virtual_keycode {

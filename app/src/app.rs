@@ -1,6 +1,5 @@
 mod window;
 
-use palette::convert::IntoColorUnclamped;
 use raving_wgpu::{gui::EguiCtx, WindowState};
 use tokio::runtime::Runtime;
 use winit::{
@@ -82,7 +81,8 @@ impl AppWindowState {
         state: &raving_wgpu::State,
         dt: f32,
     ) {
-        self.app.update(tokio_handle, state, &self.window, dt);
+        self.app
+            .update(tokio_handle, state, &self.window, &mut self.egui, dt);
     }
 
     fn render(&mut self, state: &raving_wgpu::State) -> anyhow::Result<()> {
@@ -195,98 +195,88 @@ impl NewApp {
         let mut is_ready = false;
         let mut prev_frame_t = std::time::Instant::now();
 
-        event_loop.run(move |event, _, control_flow| {
-            // let app = self.app_windows.get_mut(&self.active_window).unwrap();
-            // dbg!();
-
-            match &event {
-                Event::Resumed => {
-                    if !is_ready {
-                        is_ready = true;
-                    }
+        event_loop.run(move |event, _, control_flow| match &event {
+            Event::Resumed => {
+                if !is_ready {
+                    is_ready = true;
                 }
-                Event::WindowEvent { window_id, event } => {
-                    println!("window_id: {window_id:?}");
-                    let app_type = self.windows.get(&window_id);
-                    if app_type.is_none() {
-                        return;
-                    }
-                    let app_type = app_type.unwrap();
-                    let app = self.apps.get_mut(app_type).unwrap();
-
-                    let size = app.window.window.inner_size();
-
-                    let mut consumed = app.on_event(event);
-
-                    if !consumed {
-                        match &event {
-                            WindowEvent::KeyboardInput { input, .. } => {
-                                use VirtualKeyCode as Key;
-
-                                let pressed = matches!(
-                                    input.state,
-                                    ElementState::Pressed
-                                );
-
-                                if let Some(code) = input.virtual_keycode {
-                                    if let Key::Escape = code {
-                                        *control_flow = ControlFlow::Exit;
-                                    }
-                                }
-                            }
-                            WindowEvent::CloseRequested => {
-                                *control_flow = ControlFlow::Exit
-                            }
-                            WindowEvent::Resized(phys_size) => {
-                                if is_ready {
-                                    app.resize(&state);
-                                    app.app
-                                        .on_resize(
-                                            &state,
-                                            app.window.size.into(),
-                                            (*phys_size).into(),
-                                        )
-                                        .unwrap();
-                                }
-                            }
-                            WindowEvent::ScaleFactorChanged {
-                                new_inner_size,
-                                ..
-                            } => {
-                                if is_ready {
-                                    app.resize(&state);
-                                }
-                            }
-                            _ => {}
-                        }
-                    }
-                }
-
-                Event::RedrawRequested(window_id) => {
-                    let app_type = self.windows.get(&window_id);
-                    dbg!();
-                    if app_type.is_none() {
-                        return;
-                    }
-                    let app_type = app_type.unwrap();
-                    dbg!();
-
-                    let app = self.apps.get_mut(app_type).unwrap();
-                    app.render(&state).unwrap();
-                }
-                Event::MainEventsCleared => {
-                    let dt = prev_frame_t.elapsed().as_secs_f32();
-                    prev_frame_t = std::time::Instant::now();
-
-                    for (_app_type, app) in self.apps.iter_mut() {
-                        app.update(self.tokio_rt.handle(), &state, dt);
-                        app.window.window.request_redraw();
-                        // dbg!();
-                    }
-                }
-
-                _ => {}
             }
+            Event::WindowEvent { window_id, event } => {
+                println!("window_id: {window_id:?}");
+                let app_type = self.windows.get(&window_id);
+                if app_type.is_none() {
+                    return;
+                }
+                let app_type = app_type.unwrap();
+                let app = self.apps.get_mut(app_type).unwrap();
+
+                let size = app.window.window.inner_size();
+
+                let mut consumed = app.on_event(event);
+
+                if !consumed {
+                    match &event {
+                        WindowEvent::KeyboardInput { input, .. } => {
+                            use VirtualKeyCode as Key;
+
+                            let pressed =
+                                matches!(input.state, ElementState::Pressed);
+
+                            if let Some(code) = input.virtual_keycode {
+                                if let Key::Escape = code {
+                                    *control_flow = ControlFlow::Exit;
+                                }
+                            }
+                        }
+                        WindowEvent::CloseRequested => {
+                            *control_flow = ControlFlow::Exit
+                        }
+                        WindowEvent::Resized(phys_size) => {
+                            if is_ready {
+                                app.resize(&state);
+                                app.app
+                                    .on_resize(
+                                        &state,
+                                        app.window.size.into(),
+                                        (*phys_size).into(),
+                                    )
+                                    .unwrap();
+                            }
+                        }
+                        WindowEvent::ScaleFactorChanged {
+                            new_inner_size,
+                            ..
+                        } => {
+                            if is_ready {
+                                app.resize(&state);
+                            }
+                        }
+                        _ => {}
+                    }
+                }
+            }
+
+            Event::RedrawRequested(window_id) => {
+                let app_type = self.windows.get(&window_id);
+                if app_type.is_none() {
+                    return;
+                }
+                let app_type = app_type.unwrap();
+
+                let app = self.apps.get_mut(app_type).unwrap();
+                app.render(&state).unwrap();
+            }
+            Event::MainEventsCleared => {
+                let dt = prev_frame_t.elapsed().as_secs_f32();
+                prev_frame_t = std::time::Instant::now();
+
+                for (_app_type, app) in self.apps.iter_mut() {
+                    app.update(self.tokio_rt.handle(), &state, dt);
+                    app.window.window.request_redraw();
+                }
+            }
+
+            _ => {}
         })
     }
 }
@@ -297,6 +287,7 @@ pub trait AppWindow {
         tokio_handle: &tokio::runtime::Handle,
         state: &raving_wgpu::State,
         window: &raving_wgpu::WindowState,
+        egui_ctx: &mut EguiCtx,
         dt: f32,
     );
 
