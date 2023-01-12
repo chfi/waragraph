@@ -5,6 +5,7 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
 
+use winit::event::WindowEvent;
 use winit::event_loop::{EventLoop, EventLoopWindowTarget};
 use winit::window::Window;
 
@@ -37,6 +38,163 @@ pub struct Args {
 struct GpuVertex {
     pos: [f32; 2],
     // tex_coord: [f32; 2],
+}
+
+pub struct Viewer2D {
+    path_index: Arc<PathIndex>,
+
+    node_positions: Vec<[Vec2; 2]>,
+
+    camera: DynamicCamera2d,
+
+    uniform_buf: wgpu::Buffer,
+
+    render_graph: Graph,
+    draw_node: NodeId,
+}
+
+impl Viewer2D {
+    pub fn init() -> Result<Self> {
+
+        let draw_node_schema = {
+            let vert_src = include_bytes!(concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/shaders/path_slot_1d.vert.spv"
+            ));
+            let frag_src = include_bytes!(concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/shaders/path_slot_1d.frag.spv"
+            ));
+        }
+
+        todo!();
+    }
+}
+
+impl AppWindow for Viewer2D {
+    fn update(
+        &mut self,
+        tokio_handle: &tokio::runtime::Handle,
+        state: &raving_wgpu::State,
+        window: &raving_wgpu::WindowState,
+        egui_ctx: &mut EguiCtx,
+        dt: f32,
+    ) {
+        let [width, height]: [u32; 2] = window.window.inner_size().into();
+        let dims = ultraviolet::Vec2::new(width as f32, height as f32);
+
+        let screen_rect = egui::Rect::from_min_max(
+            egui::pos2(0.0, 0.0),
+            egui::pos2(dims.x, dims.y),
+        );
+
+        egui_ctx.begin_frame(&window.window);
+
+        egui_ctx.end_frame(&window.window);
+
+        self.camera.update(dt);
+    }
+
+    fn on_event(
+        &mut self,
+        window_dims: [u32; 2],
+        event: &winit::event::WindowEvent,
+    ) -> bool {
+        let mut consume = false;
+
+        if let WindowEvent::KeyboardInput { input, .. } = event {
+            if let Some(key) = input.virtual_keycode {
+                use winit::event::ElementState;
+                use winit::event::VirtualKeyCode as Key;
+                let pressed = matches!(input.state, ElementState::Pressed);
+
+                if pressed {
+                    match key {
+                        Key::Right => {
+                            // self.view.translate_norm_f32(0.1);
+                        }
+                        Key::Left => {
+                            // self.view.translate_norm_f32(-0.1);
+                        }
+                        Key::Up => {
+                            // self.path_list_view.scroll_relative(-1);
+                            // self.force_resample = true;
+                        }
+                        Key::Down => {
+                            // self.path_list_view.scroll_relative(1);
+                            // self.force_resample = true;
+                        }
+                        Key::Space => {
+                            // self.view.reset();
+                        }
+                        _ => (),
+                    }
+                }
+
+                // self.view = l..r;
+            }
+        }
+
+        consume
+    }
+
+    fn on_resize(
+        &mut self,
+        state: &raving_wgpu::State,
+        old_window_dims: [u32; 2],
+        new_window_dims: [u32; 2],
+    ) -> anyhow::Result<()> {
+        // TODO *maybe* update view here, but might not be necessary
+        Ok(())
+    }
+
+    fn render(
+        &mut self,
+        state: &raving_wgpu::State,
+        window: &WindowState,
+        swapchain_view: &wgpu::TextureView,
+        encoder: &mut wgpu::CommandEncoder,
+    ) -> anyhow::Result<()> {
+        let size: [u32; 2] = window.window.inner_size().into();
+
+        let mut transient_res: HashMap<String, InputResource<'_>> =
+            HashMap::default();
+
+        let format = window.surface_format;
+
+        transient_res.insert(
+            "swapchain".into(),
+            InputResource::Texture {
+                size,
+                format,
+                texture: None,
+                view: Some(&swapchain_view),
+                sampler: None,
+            },
+        );
+
+        self.render_graph.update_transient_cache(&transient_res);
+
+        let valid = self
+            .render_graph
+            .validate(&transient_res, &rhai::Map::default())
+            .unwrap();
+
+        if !valid {
+            log::error!("graph validation error");
+        }
+
+        self.render_graph
+            .execute_with_encoder(
+                &state,
+                &transient_res,
+                &rhai::Map::default(),
+                encoder,
+            )
+            .unwrap();
+
+        Ok(())
+    }
 }
 
 pub struct PathRenderer {
@@ -196,7 +354,10 @@ impl AppWindow for PathRenderer {
         egui_ctx: &mut EguiCtx,
         dt: f32,
     ) {
+        /*
+        dbg!();
         egui_ctx.run(&window.window, |ctx| {
+            dbg!();
             let painter = ctx.debug_painter();
 
             let origin = Vec2::new(40000.0, 180000.0);
@@ -217,6 +378,8 @@ impl AppWindow for PathRenderer {
                 &self.camera,
             );
         });
+
+        dbg!();
 
         let any_touches = egui_ctx.ctx().input().any_touches();
 
@@ -257,6 +420,8 @@ impl AppWindow for PathRenderer {
             );
             self.camera.blink(delta);
         }
+        dbg!();
+        */
     }
 
     fn on_event(
@@ -368,12 +533,14 @@ impl AppWindow for PathRenderer {
             log::error!("graph validation error");
         }
 
+        /*
         self.render_graph.execute_with_encoder(
             &state,
             &transient_res,
             &self.graph_scalars,
             encoder,
         )?;
+        */
 
         Ok(())
     }

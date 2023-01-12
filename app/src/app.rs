@@ -176,7 +176,9 @@ impl App {
                         }
                         WindowEvent::Resized(phys_size) => {
                             if is_ready {
+                                dbg!();
                                 app.resize(&state);
+                                dbg!();
                                 app.app
                                     .on_resize(
                                         &state,
@@ -184,6 +186,7 @@ impl App {
                                         (*phys_size).into(),
                                     )
                                     .unwrap();
+                                dbg!();
                             }
                         }
                         WindowEvent::ScaleFactorChanged {
@@ -191,6 +194,7 @@ impl App {
                             ..
                         } => {
                             if is_ready {
+                                dbg!();
                                 app.resize(&state);
                             }
                         }
@@ -204,19 +208,28 @@ impl App {
                 if app_type.is_none() {
                     return;
                 }
+                dbg!();
                 let app_type = app_type.unwrap();
 
+                dbg!();
                 let app = self.apps.get_mut(app_type).unwrap();
+                dbg!();
                 app.render(&state).unwrap();
+                dbg!();
             }
             Event::MainEventsCleared => {
                 let dt = prev_frame_t.elapsed().as_secs_f32();
                 prev_frame_t = std::time::Instant::now();
 
+                dbg!();
                 for (_app_type, app) in self.apps.iter_mut() {
+                    dbg!();
                     app.update(self.tokio_rt.handle(), &state, dt);
+                    dbg!();
                     app.window.window.request_redraw();
+                    dbg!();
                 }
+                dbg!();
             }
 
             _ => {}
