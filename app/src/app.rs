@@ -1,11 +1,9 @@
-mod window;
-
 use raving_wgpu::{gui::EguiCtx, WindowState};
 use tokio::runtime::Runtime;
 use winit::{
     event::{ElementState, Event, VirtualKeyCode, WindowEvent},
     event_loop::{ControlFlow, EventLoop},
-    window::{WindowBuilder, WindowId},
+    window::WindowId,
 };
 
 use std::{collections::HashMap, path::PathBuf, sync::Arc};
@@ -13,6 +11,10 @@ use std::{collections::HashMap, path::PathBuf, sync::Arc};
 use anyhow::Result;
 
 use crate::{viewer_1d::Viewer1D, viewer_2d::PathRenderer};
+
+mod window;
+
+pub use window::AppWindowState;
 
 pub struct SharedState {
     pub gfa_path: Arc<PathBuf>,
@@ -27,90 +29,7 @@ pub enum AppType {
     Viewer2D,
 }
 
-pub struct AppWindowState {
-    title: String,
-    window: WindowState,
-    app: Box<dyn AppWindow>,
-    egui: EguiCtx,
-}
-
-impl AppWindowState {
-    fn init(
-        event_loop: &EventLoop<()>,
-        state: &raving_wgpu::State,
-        title: &str,
-        constructor: impl FnOnce(&WindowState) -> Result<Box<dyn AppWindow>>,
-    ) -> Result<Self> {
-        let window =
-            WindowBuilder::new().with_title(title).build(event_loop)?;
-
-        let win_state = state.prepare_window(window)?;
-
-        let egui_ctx =
-            EguiCtx::init(&state, win_state.surface_format, &event_loop, None);
-
-        let app = constructor(&win_state)?;
-
-        Ok(Self {
-            title: title.to_string(),
-            window: win_state,
-            app,
-            egui: egui_ctx,
-        })
-    }
-
-    fn resize(&mut self, state: &raving_wgpu::State) {
-        self.window.resize(&state.device);
-    }
-
-    fn on_event<'a>(&mut self, event: &WindowEvent<'a>) -> bool {
-        let resp = self.egui.on_event(event);
-        resp.consumed
-    }
-
-    fn update(
-        &mut self,
-        tokio_handle: &tokio::runtime::Handle,
-        state: &raving_wgpu::State,
-        dt: f32,
-    ) {
-        self.app
-            .update(tokio_handle, state, &self.window, &mut self.egui, dt);
-    }
-
-    fn render(&mut self, state: &raving_wgpu::State) -> anyhow::Result<()> {
-        let app = &mut self.app;
-        let egui_ctx = &mut self.egui;
-        let window = &mut self.window;
-
-        if let Ok(output) = window.surface.get_current_texture() {
-            let mut encoder = state.device.create_command_encoder(
-                &wgpu::CommandEncoderDescriptor {
-                    label: Some(&self.title),
-                },
-            );
-
-            let output_view = output
-                .texture
-                .create_view(&wgpu::TextureViewDescriptor::default());
-
-            let result = app.render(state, window, &output_view, &mut encoder);
-            if let Err(e) = result {
-                log::error!("Render error in window {}: {e:?}", &self.title);
-            }
-            egui_ctx.render(state, window, &output_view, &mut encoder);
-
-            state.queue.submit(Some(encoder.finish()));
-            output.present();
-        } else {
-            window.resize(&state.device);
-        }
-
-        Ok(())
-    }
-}
-
-pub struct NewApp {
+pub struct App {
     pub tokio_rt: Arc<Runtime>,
     pub shared: SharedState,
 
@@ -118,7 +37,7 @@ pub struct NewApp {
     pub apps: HashMap<AppType, AppWindowState>,
 }
 
-impl NewApp {
+impl App {
     pub fn init(args: Args) -> Result<Self> {
         let runtime = tokio::runtime::Builder::new_multi_thread()
             .worker_threads(4)
@@ -227,7 +146,6 @@ impl NewApp {
                 }
             }
             Event::WindowEvent { window_id, event } => {
-                println!("window_id: {window_id:?}");
                 let app_type = self.windows.get(&window_id);
                 if app_type.is_none() {
                     return;

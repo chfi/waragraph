@@ -5,162 +5,93 @@ use raving_wgpu::{gui::EguiCtx, WindowState};
 use winit::{
     event::{ElementState, Event, VirtualKeyCode, WindowEvent},
     event_loop::{ControlFlow, EventLoop},
+    window::WindowBuilder,
 };
 
 use super::AppWindow;
 
-/*
-pub struct WindowHandler {
-    active_window: usize,
-    app_windows: HashMap<usize, Box<dyn AppWindow>>,
+pub struct AppWindowState {
+    pub title: String,
+    pub(super) window: WindowState,
+    pub(super) app: Box<dyn AppWindow>,
+    pub(super) egui: EguiCtx,
 }
 
-impl WindowHandler {
-    pub fn init(
-        apps: impl IntoIterator<Item = Box<dyn AppWindow>>,
-    ) -> Option<Self> {
-        let mut app_windows = HashMap::new();
+impl AppWindowState {
+    pub(super) fn init(
+        event_loop: &EventLoop<()>,
+        state: &raving_wgpu::State,
+        title: &str,
+        constructor: impl FnOnce(&WindowState) -> anyhow::Result<Box<dyn AppWindow>>,
+    ) -> anyhow::Result<Self> {
+        let window =
+            WindowBuilder::new().with_title(title).build(event_loop)?;
 
-        for (ix, app) in apps.into_iter().enumerate() {
-            app_windows.insert(ix, app);
-        }
+        let win_state = state.prepare_window(window)?;
 
-        if app_windows.is_empty() {
-            return None;
-        }
+        let egui_ctx =
+            EguiCtx::init(&state, win_state.surface_format, &event_loop, None);
 
-        let active_window = 0;
+        let app = constructor(&win_state)?;
 
-        Some(Self {
-            active_window,
-            app_windows,
+        Ok(Self {
+            title: title.to_string(),
+            window: win_state,
+            app,
+            egui: egui_ctx,
         })
     }
 
-    pub fn add_window(&mut self, app: Box<dyn AppWindow>) {
-        let ix = self.app_windows.len();
-        self.app_windows.insert(ix, app);
+    pub(super) fn resize(&mut self, state: &raving_wgpu::State) {
+        self.window.resize(&state.device);
     }
 
-    pub fn add_windows_iter(
+    pub(super) fn on_event<'a>(&mut self, event: &WindowEvent<'a>) -> bool {
+        let resp = self.egui.on_event(event);
+        resp.consumed
+    }
+
+    pub(super) fn update(
         &mut self,
-        apps: impl IntoIterator<Item = Box<dyn AppWindow>>,
+        tokio_handle: &tokio::runtime::Handle,
+        state: &raving_wgpu::State,
+        dt: f32,
     ) {
-        for app in apps {
-            let ix = self.app_windows.len();
-            self.app_windows.insert(ix, app);
-        }
+        self.app
+            .update(tokio_handle, state, &self.window, &mut self.egui, dt);
     }
 
-    pub fn next_window(&mut self) {
-        self.active_window = (self.active_window + 1) % self.app_windows.len()
-    }
-
-    pub fn prev_window(&mut self) {
-        self.active_window = self
-            .active_window
-            .checked_sub(1)
-            .unwrap_or(self.app_windows.len() - 1)
-    }
-
-    pub async fn run(
-        mut self,
-        tokio_rt: Arc<tokio::runtime::Runtime>,
-        event_loop: EventLoop<()>,
-        state: raving_wgpu::State,
-        mut window: raving_wgpu::WindowState,
+    pub(super) fn render(
+        &mut self,
+        state: &raving_wgpu::State,
     ) -> anyhow::Result<()> {
-        let mut is_ready = false;
-        let mut prev_frame_t = std::time::Instant::now();
+        let app = &mut self.app;
+        let egui_ctx = &mut self.egui;
+        let window = &mut self.window;
 
-        event_loop.run(move |event, _, control_flow| {
-            let app = self.app_windows.get_mut(&self.active_window).unwrap();
+        if let Ok(output) = window.surface.get_current_texture() {
+            let mut encoder = state.device.create_command_encoder(
+                &wgpu::CommandEncoderDescriptor {
+                    label: Some(&self.title),
+                },
+            );
 
-            match &event {
-                Event::Resumed => {
-                    if !is_ready {
-                        is_ready = true;
-                    }
-                }
-                Event::WindowEvent { window_id, event } => {
-                    let mut consumed = false;
+            let output_view = output
+                .texture
+                .create_view(&wgpu::TextureViewDescriptor::default());
 
-                    let size = window.window.inner_size();
-                    consumed = app.on_event(size.into(), event);
-
-                    if !consumed {
-                        match &event {
-                            WindowEvent::KeyboardInput { input, .. } => {
-                                use VirtualKeyCode as Key;
-
-                                let pressed = matches!(
-                                    input.state,
-                                    ElementState::Pressed
-                                );
-
-                                if let Some(code) = input.virtual_keycode {
-                                    if let Key::Escape = code {
-                                        *control_flow = ControlFlow::Exit;
-                                    } else if let Key::F1 = code {
-                                        if pressed {
-                                            self.next_window();
-                                        }
-                                    }
-                                }
-                            }
-                            WindowEvent::CloseRequested => {
-                                *control_flow = ControlFlow::Exit
-                            }
-                            WindowEvent::Resized(phys_size) => {
-                                let old_size = window.size;
-
-                                // for some reason i get a validation error if i actually attempt
-                                // to execute the first resize
-                                // NB: i think there's another event I should wait on before
-                                // trying to do any rendering and/or resizing
-                                if is_ready {
-                                    window.resize(&state.device);
-                                }
-
-                                let new_size = window.window.inner_size();
-
-                                app.resize(
-                                    &state,
-                                    old_size.into(),
-                                    new_size.into(),
-                                )
-                                .unwrap();
-                            }
-                            WindowEvent::ScaleFactorChanged {
-                                new_inner_size,
-                                ..
-                            } => {
-                                if is_ready {
-                                    window.resize(&state.device);
-                                }
-                            }
-                            _ => {}
-                        }
-                    }
-                }
-
-                Event::RedrawRequested(window_id)
-                    if *window_id == window.window.id() =>
-                {
-                    app.render(&state, &mut window).unwrap();
-                }
-                Event::MainEventsCleared => {
-                    let dt = prev_frame_t.elapsed().as_secs_f32();
-                    prev_frame_t = std::time::Instant::now();
-
-                    app.update(tokio_rt.handle(), &state, &window, dt);
-
-                    window.window.request_redraw();
-                }
-
-                _ => {}
+            let result = app.render(state, window, &output_view, &mut encoder);
+            if let Err(e) = result {
+                log::error!("Render error in window {}: {e:?}", &self.title);
             }
-        })
+            egui_ctx.render(state, window, &output_view, &mut encoder);
+
+            state.queue.submit(Some(encoder.finish()));
+            output.present();
+        } else {
+            window.resize(&state.device);
+        }
+
+        Ok(())
     }
 }
-*/
