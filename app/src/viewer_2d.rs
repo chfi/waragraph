@@ -304,7 +304,11 @@ impl AppWindow for PathRenderer {
     fn render(
         &mut self,
         state: &raving_wgpu::State,
-        window: &mut WindowState,
+        window: &WindowState,
+        // output: &wgpu::SurfaceTexture,
+        // window_dims: PhysicalSize<u32>,
+        swapchain_view: &wgpu::TextureView,
+        encoder: &mut wgpu::CommandEncoder,
     ) -> anyhow::Result<()> {
         let size: [u32; 2] = window.window.inner_size().into();
 
@@ -313,100 +317,94 @@ impl AppWindow for PathRenderer {
 
         let buffers = &self.path_curve_buffers;
 
-        if let Ok(output) = window.surface.get_current_texture() {
-            {
-                let uniform_data = self.camera.to_matrix();
-                state.queue.write_buffer(
-                    &self.uniform_buf,
-                    0,
-                    bytemuck::cast_slice(&[uniform_data]),
-                );
-            }
-
-            let output_view = output
-                .texture
-                .create_view(&wgpu::TextureViewDescriptor::default());
-
-            let format = window.surface_format;
-
-            transient_res.insert(
-                "swapchain".into(),
-                InputResource::Texture {
-                    size,
-                    format,
-                    texture: None,
-                    view: Some(&output_view),
-                    sampler: None,
-                },
+        {
+            let uniform_data = self.camera.to_matrix();
+            state.queue.write_buffer(
+                &self.uniform_buf,
+                0,
+                bytemuck::cast_slice(&[uniform_data]),
             );
-
-            let stride = 8;
-            let v_size = stride * buffers.total_vertices;
-            let i_size = 4 * buffers.total_indices;
-
-            transient_res.insert(
-                "vertices".into(),
-                InputResource::Buffer {
-                    size: v_size,
-                    stride: Some(stride),
-                    buffer: &buffers.vertex_buffer,
-                },
-            );
-
-            transient_res.insert(
-                "indices".into(),
-                InputResource::Buffer {
-                    size: i_size,
-                    stride: Some(4),
-                    buffer: &buffers.index_buffer,
-                },
-            );
-
-            transient_res.insert(
-                "transform".into(),
-                InputResource::Buffer {
-                    size: 16 * 4,
-                    stride: None,
-                    buffer: &self.uniform_buf,
-                },
-            );
-
-            self.render_graph.update_transient_cache(&transient_res);
-
-            // log::warn!("validating graph");
-            let valid = self
-                .render_graph
-                .validate(&transient_res, &self.graph_scalars)
-                .unwrap();
-
-            if !valid {
-                log::error!("graph validation error");
-            }
-
-            let _sub_index = self
-                .render_graph
-                .execute(&state, &transient_res, &self.graph_scalars)
-                .unwrap();
-
-            let mut encoder = state.device.create_command_encoder(
-                &wgpu::CommandEncoderDescriptor {
-                    label: Some("egui render"),
-                },
-            );
-
-            self.egui.render(state, window, &output_view, &mut encoder);
-
-            state.queue.submit(Some(encoder.finish()));
-
-            // probably shouldn't be polling here, but the render graph
-            // should probably not be submitting by itself, either:
-            //  better to return the encoders that will be submitted
-            state.device.poll(wgpu::MaintainBase::Wait);
-
-            output.present();
-        } else {
-            window.resize(&state.device);
         }
+
+        let format = window.surface_format;
+
+        transient_res.insert(
+            "swapchain".into(),
+            InputResource::Texture {
+                size,
+                format,
+                texture: None,
+                view: Some(&swapchain_view),
+                sampler: None,
+            },
+        );
+
+        let stride = 8;
+        let v_size = stride * buffers.total_vertices;
+        let i_size = 4 * buffers.total_indices;
+
+        transient_res.insert(
+            "vertices".into(),
+            InputResource::Buffer {
+                size: v_size,
+                stride: Some(stride),
+                buffer: &buffers.vertex_buffer,
+            },
+        );
+
+        transient_res.insert(
+            "indices".into(),
+            InputResource::Buffer {
+                size: i_size,
+                stride: Some(4),
+                buffer: &buffers.index_buffer,
+            },
+        );
+
+        transient_res.insert(
+            "transform".into(),
+            InputResource::Buffer {
+                size: 16 * 4,
+                stride: None,
+                buffer: &self.uniform_buf,
+            },
+        );
+
+        self.render_graph.update_transient_cache(&transient_res);
+
+        // log::warn!("validating graph");
+        let valid = self
+            .render_graph
+            .validate(&transient_res, &self.graph_scalars)
+            .unwrap();
+
+        if !valid {
+            log::error!("graph validation error");
+        }
+
+        self.render_graph.execute_with_encoder(
+            &state,
+            &transient_res,
+            &self.graph_scalars,
+            encoder,
+        )?;
+
+        // let mut encoder = state.device.create_command_encoder(
+        //     &wgpu::CommandEncoderDescriptor {
+        //         label: Some("egui render"),
+        //     },
+        // );
+
+        // self.egui.render(state, window, &output_view, &mut encoder);
+
+        // state.queue.submit(Some(encoder.finish()));
+
+        // // probably shouldn't be polling here, but the render graph
+        // // should probably not be submitting by itself, either:
+        // //  better to return the encoders that will be submitted
+        // state.device.poll(wgpu::MaintainBase::Wait);
+
+        // output.present();
 
         Ok(())
     }

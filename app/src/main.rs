@@ -22,10 +22,23 @@ pub fn main() -> Result<()> {
         std::process::exit(0);
     }
 
+    let args = args?;
+
     let (event_loop, state) =
         pollster::block_on(raving_wgpu::initialize_no_window())?;
 
-    Ok(())
+    let mut app = NewApp::init(args)?;
+
+    app.init_viewer_1d(&event_loop, &state)?;
+
+    println!("app count: {}", app.apps.len());
+    println!("window count: {}", app.windows.len());
+
+    for win_id in app.windows.keys() {
+        println!("win_id: {win_id:?}");
+    }
+
+    app.run(event_loop, state)
 }
 
 /*

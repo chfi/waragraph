@@ -6,6 +6,7 @@ use crate::list::ListView;
 use taffy::style::Dimension;
 use waragraph_core::graph::PathId;
 use wgpu::BufferUsages;
+use winit::dpi::PhysicalSize;
 
 use std::collections::HashMap;
 use std::num::NonZeroU64;
@@ -861,104 +862,102 @@ impl AppWindow for Viewer1D {
     fn render(
         &mut self,
         state: &raving_wgpu::State,
-        window: &mut WindowState,
+        window: &raving_wgpu::WindowState,
+        swapchain_view: &wgpu::TextureView,
+        encoder: &mut wgpu::CommandEncoder,
     ) -> anyhow::Result<()> {
         let size: [u32; 2] = window.window.inner_size().into();
 
         let mut transient_res: HashMap<String, InputResource<'_>> =
             HashMap::default();
 
-        if let Ok(output) = window.surface.get_current_texture() {
-            let output_view = output
-                .texture
-                .create_view(&wgpu::TextureViewDescriptor::default());
+        let format = window.surface_format;
 
-            let format = window.surface_format;
+        transient_res.insert(
+            "swapchain".into(),
+            InputResource::Texture {
+                size,
+                format,
+                texture: None,
+                view: Some(&swapchain_view),
+                sampler: None,
+            },
+        );
 
-            transient_res.insert(
-                "swapchain".into(),
-                InputResource::Texture {
-                    size,
-                    format,
-                    texture: None,
-                    view: Some(&output_view),
-                    sampler: None,
-                },
-            );
+        let v_stride = std::mem::size_of::<[f32; 5]>();
+        transient_res.insert(
+            "vertices".into(),
+            InputResource::Buffer {
+                size: self.vertices.size,
+                stride: Some(v_stride),
+                buffer: &self.vertices.buffer,
+            },
+        );
 
-            let v_stride = std::mem::size_of::<[f32; 5]>();
-            transient_res.insert(
-                "vertices".into(),
-                InputResource::Buffer {
-                    size: self.vertices.size,
-                    stride: Some(v_stride),
-                    buffer: &self.vertices.buffer,
-                },
-            );
+        transient_res.insert(
+            "vert_cfg".into(),
+            InputResource::Buffer {
+                size: 2 * 4,
+                stride: None,
+                buffer: &self.vert_uniform,
+            },
+        );
 
-            transient_res.insert(
-                "vert_cfg".into(),
-                InputResource::Buffer {
-                    size: 2 * 4,
-                    stride: None,
-                    buffer: &self.vert_uniform,
-                },
-            );
-
-            for name in ["data", "color", "depth"] {
-                if let Some(desc) = self.path_viz_cache.get(name) {
-                    transient_res.insert(
-                        name.into(),
-                        InputResource::Buffer {
-                            size: desc.size,
-                            stride: None,
-                            buffer: &desc.buffer,
-                        },
-                    );
-                }
+        for name in ["data", "color", "depth"] {
+            if let Some(desc) = self.path_viz_cache.get(name) {
+                transient_res.insert(
+                    name.into(),
+                    InputResource::Buffer {
+                        size: desc.size,
+                        stride: None,
+                        buffer: &desc.buffer,
+                    },
+                );
             }
-
-            transient_res.insert(
-                "transform".into(),
-                InputResource::Buffer {
-                    size: 2 * 4,
-                    stride: None,
-                    buffer: &self.frag_uniform,
-                },
-            );
-
-            self.render_graph.update_transient_cache(&transient_res);
-
-            let valid = self
-                .render_graph
-                .validate(&transient_res, &rhai::Map::default())
-                .unwrap();
-
-            if !valid {
-                log::error!("graph validation error");
-            }
-
-            let _sub_index = self
-                .render_graph
-                .execute(&state, &transient_res, &rhai::Map::default())
-                .unwrap();
-
-            let mut encoder = state.device.create_command_encoder(
-                &wgpu::CommandEncoderDescriptor {
-                    label: Some("egui render"),
-                },
-            );
-
-            self.egui.render(state, window, &output_view, &mut encoder);
-
-            state.queue.submit(Some(encoder.finish()));
-
-            state.device.poll(wgpu::MaintainBase::Wait);
-
-            output.present();
-        } else {
-            window.resize(&state.device);
         }
+
+        transient_res.insert(
+            "transform".into(),
+            InputResource::Buffer {
+                size: 2 * 4,
+                stride: None,
+                buffer: &self.frag_uniform,
+            },
+        );
+
+        self.render_graph.update_transient_cache(&transient_res);
+
+        let valid = self
+            .render_graph
+            .validate(&transient_res, &rhai::Map::default())
+            .unwrap();
+
+        if !valid {
+            log::error!("graph validation error");
+        }
+
+        self.render_graph
+            .execute_with_encoder(
+                &state,
+                &transient_res,
+                &rhai::Map::default(),
+                encoder,
+            )
+            .unwrap();
+
+        // let mut encoder = state.device.create_command_encoder(
+        //     &wgpu::CommandEncoderDescriptor {
+        //         label: Some("egui render"),
+        //     },
+        // );
+
+        // self.egui.render(state, window, &output_view, &mut encoder);
+
+        // state.queue.submit(Some(encoder.finish()));
+
+        // state.device.poll(wgpu::MaintainBase::Wait);
+
+        // output.present();
 
         Ok(())
     }

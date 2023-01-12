@@ -101,7 +101,11 @@ impl AppWindowState {
                 },
             );
 
-            app.render(state, window)?;
+            let output_view = output
+                .texture
+                .create_view(&wgpu::TextureViewDescriptor::default());
+
+            let result = app.render(state, window, &output_view, &mut encoder);
             egui_ctx.render(state, window, &output_view, &mut encoder);
 
             state.queue.submit(Some(encoder.finish()));
@@ -115,11 +119,11 @@ impl AppWindowState {
 }
 
 pub struct NewApp {
-    tokio_rt: Arc<Runtime>,
-    shared: SharedState,
+    pub tokio_rt: Arc<Runtime>,
+    pub shared: SharedState,
 
-    windows: HashMap<WindowId, AppType>,
-    apps: HashMap<AppType, AppWindowState>,
+    pub windows: HashMap<WindowId, AppType>,
+    pub apps: HashMap<AppType, AppWindowState>,
 }
 
 impl NewApp {
@@ -161,15 +165,9 @@ impl NewApp {
     ) -> Result<()> {
         let title = "Waragraph 1D";
 
-        let window =
-            WindowBuilder::new().with_title(title).build(event_loop)?;
-        let window = state.prepare_window(window)?;
-
-        let dims: [u32; 2] = window.window.inner_size().into();
-
-        let winid = window.window.id();
-
         let app = AppWindowState::init(event_loop, state, title, |window| {
+            let dims: [u32; 2] = window.window.inner_size().into();
+
             let app = Viewer1D::init(
                 event_loop,
                 dims,
@@ -181,13 +179,15 @@ impl NewApp {
             Ok(Box::new(app))
         })?;
 
+        let winid = app.window.window.id();
+
         self.apps.insert(AppType::Viewer1D, app);
         self.windows.insert(winid, AppType::Viewer1D);
 
         Ok(())
     }
 
-    pub async fn run(
+    pub fn run(
         mut self,
         event_loop: EventLoop<()>,
         state: raving_wgpu::State,
@@ -197,6 +197,7 @@ impl NewApp {
 
         event_loop.run(move |event, _, control_flow| {
             // let app = self.app_windows.get_mut(&self.active_window).unwrap();
+            // dbg!();
 
             match &event {
                 Event::Resumed => {
@@ -205,7 +206,12 @@ impl NewApp {
                     }
                 }
                 Event::WindowEvent { window_id, event } => {
-                    let app_type = self.windows.get(&window_id).unwrap();
+                    println!("window_id: {window_id:?}");
+                    let app_type = self.windows.get(&window_id);
+                    if app_type.is_none() {
+                        return;
+                    }
+                    let app_type = app_type.unwrap();
                     let app = self.apps.get_mut(app_type).unwrap();
 
                     let size = app.window.window.inner_size();
@@ -257,7 +263,14 @@ impl NewApp {
                 }
 
                 Event::RedrawRequested(window_id) => {
-                    let app_type = self.windows.get(&window_id).unwrap();
+                    let app_type = self.windows.get(&window_id);
+                    dbg!();
+                    if app_type.is_none() {
+                        return;
+                    }
+                    let app_type = app_type.unwrap();
+                    dbg!();
+
                     let app = self.apps.get_mut(app_type).unwrap();
                     app.render(&state).unwrap();
                 }
@@ -265,9 +278,10 @@ impl NewApp {
                     let dt = prev_frame_t.elapsed().as_secs_f32();
                     prev_frame_t = std::time::Instant::now();
 
-                    for (app_type, app) in self.apps.iter_mut() {
+                    for (_app_type, app) in self.apps.iter_mut() {
                         app.update(self.tokio_rt.handle(), &state, dt);
                         app.window.window.request_redraw();
+                        // dbg!();
                     }
                 }
 
@@ -302,7 +316,10 @@ pub trait AppWindow {
     fn render(
         &mut self,
         state: &raving_wgpu::State,
-        window: &mut WindowState,
+        window: &WindowState,
+        // window_dims: PhysicalSize<u32>,
+        swapchain_view: &wgpu::TextureView,
+        encoder: &mut wgpu::CommandEncoder,
     ) -> anyhow::Result<()>;
 }
 
