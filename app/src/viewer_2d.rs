@@ -283,7 +283,7 @@ impl AppWindow for PathRenderer {
         consume
     }
 
-    fn resize(
+    fn on_resize(
         &mut self,
         _state: &raving_wgpu::State,
         old_window_dims: [u32; 2],

@@ -1,17 +1,17 @@
 mod window;
 
+use palette::convert::IntoColorUnclamped;
 use raving_wgpu::{gui::EguiCtx, WindowState};
 use tokio::runtime::Runtime;
 use winit::{
-    event_loop::EventLoop,
+    event::{ElementState, Event, VirtualKeyCode, WindowEvent},
+    event_loop::{ControlFlow, EventLoop},
     window::{WindowBuilder, WindowId},
 };
 
 use std::{collections::HashMap, path::PathBuf, sync::Arc};
 
 use anyhow::Result;
-
-pub use window::WindowHandler;
 
 use crate::viewer_1d::Viewer1D;
 
@@ -28,19 +28,98 @@ pub enum AppType {
     Viewer2D,
 }
 
-pub struct AppState {
+pub struct AppWindowState {
     // window: Option<WindowId>,
-    window: WindowId,
+    title: String,
+    window: WindowState,
     app: Box<dyn AppWindow>,
     egui: EguiCtx,
+}
+
+impl AppWindowState {
+    fn init(
+        event_loop: &EventLoop<()>,
+        state: &raving_wgpu::State,
+        title: &str,
+        constructor: impl FnOnce(&WindowState) -> Result<Box<dyn AppWindow>>,
+        // app: Box<dyn AppWindow>,
+    ) -> Result<Self> {
+        let window =
+            WindowBuilder::new().with_title(title).build(event_loop)?;
+
+        let win_state = state.prepare_window(window)?;
+
+        let egui_ctx = EguiCtx::init(
+            &state,
+            win_state.surface_format,
+            &event_loop,
+            None,
+            // Some(wgpu::Color::BLACK),
+        );
+
+        let app = constructor(&win_state)?;
+
+        Ok(Self {
+            title: title.to_string(),
+            window: win_state,
+            app,
+            egui: egui_ctx,
+        })
+    }
+
+    fn resize(&mut self, state: &raving_wgpu::State) {
+        self.window.resize(&state.device);
+    }
+
+    fn on_event<'a>(&mut self, event: &WindowEvent<'a>) -> bool {
+        let resp = self.egui.on_event(event);
+        resp.consumed
+    }
+
+    fn update(
+        &mut self,
+        tokio_handle: &tokio::runtime::Handle,
+        state: &raving_wgpu::State,
+        dt: f32,
+    ) {
+        self.app.update(tokio_handle, state, &self.window, dt);
+    }
+
+    fn render(&mut self, state: &raving_wgpu::State) -> anyhow::Result<()> {
+        let app = &mut self.app;
+        let egui_ctx = &mut self.egui;
+        let window = &mut self.window;
+
+        if let Ok(output) = window.surface.get_current_texture() {
+            let output_view = output
+                .texture
+                .create_view(&wgpu::TextureViewDescriptor::default());
+
+            let mut encoder = state.device.create_command_encoder(
+                &wgpu::CommandEncoderDescriptor {
+                    label: Some(&self.title),
+                },
+            );
+
+            app.render(state, window)?;
+            egui_ctx.render(state, window, &output_view, &mut encoder);
+
+            state.queue.submit(Some(encoder.finish()));
+            output.present();
+        } else {
+            window.resize(&state.device);
+        }
+
+        Ok(())
+    }
 }
 
 pub struct NewApp {
     tokio_rt: Arc<Runtime>,
     shared: SharedState,
 
-    windows: HashMap<WindowId, WindowState>,
-    apps: HashMap<AppType, AppState>,
+    windows: HashMap<WindowId, AppType>,
+    apps: HashMap<AppType, AppWindowState>,
 }
 
 impl NewApp {
@@ -80,7 +159,7 @@ impl NewApp {
         event_loop: &EventLoop<()>,
         state: &raving_wgpu::State,
     ) -> Result<()> {
-        let title = "Waragraph 1D".to_string();
+        let title = "Waragraph 1D";
 
         let window =
             WindowBuilder::new().with_title(title).build(event_loop)?;
@@ -90,38 +169,111 @@ impl NewApp {
 
         let winid = window.window.id();
 
-        let app = {
-            let viewer = Viewer1D::init(
+        let app = AppWindowState::init(event_loop, state, title, |window| {
+            let app = Viewer1D::init(
                 event_loop,
                 dims,
                 state,
                 &window,
                 self.shared.graph.clone(),
             )?;
-            let app = Box::new(viewer) as Box<dyn AppWindow>;
 
-            let egui_ctx =
-                EguiCtx::init(&state, window.surface_format, &event_loop, None);
-
-            AppState {
-                window: winid,
-                app,
-                egui: egui_ctx,
-            }
-        };
+            Ok(Box::new(app))
+        })?;
 
         self.apps.insert(AppType::Viewer1D, app);
-        self.windows.insert(winid, window);
+        self.windows.insert(winid, AppType::Viewer1D);
 
         Ok(())
     }
 
     pub async fn run(
-        self,
+        mut self,
         event_loop: EventLoop<()>,
         state: raving_wgpu::State,
     ) -> Result<()> {
-        todo!();
+        let mut is_ready = false;
+        let mut prev_frame_t = std::time::Instant::now();
+
+        event_loop.run(move |event, _, control_flow| {
+            // let app = self.app_windows.get_mut(&self.active_window).unwrap();
+
+            match &event {
+                Event::Resumed => {
+                    if !is_ready {
+                        is_ready = true;
+                    }
+                }
+                Event::WindowEvent { window_id, event } => {
+                    let app_type = self.windows.get(&window_id).unwrap();
+                    let app = self.apps.get_mut(app_type).unwrap();
+
+                    let size = app.window.window.inner_size();
+
+                    let mut consumed = app.on_event(event);
+
+                    if !consumed {
+                        match &event {
+                            WindowEvent::KeyboardInput { input, .. } => {
+                                use VirtualKeyCode as Key;
+
+                                let pressed = matches!(
+                                    input.state,
+                                    ElementState::Pressed
+                                );
+
+                                if let Some(code) = input.virtual_keycode {
+                                    if let Key::Escape = code {
+                                        *control_flow = ControlFlow::Exit;
+                                    }
+                                }
+                            }
+                            WindowEvent::CloseRequested => {
+                                *control_flow = ControlFlow::Exit
+                            }
+                            WindowEvent::Resized(phys_size) => {
+                                if is_ready {
+                                    app.resize(&state);
+                                    app.app
+                                        .on_resize(
+                                            &state,
+                                            app.window.size.into(),
+                                            (*phys_size).into(),
+                                        )
+                                        .unwrap();
+                                }
+                            }
+                            WindowEvent::ScaleFactorChanged {
+                                new_inner_size,
+                                ..
+                            } => {
+                                if is_ready {
+                                    app.resize(&state);
+                                }
+                            }
+                            _ => {}
+                        }
+                    }
+                }
+
+                Event::RedrawRequested(window_id) => {
+                    let app_type = self.windows.get(&window_id).unwrap();
+                    let app = self.apps.get_mut(app_type).unwrap();
+                    app.render(&state).unwrap();
+                }
+                Event::MainEventsCleared => {
+                    let dt = prev_frame_t.elapsed().as_secs_f32();
+                    prev_frame_t = std::time::Instant::now();
+
+                    for (app_type, app) in self.apps.iter_mut() {
+                        app.update(self.tokio_rt.handle(), &state, dt);
+                        app.window.window.request_redraw();
+                    }
+                }
+
+                _ => {}
+            }
+        })
     }
 }
 
@@ -140,20 +292,18 @@ pub trait AppWindow {
         event: &winit::event::WindowEvent,
     ) -> bool;
 
-    fn resize(
+    fn on_resize(
         &mut self,
         state: &raving_wgpu::State,
-        window: &raving_wgpu::WindowState,
         old_window_dims: [u32; 2],
         new_window_dims: [u32; 2],
     ) -> anyhow::Result<()>;
 
-    fn render(&mut self, state: &mut raving_wgpu::State) -> anyhow::Result<()>;
-}
-
-pub struct App {
-    window_handler: WindowHandler,
-    tokio_rt: Arc<Runtime>,
+    fn render(
+        &mut self,
+        state: &raving_wgpu::State,
+        window: &mut WindowState,
+    ) -> anyhow::Result<()>;
 }
 
 /*
@@ -187,6 +337,7 @@ pub trait AppWindow {
 }
 */
 
+/*
 impl App {
     pub fn init(window_handler: WindowHandler) -> Result<Self> {
         let runtime = tokio::runtime::Builder::new_multi_thread()
@@ -218,6 +369,7 @@ impl App {
             .await
     }
 }
+*/
 
 #[derive(Debug)]
 pub struct Args {

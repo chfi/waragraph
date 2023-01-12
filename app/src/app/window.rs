@@ -9,6 +9,7 @@ use winit::{
 
 use super::AppWindow;
 
+/*
 pub struct WindowHandler {
     active_window: usize,
     app_windows: HashMap<usize, Box<dyn AppWindow>>,
@@ -162,3 +163,4 @@ impl WindowHandler {
         })
     }
 }
+*/

@@ -849,7 +849,7 @@ impl AppWindow for Viewer1D {
         consume
     }
 
-    fn resize(
+    fn on_resize(
         &mut self,
         _state: &raving_wgpu::State,
         _old_window_dims: [u32; 2],
