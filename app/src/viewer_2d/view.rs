@@ -23,6 +23,12 @@ impl View2D {
         self.size.x / self.size.y
     }
 
+    pub fn set_aspect(&mut self, x_over_y: f32) {
+        let height = self.size.y;
+        let width = height * x_over_y;
+        self.size.x = width;
+    }
+
     pub fn x_range(&self) -> (f32, f32) {
         let x = self.center.x;
         let dx = self.size.x / 2.0;
@@ -49,14 +55,14 @@ impl View2D {
 
         let width = r_ - l_;
         let height = d_ - u_;
-        let old_c = self.center;
-        let old_s = self.size;
 
         self.center = Vec2::new(l_ + width / 2.0, u_ + height / 2.0);
         self.size = Vec2::new(width, height);
+    }
 
-        let new_c = self.center;
-        let new_s = self.size;
+    /// Translate the view by `delta * self.size`.
+    pub fn translate_size_rel(&mut self, delta: Vec2) {
+        self.center += delta * self.size;
     }
 
     pub fn to_matrix(&self) -> Mat4 {

@@ -237,6 +237,17 @@ impl AppWindow for Viewer2D {
             main_area.show(ctx, |ui| {
                 ui.set_width(screen_rect.width());
                 ui.set_height(screen_rect.height());
+
+                let area_rect = ui
+                    .allocate_rect(screen_rect, egui::Sense::click_and_drag());
+
+                if area_rect.dragged_by(egui::PointerButton::Primary) {
+                    let delta =
+                        Vec2::from(mint::Vector2::from(area_rect.drag_delta()));
+                    let mut norm_delta = -1.0 * (delta / dims);
+                    norm_delta.y *= -1.0;
+                    self.view.translate_size_rel(norm_delta);
+                }
             });
 
             let scroll = ctx.input().scroll_delta;
@@ -273,21 +284,21 @@ impl AppWindow for Viewer2D {
                 use winit::event::VirtualKeyCode as Key;
                 let pressed = matches!(input.state, ElementState::Pressed);
 
+                let mut translation = Vec2::zero();
+
                 if pressed {
                     match key {
                         Key::Right => {
-                            // self.view.translate_norm_f32(0.1);
+                            translation.x += 0.1;
                         }
                         Key::Left => {
-                            // self.view.translate_norm_f32(-0.1);
+                            translation.x -= 0.1;
                         }
                         Key::Up => {
-                            // self.path_list_view.scroll_relative(-1);
-                            // self.force_resample = true;
+                            translation.y += 0.1;
                         }
                         Key::Down => {
-                            // self.path_list_view.scroll_relative(1);
-                            // self.force_resample = true;
+                            translation.y -= 0.1;
                         }
                         Key::Space => {
                             println!("resetting view");
@@ -308,7 +319,9 @@ impl AppWindow for Viewer2D {
                     }
                 }
 
-                // self.view = l..r;
+                if translation.mag() > 0.0 {
+                    self.view.translate_size_rel(translation);
+                }
             }
         }
 
@@ -321,7 +334,8 @@ impl AppWindow for Viewer2D {
         old_window_dims: [u32; 2],
         new_window_dims: [u32; 2],
     ) -> anyhow::Result<()> {
-        // TODO *maybe* update view here, but might not be necessary
+        let aspect = new_window_dims[0] as f32 / new_window_dims[1] as f32;
+        self.view.set_aspect(aspect);
         Ok(())
     }
 
