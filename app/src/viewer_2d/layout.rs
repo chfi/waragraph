@@ -10,7 +10,7 @@ use std::io::{prelude::*, BufReader};
 use ultraviolet::Vec2;
 use wgpu::util::DeviceExt;
 
-use waragraph_core::graph::PathIndex;
+use waragraph_core::graph::{Node, PathIndex};
 
 pub struct NodePositions {
     pub bounds: (Vec2, Vec2),
@@ -26,6 +26,13 @@ impl NodePositions {
                 unreachable!();
             }
         })
+    }
+
+    pub fn node_pos(&self, node: Node) -> (Vec2, Vec2) {
+        let ix = node.ix();
+        let ix0 = ix * 2;
+        let ix1 = ix0 + 1;
+        (self.positions[ix0], self.positions[ix1])
     }
 
     pub fn from_layout_tsv(

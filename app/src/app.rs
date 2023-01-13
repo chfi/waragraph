@@ -1,5 +1,7 @@
+use crossbeam::atomic::AtomicCell;
 use raving_wgpu::{gui::EguiCtx, WindowState};
 use tokio::runtime::Runtime;
+use waragraph_core::graph::{Bp, PathId};
 use winit::{
     event::{ElementState, Event, VirtualKeyCode, WindowEvent},
     event_loop::{ControlFlow, EventLoop},
@@ -24,6 +26,9 @@ pub struct SharedState {
     pub tsv_path: Option<Arc<PathBuf>>,
 
     pub graph: Arc<waragraph_core::graph::PathIndex>,
+
+    viewer_1d_interactions: Arc<AtomicCell<VizInteractions>>,
+    viewer_2d_interactions: Arc<AtomicCell<VizInteractions>>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -60,6 +65,13 @@ impl App {
                 gfa_path,
                 tsv_path,
                 graph: path_index,
+
+                viewer_1d_interactions: Arc::new(AtomicCell::new(
+                    Default::default(),
+                )),
+                viewer_2d_interactions: Arc::new(AtomicCell::new(
+                    Default::default(),
+                )),
             }
         };
 
@@ -82,13 +94,17 @@ impl App {
         let app = AppWindowState::init(event_loop, state, title, |window| {
             let dims: [u32; 2] = window.window.inner_size().into();
 
-            let app = Viewer1D::init(
+            let mut app = Viewer1D::init(
                 event_loop,
                 dims,
                 state,
                 &window,
                 self.shared.graph.clone(),
             )?;
+
+            app.self_viz_interact = self.shared.viewer_1d_interactions.clone();
+            app.connected_viz_interact =
+                Some(self.shared.viewer_2d_interactions.clone());
 
             Ok(Box::new(app))
         })?;
@@ -115,12 +131,16 @@ impl App {
         let title = "Waragraph 2D";
 
         let app = AppWindowState::init(event_loop, state, title, |window| {
-            let app = Viewer2D::init(
+            let mut app = Viewer2D::init(
                 state,
                 &window,
                 self.shared.graph.clone(),
                 tsv.as_ref(),
             )?;
+
+            app.self_viz_interact = self.shared.viewer_2d_interactions.clone();
+            app.connected_viz_interact =
+                Some(self.shared.viewer_1d_interactions.clone());
 
             Ok(Box::new(app))
         })?;
@@ -304,3 +324,37 @@ fn parse_path(s: &std::ffi::OsStr) -> Result<std::path::PathBuf, &'static str> {
 
 //     Ok(start..end)
 // }
+
+#[derive(Debug, Default, Clone, PartialEq, Eq, Hash)]
+pub struct VizInteractions {
+    pub clicked: bool,
+    pub interact_path: Option<PathId>,
+    pub interact_node: Option<waragraph_core::graph::Node>,
+    pub interact_pan_pos: Option<Bp>,
+    pub interact_path_pos: Option<(PathId, Bp)>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum VizInteractMsg {
+    Click,
+    Path(PathId),
+    Node(waragraph_core::graph::Node),
+    PangenomePos(Bp),
+    PathPos { path: PathId, pos: Bp },
+}
+
+impl VizInteractions {
+    pub fn apply(&mut self, msg: VizInteractMsg) {
+        match msg {
+            VizInteractMsg::Click => self.clicked = true,
+            VizInteractMsg::Path(path) => self.interact_path = Some(path),
+            VizInteractMsg::Node(node) => self.interact_node = Some(node),
+            VizInteractMsg::PangenomePos(pos) => {
+                self.interact_pan_pos = Some(pos)
+            }
+            VizInteractMsg::PathPos { path, pos } => {
+                self.interact_path_pos = Some((path, pos))
+            }
+        }
+    }
+}

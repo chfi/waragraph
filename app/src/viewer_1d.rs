@@ -1,8 +1,9 @@
 use crate::annotations::AnnotationStore;
-use crate::app::AppWindow;
+use crate::app::{AppWindow, VizInteractions};
 use crate::gui::list::DynamicListLayout;
 use crate::gui::FlexLayout;
 use crate::list::ListView;
+use crossbeam::atomic::AtomicCell;
 use taffy::style::Dimension;
 use waragraph_core::graph::{Bp, PathId};
 use wgpu::BufferUsages;
@@ -67,6 +68,9 @@ pub struct Viewer1D {
 
     sample_handle:
         Option<tokio::task::JoinHandle<(std::ops::Range<u64>, Vec<u8>)>>,
+
+    pub self_viz_interact: Arc<AtomicCell<VizInteractions>>,
+    pub connected_viz_interact: Option<Arc<AtomicCell<VizInteractions>>>,
 }
 
 #[derive(Debug)]
@@ -337,6 +341,10 @@ impl Viewer1D {
             op_state.instances = Some(insts.clone());
         });
 
+        let self_viz_interact =
+            Arc::new(AtomicCell::new(VizInteractions::default()));
+        let connected_viz_interact = None;
+
         Ok(Viewer1D {
             render_graph: graph,
             // egui,
@@ -361,6 +369,9 @@ impl Viewer1D {
             path_list_view,
 
             sample_handle: None,
+
+            self_viz_interact,
+            connected_viz_interact,
         })
     }
 
@@ -508,6 +519,12 @@ impl AppWindow for Viewer1D {
         egui_ctx: &mut EguiCtx,
         dt: f32,
     ) {
+        let other_interactions = self
+            .connected_viz_interact
+            .as_ref()
+            .map(|i| i.take())
+            .unwrap_or_default();
+
         let [width, height]: [u32; 2] = window.window.inner_size().into();
         let dims = ultraviolet::Vec2::new(width as f32, height as f32);
 
@@ -775,6 +792,8 @@ impl AppWindow for Viewer1D {
                     self.view.translate_norm_f32(-dx);
                 }
 
+                let mut interact = self.self_viz_interact.take();
+
                 if let Some(pos) = path_slots.hover_pos() {
                     let left = path_slot_region.left();
                     let width = path_slot_region.width();
@@ -792,6 +811,13 @@ impl AppWindow for Viewer1D {
                     let hovered_node =
                         self.path_index.node_at_pangenome_pos(Bp(pan_pos));
 
+                    if path_slots.clicked() {
+                        interact.clicked = true;
+                    }
+
+                    interact.interact_pan_pos = Some(Bp(pan_pos));
+                    interact.interact_node = hovered_node;
+
                     if let Some(node) = hovered_node {
                         let fonts = ui.fonts();
                         fg_shapes.push(egui::Shape::text(
@@ -804,6 +830,8 @@ impl AppWindow for Viewer1D {
                         ));
                     }
                 }
+
+                self.self_viz_interact.store(interact);
             });
 
             let painter =

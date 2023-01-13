@@ -2677,6 +2677,7 @@ dependencies = [
  "btoi",
  "bytemuck",
  "colorous",
+ "crossbeam",
  "egui",
  "egui-wgpu",
  "egui-winit",

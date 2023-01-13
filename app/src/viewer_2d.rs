@@ -1,10 +1,11 @@
 use crate::annotations::AnnotationStore;
-use crate::app::AppWindow;
+use crate::app::{AppWindow, VizInteractions};
 
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
 
+use crossbeam::atomic::AtomicCell;
 use raving_wgpu::camera::DynamicCamera2d;
 use wgpu::BufferUsages;
 use winit::event::WindowEvent;
@@ -60,6 +61,9 @@ pub struct Viewer2D {
 
     render_graph: Graph,
     draw_node: NodeId,
+
+    pub self_viz_interact: Arc<AtomicCell<VizInteractions>>,
+    pub connected_viz_interact: Option<Arc<AtomicCell<VizInteractions>>>,
 }
 
 impl Viewer2D {
@@ -180,6 +184,10 @@ impl Viewer2D {
             op_state.instances = Some(0..instances);
         });
 
+        let self_viz_interact =
+            Arc::new(AtomicCell::new(VizInteractions::default()));
+        let connected_viz_interact = None;
+
         Ok(Self {
             path_index,
             node_positions: Arc::new(node_positions),
@@ -194,6 +202,9 @@ impl Viewer2D {
 
             render_graph: graph,
             draw_node,
+
+            self_viz_interact,
+            connected_viz_interact,
         })
     }
 
@@ -230,6 +241,12 @@ impl AppWindow for Viewer2D {
         egui_ctx: &mut EguiCtx,
         dt: f32,
     ) {
+        let other_interactions = self
+            .connected_viz_interact
+            .as_ref()
+            .map(|i| i.take())
+            .unwrap_or_default();
+
         let [width, height]: [u32; 2] = window.window.inner_size().into();
         let dims = ultraviolet::Vec2::new(width as f32, height as f32);
 
@@ -237,6 +254,33 @@ impl AppWindow for Viewer2D {
             egui::pos2(0.0, 0.0),
             egui::pos2(dims.x, dims.y),
         );
+
+        let mut annot_shapes = Vec::new();
+
+        if let Some(node) = other_interactions.interact_node {
+            println!("received node interaction! {node:?}");
+            let (n0, n1) = self.node_positions.node_pos(node);
+
+            let a = Vec4::new(n0.x, n0.y, 0.0, 1.0);
+            let b = Vec4::new(n1.x, n1.y, 0.0, 1.0);
+
+            let mat = self.view.to_matrix();
+            let a_ = mat * a;
+            let b_ = mat * b;
+
+            let p0 = Vec3::from_homogeneous_point(a_);
+            let p1 = Vec3::from_homogeneous_point(b_);
+
+            let stroke = egui::Stroke::new(5.0, egui::Color32::RED);
+
+            let p0 = egui::pos2(p0.x, p0.y);
+            let p1 = egui::pos2(p1.x, p1.y);
+
+            annot_shapes.push(egui::Shape::line(vec![p0, p1], stroke));
+            // let tform =
+
+            // let p0_ = mat * p0;
+        }
 
         egui_ctx.begin_frame(&window.window);
 
@@ -262,6 +306,9 @@ impl AppWindow for Viewer2D {
                     norm_delta.y *= -1.0;
                     self.view.translate_size_rel(norm_delta);
                 }
+
+                let painter = ui.painter();
+                painter.extend(annot_shapes);
             });
 
             let scroll = ctx.input().scroll_delta;
