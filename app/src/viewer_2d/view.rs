@@ -2,8 +2,8 @@ use ultraviolet::{Isometry3, Mat4, Rotor3, Vec2, Vec3};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct View2D {
-    center: Vec2,
-    size: Vec2,
+    pub(super) center: Vec2,
+    pub(super) size: Vec2,
 }
 
 impl View2D {

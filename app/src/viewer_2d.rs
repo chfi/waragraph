@@ -278,6 +278,15 @@ impl AppWindow for Viewer2D {
                     self.view.zoom_with_focus(norm, dz);
                 }
             }
+
+            if let Some(touch) = egui_ctx.ctx().multi_touch() {
+                let t = touch.translation_delta;
+                let z = 2.0 - touch.zoom_delta;
+                let t = ultraviolet::Vec2::new(-t.x / dims.x, t.y / dims.y);
+
+                self.view.translate_size_rel(t);
+                self.view.size *= z;
+            }
         }
 
         egui_ctx.end_frame(&window.window);
