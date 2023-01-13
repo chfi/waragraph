@@ -4,7 +4,7 @@ use crate::gui::list::DynamicListLayout;
 use crate::gui::FlexLayout;
 use crate::list::ListView;
 use taffy::style::Dimension;
-use waragraph_core::graph::PathId;
+use waragraph_core::graph::{Bp, PathId};
 use wgpu::BufferUsages;
 use winit::dpi::PhysicalSize;
 
@@ -785,6 +785,23 @@ impl AppWindow for Viewer1D {
                     if scroll.y.abs() > min_scroll {
                         let dz = 1.0 - scroll.y * factor;
                         self.view.zoom_with_focus(rel_x, dz);
+                    }
+
+                    let pan_pos = self.view.offset()
+                        + (rel_x * self.view.len() as f32) as u64;
+                    let hovered_node =
+                        self.path_index.node_at_pangenome_pos(Bp(pan_pos));
+
+                    if let Some(node) = hovered_node {
+                        let fonts = ui.fonts();
+                        fg_shapes.push(egui::Shape::text(
+                            &fonts,
+                            egui::pos2(100.0, 30.0),
+                            egui::Align2::LEFT_TOP,
+                            node.ix().to_string(),
+                            egui::FontId::monospace(20.0),
+                            egui::Color32::RED,
+                        ));
                     }
                 }
             });

@@ -195,6 +195,14 @@ impl PathIndex {
         self.node_offset_length(node).0
     }
 
+    pub fn node_at_pangenome_pos(&self, pos: Bp) -> Option<Node> {
+        if pos > self.sequence_total_len {
+            return None;
+        }
+        let rank = self.segment_offsets.rank(pos.0);
+        Some(Node::from(rank as u32))
+    }
+
     #[inline]
     pub fn node_length(&self, node: Node) -> Bp {
         self.node_offset_length(node).1
