@@ -97,6 +97,9 @@ impl View1D {
         self.make_valid();
     }
 
+    /// Expands/contracts the view by a factor of `s`, keeping the point
+    /// corresponding to `t` fixed in the view.
+    ///
     /// `t` should be in `[0, 1]`, if `s` > 1.0, the view is zoomed out,
     /// if `s` < 1.0, it is zoomed in.
     pub fn zoom_with_focus(&mut self, t: f32, s: f32) {

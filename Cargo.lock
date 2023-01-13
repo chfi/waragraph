@@ -708,6 +708,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5277249c8c3430e7127e4f2c40a77485e7baf11ae132ce9b3253a8ed710df0a0"
 dependencies = [
  "bytemuck",
+ "mint",
 ]
 
 [[package]]
@@ -1412,6 +1413,12 @@ checksum = "b275950c28b37e794e8c55d88aeb5e139d0ce23fdbbeda68f8d7174abdf9e8fa"
 dependencies = [
  "adler",
 ]
+
+[[package]]
+name = "mint"
+version = "0.5.9"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e53debba6bda7a793e5f99b8dacf19e626084f525f7829104ba9898f367d85ff"
 
 [[package]]
 name = "mio"
@@ -2591,6 +2598,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bf2728f3858937f50df6d92b741f53ef8fd5b5ae23b03b73fb9ac891e980df3b"
 dependencies = [
  "bytemuck",
+ "mint",
  "wide",
 ]
 
@@ -2676,6 +2684,7 @@ dependencies = [
  "log",
  "lyon",
  "memchr",
+ "mint",
  "noodles",
  "palette",
  "pico-args",

@@ -14,7 +14,7 @@ winit = "0.27"
 env_logger = "0.9"
 log = "0.4"
 
-egui = { version = "0.20" }
+egui = { version = "0.20", features = ["mint"] }
 egui-wgpu = { version = "0.20" }
 egui-winit = { version = "0.20" }
 
@@ -23,8 +23,10 @@ wgpu = { version = "0.14.0", features = ["spirv"] }
 
 taffy = "0.2"
 
+mint = "0.5"
+ultraviolet = { version = "0.9", features = ["bytemuck", "f64", "mint"]}
+
 bytemuck = { version = "1.4", features = [ "derive" ] }
-ultraviolet = { version = "0.9", features = ["bytemuck", "f64"]}
 
 palette = "0.6"
 colorous = "1.0"
