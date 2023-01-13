@@ -205,6 +205,20 @@ impl Viewer2D {
             bytemuck::cast_slice(&[data]),
         );
     }
+
+    fn update_vert_config_uniform(
+        &self,
+        queue: &wgpu::Queue,
+        window_height: f32,
+    ) {
+        // in pixels
+        let node_width = 80.0;
+
+        let nw = node_width / window_height;
+
+        let data: [f32; 4] = [nw, 0.0, 0.0, 0.0];
+        queue.write_buffer(&self.vert_config, 0, bytemuck::cast_slice(&[data]));
+    }
 }
 
 impl AppWindow for Viewer2D {
@@ -268,7 +282,10 @@ impl AppWindow for Viewer2D {
 
         egui_ctx.end_frame(&window.window);
 
+        let height = window.window.inner_size().height as f32;
+
         self.update_transform_uniform(&state.queue);
+        self.update_vert_config_uniform(&state.queue, height);
     }
 
     fn on_event(

@@ -24,15 +24,6 @@ void main() {
 
 // o_node_id = a_node_id;
 
-/*
-The easiest way to get the node width correct is...
-
-create a unit rectangle and transform it???
-
-that's getting... heavy
-
-*/
-
      vec4 start = transform.m * vec4(a_p0, 0.0, 1.0);
      vec4 end = transform.m * vec4(a_p1, 0.0, 1.0);
 
@@ -47,39 +38,19 @@ that's getting... heavy
                          0, 0, 1, 0,
                          0, 0, 0, 1);
 
-     vec4 left = rot * dir * 0.1;
+     vec4 perp = rot * dir * 0.1;
      
+     float v = config.node_width;
 
-// does this one also do rotation for free because that would be insane
-     vec4 magic = transform.m * vec4(0.0, config.node_width, 0.0, 0.0);
-     float v = length(magic);
-     // vec4 magic = rot * transform.m * vec4(0.0, 1.0 / config.node_width, 0.0, 0.0);
+     vec4 sl = start + 0.5 * perp * v;
+     vec4 sr = start - 0.5 * perp * v;
 
-     // vec4 magic = vec4(dir.y, -dir.x, dir.z, dir.w) * ;
+     vec4 el = end + 0.5 * perp * v;
+     vec4 er = end - 0.5 * perp * v;
 
-     vec4 sl = start + 0.5 * left * v;
-     vec4 sr = start - 0.5 * left * v;
-
-     vec4 el = end + 0.5 * left * v;
-     vec4 er = end - 0.5 * left * v;
-
-     // sl = vec4(0.5, 0.5, 0.0, 1.0);
-     // sr = vec4(0.6, 0.5, 0.0, 1.0);
-     // el = vec4(0.5, 0.6, 0.0, 1.0);
-     // er = vec4(0.6, 0.6, 0.0, 1.0);
-
-// here, start and end are already in NDC
-// wait, can I apply transform.m to vec4(1.0, 0.0, 0.0, 0.0) and
-// use that???
 
      
      uint i = gl_VertexIndex % 6;
-/*
-
-the nodes are drawn as instances, with each node consisting
-of six vertices forming a rectangle.
-
-*/
   if (i == 0) {
     // start left
     gl_Position = sl;
