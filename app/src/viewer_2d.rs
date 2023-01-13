@@ -5,12 +5,13 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
 
+use raving_wgpu::camera::DynamicCamera2d;
 use wgpu::BufferUsages;
 use winit::event::WindowEvent;
 use winit::event_loop::{EventLoop, EventLoopWindowTarget};
 use winit::window::Window;
 
-use raving_wgpu::camera::DynamicCamera2d;
+// use raving_wgpu::camera::DynamicCamera2d;
 use raving_wgpu::graph::dfrog::{Graph, InputResource};
 use raving_wgpu::gui::EguiCtx;
 use raving_wgpu::{NodeId, State, WindowState};
@@ -27,6 +28,8 @@ pub mod layout;
 pub mod view;
 
 use layout::{GraphPathCurves, NodePositions, PathCurveBuffers};
+
+use self::view::View2D;
 
 #[derive(Debug)]
 pub struct Args {
@@ -49,7 +52,8 @@ pub struct Viewer2D {
     vertex_buffer: wgpu::Buffer,
     instance_count: usize,
 
-    camera: DynamicCamera2d,
+    // camera: DynamicCamera2d,
+    view: View2D,
 
     transform_uniform: wgpu::Buffer,
     vert_config: wgpu::Buffer,
@@ -97,7 +101,8 @@ impl Viewer2D {
         let cam_width = total_size.y * aspect;
         let size = Vec2::new(cam_width, total_size.y);
 
-        let camera = DynamicCamera2d::new(center, size);
+        // let camera = DynamicCamera2d::new(center, size);
+        let view = View2D::new(center, size);
 
         let mut graph = Graph::new();
 
@@ -138,7 +143,7 @@ impl Viewer2D {
         let (transform_uniform, vert_config) = {
             let usage = BufferUsages::UNIFORM | BufferUsages::COPY_DST;
 
-            let data = camera.to_matrix();
+            let data = view.to_matrix();
 
             let transform =
                 state.device.create_buffer_init(&BufferInitDescriptor {
@@ -147,7 +152,8 @@ impl Viewer2D {
                     usage,
                 });
 
-            let data = [20.0f32, 0.0, 0.0, 0.0];
+            let node_width = 50f32;
+            let data = [node_width, 0.0, 0.0, 0.0];
 
             let vert_config =
                 state.device.create_buffer_init(&BufferInitDescriptor {
@@ -181,7 +187,7 @@ impl Viewer2D {
             vertex_buffer,
             instance_count,
 
-            camera,
+            view,
 
             transform_uniform,
             vert_config,
@@ -189,6 +195,15 @@ impl Viewer2D {
             render_graph: graph,
             draw_node,
         })
+    }
+
+    fn update_transform_uniform(&self, queue: &wgpu::Queue) {
+        let data = self.view.to_matrix();
+        queue.write_buffer(
+            &self.transform_uniform,
+            0,
+            bytemuck::cast_slice(&[data]),
+        );
     }
 }
 
@@ -227,14 +242,22 @@ impl AppWindow for Viewer2D {
             let scroll = ctx.input().scroll_delta;
 
             if let Some(pos) = ctx.pointer_interact_pos() {
-                let uvp = Vec2::new(pos.x, pos.y);
-                let norm = uvp / dims;
+                let min_scroll = 1.0;
+                let factor = 0.01;
+
+                if scroll.y.abs() > min_scroll {
+                    let dz = 1.0 - scroll.y * factor;
+                    let uvp = Vec2::new(pos.x, pos.y);
+                    let mut norm = uvp / dims;
+                    norm.y = 1.0 - norm.y;
+                    self.view.zoom_with_focus(norm, dz);
+                }
             }
         }
 
         egui_ctx.end_frame(&window.window);
 
-        self.camera.update(dt);
+        self.update_transform_uniform(&state.queue);
     }
 
     fn on_event(
@@ -267,7 +290,19 @@ impl AppWindow for Viewer2D {
                             // self.force_resample = true;
                         }
                         Key::Space => {
+                            println!("resetting view");
                             // self.view.reset();
+                            let (tl, br) = self.node_positions.bounds;
+                            let center = tl + 0.5 * (br - tl);
+                            let total_size = br - tl;
+
+                            let [w, h] = window_dims;
+                            let aspect = w as f32 / h as f32;
+
+                            let cam_width = total_size.y * aspect;
+                            let size = Vec2::new(cam_width, total_size.y);
+
+                            self.view = View2D::new(center, size);
                         }
                         _ => (),
                     }

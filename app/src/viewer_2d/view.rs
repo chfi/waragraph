@@ -1,4 +1,4 @@
-use ultraviolet::Vec2;
+use ultraviolet::{Isometry3, Mat4, Rotor3, Vec2, Vec3};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct View2D {
@@ -48,10 +48,36 @@ impl View2D {
         let (u_, d_) = expand_with_fixpoint(u, d, t.y, s);
 
         let width = r_ - l_;
-        let height = u_ - d_;
+        let height = d_ - u_;
+        let old_c = self.center;
+        let old_s = self.size;
 
         self.center = Vec2::new(l_ + width / 2.0, u_ + height / 2.0);
         self.size = Vec2::new(width, height);
+
+        let new_c = self.center;
+        let new_s = self.size;
+    }
+
+    pub fn to_matrix(&self) -> Mat4 {
+        let right = self.size.x / 2.0;
+        let left = -right;
+        let top = self.size.y / 2.0;
+        let bottom = -top;
+
+        let near = 1.0;
+        let far = 10.0;
+
+        let proj = ultraviolet::projection::rh_yup::orthographic_wgpu_dx(
+            left, right, bottom, top, near, far,
+        );
+
+        let p = self.center;
+        let p_ = Vec3::new(p.x, p.y, 5.0);
+
+        let view = Isometry3::new(p_, Rotor3::identity()).inversed();
+
+        proj * view.into_homogeneous_matrix()
     }
 }
 
@@ -75,7 +101,7 @@ fn expand_with_fixpoint(a: f32, b: f32, t: f32, s: f32) -> (f32, f32) {
     let x_b = p_b * l_;
 
     let a_ = x - x_a;
-    let b_ = x - x_b;
+    let b_ = x + x_b;
 
     (a_, b_)
 }

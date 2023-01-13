@@ -48,7 +48,13 @@ impl AppWindowState {
 
     pub(super) fn on_event<'a>(&mut self, event: &WindowEvent<'a>) -> bool {
         let resp = self.egui.on_event(event);
-        resp.consumed
+        let mut consumed = resp.consumed;
+        if !consumed {
+            consumed = self
+                .app
+                .on_event(self.window.window.inner_size().into(), event);
+        }
+        consumed
     }
 
     pub(super) fn update(
