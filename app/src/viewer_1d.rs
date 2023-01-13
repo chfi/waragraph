@@ -817,18 +817,6 @@ impl AppWindow for Viewer1D {
 
                     interact.interact_pan_pos = Some(Bp(pan_pos));
                     interact.interact_node = hovered_node;
-
-                    if let Some(node) = hovered_node {
-                        let fonts = ui.fonts();
-                        fg_shapes.push(egui::Shape::text(
-                            &fonts,
-                            egui::pos2(100.0, 30.0),
-                            egui::Align2::LEFT_TOP,
-                            node.ix().to_string(),
-                            egui::FontId::monospace(20.0),
-                            egui::Color32::RED,
-                        ));
-                    }
                 }
 
                 self.self_viz_interact.store(interact);

@@ -78,7 +78,7 @@ impl Viewer2D {
 
             let vertex_data = pos.iter_nodes().collect::<Vec<_>>();
 
-            let instance_count = vertex_data.len() / 2;
+            let instance_count = vertex_data.len();
 
             let buffer = state.device.create_buffer_init(
                 &wgpu::util::BufferInitDescriptor {
@@ -105,7 +105,6 @@ impl Viewer2D {
         let cam_width = total_size.y * aspect;
         let size = Vec2::new(cam_width, total_size.y);
 
-        // let camera = DynamicCamera2d::new(center, size);
         let view = View2D::new(center, size);
 
         let mut graph = Graph::new();
@@ -178,6 +177,8 @@ impl Viewer2D {
         graph.add_link_from_transient("vert_cfg", draw_node, 3);
 
         let instances = instance_count as u32;
+        println!("instance count: {instances}");
+        println!("node count: {}", path_index.node_count);
 
         graph.set_node_preprocess_fn(draw_node, move |_ctx, op_state| {
             op_state.vertices = Some(0..6);
@@ -258,7 +259,12 @@ impl AppWindow for Viewer2D {
         let mut annot_shapes = Vec::new();
 
         if let Some(node) = other_interactions.interact_node {
-            println!("received node interaction! {node:?}");
+            if other_interactions.clicked {
+                let (n0, n1) = self.node_positions.node_pos(node);
+                let mid = n0 + (n1 - n0) * 0.5;
+                self.view.center = mid;
+            }
+
             let (n0, n1) = self.node_positions.node_pos(node);
 
             let a = Vec4::new(n0.x, n0.y, 0.0, 1.0);
@@ -271,15 +277,34 @@ impl AppWindow for Viewer2D {
             let p0 = Vec3::from_homogeneous_point(a_);
             let p1 = Vec3::from_homogeneous_point(b_);
 
-            let stroke = egui::Stroke::new(5.0, egui::Color32::RED);
+            let mut p0 = Vec2::new(p0.x, p0.y);
+            let mut p1 = Vec2::new(p1.x, p1.y);
+
+            p0.y *= -1.0;
+            p1.y *= -1.0;
+
+            p0 = (p0 + Vec2::one()) / 2.0;
+            p1 = (p1 + Vec2::one()) / 2.0;
+
+            println!("p0: {p0:?}\tp1: {p1:?}");
+
+            let p0 = p0 * dims;
+            let p1 = p1 * dims;
+
+            let dist = (p1 - p0).mag();
 
             let p0 = egui::pos2(p0.x, p0.y);
             let p1 = egui::pos2(p1.x, p1.y);
 
-            annot_shapes.push(egui::Shape::line(vec![p0, p1], stroke));
-            // let tform =
+            let mid = p0 + (p1 - p0) * 0.5;
 
-            // let p0_ = mat * p0;
+            if dist > 2.0 {
+                let stroke = egui::Stroke::new(5.0, egui::Color32::RED);
+                annot_shapes.push(egui::Shape::line(vec![p0, p1], stroke));
+            } else {
+                let stroke = egui::Stroke::new(2.0, egui::Color32::RED);
+                annot_shapes.push(egui::Shape::circle_stroke(mid, 5.0, stroke));
+            }
         }
 
         egui_ctx.begin_frame(&window.window);
@@ -310,6 +335,15 @@ impl AppWindow for Viewer2D {
                 let painter = ui.painter();
                 painter.extend(annot_shapes);
             });
+
+            if let Some(node) = other_interactions.interact_node {
+                let text = format!("Node: {}", node.ix());
+                egui::Window::new("Information")
+                    .fixed_pos([20.0f32, 20.0])
+                    .show(ctx, |ui| {
+                        ui.label(egui::RichText::new(text).size(20.0))
+                    });
+            }
 
             let scroll = ctx.input().scroll_delta;
 

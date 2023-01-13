@@ -1,4 +1,6 @@
-use ultraviolet::{Isometry3, Mat4, Rotor3, Vec2, Vec3};
+use ultraviolet::{
+    Isometry2, Isometry3, Mat3, Mat4, Rotor2, Rotor3, Vec2, Vec3,
+};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct View2D {
@@ -65,13 +67,27 @@ impl View2D {
         self.center += delta * self.size;
     }
 
+    pub fn view_to_world(&self, pv: Vec2) -> Vec2 {
+        todo!();
+    }
+
+    pub fn world_to_view(&self, pw: Vec2) -> Vec2 {
+        let translation = -self.center;
+        let view = Isometry2::new(translation, Rotor2::identity());
+        let mat = view.into_homogeneous_matrix();
+        let p = mat * pw.into_homogeneous_point();
+        let p = Vec2::from_homogeneous_point(p);
+
+        p / self.size
+    }
+
     pub fn to_matrix(&self) -> Mat4 {
         let right = self.size.x / 2.0;
         let left = -right;
         let top = self.size.y / 2.0;
         let bottom = -top;
 
-        let near = 1.0;
+        let near = 0.1;
         let far = 10.0;
 
         let proj = ultraviolet::projection::rh_yup::orthographic_wgpu_dx(
@@ -79,7 +95,7 @@ impl View2D {
         );
 
         let p = self.center;
-        let p_ = Vec3::new(p.x, p.y, 5.0);
+        let p_ = Vec3::new(p.x, p.y, 1.0);
 
         let view = Isometry3::new(p_, Rotor3::identity()).inversed();
 
