@@ -259,51 +259,32 @@ impl AppWindow for Viewer2D {
         let mut annot_shapes = Vec::new();
 
         if let Some(node) = other_interactions.interact_node {
+            let (n0, n1) = self.node_positions.node_pos(node);
+            let mid = n0 + (n1 - n0) * 0.5;
+
             if other_interactions.clicked {
-                let (n0, n1) = self.node_positions.node_pos(node);
-                let mid = n0 + (n1 - n0) * 0.5;
                 self.view.center = mid;
             }
 
-            let (n0, n1) = self.node_positions.node_pos(node);
+            let mat = self.view.to_viewport_matrix(dims);
 
-            let a = Vec4::new(n0.x, n0.y, 0.0, 1.0);
-            let b = Vec4::new(n1.x, n1.y, 0.0, 1.0);
+            let p0 = mat * n0.into_homogeneous_point();
+            let p1 = mat * n1.into_homogeneous_point();
+            let pmid = mat * mid.into_homogeneous_point();
 
-            let mat = self.view.to_matrix();
-            let a_ = mat * a;
-            let b_ = mat * b;
-
-            let p0 = Vec3::from_homogeneous_point(a_);
-            let p1 = Vec3::from_homogeneous_point(b_);
-
-            let mut p0 = Vec2::new(p0.x, p0.y);
-            let mut p1 = Vec2::new(p1.x, p1.y);
-
-            p0.y *= -1.0;
-            p1.y *= -1.0;
-
-            p0 = (p0 + Vec2::one()) / 2.0;
-            p1 = (p1 + Vec2::one()) / 2.0;
-
-            println!("p0: {p0:?}\tp1: {p1:?}");
-
-            let p0 = p0 * dims;
-            let p1 = p1 * dims;
-
-            let dist = (p1 - p0).mag();
+            let dist = (p1.xy() - p0.xy()).mag();
 
             let p0 = egui::pos2(p0.x, p0.y);
             let p1 = egui::pos2(p1.x, p1.y);
-
-            let mid = p0 + (p1 - p0) * 0.5;
+            let pmid = egui::pos2(pmid.x, pmid.y);
 
             if dist > 2.0 {
                 let stroke = egui::Stroke::new(5.0, egui::Color32::RED);
                 annot_shapes.push(egui::Shape::line(vec![p0, p1], stroke));
             } else {
                 let stroke = egui::Stroke::new(2.0, egui::Color32::RED);
-                annot_shapes.push(egui::Shape::circle_stroke(mid, 5.0, stroke));
+                annot_shapes
+                    .push(egui::Shape::circle_stroke(pmid, 5.0, stroke));
             }
         }
 

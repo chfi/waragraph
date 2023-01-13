@@ -1,5 +1,5 @@
 use ultraviolet::{
-    Isometry2, Isometry3, Mat3, Mat4, Rotor2, Rotor3, Vec2, Vec3,
+    Isometry2, Isometry3, Mat3, Mat4, Rotor2, Rotor3, Similarity2, Vec2, Vec3,
 };
 
 #[derive(Debug, Clone, PartialEq)]
@@ -67,20 +67,37 @@ impl View2D {
         self.center += delta * self.size;
     }
 
-    pub fn view_to_world(&self, pv: Vec2) -> Vec2 {
-        todo!();
+    /// Returns a homogeneous 2D transformation that maps the camera view
+    /// in the world to the rectangle bounded by the points `(0, 0)` and
+    /// `dims`.
+    pub fn to_viewport_matrix(&self, dims: Vec2) -> Mat3 {
+        let matrix = self.to_matrix();
+        let [c0, c1, c2, c3] = matrix.as_component_array();
+
+        let c0 = Vec3::new(c0.x, c0.y, c1.w);
+        let c1 = Vec3::new(c1.x, c1.y, c1.w);
+        let c2 = Vec3::new(c3.x, c3.y, c3.w);
+
+        let matrix = Mat3::new(c0, c1, c2);
+
+        let flip = Mat3::new(
+            Vec3::new(1.0, 0.0, 0.0),
+            Vec3::new(0.0, -1.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+        );
+
+        let translate = Isometry2::new(Vec2::one(), Rotor2::identity());
+
+        let scale = Mat3::new(
+            Vec3::new(dims.x / 2.0, 0.0, 0.0),
+            Vec3::new(0.0, dims.y / 2.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+        );
+
+        scale * translate.into_homogeneous_matrix() * flip * matrix
     }
 
-    pub fn world_to_view(&self, pw: Vec2) -> Vec2 {
-        let translation = -self.center;
-        let view = Isometry2::new(translation, Rotor2::identity());
-        let mat = view.into_homogeneous_matrix();
-        let p = mat * pw.into_homogeneous_point();
-        let p = Vec2::from_homogeneous_point(p);
-
-        p / self.size
-    }
-
+    /// Returns a matrix that's ready for use as a transformation by the GPU
     pub fn to_matrix(&self) -> Mat4 {
         let right = self.size.x / 2.0;
         let left = -right;
