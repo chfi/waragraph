@@ -9,6 +9,7 @@ pub mod viewer_2d;
 pub mod app;
 
 pub mod annotations;
+pub mod color;
 pub mod gpu_cache;
 pub mod gui;
 pub mod list;
