@@ -1,7 +1,4 @@
-use waragraph::app::{App, Args};
-use waragraph_core::graph::PathIndex;
-use winit::event::{Event, VirtualKeyCode, WindowEvent};
-use winit::event_loop::{ControlFlow, EventLoop};
+use waragraph::app::App;
 
 use anyhow::Result;
 

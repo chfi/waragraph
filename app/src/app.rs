@@ -19,6 +19,8 @@ use crate::{
 
 mod window;
 
+pub mod resource;
+
 pub use window::AppWindowState;
 
 pub struct SharedState {
