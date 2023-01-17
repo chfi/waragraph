@@ -746,8 +746,9 @@ impl AppWindow for Viewer1D {
                     )
                 };
 
-                let column_separator =
-                    ui.allocate_rect(sep_rect, egui::Sense::click_and_drag());
+                let column_separator = ui
+                    .allocate_rect(sep_rect, egui::Sense::click_and_drag())
+                    .on_hover_cursor(egui::CursorIcon::ResizeColumn);
 
                 if column_separator.hovered() {
                     let shape = egui::Shape::rect_filled(
