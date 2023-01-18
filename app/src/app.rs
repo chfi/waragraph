@@ -1,6 +1,6 @@
 use crossbeam::atomic::AtomicCell;
 use raving_wgpu::{gui::EguiCtx, WindowState};
-use tokio::runtime::Runtime;
+use tokio::{runtime::Runtime, sync::RwLock};
 use waragraph_core::graph::{Bp, PathId};
 use winit::{
     event::{ElementState, Event, VirtualKeyCode, WindowEvent},
@@ -23,7 +23,11 @@ pub mod resource;
 
 pub use window::AppWindowState;
 
+use self::resource::AnyArcMap;
+
 pub struct SharedState {
+    pub shared: Arc<RwLock<AnyArcMap>>,
+
     pub gfa_path: Arc<PathBuf>,
     pub tsv_path: Option<Arc<PathBuf>>,
 
@@ -64,6 +68,8 @@ impl App {
             let tsv_path = args.tsv.map(|p| Arc::new(p));
 
             SharedState {
+                shared: Arc::new(RwLock::new(AnyArcMap::default())),
+
                 gfa_path,
                 tsv_path,
                 graph: path_index,
@@ -102,6 +108,7 @@ impl App {
                 state,
                 &window,
                 self.shared.graph.clone(),
+                self.shared.shared.clone(),
             )?;
 
             app.self_viz_interact = self.shared.viewer_1d_interactions.clone();

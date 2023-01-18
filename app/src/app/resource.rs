@@ -3,7 +3,50 @@ use std::{collections::BTreeMap, sync::Arc};
 use egui::epaint::ahash::HashMap;
 use waragraph_core::graph::{Node, PathId, PathIndex};
 
-pub struct ResourceStore {
+#[derive(Default)]
+pub struct AnyArcMap {
+    values: HashMap<(std::any::TypeId, u64), Box<dyn std::any::Any>>,
+}
+
+impl AnyArcMap {
+    fn key<T: std::any::Any>(key: &str) -> (std::any::TypeId, u64) {
+        use std::hash::{Hash, Hasher};
+        let id = std::any::TypeId::of::<T>();
+        let mut hasher = std::collections::hash_map::DefaultHasher::new();
+        key.hash(&mut hasher);
+        (id, hasher.finish())
+    }
+
+    pub fn insert_shared<T>(&mut self, key: &str, value: Arc<T>)
+    where
+        T: std::any::Any,
+    {
+        let key = Self::key::<T>(key);
+        self.values.insert(key, Box::new(value));
+    }
+
+    pub fn insert<T>(&mut self, key: &str, value: T)
+    where
+        T: std::any::Any,
+    {
+        self.insert_shared(key, Arc::new(value));
+    }
+
+    pub fn get<'a, T>(&'a self, key: &str) -> Option<&'a Arc<T>>
+    where
+        T: std::any::Any,
+    {
+        let key = Self::key::<T>(key);
+
+        let val = self.values.get(&key)?;
+        let id = std::any::TypeId::of::<Arc<T>>();
+        let val = val.downcast_ref::<Arc<T>>()?;
+
+        Some(val)
+    }
+}
+
+pub struct ResourceCtx {
     //
 }
 
@@ -16,8 +59,7 @@ pub struct GraphData<T> {
 // }
 
 pub struct GraphPathData<T> {
-    path_range: std::ops::RangeInclusive<PathId>,
-    paths: Vec<Vec<T>>,
+    data: Vec<Vec<T>>,
 }
 
 pub(crate) enum StoreIndex {
@@ -108,16 +150,23 @@ impl GraphDataSources {
     }
 }
 
-pub struct GraphDataStore {
+pub struct GraphDataCache {
     name_index_map: HashMap<String, StoreIndex>,
 
-    graph_f32: Vec<GraphData<f32>>,
-    path_f32: Vec<GraphPathData<f32>>,
-    // graph_u32: Vec<GraphData<u32>>,
-    // graph_i32: Vec<GraphData<i32>>,
-    // path_u32: Vec<GraphPathData<u32>>,
-    // path_i32: Vec<GraphPathData<i32>>,
+    graph_f32: Vec<Arc<GraphData<f32>>>,
+    path_f32: Vec<Arc<GraphPathData<f32>>>,
+    // gpu_graph_buffers: HashMap<String, Arc<BufferDesc>>,
+
+    // worker: JoinHandle<()>,
+
+    // send_rq: crossbeam::channel::Sender
+    // recv_rq: crossbeam::channel::Receiver
 }
 
-// impl GraphIndexDataStore {
-// }
+impl GraphDataCache {
+    // pub fn
+}
+
+pub struct ResourceManager {
+    // requests:
+}

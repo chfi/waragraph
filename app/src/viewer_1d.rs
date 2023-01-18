@@ -1,10 +1,12 @@
 use crate::annotations::AnnotationStore;
+use crate::app::resource::AnyArcMap;
 use crate::app::{AppWindow, VizInteractions};
 use crate::gui::list::DynamicListLayout;
 use crate::gui::FlexLayout;
 use crate::list::ListView;
 use crossbeam::atomic::AtomicCell;
 use taffy::style::Dimension;
+use tokio::sync::RwLock;
 use waragraph_core::graph::{Bp, PathId};
 use wgpu::BufferUsages;
 use winit::dpi::PhysicalSize;
@@ -43,6 +45,8 @@ pub struct Args {
 }
 
 pub struct Viewer1D {
+    shared: Arc<RwLock<AnyArcMap>>,
+
     render_graph: Graph,
     // egui: EguiCtx,
     path_index: Arc<PathIndex>,
@@ -53,13 +57,15 @@ pub struct Viewer1D {
 
     force_resample: bool,
 
+    active_viz_data_key: String,
+    // active_viz_color_scheme_key: String,
     depth_data: Arc<PathDepthData>,
 
     vertices: BufferDesc,
     vert_uniform: wgpu::Buffer,
     frag_uniform: wgpu::Buffer,
 
-    path_viz_cache: PathVizCache,
+    gpu_buffers: HashMap<String, BufferDesc>,
 
     // slot_layout: FlexLayout<gui::SlotElem>,
     dyn_slot_layout: DynamicListLayout<Vec<gui::SlotElem>, gui::SlotElem>,
@@ -87,26 +93,6 @@ impl BufferDesc {
             size,
             deleted: false,
         }
-    }
-}
-
-// TODO this should be more general/shared across the entire app
-#[derive(Debug, Default)]
-struct PathVizCache {
-    buffer_names: HashMap<String, usize>,
-    buffers: Vec<BufferDesc>,
-}
-
-impl PathVizCache {
-    fn get(&self, name: &str) -> Option<&BufferDesc> {
-        let ix = self.buffer_names.get(name)?;
-        self.buffers.get(*ix)
-    }
-
-    fn insert(&mut self, name: &str, desc: BufferDesc) {
-        let ix = self.buffers.len();
-        self.buffer_names.insert(name.into(), ix);
-        self.buffers.push(desc);
     }
 }
 
@@ -191,6 +177,7 @@ impl Viewer1D {
         state: &State,
         window: &WindowState,
         path_index: Arc<PathIndex>,
+        shared: Arc<RwLock<AnyArcMap>>,
     ) -> Result<Self> {
         let mut graph = Graph::new();
 
@@ -293,10 +280,11 @@ impl Viewer1D {
             1024,
         )?;
 
-        let mut path_viz_cache = PathVizCache::default();
-        path_viz_cache.insert("color", color);
-        path_viz_cache.insert("data", data);
-        path_viz_cache.insert("depth", depth);
+        let mut gpu_buffers = HashMap::default();
+
+        gpu_buffers.insert("color".to_string(), color);
+        gpu_buffers.insert("data".to_string(), data);
+        gpu_buffers.insert("depth".to_string(), depth);
 
         // let mut slot_layout = gui::create_slot_layout(32, "depth")?;
 
@@ -361,7 +349,7 @@ impl Viewer1D {
             vert_uniform,
             frag_uniform,
 
-            path_viz_cache,
+            gpu_buffers,
 
             // slot_layout,
             dyn_slot_layout,
@@ -372,6 +360,11 @@ impl Viewer1D {
 
             self_viz_interact,
             connected_viz_interact,
+
+            shared,
+
+            active_viz_data_key: "depth".to_string(),
+            // active_viz_color_scheme_key: "depth"
         })
     }
 
@@ -623,7 +616,7 @@ impl AppWindow for Viewer1D {
             let handle = self.sample_handle.take().unwrap();
 
             if let Ok((view_range, data)) = tokio_rt.block_on(handle) {
-                let gpu_buffer = self.path_viz_cache.get("depth").unwrap();
+                let gpu_buffer = self.gpu_buffers.get("depth").unwrap();
                 state.queue.write_buffer(&gpu_buffer.buffer, 0, &data);
 
                 self.rendered_view = view_range;
@@ -938,7 +931,7 @@ impl AppWindow for Viewer1D {
         );
 
         for name in ["data", "color", "depth"] {
-            if let Some(desc) = self.path_viz_cache.get(name) {
+            if let Some(desc) = self.gpu_buffers.get(name) {
                 transient_res.insert(
                     name.into(),
                     InputResource::Buffer {
