@@ -1,6 +1,6 @@
 use crate::annotations::AnnotationStore;
-use crate::app::resource::AnyArcMap;
-use crate::app::{AppWindow, VizInteractions};
+use crate::app::resource::{AnyArcMap, GraphDataCache, GraphPathData};
+use crate::app::{AppWindow, SharedState, VizInteractions};
 use crate::gui::list::DynamicListLayout;
 use crate::gui::FlexLayout;
 use crate::list::ListView;
@@ -45,7 +45,7 @@ pub struct Args {
 }
 
 pub struct Viewer1D {
-    shared: Arc<RwLock<AnyArcMap>>,
+    any_map: Arc<RwLock<AnyArcMap>>,
 
     render_graph: Graph,
     // egui: EguiCtx,
@@ -59,8 +59,6 @@ pub struct Viewer1D {
 
     active_viz_data_key: String,
     // active_viz_color_scheme_key: String,
-    depth_data: Arc<PathDepthData>,
-
     vertices: BufferDesc,
     vert_uniform: wgpu::Buffer,
     frag_uniform: wgpu::Buffer,
@@ -77,6 +75,8 @@ pub struct Viewer1D {
 
     pub self_viz_interact: Arc<AtomicCell<VizInteractions>>,
     pub connected_viz_interact: Option<Arc<AtomicCell<VizInteractions>>>,
+
+    graph_data_cache: Arc<GraphDataCache>,
 }
 
 #[derive(Debug)]
@@ -177,7 +177,8 @@ impl Viewer1D {
         state: &State,
         window: &WindowState,
         path_index: Arc<PathIndex>,
-        shared: Arc<RwLock<AnyArcMap>>,
+        shared: &SharedState,
+        // shared: Arc<RwLock<AnyArcMap>>,
     ) -> Result<Self> {
         let mut graph = Graph::new();
 
@@ -333,6 +334,9 @@ impl Viewer1D {
             Arc::new(AtomicCell::new(VizInteractions::default()));
         let connected_viz_interact = None;
 
+        let graph_data_cache = shared.graph_data_cache.clone();
+        let any_map = shared.shared.clone();
+
         Ok(Viewer1D {
             render_graph: graph,
             // egui,
@@ -342,8 +346,6 @@ impl Viewer1D {
             view: view.clone(),
             rendered_view: view.range().clone(),
             force_resample: false,
-
-            depth_data,
 
             vertices,
             vert_uniform,
@@ -361,9 +363,10 @@ impl Viewer1D {
             self_viz_interact,
             connected_viz_interact,
 
-            shared,
+            any_map,
+            graph_data_cache,
 
-            active_viz_data_key: "depth".to_string(),
+            active_viz_data_key: "strand".to_string(),
             // active_viz_color_scheme_key: "depth"
         })
     }
@@ -403,7 +406,7 @@ impl Viewer1D {
 
     fn sample_into_vec(
         index: &PathIndex,
-        data: &PathDepthData,
+        data: &GraphPathData<f32>,
         paths: &[PathId],
         view_range: std::ops::Range<u64>,
         buffer: &mut Vec<u8>,
@@ -416,7 +419,7 @@ impl Viewer1D {
 
     fn sample_into_data_buffer(
         index: &PathIndex,
-        data: &PathDepthData,
+        data: &GraphPathData<f32>,
         paths: &[PathId],
         view_range: std::ops::Range<u64>,
         buffer: &mut [u8],
@@ -441,7 +444,7 @@ impl Viewer1D {
     fn sample_into_gpu_buffer(
         state: &State,
         index: &PathIndex,
-        data: &PathDepthData,
+        data: &GraphPathData<f32>,
         paths: &[PathId],
         // path_list_view: &ListView<PathId>,
         view_range: std::ops::Range<u64>,
@@ -591,7 +594,10 @@ impl AppWindow for Viewer1D {
             let view_range = self.view.range().clone();
 
             let path_index = self.path_index.clone();
-            let data = self.depth_data.clone();
+            let data = self
+                .graph_data_cache
+                .fetch_path_data_blocking(&self.active_viz_data_key)
+                .unwrap();
 
             let join = tokio_rt.spawn_blocking(move || {
                 let mut buf: Vec<u8> = Vec::new();

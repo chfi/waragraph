@@ -1,12 +1,8 @@
-use std::{
-    collections::{BTreeMap, HashSet},
-    future::Future,
-    sync::Arc,
-};
+use std::{collections::BTreeMap, sync::Arc};
 
 use egui::epaint::ahash::HashMap;
 use tokio::{sync::RwLock, task::JoinHandle};
-use waragraph_core::graph::{Node, PathId, PathIndex};
+use waragraph_core::graph::{sampling::PathData, Node, PathId, PathIndex};
 
 #[derive(Default)]
 pub struct AnyArcMap {
@@ -52,18 +48,18 @@ impl AnyArcMap {
 }
 
 pub struct GraphData<T> {
-    per_node: Vec<T>,
+    pub node_data: Vec<T>,
 }
 
 pub struct GraphPathData<T> {
-    data: Vec<Vec<T>>,
+    pub path_data: Vec<Vec<T>>,
 }
 
-// #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-// pub(crate) enum StoreIndex {
-//     GraphFloat(usize),
-//     PathFloat(usize),
-// }
+impl<T> PathData<T> for GraphPathData<T> {
+    fn get_path(&self, path_id: PathId) -> &[T] {
+        &self.path_data[path_id.ix()]
+    }
+}
 
 // pub type DataSourceFn<A, T> = Arc<dyn Fn(A) -> anyhow::Result<Vec<T>>>;
 
@@ -146,7 +142,6 @@ impl GraphDataSources {
 
 pub struct GraphDataCache {
     graph: Arc<PathIndex>,
-    // name_index_map: HashMap<String, StoreIndex>,
     graph_f32: RwLock<HashMap<String, Arc<GraphData<f32>>>>,
     path_f32: RwLock<HashMap<String, Arc<GraphPathData<f32>>>>,
 
@@ -172,6 +167,26 @@ impl GraphDataCache {
         }
     }
 
+    pub fn fetch_graph_data_blocking(
+        &self,
+        key: &str,
+    ) -> Option<Arc<GraphData<f32>>> {
+        if let Some(data) = self.graph_f32.blocking_read().get(key) {
+            return Some(data.clone());
+        }
+
+        let source = self.sources.graph_f32.get(key)?;
+
+        let node_data = source().unwrap();
+        let data = Arc::new(GraphData { node_data });
+
+        self.graph_f32
+            .blocking_write()
+            .insert(key.to_string(), data.clone());
+
+        Some(data)
+    }
+
     pub fn fetch_path_data_blocking(
         &self,
         key: &str,
@@ -190,7 +205,7 @@ impl GraphDataCache {
             data.push(path_data);
         }
 
-        let data = Arc::new(GraphPathData { data });
+        let data = Arc::new(GraphPathData { path_data: data });
 
         self.path_f32
             .blocking_write()

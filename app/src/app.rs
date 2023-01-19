@@ -23,15 +23,16 @@ pub mod resource;
 
 pub use window::AppWindowState;
 
-use self::resource::AnyArcMap;
+use self::resource::{AnyArcMap, GraphDataCache};
 
 pub struct SharedState {
+    pub graph: Arc<waragraph_core::graph::PathIndex>,
+
     pub shared: Arc<RwLock<AnyArcMap>>,
+    pub graph_data_cache: Arc<GraphDataCache>,
 
     pub gfa_path: Arc<PathBuf>,
     pub tsv_path: Option<Arc<PathBuf>>,
-
-    pub graph: Arc<waragraph_core::graph::PathIndex>,
 
     viewer_1d_interactions: Arc<AtomicCell<VizInteractions>>,
     viewer_2d_interactions: Arc<AtomicCell<VizInteractions>>,
@@ -67,12 +68,16 @@ impl App {
             let gfa_path = Arc::new(args.gfa);
             let tsv_path = args.tsv.map(|p| Arc::new(p));
 
+            let graph_data_cache = Arc::new(GraphDataCache::init(&path_index));
+
             SharedState {
+                graph: path_index,
+
                 shared: Arc::new(RwLock::new(AnyArcMap::default())),
+                graph_data_cache,
 
                 gfa_path,
                 tsv_path,
-                graph: path_index,
 
                 viewer_1d_interactions: Arc::new(AtomicCell::new(
                     Default::default(),
@@ -108,7 +113,7 @@ impl App {
                 state,
                 &window,
                 self.shared.graph.clone(),
-                self.shared.shared.clone(),
+                &self.shared,
             )?;
 
             app.self_viz_interact = self.shared.viewer_1d_interactions.clone();
