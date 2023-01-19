@@ -1,60 +1,12 @@
 use std::{
     collections::{BTreeMap, HashSet},
+    future::Future,
     sync::Arc,
 };
 
 use egui::epaint::ahash::HashMap;
 use tokio::{sync::RwLock, task::JoinHandle};
 use waragraph_core::graph::{Node, PathId, PathIndex};
-
-pub struct ResourceManager {
-    map: Arc<RwLock<AnyArcMap>>,
-
-    graph_data_sources: Arc<RwLock<GraphDataSources>>,
-    graph_data_cache: Arc<RwLock<GraphDataCache>>,
-}
-
-impl ResourceManager {
-    async fn prepare_path_data(&self, data_key: &str) -> Option<()> {
-        {
-            let cache = &self.graph_data_cache.read().await;
-            if let Some(ix) = cache.name_index_map.get(data_key) {
-
-                //
-            }
-            //
-        }
-
-        // if let Some(ix) =
-        //     self.graph_data_cache.read().name_index_map.get(data_key)
-        // {
-        //     //
-        // }
-        //
-
-        None
-    }
-
-    // pub fn
-    //
-
-    // pub async fn get_path_data_async
-
-    /*
-    pub fn get_path_data(
-        &self,
-        data_key: &str,
-    ) -> Option<&Arc<GraphPathData<f32>>> {
-        if let Some(ix) = self.graph_data_cache.name_index_map.get(data_key) {
-            todo!();
-        } else {
-            let source = self.graph_data_sources.path_f32.get(data_key)?;
-            // TODO dispatch task??
-            todo!();
-        }
-    }
-    */
-}
 
 #[derive(Default)]
 pub struct AnyArcMap {
@@ -99,31 +51,19 @@ impl AnyArcMap {
     }
 }
 
-pub struct ResourceCtx {
-    //
-}
-
 pub struct GraphData<T> {
     per_node: Vec<T>,
 }
-
-// pub struct IndivPathData<T> {
-//     per_node_in_step_order: Vec<T>,
-// }
 
 pub struct GraphPathData<T> {
     data: Vec<Vec<T>>,
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub(crate) enum StoreIndex {
-    GraphFloat(usize),
-    PathFloat(usize),
-    // GraphUnsigned,
-    // GraphSigned,
-    // PathUnsigned,
-    // PathSigned,
-}
+// #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+// pub(crate) enum StoreIndex {
+//     GraphFloat(usize),
+//     PathFloat(usize),
+// }
 
 // pub type DataSourceFn<A, T> = Arc<dyn Fn(A) -> anyhow::Result<Vec<T>>>;
 
@@ -144,7 +84,7 @@ impl GraphDataSources {
 
         // graph node ids
         {
-            let name = "graph_node_ids".to_string();
+            let name = "node_ids".to_string();
             let graph = graph.clone();
             let ctor =
                 move || Ok((0..graph.node_count).map(|i| i as f32).collect());
@@ -154,7 +94,7 @@ impl GraphDataSources {
 
         // path depth
         {
-            let name = "path_depth".to_string();
+            let name = "depth".to_string();
             let graph = graph.clone();
             let ctor = move |path: PathId| {
                 let mut path_data: BTreeMap<Node, f32> = BTreeMap::default();
@@ -171,7 +111,7 @@ impl GraphDataSources {
 
         // path strand
         {
-            let name = "path_strand".to_string();
+            let name = "strand".to_string();
             let graph = graph.clone();
             let ctor = move |path: PathId| {
                 let path_steps = &graph.path_steps[path.ix()];
@@ -204,48 +144,58 @@ impl GraphDataSources {
     }
 }
 
-// enum CacheEntryState {
-//     Fetching(JoinHandle<()>),
-//     Ready,
-// }
-
 pub struct GraphDataCache {
-    name_index_map: HashMap<String, StoreIndex>,
+    graph: Arc<PathIndex>,
+    // name_index_map: HashMap<String, StoreIndex>,
+    graph_f32: RwLock<HashMap<String, Arc<GraphData<f32>>>>,
+    path_f32: RwLock<HashMap<String, Arc<GraphPathData<f32>>>>,
 
-    graph_f32: Vec<Arc<GraphData<f32>>>,
-    path_f32: Vec<Arc<GraphPathData<f32>>>,
-
-    // entry_state: HashMap<StoreIndex, CacheEntryState>,
-    fetching: HashMap<StoreIndex, JoinHandle<()>>,
-    ready: HashSet<StoreIndex>,
-    // gpu_graph_buffers: HashMap<String, Arc<BufferDesc>>,
-
-    // worker: JoinHandle<()>,
-
-    // send_rq: crossbeam::channel::Sender
-    // recv_rq: crossbeam::channel::Receiver
+    // fetching: HashMap<StoreIndex, JoinHandle<()>>,
+    // ready: HashSet<StoreIndex>,
+    sources: GraphDataSources,
 }
 
 impl GraphDataCache {
-    // pub fn get_path_data(&mut self,
-    //                      sources: &Ar
-    //                      data_key: &str) -> Option<&Arc<GraphPathData<f32>>> {
-    // }
+    pub fn init(graph: &Arc<PathIndex>) -> Self {
+        let sources = GraphDataSources::tmp_init(graph);
 
-    pub fn update(&mut self) {
-        let mut ready = Vec::new();
+        let graph_f32 = RwLock::new(HashMap::default());
+        let path_f32 = RwLock::new(HashMap::default());
 
-        for (ix, handle) in self.fetching.iter() {
-            if handle.is_finished() {
-                ready.push(*ix);
-            }
-        }
+        let graph = graph.clone();
 
-        for ix in ready {
-            let _ = self.fetching.remove(&ix);
-            self.ready.insert(ix);
+        Self {
+            graph,
+            graph_f32,
+            path_f32,
+            sources,
         }
     }
 
-    // pub fn get_path_data(&mut self
+    pub fn fetch_path_data_blocking(
+        &self,
+        key: &str,
+    ) -> Option<Arc<GraphPathData<f32>>> {
+        if let Some(data) = self.path_f32.blocking_read().get(key) {
+            return Some(data.clone());
+        }
+
+        let source = self.sources.path_f32.get(key)?;
+
+        let path_ids = self.graph.path_names.left_values();
+        let mut data = Vec::with_capacity(self.graph.path_names.len());
+
+        for &path in path_ids {
+            let path_data = source(path).unwrap();
+            data.push(path_data);
+        }
+
+        let data = Arc::new(GraphPathData { data });
+
+        self.path_f32
+            .blocking_write()
+            .insert(key.to_string(), data.clone());
+
+        Some(data)
+    }
 }
