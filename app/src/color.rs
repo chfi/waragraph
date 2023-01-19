@@ -18,6 +18,10 @@ pub struct ColorStore {
 }
 
 impl ColorStore {
+    pub fn get_color_scheme_id(&self, name: &str) -> Option<ColorSchemeId> {
+        self.scheme_name_map.get(name).copied()
+    }
+
     pub fn init() -> Self {
         let mut result = Self {
             scheme_name_map: HashMap::default(),
@@ -55,6 +59,28 @@ impl ColorStore {
         result.add_color_scheme("black_red", black_red);
 
         result
+    }
+
+    pub fn get_color_mapping_gpu_buffer(
+        &mut self,
+        state: &raving_wgpu::State,
+        mapping: ColorMapping,
+    ) -> anyhow::Result<&wgpu::Buffer> {
+        if !self.mapping_buffers.contains_key(&mapping) {
+            let usage = BufferUsages::UNIFORM | BufferUsages::COPY_DST;
+            let buf_data = mapping.into_uniform_bytes();
+
+            let buffer =
+                state.device.create_buffer_init(&BufferInitDescriptor {
+                    label: None,
+                    contents: bytemuck::cast_slice(&buf_data),
+                    usage,
+                });
+
+            self.mapping_buffers.insert(mapping, buffer);
+        }
+
+        Ok(self.mapping_buffers.get(&mapping).unwrap())
     }
 
     pub fn upload_color_schemes_to_gpu(
@@ -152,16 +178,59 @@ impl ColorScheme {
 /// index range, then round)
 #[derive(Debug, Clone, Copy)]
 pub struct ColorMapping {
-    color_scheme: ColorSchemeId,
+    pub color_scheme: ColorSchemeId,
 
-    min_color_ix: u32,
-    max_color_ix: u32,
+    pub min_color_ix: u32,
+    pub max_color_ix: u32,
 
-    min_val: f32,
-    max_val: f32,
+    pub extreme_min_color_ix: u32,
+    pub extreme_max_color_ix: u32,
 
-    extreme_min_color_ix: u32,
-    extreme_max_color_ix: u32,
+    pub min_val: f32,
+    pub max_val: f32,
+}
+
+impl ColorMapping {
+    pub fn into_uniform_bytes(self) -> [u8; 24] {
+        let mut out = [0u8; 24];
+
+        out[0..(4 * 4)].clone_from_slice(bytemuck::cast_slice(&[
+            self.min_color_ix,
+            self.max_color_ix,
+            self.extreme_min_color_ix,
+            self.extreme_max_color_ix,
+        ]));
+        out[(4 * 4)..(6 * 4)].clone_from_slice(bytemuck::cast_slice(&[
+            self.min_val,
+            self.max_val,
+        ]));
+
+        out
+    }
+
+    pub fn new(
+        color_scheme: ColorSchemeId,
+        color_range: std::ops::RangeInclusive<u32>,
+        val_range: std::ops::RangeInclusive<f32>,
+        extreme_min_color_ix: u32,
+        extreme_max_color_ix: u32,
+    ) -> Self {
+        let (min_color_ix, max_color_ix) = color_range.into_inner();
+        let (min_val, max_val) = val_range.into_inner();
+
+        Self {
+            color_scheme,
+
+            min_color_ix,
+            max_color_ix,
+
+            extreme_min_color_ix,
+            extreme_max_color_ix,
+
+            min_val,
+            max_val,
+        }
+    }
 }
 
 impl PartialEq for ColorMapping {
