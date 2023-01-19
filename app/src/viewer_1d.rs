@@ -45,11 +45,7 @@ pub struct Args {
 }
 
 pub struct Viewer1D {
-    any_map: Arc<RwLock<AnyArcMap>>,
-
     render_graph: Graph,
-    // egui: EguiCtx,
-    path_index: Arc<PathIndex>,
     draw_path_slot: NodeId,
 
     view: View1D,
@@ -76,7 +72,10 @@ pub struct Viewer1D {
     pub self_viz_interact: Arc<AtomicCell<VizInteractions>>,
     pub connected_viz_interact: Option<Arc<AtomicCell<VizInteractions>>>,
 
-    graph_data_cache: Arc<GraphDataCache>,
+    // path_index: Arc<PathIndex>,
+    // any_map: Arc<RwLock<AnyArcMap>>,
+    // graph_data_cache: Arc<GraphDataCache>,
+    shared: SharedState,
 }
 
 #[derive(Debug)]
@@ -105,8 +104,8 @@ fn path_frag_example_uniforms(
         let len = 256;
         let colors = (0..len)
             .flat_map(|i| {
-                let gradient = colorous::MAGMA;
-                // let gradient = colorous::SPECTRAL;
+                // let gradient = colorous::MAGMA;
+                let gradient = colorous::SPECTRAL;
                 let color = gradient.eval_rational(i, len);
                 let [r, g, b] = color.as_array();
                 let max = u8::MAX as f32;
@@ -178,7 +177,6 @@ impl Viewer1D {
         window: &WindowState,
         path_index: Arc<PathIndex>,
         shared: &SharedState,
-        // shared: Arc<RwLock<AnyArcMap>>,
     ) -> Result<Self> {
         let mut graph = Graph::new();
 
@@ -347,7 +345,7 @@ impl Viewer1D {
         Ok(Viewer1D {
             render_graph: graph,
             // egui,
-            path_index,
+            // path_index,
             draw_path_slot: draw_node,
 
             view: view.clone(),
@@ -370,8 +368,9 @@ impl Viewer1D {
             self_viz_interact,
             connected_viz_interact,
 
-            any_map,
-            graph_data_cache,
+            // any_map,
+            // graph_data_cache,
+            shared: shared.clone(),
 
             active_viz_data_key, // active_viz_color_scheme_key: "depth"
         })
@@ -600,8 +599,9 @@ impl AppWindow for Viewer1D {
 
             let view_range = self.view.range().clone();
 
-            let path_index = self.path_index.clone();
+            let path_index = self.shared.graph.clone();
             let data = self
+                .shared
                 .graph_data_cache
                 .fetch_path_data_blocking(&self.active_viz_data_key)
                 .unwrap();
@@ -695,7 +695,8 @@ impl AppWindow for Viewer1D {
                         let path_id = path_id.unwrap();
 
                         let path_name = self
-                            .path_index
+                            .shared
+                            .graph
                             .path_names
                             .get_by_left(path_id)
                             .unwrap();
@@ -817,7 +818,7 @@ impl AppWindow for Viewer1D {
                     let pan_pos = self.view.offset()
                         + (rel_x * self.view.len() as f32) as u64;
                     let hovered_node =
-                        self.path_index.node_at_pangenome_pos(Bp(pan_pos));
+                        self.shared.graph.node_at_pangenome_pos(Bp(pan_pos));
 
                     if path_slots.clicked() {
                         interact.clicked = true;

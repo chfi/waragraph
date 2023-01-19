@@ -13,6 +13,7 @@ use std::{collections::HashMap, path::PathBuf, sync::Arc};
 use anyhow::Result;
 
 use crate::{
+    color::ColorStore,
     viewer_1d::Viewer1D,
     viewer_2d::{PathRenderer, Viewer2D},
 };
@@ -25,15 +26,19 @@ pub use window::AppWindowState;
 
 use self::resource::{AnyArcMap, GraphDataCache};
 
+#[derive(Clone)]
 pub struct SharedState {
     pub graph: Arc<waragraph_core::graph::PathIndex>,
 
     pub shared: Arc<RwLock<AnyArcMap>>,
     pub graph_data_cache: Arc<GraphDataCache>,
 
+    pub colors: Arc<RwLock<ColorStore>>,
+
     pub gfa_path: Arc<PathBuf>,
     pub tsv_path: Option<Arc<PathBuf>>,
 
+    // TODO these cells are clunky and temporary
     viewer_1d_interactions: Arc<AtomicCell<VizInteractions>>,
     viewer_2d_interactions: Arc<AtomicCell<VizInteractions>>,
 }
@@ -70,11 +75,15 @@ impl App {
 
             let graph_data_cache = Arc::new(GraphDataCache::init(&path_index));
 
+            let colors = Arc::new(RwLock::new(ColorStore::init()));
+
             SharedState {
                 graph: path_index,
 
                 shared: Arc::new(RwLock::new(AnyArcMap::default())),
                 graph_data_cache,
+
+                colors,
 
                 gfa_path,
                 tsv_path,
@@ -150,6 +159,7 @@ impl App {
                 &window,
                 self.shared.graph.clone(),
                 tsv.as_ref(),
+                &self.shared,
             )?;
 
             app.self_viz_interact = self.shared.viewer_2d_interactions.clone();

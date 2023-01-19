@@ -1,5 +1,5 @@
 use crate::annotations::AnnotationStore;
-use crate::app::{AppWindow, VizInteractions};
+use crate::app::{AppWindow, SharedState, VizInteractions};
 
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -64,6 +64,8 @@ pub struct Viewer2D {
 
     pub self_viz_interact: Arc<AtomicCell<VizInteractions>>,
     pub connected_viz_interact: Option<Arc<AtomicCell<VizInteractions>>>,
+
+    shared: SharedState,
 }
 
 impl Viewer2D {
@@ -72,6 +74,7 @@ impl Viewer2D {
         window: &WindowState,
         path_index: Arc<PathIndex>,
         layout_tsv: impl AsRef<std::path::Path>,
+        shared: &SharedState,
     ) -> Result<Self> {
         let (node_positions, vertex_buffer, instance_count) = {
             let pos = NodePositions::from_layout_tsv(layout_tsv)?;
@@ -206,6 +209,8 @@ impl Viewer2D {
 
             self_viz_interact,
             connected_viz_interact,
+
+            shared: shared.clone(),
         })
     }
 
