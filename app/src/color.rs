@@ -89,6 +89,14 @@ impl ColorStore {
         Some(buf.clone())
     }
 
+    pub fn get_color_scheme_gpu_buffer(
+        &self,
+        id: ColorSchemeId,
+    ) -> Option<Arc<wgpu::Buffer>> {
+        let buf = self.scheme_buffers.get(&id)?;
+        Some(buf.clone())
+    }
+
     pub fn upload_color_schemes_to_gpu(
         &mut self,
         state: &raving_wgpu::State,
@@ -151,7 +159,7 @@ pub struct ColorScheme {
 }
 
 impl ColorScheme {
-    fn required_buffer_size(&self) -> usize {
+    pub fn required_buffer_size(&self) -> usize {
         let elem_count = self.colors.len();
         let elem_size = std::mem::size_of::<[f32; 4]>();
 
@@ -169,7 +177,8 @@ impl ColorScheme {
 
         let data_start = 4 * 4;
 
-        let data_end = self.colors.len() * std::mem::size_of::<[f32; 4]>();
+        let data_end =
+            data_start + self.colors.len() * std::mem::size_of::<[f32; 4]>();
 
         buf[0..data_start]
             .clone_from_slice(bytemuck::cast_slice(&[len, 0, 0, 0]));

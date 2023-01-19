@@ -82,6 +82,7 @@ pub struct Viewer1D {
     color_mapping: ColorMapping,
 }
 
+/*
 fn path_frag_example_uniforms(
     device: &wgpu::Device,
 ) -> Result<(BufferDesc, BufferDesc)> {
@@ -155,6 +156,7 @@ fn path_frag_example_uniforms(
 
     Ok((color, data))
 }
+*/
 
 impl Viewer1D {
     pub fn init(
@@ -240,7 +242,7 @@ impl Viewer1D {
 
         let pangenome_len = path_index.pangenome_len().0;
 
-        let (color, data) = path_frag_example_uniforms(&state.device)?;
+        // let (color, data) = path_frag_example_uniforms(&state.device)?;
 
         let len = pangenome_len as u64;
         let view = View1D::new(len);
@@ -253,8 +255,8 @@ impl Viewer1D {
         let graph_data_cache = shared.graph_data_cache.clone();
         let any_map = shared.shared.clone();
 
-        let active_viz_data_key = "strand".to_string();
-        // let active_viz_data_key = "depth".to_string();
+        // let active_viz_data_key = "strand".to_string();
+        let active_viz_data_key = "depth".to_string();
 
         let viz_data_buffer = {
             let paths =
@@ -285,7 +287,7 @@ impl Viewer1D {
             let id = colors.get_color_scheme_id("spectral").unwrap();
             let scheme = colors.get_color_scheme(id);
 
-            let color_range = 0..=(scheme.colors.len() as u32);
+            let color_range = 1..=(scheme.colors.len() as u32);
             let val_range = 0f32..=13.0;
 
             let mapping = ColorMapping::new(
@@ -303,7 +305,6 @@ impl Viewer1D {
             mapping
         };
 
-        gpu_buffers.insert("color".to_string(), color);
         gpu_buffers.insert("viz_data_buffer".to_string(), viz_data_buffer);
 
         let dyn_slot_layout = {
@@ -956,15 +957,30 @@ impl AppWindow for Viewer1D {
             },
         );
 
-        let color_map_buf = {
+        let (color_buf, color_buf_size, color_map_buf) = {
             let mut colors = self.shared.colors.blocking_write();
             let mapping = self.color_mapping;
+            let id = mapping.color_scheme;
+
+            let scheme = colors.get_color_scheme(id);
+            let color_buf_size = scheme.required_buffer_size();
+            let color_buf = colors.get_color_scheme_gpu_buffer(id).unwrap();
+
             let map_buf = colors
                 .get_color_mapping_gpu_buffer(&state, mapping)
                 .unwrap();
 
-            map_buf.clone()
+            (color_buf, color_buf_size, map_buf)
         };
+
+        transient_res.insert(
+            "color".to_string(),
+            InputResource::Buffer {
+                size: color_buf_size,
+                stride: None,
+                buffer: &color_buf,
+            },
+        );
 
         transient_res.insert(
             "color_mapping".to_string(),
@@ -975,7 +991,7 @@ impl AppWindow for Viewer1D {
             },
         );
 
-        for name in ["color", "viz_data_buffer"] {
+        for name in ["viz_data_buffer"] {
             if let Some(desc) = self.gpu_buffers.get(name) {
                 transient_res.insert(
                     name.into(),

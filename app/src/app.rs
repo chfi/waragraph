@@ -185,6 +185,13 @@ impl App {
         let mut is_ready = false;
         let mut prev_frame_t = std::time::Instant::now();
 
+        {
+            // upload color buffers -- should obviously be handled better,
+            // rather than just once at the start!
+            let mut colors = self.shared.colors.blocking_write();
+            colors.upload_color_schemes_to_gpu(&state)?;
+        }
+
         event_loop.run(move |event, _, control_flow| match &event {
             Event::Resumed => {
                 if !is_ready {
