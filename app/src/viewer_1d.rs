@@ -29,7 +29,7 @@ use anyhow::Result;
 
 use waragraph_core::graph::{sampling::PathDepthData, PathIndex};
 
-use self::util::path_depth_data_viz_buffer;
+use self::util::path_sampled_data_viz_buffer;
 use self::view::View1D;
 
 pub mod events;
@@ -248,19 +248,13 @@ impl Viewer1D {
         graph.add_link_from_transient("vert_cfg", draw_node, 2);
         // graph.add_link_from_transient("frag_cfg", draw_node, 3);
 
-        // graph.add_link_from_transient("data", draw_node, 3);
-        graph.add_link_from_transient("depth", draw_node, 3);
+        graph.add_link_from_transient("viz_data_buffer", draw_node, 3);
         graph.add_link_from_transient("color", draw_node, 4);
         graph.add_link_from_transient("transform", draw_node, 5);
-
-        // let mut egui =
-        //     EguiCtx::init(state, window.surface_format, event_loop, None);
 
         let pangenome_len = path_index.pangenome_len().0;
 
         let (color, data) = path_frag_example_uniforms(&state.device)?;
-
-        let depth_data = Arc::new(PathDepthData::new(&path_index));
 
         let len = pangenome_len as u64;
         let view = View1D::new(len);
@@ -270,22 +264,38 @@ impl Viewer1D {
         let path_list_view =
             ListView::new(paths.clone().map(PathId::from), Some(32));
 
-        let paths = path_list_view.visible_iter().copied();
+        let graph_data_cache = shared.graph_data_cache.clone();
+        let any_map = shared.shared.clone();
 
-        let depth = path_depth_data_viz_buffer(
-            &state.device,
-            &path_index,
-            &depth_data,
-            paths,
-            view.range().clone(),
-            1024,
-        )?;
+        // active_viz_data_key: "strand".to_string(),
+        let active_viz_data_key = "depth".to_string();
+
+        let viz_data_buffer = {
+            let paths =
+                path_list_view.visible_iter().copied().collect::<Vec<_>>();
+
+            let view_range = view.range().clone();
+
+            let path_index = path_index.clone();
+            let data = graph_data_cache
+                .fetch_path_data_blocking(&active_viz_data_key)
+                .unwrap();
+
+            path_sampled_data_viz_buffer(
+                &state.device,
+                &path_index,
+                &data,
+                paths,
+                view.range().clone(),
+                1024,
+            )?
+        };
 
         let mut gpu_buffers = HashMap::default();
 
         gpu_buffers.insert("color".to_string(), color);
-        gpu_buffers.insert("data".to_string(), data);
-        gpu_buffers.insert("depth".to_string(), depth);
+        gpu_buffers.insert("viz_data_buffer".to_string(), viz_data_buffer);
+        // gpu_buffers.insert("depth".to_string(), depth);
 
         // let mut slot_layout = gui::create_slot_layout(32, "depth")?;
 
@@ -334,9 +344,6 @@ impl Viewer1D {
             Arc::new(AtomicCell::new(VizInteractions::default()));
         let connected_viz_interact = None;
 
-        let graph_data_cache = shared.graph_data_cache.clone();
-        let any_map = shared.shared.clone();
-
         Ok(Viewer1D {
             render_graph: graph,
             // egui,
@@ -366,8 +373,7 @@ impl Viewer1D {
             any_map,
             graph_data_cache,
 
-            active_viz_data_key: "strand".to_string(),
-            // active_viz_color_scheme_key: "depth"
+            active_viz_data_key, // active_viz_color_scheme_key: "depth"
         })
     }
 
@@ -530,7 +536,8 @@ impl AppWindow for Viewer1D {
         );
 
         if self.dyn_slot_layout.layout().computed_size() != Some(dims) {
-            let data_id = std::sync::Arc::new("depth".to_string());
+            let data_id = std::sync::Arc::new(self.active_viz_data_key.clone());
+
             let rows_iter =
                 self.path_list_view.offset_to_end_iter().enumerate().map(
                     |(ix, _path)| {
@@ -622,7 +629,8 @@ impl AppWindow for Viewer1D {
             let handle = self.sample_handle.take().unwrap();
 
             if let Ok((view_range, data)) = tokio_rt.block_on(handle) {
-                let gpu_buffer = self.gpu_buffers.get("depth").unwrap();
+                let gpu_buffer =
+                    self.gpu_buffers.get("viz_data_buffer").unwrap();
                 state.queue.write_buffer(&gpu_buffer.buffer, 0, &data);
 
                 self.rendered_view = view_range;
@@ -936,7 +944,7 @@ impl AppWindow for Viewer1D {
             },
         );
 
-        for name in ["data", "color", "depth"] {
+        for name in ["color", "viz_data_buffer"] {
             if let Some(desc) = self.gpu_buffers.get(name) {
                 transient_res.insert(
                     name.into(),

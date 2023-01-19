@@ -112,20 +112,26 @@ impl GraphDataSources {
             let ctor = move |path: PathId| {
                 let path_steps = &graph.path_steps[path.ix()];
                 let node_set = &graph.path_node_sets[path.ix()];
-                let mut step_count = vec![0.0; node_set.len() as usize];
-                let mut path_data = vec![0.0; node_set.len() as usize];
+                // let mut step_count = vec![0.0; node_set.len() as usize];
+                // let mut path_data = vec![0.0; node_set.len() as usize];
+
+                let mut path_data: BTreeMap<Node, (f32, f32)> =
+                    BTreeMap::default();
 
                 for step in path_steps {
                     let node = step.node();
                     let d = if step.is_reverse() { 1.0 } else { 0.0 };
 
-                    path_data[node.ix()] += d;
-                    step_count[node.ix()] += 1.0;
+                    let (v, n) = path_data.entry(node).or_insert((0.0, 0.0));
+
+                    *v += d;
+                    *n += 1.0;
                 }
 
-                for (val, count) in path_data.iter_mut().zip(step_count) {
-                    *val = *val / count;
-                }
+                let path_data = path_data
+                    .into_iter()
+                    .map(|(_node, (v, count))| v / count)
+                    .collect::<Vec<_>>();
 
                 Ok(path_data)
             };
