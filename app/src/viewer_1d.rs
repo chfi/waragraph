@@ -1,6 +1,7 @@
 use crate::annotations::AnnotationStore;
 use crate::app::resource::{AnyArcMap, GraphDataCache, GraphPathData};
 use crate::app::{AppWindow, SharedState, VizInteractions};
+use crate::color::ColorMapping;
 use crate::gui::list::DynamicListLayout;
 use crate::gui::FlexLayout;
 use crate::list::ListView;
@@ -28,7 +29,7 @@ use wgpu::util::{BufferInitDescriptor, DeviceExt};
 
 use anyhow::Result;
 
-use waragraph_core::graph::{sampling::PathDepthData, PathIndex};
+use waragraph_core::graph::PathIndex;
 
 use self::util::path_sampled_data_viz_buffer;
 use self::view::View1D;
@@ -77,6 +78,8 @@ pub struct Viewer1D {
     // any_map: Arc<RwLock<AnyArcMap>>,
     // graph_data_cache: Arc<GraphDataCache>,
     shared: SharedState,
+
+    color_mapping: ColorMapping,
 }
 
 fn path_frag_example_uniforms(
@@ -171,7 +174,7 @@ impl Viewer1D {
             ));
             let frag_src = include_bytes!(concat!(
                 env!("CARGO_MANIFEST_DIR"),
-                "/shaders/path_slot_1d.frag.spv"
+                "/shaders/path_slot_1d_color_map.frag.spv"
             ));
 
             let primitive = wgpu::PrimitiveState {
@@ -232,7 +235,8 @@ impl Viewer1D {
 
         graph.add_link_from_transient("viz_data_buffer", draw_node, 3);
         graph.add_link_from_transient("color", draw_node, 4);
-        graph.add_link_from_transient("transform", draw_node, 5);
+        graph.add_link_from_transient("color_mapping", draw_node, 5);
+        graph.add_link_from_transient("transform", draw_node, 6);
 
         let pangenome_len = path_index.pangenome_len().0;
 
@@ -249,8 +253,8 @@ impl Viewer1D {
         let graph_data_cache = shared.graph_data_cache.clone();
         let any_map = shared.shared.clone();
 
-        // active_viz_data_key: "strand".to_string(),
-        let active_viz_data_key = "depth".to_string();
+        let active_viz_data_key = "strand".to_string();
+        // let active_viz_data_key = "depth".to_string();
 
         let viz_data_buffer = {
             let paths =
@@ -275,11 +279,32 @@ impl Viewer1D {
 
         let mut gpu_buffers = HashMap::default();
 
+        let color_mapping = {
+            let mut colors = shared.colors.blocking_write();
+
+            let id = colors.get_color_scheme_id("spectral").unwrap();
+            let scheme = colors.get_color_scheme(id);
+
+            let color_range = 0..=(scheme.colors.len() as u32);
+            let val_range = 0f32..=13.0;
+
+            let mapping = ColorMapping::new(
+                id,
+                color_range,
+                val_range,
+                0,
+                (scheme.colors.len() - 1) as u32,
+            );
+
+            // not really necessary to do here, but ensures it's ready
+            let _buffer =
+                colors.get_color_mapping_gpu_buffer(state, mapping).unwrap();
+
+            mapping
+        };
+
         gpu_buffers.insert("color".to_string(), color);
         gpu_buffers.insert("viz_data_buffer".to_string(), viz_data_buffer);
-        // gpu_buffers.insert("depth".to_string(), depth);
-
-        // let mut slot_layout = gui::create_slot_layout(32, "depth")?;
 
         let dyn_slot_layout = {
             let width = |p: f32| taffy::style::Dimension::Percent(p);
@@ -335,6 +360,8 @@ impl Viewer1D {
             view: view.clone(),
             rendered_view: view.range().clone(),
             force_resample: false,
+
+            color_mapping,
 
             vertices,
             vert_uniform,
@@ -926,6 +953,25 @@ impl AppWindow for Viewer1D {
                 size: 2 * 4,
                 stride: None,
                 buffer: &self.vert_uniform,
+            },
+        );
+
+        let color_map_buf = {
+            let mut colors = self.shared.colors.blocking_write();
+            let mapping = self.color_mapping;
+            let map_buf = colors
+                .get_color_mapping_gpu_buffer(&state, mapping)
+                .unwrap();
+
+            map_buf.clone()
+        };
+
+        transient_res.insert(
+            "color_mapping".to_string(),
+            InputResource::Buffer {
+                size: 24,
+                stride: None,
+                buffer: &color_map_buf,
             },
         );
 

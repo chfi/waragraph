@@ -1,4 +1,5 @@
 use std::collections::{BTreeMap, HashMap};
+use std::sync::Arc;
 
 use wgpu::{
     util::{BufferInitDescriptor, DeviceExt},
@@ -12,14 +13,18 @@ pub struct ColorStore {
     scheme_name_map: HashMap<String, ColorSchemeId>,
     color_schemes: Vec<ColorScheme>,
 
-    scheme_buffers: HashMap<ColorSchemeId, wgpu::Buffer>,
+    scheme_buffers: HashMap<ColorSchemeId, Arc<wgpu::Buffer>>,
 
-    mapping_buffers: BTreeMap<ColorMapping, wgpu::Buffer>,
+    mapping_buffers: BTreeMap<ColorMapping, Arc<wgpu::Buffer>>,
 }
 
 impl ColorStore {
     pub fn get_color_scheme_id(&self, name: &str) -> Option<ColorSchemeId> {
         self.scheme_name_map.get(name).copied()
+    }
+
+    pub fn get_color_scheme(&self, id: ColorSchemeId) -> &ColorScheme {
+        &self.color_schemes[id.0]
     }
 
     pub fn init() -> Self {
@@ -65,7 +70,7 @@ impl ColorStore {
         &mut self,
         state: &raving_wgpu::State,
         mapping: ColorMapping,
-    ) -> anyhow::Result<&wgpu::Buffer> {
+    ) -> Option<Arc<wgpu::Buffer>> {
         if !self.mapping_buffers.contains_key(&mapping) {
             let usage = BufferUsages::UNIFORM | BufferUsages::COPY_DST;
             let buf_data = mapping.into_uniform_bytes();
@@ -77,10 +82,11 @@ impl ColorStore {
                     usage,
                 });
 
-            self.mapping_buffers.insert(mapping, buffer);
+            self.mapping_buffers.insert(mapping, Arc::new(buffer));
         }
 
-        Ok(self.mapping_buffers.get(&mapping).unwrap())
+        let buf = self.mapping_buffers.get(&mapping)?;
+        Some(buf.clone())
     }
 
     pub fn upload_color_schemes_to_gpu(
@@ -113,7 +119,7 @@ impl ColorStore {
                     usage: buffer_usage,
                 });
 
-            self.scheme_buffers.insert(id, buffer);
+            self.scheme_buffers.insert(id, Arc::new(buffer));
         }
 
         Ok(())
@@ -140,8 +146,8 @@ impl ColorStore {
 
 /// A `ColorScheme` is a sequence of colors
 pub struct ColorScheme {
-    id: ColorSchemeId,
-    colors: Vec<[f32; 4]>,
+    pub id: ColorSchemeId,
+    pub colors: Vec<[f32; 4]>,
 }
 
 impl ColorScheme {
