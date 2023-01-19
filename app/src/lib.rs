@@ -14,6 +14,8 @@ pub mod gpu_cache;
 pub mod gui;
 pub mod list;
 
+pub mod util;
+
 /*
 // commenting since i'm not actually sure if it's useful in this form
 pub mod util {

@@ -1,4 +1,9 @@
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
+
+use wgpu::{
+    util::{BufferInitDescriptor, DeviceExt},
+    BufferUsages,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ColorSchemeId(usize);
@@ -8,7 +13,8 @@ pub struct ColorStore {
     color_schemes: Vec<ColorScheme>,
 
     scheme_buffers: HashMap<ColorSchemeId, wgpu::Buffer>,
-    mapping_buffers: HashMap<String, wgpu::Buffer>,
+
+    mapping_buffers: BTreeMap<ColorMapping, wgpu::Buffer>,
 }
 
 impl ColorStore {
@@ -18,7 +24,7 @@ impl ColorStore {
             color_schemes: Vec::new(),
 
             scheme_buffers: HashMap::default(),
-            mapping_buffers: HashMap::default(),
+            mapping_buffers: BTreeMap::default(),
         };
 
         let rgba = |r: u8, g: u8, b: u8| {
@@ -51,6 +57,42 @@ impl ColorStore {
         result
     }
 
+    pub fn upload_color_schemes_to_gpu(
+        &mut self,
+        state: &raving_wgpu::State,
+    ) -> anyhow::Result<()> {
+        let mut need_upload = Vec::new();
+
+        for (ix, _scheme) in self.color_schemes.iter().enumerate() {
+            let id = ColorSchemeId(ix);
+            if !self.scheme_buffers.contains_key(&id) {
+                need_upload.push(id);
+            }
+        }
+
+        let mut data: Vec<u8> = Vec::new();
+
+        let buffer_usage = BufferUsages::STORAGE | BufferUsages::COPY_DST;
+
+        for id in need_upload {
+            data.clear();
+            let scheme = self.color_schemes.get(id.0).unwrap();
+            data.resize(scheme.required_buffer_size(), 0u8);
+            scheme.fill_buffer(&mut data);
+
+            let buffer =
+                state.device.create_buffer_init(&BufferInitDescriptor {
+                    label: None,
+                    contents: data.as_slice(),
+                    usage: buffer_usage,
+                });
+
+            self.scheme_buffers.insert(id, buffer);
+        }
+
+        Ok(())
+    }
+
     pub fn add_color_scheme(
         &mut self,
         name: &str,
@@ -63,6 +105,9 @@ impl ColorStore {
             colors: colors.into_iter().collect(),
         };
 
+        self.scheme_name_map.insert(name.to_string(), id);
+        self.color_schemes.push(scheme);
+
         id
     }
 }
@@ -71,6 +116,34 @@ impl ColorStore {
 pub struct ColorScheme {
     id: ColorSchemeId,
     colors: Vec<[f32; 4]>,
+}
+
+impl ColorScheme {
+    fn required_buffer_size(&self) -> usize {
+        let elem_count = self.colors.len();
+        let elem_size = std::mem::size_of::<[f32; 4]>();
+
+        // the uniform itself only has a single u32 before the colors,
+        // but we need to pad to get the alignment correct
+        let prefix_size = std::mem::size_of::<u32>() * 4;
+
+        prefix_size + elem_count * elem_size
+    }
+
+    fn fill_buffer(&self, buf: &mut [u8]) {
+        assert!(buf.len() >= self.required_buffer_size());
+
+        let len = self.colors.len() as u32;
+
+        let data_start = 4 * 4;
+
+        let data_end = self.colors.len() * std::mem::size_of::<[f32; 4]>();
+
+        buf[0..data_start]
+            .clone_from_slice(bytemuck::cast_slice(&[len, 0, 0, 0]));
+        buf[data_start..data_end]
+            .clone_from_slice(bytemuck::cast_slice(&self.colors));
+    }
 }
 
 /// Defines a mapping from values (as 32-bit floats) to indices in a `ColorScheme`.
@@ -104,6 +177,42 @@ impl PartialEq for ColorMapping {
 }
 
 impl Eq for ColorMapping {}
+
+impl PartialOrd for ColorMapping {
+    // messy but uses the total ordering on the f32 values
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        let t1_u = (
+            &self.color_scheme,
+            &self.min_color_ix,
+            &self.max_color_ix,
+            &self.extreme_min_color_ix,
+            &self.extreme_max_color_ix,
+        );
+        let t1_f = (&self.min_val, &self.max_val);
+
+        let t2_u = (
+            &other.color_scheme,
+            &other.min_color_ix,
+            &other.max_color_ix,
+            &other.extreme_min_color_ix,
+            &other.extreme_max_color_ix,
+        );
+
+        let t2_f = (&other.min_val, &other.max_val);
+
+        let u = t1_u.cmp(&t2_u);
+
+        let f = (t1_f.0.total_cmp(&t2_f.0)).cmp(&t1_f.1.total_cmp(&t2_f.1));
+
+        Some(u.cmp(&f))
+    }
+}
+
+impl Ord for ColorMapping {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.partial_cmp(&other).unwrap()
+    }
+}
 
 impl ColorMapping {
     pub fn get_ix(&self, val: f32) -> u32 {

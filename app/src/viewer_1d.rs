@@ -4,6 +4,7 @@ use crate::app::{AppWindow, SharedState, VizInteractions};
 use crate::gui::list::DynamicListLayout;
 use crate::gui::FlexLayout;
 use crate::list::ListView;
+use crate::util::BufferDesc;
 use crossbeam::atomic::AtomicCell;
 use taffy::style::Dimension;
 use tokio::sync::RwLock;
@@ -76,23 +77,6 @@ pub struct Viewer1D {
     // any_map: Arc<RwLock<AnyArcMap>>,
     // graph_data_cache: Arc<GraphDataCache>,
     shared: SharedState,
-}
-
-#[derive(Debug)]
-struct BufferDesc {
-    buffer: wgpu::Buffer,
-    size: usize,
-    deleted: bool,
-}
-
-impl BufferDesc {
-    fn new(buffer: wgpu::Buffer, size: usize) -> Self {
-        Self {
-            buffer,
-            size,
-            deleted: false,
-        }
-    }
 }
 
 fn path_frag_example_uniforms(
