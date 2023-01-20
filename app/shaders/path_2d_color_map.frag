@@ -24,20 +24,21 @@ layout (set = 1, binding = 2) uniform ColorMap {
 } color_map;
 
 void main() {
-  float val = data.values[i_node_id];
+  // float val = data.values[i_node_id];
 
-  uint c_range_len = color_map.max_color_ix - color_map.min_color_ix;
-  float val_range = color_map.max_val - color_map.min_val;
+  // uint c_range_len = color_map.max_color_ix - color_map.min_color_ix;
+  // float val_range = color_map.max_val - color_map.min_val;
 
-  uint ix = min(uint(round(val)), c_range_len - 1) + 1;
+  // uint ix = min(uint(round(val)), c_range_len - 1) + 1;
 
-  if (val < color_map.min_val) {
-      ix = color_map.extreme_min_color_ix;
-  } else if (val > color_map.max_val) {
-      ix = color_map.extreme_max_color_ix;
-  } else {
-      ix = ix + color_map.min_color_ix;
-  }
+  // if (val < color_map.min_val) {
+  //     ix = color_map.extreme_min_color_ix;
+  // } else if (val > color_map.max_val) {
+  //     ix = color_map.extreme_max_color_ix;
+  // } else {
+  //     ix = ix + color_map.min_color_ix;
+  // }
 
-  f_color = colors.colors[ix];
+  // f_color = colors.colors[ix];
+  f_color = vec4(1.0, 0.0, 0.0, 1.0);
 }

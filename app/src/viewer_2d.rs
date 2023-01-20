@@ -85,6 +85,8 @@ impl Viewer2D {
         let (node_positions, vertex_buffer, instance_count) = {
             let pos = NodePositions::from_layout_tsv(layout_tsv)?;
 
+            // TODO: ideally the node IDs and positions would be
+            // stored in different buffers
             let vertex_data = pos
                 .iter_nodes()
                 .enumerate()
@@ -199,7 +201,7 @@ impl Viewer2D {
         graph.add_link_from_transient("vert_cfg", draw_node, 3);
 
         graph.add_link_from_transient("node_data", draw_node, 4);
-        graph.add_link_from_transient("colors", draw_node, 5);
+        graph.add_link_from_transient("color", draw_node, 5);
         graph.add_link_from_transient("color_mapping", draw_node, 6);
 
         let instances = instance_count as u32;
