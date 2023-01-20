@@ -2,19 +2,17 @@ use anyhow::Result;
 use std::collections::HashMap;
 use ultraviolet::Vec2;
 
-use crate::viewer_2d::layout::GraphPathCurves;
-
 use waragraph_core::graph::PathIndex;
 
 #[derive(Default, Clone)]
-pub struct AnnotationStore {
+struct AnnotationStore {
     // path name -> list of (range, text) pairs
-    pub path_annotations:
-        HashMap<String, Vec<(std::ops::Range<usize>, String)>>,
+    path_annotations: HashMap<String, Vec<(std::ops::Range<usize>, String)>>,
 }
 
 impl AnnotationStore {
-    pub fn layout_positions(
+    /*
+    fn layout_positions(
         &self,
         path_index: &PathIndex,
         graph_paths: &GraphPathCurves,
@@ -42,8 +40,9 @@ impl AnnotationStore {
 
         out
     }
+    */
 
-    pub fn fill_from_bed(
+    fn fill_from_bed(
         &mut self,
         bed_path: impl AsRef<std::path::Path>,
     ) -> Result<()> {

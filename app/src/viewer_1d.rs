@@ -1,4 +1,3 @@
-use crate::annotations::AnnotationStore;
 use crate::app::resource::{AnyArcMap, GraphDataCache, GraphPathData};
 use crate::app::{AppWindow, SharedState, VizInteractions};
 use crate::color::ColorMapping;

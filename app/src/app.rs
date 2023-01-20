@@ -12,11 +12,7 @@ use std::{collections::HashMap, path::PathBuf, sync::Arc};
 
 use anyhow::Result;
 
-use crate::{
-    color::ColorStore,
-    viewer_1d::Viewer1D,
-    viewer_2d::{PathRenderer, Viewer2D},
-};
+use crate::{color::ColorStore, viewer_1d::Viewer1D, viewer_2d::Viewer2D};
 
 mod window;
 

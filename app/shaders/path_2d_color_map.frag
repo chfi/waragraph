@@ -24,7 +24,7 @@ layout (set = 1, binding = 2) uniform ColorMap {
 } color_map;
 
 void main() {
-  uint ix = data.values[i_node_id];
+  // float val = data.values[i_node_id];
 
   f_color = vec4(i_uv, 0.0, 1.0);
 }
