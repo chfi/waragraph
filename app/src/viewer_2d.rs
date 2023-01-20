@@ -91,7 +91,6 @@ impl Viewer2D {
                 .iter_nodes()
                 .enumerate()
                 .map(|(ix, p)| {
-                    let p = [p];
                     let ix = [ix as u32];
                     let pos: &[u8] = bytemuck::cast_slice(&p);
                     let id: &[u8] = bytemuck::cast_slice(&ix);
@@ -295,12 +294,14 @@ impl Viewer2D {
     fn update_vert_config_uniform(
         &self,
         queue: &wgpu::Queue,
-        window_height: f32,
+        window_dims: [f32; 2],
     ) {
-        // in pixels
+        // not in pixels (not even sure what it is)
         let node_width = 80.0;
 
-        let nw = node_width / window_height;
+        let [w, h] = window_dims;
+
+        let nw = node_width / w.max(h);
 
         let data: [f32; 4] = [nw, 0.0, 0.0, 0.0];
         queue.write_buffer(&self.vert_config, 0, bytemuck::cast_slice(&[data]));
@@ -427,10 +428,11 @@ impl AppWindow for Viewer2D {
 
         egui_ctx.end_frame(&window.window);
 
+        let width = window.window.inner_size().width as f32;
         let height = window.window.inner_size().height as f32;
 
         self.update_transform_uniform(&state.queue);
-        self.update_vert_config_uniform(&state.queue, height);
+        self.update_vert_config_uniform(&state.queue, [width, height]);
     }
 
     fn on_event(
@@ -526,7 +528,7 @@ impl AppWindow for Viewer2D {
             },
         );
 
-        let v_stride = std::mem::size_of::<[f32; 4]>();
+        let v_stride = std::mem::size_of::<[f32; 5]>();
         transient_res.insert(
             "vertices".into(),
             InputResource::Buffer {
@@ -562,7 +564,8 @@ impl AppWindow for Viewer2D {
         };
 
         let data_buf_size =
-            self.shared.graph.node_count * std::mem::size_of::<[f32; 4]>();
+            self.shared.graph.node_count * std::mem::size_of::<[f32; 5]>();
+        // println!("data_buf
 
         transient_res.insert(
             "node_data".to_string(),

@@ -1,12 +1,5 @@
 #version 450
 
-// layout (location = 0) in uint a_node_id;
-// layout (location = 1) in vec2 a_p0;
-// layout (location = 2) in vec2 a_p1;
-
-// layout (location = 0) out uint o_node_id;
-// layout (location = 1) out vec2 o_uv;
-
 layout (location = 0) in vec2 a_p0;
 layout (location = 1) in vec2 a_p1;
 layout (location = 2) in uint a_node_id;
@@ -29,11 +22,8 @@ void main() {
   vec4 start = transform.m * vec4(a_p0, 0.0, 1.0);
   vec4 end = transform.m * vec4(a_p1, 0.0, 1.0);
 
-  // vec4 diff = end - start;
   vec4 diff = vec4(a_p1, 0.0, 1.0) - vec4(a_p0, 0.0, 1.0);
   vec4 dir = normalize(diff);
-
-  // vec4 magic = transform.m * vec4(1.0, 0.0, 0.0, 0.0);
 
   mat4x4 rot = mat4x4(0, -1, 0, 0,
                       1, 0, 0, 0,
@@ -41,12 +31,9 @@ void main() {
                       0, 0, 0, 1);
 
 
-  vec4 magic = transform.m * vec4(0.0, config.node_width, 0.0, 0.0);
-  vec4 perp = rot * magic;
-  // vec4 perp = rot * dir * config.node_width;
+  // vec4 magic = transform.m * vec4(0.0, config.node_width, 0.0, 0.0);
+  vec4 perp = rot * dir * config.node_width;
 
-
-  // vec4 perp = rot * dir * 0.1;
      
   float v = config.node_width;
 
