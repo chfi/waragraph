@@ -9,10 +9,7 @@ use crossbeam::atomic::AtomicCell;
 use raving_wgpu::camera::DynamicCamera2d;
 use wgpu::BufferUsages;
 use winit::event::WindowEvent;
-use winit::event_loop::{EventLoop, EventLoopWindowTarget};
-use winit::window::Window;
 
-// use raving_wgpu::camera::DynamicCamera2d;
 use raving_wgpu::graph::dfrog::{Graph, InputResource};
 use raving_wgpu::gui::EguiCtx;
 use raving_wgpu::{NodeId, State, WindowState};
@@ -42,13 +39,10 @@ pub struct Args {
 }
 
 pub struct Viewer2D {
-    path_index: Arc<PathIndex>,
-
     node_positions: Arc<NodePositions>,
     vertex_buffer: wgpu::Buffer,
     instance_count: usize,
 
-    // camera: DynamicCamera2d,
     view: View2D,
 
     transform_uniform: wgpu::Buffer,
@@ -132,7 +126,8 @@ impl Viewer2D {
             ));
             let frag_src = include_bytes!(concat!(
                 env!("CARGO_MANIFEST_DIR"),
-                "/shaders/path_2d_color_map.frag.spv" // "/shaders/path_2d_direct_index.frag.spv"
+                // "/shaders/path_2d_direct_index.frag.spv"
+                "/shaders/path_2d_color_map.frag.spv"
             ));
 
             let primitive = wgpu::PrimitiveState {
@@ -251,7 +246,6 @@ impl Viewer2D {
         };
 
         Ok(Self {
-            path_index,
             node_positions: Arc::new(node_positions),
 
             vertex_buffer,

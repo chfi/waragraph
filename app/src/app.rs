@@ -113,7 +113,6 @@ impl App {
             let dims: [u32; 2] = window.window.inner_size().into();
 
             let mut app = Viewer1D::init(
-                event_loop,
                 dims,
                 state,
                 &window,
@@ -332,25 +331,6 @@ pub fn parse_args() -> std::result::Result<Args, pico_args::Error> {
 fn parse_path(s: &std::ffi::OsStr) -> Result<std::path::PathBuf, &'static str> {
     Ok(s.into())
 }
-
-// fn parse_range(s: &str) -> Result<std::ops::Range<u64>> {
-//     const ERROR_MSG: &'static str = "Range must be in the format `start-end`,\
-// where `start` and `end` are nonnegative integers and `start` < `end`";
-
-//     let fields = s.trim().split('-').take(2).collect::<Vec<_>>();
-
-//     if fields.len() != 2 {
-//         anyhow::bail!(ERROR_MSG);
-//     }
-
-//     let start = fields[0].parse::<u64>()?;
-//     let end = fields[1].parse::<u64>()?;
-//     if start >= end {
-//         anyhow::bail!(ERROR_MSG);
-//     }
-
-//     Ok(start..end)
-// }
 
 #[derive(Debug, Default, Clone, PartialEq, Eq, Hash)]
 pub struct VizInteractions {

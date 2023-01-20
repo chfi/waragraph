@@ -1,7 +1,7 @@
 use std::{collections::BTreeMap, sync::Arc};
 
 use egui::epaint::ahash::HashMap;
-use tokio::{sync::RwLock, task::JoinHandle};
+use tokio::sync::RwLock;
 use waragraph_core::graph::{sampling::PathData, Node, PathId, PathIndex};
 
 #[derive(Default)]
@@ -131,7 +131,6 @@ impl GraphDataSources {
             let graph = graph.clone();
             let ctor = move |path: PathId| {
                 let path_steps = &graph.path_steps[path.ix()];
-                let node_set = &graph.path_node_sets[path.ix()];
 
                 let mut path_data: BTreeMap<Node, (f32, f32)> =
                     BTreeMap::default();
@@ -169,8 +168,6 @@ pub struct GraphDataCache {
     graph_f32: RwLock<HashMap<String, Arc<GraphData<f32>>>>,
     path_f32: RwLock<HashMap<String, Arc<GraphPathData<f32>>>>,
 
-    // fetching: HashMap<StoreIndex, JoinHandle<()>>,
-    // ready: HashSet<StoreIndex>,
     sources: GraphDataSources,
 }
 

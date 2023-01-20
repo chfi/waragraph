@@ -1,4 +1,4 @@
-use crate::app::resource::{AnyArcMap, GraphDataCache, GraphPathData};
+use crate::app::resource::GraphPathData;
 use crate::app::{AppWindow, SharedState, VizInteractions};
 use crate::color::ColorMapping;
 use crate::gui::list::DynamicListLayout;
@@ -7,19 +7,14 @@ use crate::list::ListView;
 use crate::util::BufferDesc;
 use crossbeam::atomic::AtomicCell;
 use taffy::style::Dimension;
-use tokio::sync::RwLock;
 use waragraph_core::graph::{Bp, PathId};
 use wgpu::BufferUsages;
-use winit::dpi::PhysicalSize;
 
 use std::collections::HashMap;
-use std::num::NonZeroU64;
 use std::path::PathBuf;
 use std::sync::Arc;
 
 use winit::event::WindowEvent;
-use winit::event_loop::{EventLoop, EventLoopWindowTarget};
-use winit::window::Window;
 
 use raving_wgpu::graph::dfrog::{Graph, InputResource};
 use raving_wgpu::gui::EguiCtx;
@@ -36,7 +31,6 @@ use self::view::View1D;
 pub mod events;
 pub mod gui;
 
-// pub mod sampling;
 pub mod util;
 pub mod view;
 
@@ -54,15 +48,12 @@ pub struct Viewer1D {
 
     force_resample: bool,
 
-    active_viz_data_key: String,
-    // active_viz_color_scheme_key: String,
     vertices: BufferDesc,
     vert_uniform: wgpu::Buffer,
     frag_uniform: wgpu::Buffer,
 
     gpu_buffers: HashMap<String, BufferDesc>,
 
-    // slot_layout: FlexLayout<gui::SlotElem>,
     dyn_slot_layout: DynamicListLayout<Vec<gui::SlotElem>, gui::SlotElem>,
 
     path_list_view: ListView<PathId>,
@@ -73,94 +64,14 @@ pub struct Viewer1D {
     pub self_viz_interact: Arc<AtomicCell<VizInteractions>>,
     pub connected_viz_interact: Option<Arc<AtomicCell<VizInteractions>>>,
 
-    // path_index: Arc<PathIndex>,
-    // any_map: Arc<RwLock<AnyArcMap>>,
-    // graph_data_cache: Arc<GraphDataCache>,
     shared: SharedState,
 
-    // color_mapping: ColorMapping,
+    active_viz_data_key: String,
     data_color_mappings: HashMap<String, ColorMapping>,
 }
 
-/*
-fn path_frag_example_uniforms(
-    device: &wgpu::Device,
-) -> Result<(BufferDesc, BufferDesc)> {
-    let usage = BufferUsages::STORAGE | BufferUsages::COPY_DST;
-
-    let color = {
-        let len = 256;
-        let colors = (0..len)
-            .flat_map(|i| {
-                // let gradient = colorous::MAGMA;
-                let gradient = colorous::SPECTRAL;
-                let color = gradient.eval_rational(i, len);
-                let [r, g, b] = color.as_array();
-                let max = u8::MAX as f32;
-                [r as f32 / max, g as f32 / max, b as f32 / max, 1.0]
-            })
-            .collect::<Vec<_>>();
-
-        let rgba = |r: u8, g: u8, b: u8| {
-            let max = u8::MAX as f32;
-            [r as f32 / max, g as f32 / max, b as f32 / max, 1.0]
-        };
-
-        let colors = [
-            rgba(255, 255, 255),
-            rgba(196, 196, 196),
-            rgba(128, 128, 128),
-            rgba(158, 1, 66),
-            rgba(213, 62, 79),
-            rgba(244, 109, 67),
-            rgba(253, 174, 97),
-            rgba(254, 224, 139),
-            rgba(255, 255, 191),
-            rgba(230, 245, 152),
-            rgba(171, 221, 164),
-            rgba(102, 194, 165),
-            rgba(50, 136, 189),
-            rgba(94, 79, 162),
-        ];
-        let len = colors.len();
-
-        let mut data: Vec<u8> = vec![];
-        data.extend(bytemuck::cast_slice(&[len, 0, 0, 0]));
-        data.extend(bytemuck::cast_slice(&colors));
-
-        let buffer = device.create_buffer_init(&BufferInitDescriptor {
-            label: None,
-            contents: data.as_slice(),
-            usage,
-        });
-
-        BufferDesc::new(buffer, data.len())
-    };
-
-    let data = {
-        let values = (0..100).map(|i| i / 10).collect::<Vec<u32>>();
-        let len = values.len();
-
-        let mut data: Vec<u8> = vec![];
-        data.extend(bytemuck::cast_slice(&[len, 0, 0, 0]));
-        data.extend(bytemuck::cast_slice(&values));
-
-        let buffer = device.create_buffer_init(&BufferInitDescriptor {
-            label: None,
-            contents: bytemuck::cast_slice(&data),
-            usage,
-        });
-
-        BufferDesc::new(buffer, data.len())
-    };
-
-    Ok((color, data))
-}
-*/
-
 impl Viewer1D {
     pub fn init(
-        event_loop: &EventLoopWindowTarget<()>,
         win_dims: [u32; 2],
         state: &State,
         window: &WindowState,
@@ -214,8 +125,6 @@ impl Viewer1D {
                     usage,
                 });
 
-            // let data = [0.7f32, 0.1, 0.85, 1.0];
-            // let data = [1.0f32, 0.0, 0.0, 1.0];
             let data = [1.0f32, 0.0];
             let usage = BufferUsages::UNIFORM | BufferUsages::COPY_DST;
             let frag_uniform =
@@ -241,8 +150,6 @@ impl Viewer1D {
         graph.add_link_from_transient("transform", draw_node, 6);
 
         let pangenome_len = path_index.pangenome_len().0;
-
-        // let (color, data) = path_frag_example_uniforms(&state.device)?;
 
         let len = pangenome_len as u64;
         let view = View1D::new(len);
@@ -321,7 +228,6 @@ impl Viewer1D {
                 (scheme.colors.len() - 1) as u32,
             );
 
-            // not really necessary to do here, but ensures it's ready
             let _buffer =
                 colors.get_color_mapping_gpu_buffer(state, mapping).unwrap();
 
@@ -381,24 +287,19 @@ impl Viewer1D {
 
         Ok(Viewer1D {
             render_graph: graph,
-            // egui,
-            // path_index,
             draw_path_slot: draw_node,
 
             view: view.clone(),
             rendered_view: view.range().clone(),
             force_resample: false,
 
-            // color_mapping,
             vertices,
             vert_uniform,
             frag_uniform,
 
             gpu_buffers,
 
-            // slot_layout,
             dyn_slot_layout,
-            // fixed_gui_layout,
             path_list_view,
 
             sample_handle: None,
@@ -406,12 +307,9 @@ impl Viewer1D {
             self_viz_interact,
             connected_viz_interact,
 
-            // any_map,
-            // graph_data_cache,
             shared: shared.clone(),
 
-            active_viz_data_key, // active_viz_color_scheme_key: "depth"
-
+            active_viz_data_key,
             data_color_mappings,
         })
     }
@@ -484,32 +382,6 @@ impl Viewer1D {
         );
 
         Ok(())
-    }
-
-    fn sample_into_gpu_buffer(
-        state: &State,
-        index: &PathIndex,
-        data: &GraphPathData<f32>,
-        paths: &[PathId],
-        // path_list_view: &ListView<PathId>,
-        view_range: std::ops::Range<u64>,
-        gpu_buffer: &BufferDesc,
-        // bins: usize,
-    ) -> Result<()> {
-        let bins = 1024;
-        let size = Self::sample_buffer_size(bins, paths.len());
-        let size = NonZeroU64::new(size as u64).unwrap();
-
-        let mut buffer_view =
-            state.queue.write_buffer_with(&gpu_buffer.buffer, 0, size);
-
-        Self::sample_into_data_buffer(
-            index,
-            data,
-            paths,
-            view_range,
-            buffer_view.as_mut(),
-        )
     }
 
     // TODO there's no need to reallocate the buffer every time the list is scrolled...
@@ -930,10 +802,6 @@ impl AppWindow for Viewer1D {
                 use winit::event::VirtualKeyCode as Key;
                 let pressed = matches!(input.state, ElementState::Pressed);
 
-                // let mut l = self.view.start;
-                // let mut r = self.view.end;
-                // let len = r - l;
-
                 if pressed {
                     match key {
                         Key::Right => {
@@ -956,8 +824,6 @@ impl AppWindow for Viewer1D {
                         _ => (),
                     }
                 }
-
-                // self.view = l..r;
             }
         }
 
