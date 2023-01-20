@@ -78,7 +78,8 @@ pub struct Viewer1D {
     // graph_data_cache: Arc<GraphDataCache>,
     shared: SharedState,
 
-    color_mapping: ColorMapping,
+    // color_mapping: ColorMapping,
+    data_color_mappings: HashMap<String, ColorMapping>,
 }
 
 /*
@@ -252,7 +253,6 @@ impl Viewer1D {
             ListView::new(paths.clone().map(PathId::from), Some(32));
 
         let graph_data_cache = shared.graph_data_cache.clone();
-        let any_map = shared.shared.clone();
 
         // let active_viz_data_key = "strand".to_string();
         let active_viz_data_key = "depth".to_string();
@@ -280,7 +280,7 @@ impl Viewer1D {
 
         let mut gpu_buffers = HashMap::default();
 
-        let black_red_color_map = {
+        let strand_color_map = {
             let mut colors = shared.colors.blocking_write();
 
             let id = colors.get_color_scheme_id("black_red").unwrap();
@@ -304,7 +304,7 @@ impl Viewer1D {
             mapping
         };
 
-        let color_mapping = {
+        let depth_color_map = {
             let mut colors = shared.colors.blocking_write();
 
             let id = colors.get_color_scheme_id("spectral").unwrap();
@@ -328,7 +328,9 @@ impl Viewer1D {
             mapping
         };
 
-        // let color_mapping = black_red_color_map;
+        let mut data_color_mappings = HashMap::default();
+        data_color_mappings.insert("strand".to_string(), strand_color_map);
+        data_color_mappings.insert("depth".to_string(), depth_color_map);
 
         gpu_buffers.insert("viz_data_buffer".to_string(), viz_data_buffer);
 
@@ -387,8 +389,7 @@ impl Viewer1D {
             rendered_view: view.range().clone(),
             force_resample: false,
 
-            color_mapping,
-
+            // color_mapping,
             vertices,
             vert_uniform,
             frag_uniform,
@@ -410,6 +411,8 @@ impl Viewer1D {
             shared: shared.clone(),
 
             active_viz_data_key, // active_viz_color_scheme_key: "depth"
+
+            data_color_mappings,
         })
     }
 
@@ -984,7 +987,10 @@ impl AppWindow for Viewer1D {
 
         let (color_buf, color_buf_size, color_map_buf) = {
             let mut colors = self.shared.colors.blocking_write();
-            let mapping = self.color_mapping;
+            let mapping = self
+                .data_color_mappings
+                .get(&self.active_viz_data_key)
+                .unwrap();
             let id = mapping.color_scheme;
 
             let scheme = colors.get_color_scheme(id);
@@ -992,7 +998,7 @@ impl AppWindow for Viewer1D {
             let color_buf = colors.get_color_scheme_gpu_buffer(id).unwrap();
 
             let map_buf = colors
-                .get_color_mapping_gpu_buffer(&state, mapping)
+                .get_color_mapping_gpu_buffer(&state, *mapping)
                 .unwrap();
 
             (color_buf, color_buf_size, map_buf)
