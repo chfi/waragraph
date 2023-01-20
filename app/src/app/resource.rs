@@ -171,6 +171,18 @@ impl GraphDataCache {
         }
     }
 
+    pub fn graph_data_source_names<'a>(
+        &'a self,
+    ) -> impl Iterator<Item = &'a str> + 'a {
+        self.sources.graph_f32.keys().map(|s| s.as_str())
+    }
+
+    pub fn path_data_source_names<'a>(
+        &'a self,
+    ) -> impl Iterator<Item = &'a str> + 'a {
+        self.sources.path_f32.keys().map(|s| s.as_str())
+    }
+
     pub fn fetch_graph_data_blocking(
         &self,
         key: &str,

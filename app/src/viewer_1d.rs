@@ -871,6 +871,38 @@ impl AppWindow for Viewer1D {
                 self.self_viz_interact.store(interact);
             });
 
+            egui::Window::new("Visualization Modes").show(
+                egui_ctx.ctx(),
+                |ui| {
+                    let mut path_data_sources = self
+                        .shared
+                        .graph_data_cache
+                        .path_data_source_names()
+                        .collect::<Vec<_>>();
+                    path_data_sources.sort();
+
+                    let mut current_key = self.active_viz_data_key.clone();
+
+                    for key in path_data_sources {
+                        if !self.data_color_mappings.contains_key(key) {
+                            continue;
+                        }
+
+                        if ui
+                            .add_enabled(
+                                key != &current_key,
+                                egui::Button::new(key),
+                            )
+                            .clicked()
+                        {
+                            current_key = key.to_string();
+                        }
+                    }
+
+                    self.active_viz_data_key = current_key;
+                },
+            );
+
             let painter =
                 egui_ctx.ctx().layer_painter(egui::LayerId::background());
             painter.extend(shapes);
