@@ -80,7 +80,7 @@ impl GraphDataSources {
 
         // graph node ids
         {
-            let name = "node_ids".to_string();
+            let name = "node_id".to_string();
             let graph = graph.clone();
             let ctor =
                 move || Ok((0..graph.node_count).map(|i| i as f32).collect());

@@ -1,4 +1,5 @@
 use crate::app::{AppWindow, SharedState, VizInteractions};
+use crate::color::ColorMapping;
 
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -67,6 +68,10 @@ pub struct Viewer2D {
     pub connected_viz_interact: Option<Arc<AtomicCell<VizInteractions>>>,
 
     shared: SharedState,
+
+    active_viz_data_key: String,
+    color_mapping: ColorMapping,
+    data_buffer: wgpu::Buffer,
 }
 
 impl Viewer2D {
@@ -120,7 +125,7 @@ impl Viewer2D {
             ));
             let frag_src = include_bytes!(concat!(
                 env!("CARGO_MANIFEST_DIR"),
-                "/shaders/uv_rg.frag.spv"
+                "/shaders/path_2d_color_map.frag.spv"
             ));
 
             let primitive = wgpu::PrimitiveState {
@@ -180,6 +185,10 @@ impl Viewer2D {
         graph.add_link_from_transient("transform", draw_node, 2);
         graph.add_link_from_transient("vert_cfg", draw_node, 3);
 
+        graph.add_link_from_transient("node_data", draw_node, 4);
+        graph.add_link_from_transient("colors", draw_node, 5);
+        graph.add_link_from_transient("color_mapping", draw_node, 6);
+
         let instances = instance_count as u32;
         println!("instance count: {instances}");
         println!("node count: {}", path_index.node_count);
@@ -192,6 +201,46 @@ impl Viewer2D {
         let self_viz_interact =
             Arc::new(AtomicCell::new(VizInteractions::default()));
         let connected_viz_interact = None;
+
+        let color_mapping = {
+            let mut colors = shared.colors.blocking_write();
+
+            let id = colors.get_color_scheme_id("spectral").unwrap();
+            let scheme = colors.get_color_scheme(id);
+
+            let color_range = 1..=(scheme.colors.len() as u32);
+            let val_range = 0f32..=13.0;
+
+            let mapping = ColorMapping::new(
+                id,
+                color_range,
+                val_range,
+                0,
+                (scheme.colors.len() - 1) as u32,
+            );
+
+            // not really necessary to do here, but ensures it's ready
+            let _buffer =
+                colors.get_color_mapping_gpu_buffer(state, mapping).unwrap();
+
+            mapping
+        };
+
+        let active_viz_data_key = "node_id".to_string();
+
+        let data = shared
+            .graph_data_cache
+            .fetch_graph_data_blocking(&active_viz_data_key)
+            .unwrap();
+
+        let data_buffer = {
+            let buffer_usage = BufferUsages::STORAGE | BufferUsages::COPY_DST;
+            state.device.create_buffer_init(&BufferInitDescriptor {
+                label: Some("Viewer 2D TEMPORARY data buffer"),
+                contents: bytemuck::cast_slice(&data.node_data),
+                usage: buffer_usage,
+            })
+        };
 
         Ok(Self {
             path_index,
@@ -212,6 +261,10 @@ impl Viewer2D {
             connected_viz_interact,
 
             shared: shared.clone(),
+
+            color_mapping,
+            active_viz_data_key,
+            data_buffer,
         })
     }
 
@@ -474,6 +527,52 @@ impl AppWindow for Viewer2D {
                 size: 16 * 4,
                 stride: None,
                 buffer: &self.transform_uniform,
+            },
+        );
+
+        let (color_buf, color_buf_size, color_map_buf) = {
+            let mut colors = self.shared.colors.blocking_write();
+            let mapping = self.color_mapping;
+            let id = mapping.color_scheme;
+
+            let scheme = colors.get_color_scheme(id);
+            let color_buf_size = scheme.required_buffer_size();
+            let color_buf = colors.get_color_scheme_gpu_buffer(id).unwrap();
+
+            let map_buf = colors
+                .get_color_mapping_gpu_buffer(&state, mapping)
+                .unwrap();
+
+            (color_buf, color_buf_size, map_buf)
+        };
+
+        let data_buf_size =
+            self.shared.graph.node_count * std::mem::size_of::<[f32; 4]>();
+
+        transient_res.insert(
+            "node_data".to_string(),
+            InputResource::Buffer {
+                size: data_buf_size,
+                stride: None,
+                buffer: &self.data_buffer,
+            },
+        );
+
+        transient_res.insert(
+            "color".to_string(),
+            InputResource::Buffer {
+                size: color_buf_size,
+                stride: None,
+                buffer: &color_buf,
+            },
+        );
+
+        transient_res.insert(
+            "color_mapping".to_string(),
+            InputResource::Buffer {
+                size: 24,
+                stride: None,
+                buffer: &color_map_buf,
             },
         );
 
