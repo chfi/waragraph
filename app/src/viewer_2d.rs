@@ -85,7 +85,20 @@ impl Viewer2D {
         let (node_positions, vertex_buffer, instance_count) = {
             let pos = NodePositions::from_layout_tsv(layout_tsv)?;
 
-            let vertex_data = pos.iter_nodes().collect::<Vec<_>>();
+            let vertex_data = pos
+                .iter_nodes()
+                .enumerate()
+                .map(|(ix, p)| {
+                    let p = [p];
+                    let ix = [ix as u32];
+                    let pos: &[u8] = bytemuck::cast_slice(&p);
+                    let id: &[u8] = bytemuck::cast_slice(&ix);
+                    let mut out = [0u8; 4 * 5];
+                    out[0..(4 * 4)].clone_from_slice(pos);
+                    out[(4 * 4)..].clone_from_slice(id);
+                    out
+                })
+                .collect::<Vec<_>>();
 
             let instance_count = vertex_data.len();
 
