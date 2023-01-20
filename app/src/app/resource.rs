@@ -112,8 +112,6 @@ impl GraphDataSources {
             let ctor = move |path: PathId| {
                 let path_steps = &graph.path_steps[path.ix()];
                 let node_set = &graph.path_node_sets[path.ix()];
-                // let mut step_count = vec![0.0; node_set.len() as usize];
-                // let mut path_data = vec![0.0; node_set.len() as usize];
 
                 let mut path_data: BTreeMap<Node, (f32, f32)> =
                     BTreeMap::default();

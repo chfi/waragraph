@@ -44,6 +44,13 @@ pub struct PathRenderer {
     draw_node: NodeId,
 }
 
+#[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
+#[repr(C)]
+struct GpuVertex {
+    pos: [f32; 2],
+    // tex_coord: [f32; 2],
+}
+
 impl PathRenderer {
     pub fn init(
         event_loop: &EventLoopWindowTarget<()>,
@@ -372,8 +379,7 @@ impl GraphPathCurves {
         device: &wgpu::Device,
         path_ids: impl IntoIterator<Item = usize>,
     ) -> Result<PathCurveBuffers> {
-        let mut geometry: VertexBuffers<super::GpuVertex, u32> =
-            VertexBuffers::new();
+        let mut geometry: VertexBuffers<GpuVertex, u32> = VertexBuffers::new();
         let tolerance = 10.0;
 
         let opts = StrokeOptions::tolerance(tolerance).with_line_width(150.0);
@@ -381,10 +387,8 @@ impl GraphPathCurves {
         let mut stroke_tess = StrokeTessellator::new();
 
         let mut buf_build =
-            BuffersBuilder::new(&mut geometry, |vx: StrokeVertex| {
-                super::GpuVertex {
-                    pos: vx.position().to_array(),
-                }
+            BuffersBuilder::new(&mut geometry, |vx: StrokeVertex| GpuVertex {
+                pos: vx.position().to_array(),
             });
 
         let mut path_indices = HashMap::default();

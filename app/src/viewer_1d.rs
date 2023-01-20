@@ -280,6 +280,30 @@ impl Viewer1D {
 
         let mut gpu_buffers = HashMap::default();
 
+        let black_red_color_map = {
+            let mut colors = shared.colors.blocking_write();
+
+            let id = colors.get_color_scheme_id("black_red").unwrap();
+            let scheme = colors.get_color_scheme(id);
+
+            let color_range = 2..=5u32;
+            let val_range = 0f32..=1.0;
+
+            let mapping = ColorMapping::new(
+                id,
+                color_range,
+                val_range,
+                1,
+                (scheme.colors.len() - 1) as u32,
+            );
+
+            // not really necessary to do here, but ensures it's ready
+            let _buffer =
+                colors.get_color_mapping_gpu_buffer(state, mapping).unwrap();
+
+            mapping
+        };
+
         let color_mapping = {
             let mut colors = shared.colors.blocking_write();
 
@@ -303,6 +327,8 @@ impl Viewer1D {
 
             mapping
         };
+
+        // let color_mapping = black_red_color_map;
 
         gpu_buffers.insert("viz_data_buffer".to_string(), viz_data_buffer);
 

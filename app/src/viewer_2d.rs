@@ -41,13 +41,6 @@ pub struct Args {
     pub annotations: Option<PathBuf>,
 }
 
-#[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
-#[repr(C)]
-struct GpuVertex {
-    pos: [f32; 2],
-    // tex_coord: [f32; 2],
-}
-
 pub struct Viewer2D {
     path_index: Arc<PathIndex>,
 
