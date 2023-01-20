@@ -88,6 +88,26 @@ impl GraphDataSources {
             graph_f32.insert(name, Arc::new(ctor));
         }
 
+        // graph path depth
+        {
+            let name = "depth".to_string();
+            let graph = graph.clone();
+
+            let ctor = move || {
+                let mut node_data = vec![0f32; graph.node_count];
+
+                for path_id in graph.path_names.left_values() {
+                    for step in graph.path_steps[path_id.ix()].iter() {
+                        node_data[step.node().ix()] += 1.0;
+                    }
+                }
+
+                Ok(node_data)
+            };
+
+            graph_f32.insert(name, Arc::new(ctor));
+        }
+
         // path depth
         {
             let name = "depth".to_string();

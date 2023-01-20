@@ -132,8 +132,7 @@ impl Viewer2D {
             ));
             let frag_src = include_bytes!(concat!(
                 env!("CARGO_MANIFEST_DIR"),
-                // "/shaders/path_2d_color_map.frag.spv"
-                "/shaders/path_2d_direct_index.frag.spv"
+                "/shaders/path_2d_color_map.frag.spv" // "/shaders/path_2d_direct_index.frag.spv"
             ));
 
             let primitive = wgpu::PrimitiveState {
@@ -234,7 +233,8 @@ impl Viewer2D {
             mapping
         };
 
-        let active_viz_data_key = "node_id".to_string();
+        // let active_viz_data_key = "node_id".to_string();
+        let active_viz_data_key = "depth".to_string();
 
         let data = shared
             .graph_data_cache
