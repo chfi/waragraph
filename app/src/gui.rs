@@ -338,6 +338,7 @@ impl<T> FlexLayout<T> {
         let mut visited = HashSet::new();
 
         while let Some((offset, node)) = stack.pop() {
+            // println!("visit! {}", visited.len());
             visited.insert(node);
             let mut this_layout = *self.taffy.layout(node)?;
 
@@ -350,6 +351,7 @@ impl<T> FlexLayout<T> {
             if let Some(data) = self.node_data.get(&node) {
                 this_layout.location.x = offset.x;
                 this_layout.location.y = offset.y;
+
                 v(this_layout, data);
             }
 

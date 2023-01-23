@@ -155,8 +155,10 @@ impl Viewer1D {
 
         let paths = 0..path_index.path_names.len();
 
+        // TODO: instead of setting the initial rows to 256, make the data/sampling
+        // buffer reallocate when needed!!
         let path_list_view =
-            ListView::new(paths.clone().map(PathId::from), Some(32));
+            ListView::new(paths.clone().map(PathId::from), Some(256));
 
         let graph_data_cache = shared.graph_data_cache.clone();
 
@@ -255,6 +257,7 @@ impl Viewer1D {
 
                     // TODO: grab this from some sort of config
                     let slot_height = 20.0;
+                    // let slot_height = 80.0;
 
                     let height = match &val {
                         gui::SlotElem::PathData { slot_id, data_id } => {
@@ -477,12 +480,24 @@ impl AppWindow for Viewer1D {
             let inner_offset = ultraviolet::Vec2::new(0.0, 4.0);
             let inner_dims = dims - inner_offset;
 
-            if let Err(e) = self.dyn_slot_layout.build_layout(
+            match self.dyn_slot_layout.build_layout(
                 inner_offset,
                 inner_dims,
                 rows_iter,
             ) {
-                log::error!("Slot layout error: {e:?}");
+                // TODO: prepend rows to fill out when scrolled all the way down
+                // (need to add the "reverse" row_iter)
+                // .and_then(|(rows_added, avail_height)| {
+                //     self.dyn_slot_layout.prepend_rows
+                //     todo!();
+                //     //
+                // }) {
+                Ok((rows_added, avail_height)) => {
+                    self.path_list_view.resize(rows_added);
+                }
+                Err(e) => {
+                    log::error!("Slot layout error: {e:?}");
+                }
             }
 
             let (vertices, vxs, insts) = {
