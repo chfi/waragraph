@@ -462,7 +462,14 @@ impl AppWindow for Viewer1D {
                     },
                 );
 
-            if let Err(e) = self.dyn_slot_layout.build_layout(dims, rows_iter) {
+            let inner_offset = ultraviolet::Vec2::new(0.0, 4.0);
+            let inner_dims = dims - inner_offset;
+
+            if let Err(e) = self.dyn_slot_layout.build_layout(
+                inner_offset,
+                inner_dims,
+                rows_iter,
+            ) {
                 log::error!("Slot layout error: {e:?}");
             }
 

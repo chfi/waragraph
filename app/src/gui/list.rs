@@ -67,6 +67,7 @@ impl<Row, Elem> DynamicListLayout<Row, Elem> {
     /// Returns the number of rows processed/laid out
     pub fn build_layout(
         &mut self,
+        offset: Vec2,
         dims: Vec2,
         rows: impl IntoIterator<Item = Row>,
     ) -> Result<(), TaffyError> {
@@ -111,7 +112,7 @@ impl<Row, Elem> DynamicListLayout<Row, Elem> {
         });
 
         self.layout.fill_with_rows(row_iter)?;
-        self.layout.compute_layout(dims)?;
+        self.layout.compute_layout(offset, dims)?;
 
         Ok(())
     }
