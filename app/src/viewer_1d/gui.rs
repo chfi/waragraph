@@ -13,16 +13,17 @@ pub(super) enum SlotElem {
     },
 }
 
+/*
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) enum GuiElem {
     Label { id: String },
 }
 
-pub(super) fn create_fixed_gui_layout() -> FlexLayout<GuiElem> {
+fn create_fixed_gui_layout() -> FlexLayout<GuiElem> {
     todo!();
 }
 
-pub(super) fn create_slot_layout(
+fn create_slot_layout(
     slots: usize,
     data_id: &str,
 ) -> Result<FlexLayout<SlotElem>, TaffyError> {
@@ -49,3 +50,4 @@ pub(super) fn create_slot_layout(
 
     FlexLayout::from_rows_iter(rows)
 }
+*/

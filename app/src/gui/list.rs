@@ -88,12 +88,12 @@ impl<Row, Elem> DynamicListLayout<Row, Elem> {
                 let get = &self.column_getters[col_ix];
 
                 let (elem, height) = get(&row);
+                elems.push((elem, height));
 
                 let height = match height {
                     Dimension::Points(p) => p,
                     _ => 0.0,
                 };
-                elems.push(elem);
 
                 row_height = row_height.max(height);
             }
@@ -105,9 +105,9 @@ impl<Row, Elem> DynamicListLayout<Row, Elem> {
         self.layout.clear();
 
         let row_iter = row_elems.into_iter().map(|row| {
-            row.into_iter().enumerate().map(|(col_ix, elem)| {
+            row.into_iter().enumerate().map(|(col_ix, (elem, height))| {
                 let width = self.column_widths[col_ix];
-                (elem, width)
+                (elem, width, height)
             })
         });
 

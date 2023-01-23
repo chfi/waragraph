@@ -77,7 +77,7 @@ impl<T> FlexLayout<T> {
     ) -> Result<(), TaffyError>
     where
         Rows: IntoIterator<Item = Row>,
-        Row: IntoIterator<Item = (T, Dimension)>,
+        Row: IntoIterator<Item = (T, Dimension, Dimension)>,
     {
         let root_style = Style {
             flex_direction: FlexDirection::Column,
@@ -145,9 +145,10 @@ impl<T> FlexLayout<T> {
         for row in rows {
             inner_children.clear();
 
-            for (data, dim) in row {
+            for (data, width, height) in row {
                 let mut style = child_style.clone();
-                style.size.width = dim;
+                style.size.width = width;
+                style.size.height = height;
 
                 let inner = self.taffy.new_leaf(style)?;
                 self.node_data.insert(inner, data);
@@ -171,7 +172,7 @@ impl<T> FlexLayout<T> {
     pub fn from_rows_iter<Rows, Row>(rows: Rows) -> Result<Self, TaffyError>
     where
         Rows: IntoIterator<Item = Row>,
-        Row: IntoIterator<Item = (T, Dimension)>,
+        Row: IntoIterator<Item = (T, Dimension, Dimension)>,
     {
         let mut layout = FlexLayout::default();
         layout.fill_with_rows(rows)?;
