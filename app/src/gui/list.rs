@@ -14,21 +14,27 @@ pub struct DynamicListLayout<Row, Elem> {
     layout: FlexLayout<Elem>,
     column_count: usize,
     column_widths: Vec<Dimension>,
-    column_getters: Vec<Arc<dyn Fn(&Row) -> (Elem, Dimension) + 'static>>,
-}
 
-impl<Row, Elem> std::default::Default for DynamicListLayout<Row, Elem> {
-    fn default() -> Self {
-        Self {
-            layout: FlexLayout::default(),
-            column_count: 0,
-            column_widths: Vec::new(),
-            column_getters: Vec::new(),
-        }
-    }
+    column_getter:
+        Arc<dyn Fn(&Row, usize) -> Option<(Elem, Dimension)> + 'static>,
 }
 
 impl<Row, Elem> DynamicListLayout<Row, Elem> {
+    pub fn new(
+        column_widths: impl IntoIterator<Item = Dimension>,
+        column_getter: impl Fn(&Row, usize) -> Option<(Elem, Dimension)> + 'static,
+    ) -> Self {
+        let column_widths = column_widths.into_iter().collect::<Vec<_>>();
+        let column_count = column_widths.len();
+
+        Self {
+            layout: FlexLayout::default(),
+            column_count,
+            column_widths,
+            column_getter: Arc::new(column_getter),
+        }
+    }
+
     pub fn layout(&self) -> &FlexLayout<Elem> {
         &self.layout
     }
@@ -43,25 +49,6 @@ impl<Row, Elem> DynamicListLayout<Row, Elem> {
 
     pub fn column_widths_mut(&mut self) -> &mut [Dimension] {
         self.column_widths.as_mut_slice()
-    }
-
-    pub fn push_column(
-        &mut self,
-        width: Dimension,
-        getter: impl Fn(&Row) -> (Elem, Dimension) + 'static,
-    ) {
-        self.column_widths.push(width);
-        self.column_getters.push(Arc::new(getter));
-        self.column_count += 1;
-    }
-
-    pub fn with_column(
-        mut self,
-        width: Dimension,
-        getter: impl Fn(&Row) -> (Elem, Dimension) + 'static,
-    ) -> Self {
-        self.push_column(width, getter);
-        self
     }
 
     /// Returns the number of rows processed/laid out
@@ -85,17 +72,17 @@ impl<Row, Elem> DynamicListLayout<Row, Elem> {
             let mut elems = Vec::with_capacity(self.column_count);
 
             for col_ix in 0..self.column_count {
-                let get = &self.column_getters[col_ix];
+                if let Some((elem, height)) = (self.column_getter)(&row, col_ix)
+                {
+                    elems.push((elem, height));
 
-                let (elem, height) = get(&row);
-                elems.push((elem, height));
+                    let height = match height {
+                        Dimension::Points(p) => p,
+                        _ => 0.0,
+                    };
 
-                let height = match height {
-                    Dimension::Points(p) => p,
-                    _ => 0.0,
-                };
-
-                row_height = row_height.max(height);
+                    row_height = row_height.max(height);
+                }
             }
 
             row_elems.push(elems);

@@ -245,17 +245,29 @@ impl Viewer1D {
             let mut layout: DynamicListLayout<
                 Vec<gui::SlotElem>,
                 gui::SlotElem,
-            > = DynamicListLayout::default();
+            > = DynamicListLayout::new(
+                [width(0.2), width(0.8)],
+                |row: &Vec<gui::SlotElem>, ix| {
+                    //
+                    let val = row.get(ix)?.clone();
 
-            layout.push_column(width(0.2), |row| {
-                let height = taffy::style::Dimension::Points(20.0);
-                (row[0].clone(), height)
-            });
+                    let mk_h = |h: f32| taffy::style::Dimension::Points(h);
 
-            layout.push_column(width(0.8), |row| {
-                let height = taffy::style::Dimension::Points(20.0);
-                (row[1].clone(), height)
-            });
+                    // TODO: grab this from some sort of config
+                    let slot_height = 20.0;
+
+                    let height = match &val {
+                        gui::SlotElem::PathData { slot_id, data_id } => {
+                            mk_h(slot_height)
+                        }
+                        gui::SlotElem::PathName { slot_id } => {
+                            mk_h(slot_height)
+                        }
+                    };
+
+                    Some((val, height))
+                },
+            );
 
             layout
         };
@@ -600,6 +612,14 @@ impl AppWindow for Viewer1D {
                 }
 
                 match elem {
+                    gui::SlotElem::SomeRect { height_px } => {
+                        let rect = egui::Shape::rect_filled(
+                            rect,
+                            egui::Rounding::same(5.0),
+                            egui::Color32::BLUE,
+                        );
+                        shapes.push(rect);
+                    }
                     gui::SlotElem::PathData { .. } => {
                         path_slot_region = path_slot_region.union(rect);
                     }
