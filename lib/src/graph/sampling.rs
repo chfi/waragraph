@@ -65,6 +65,8 @@ pub fn sample_path_data_into_buffer<D>(
         let buf_row: &mut [f32] = bytemuck::cast_slice_mut(&mut out[range]);
 
         for (buf_val, bin_ix) in buf_row.iter_mut().zip(0..bins) {
+            // using negative infinity as a marker for empty bins
+            *buf_val = f32::NEG_INFINITY;
             let range = bin_range(bin_ix);
             let iter =
                 index.path_data_pan_range_iter(range, path_id, path_data);
@@ -77,7 +79,9 @@ pub fn sample_path_data_into_buffer<D>(
                 sum_val += *val * len.0 as f32;
             }
 
-            *buf_val = sum_val / sum_len as f32;
+            if sum_len > 0 {
+                *buf_val = sum_val / sum_len as f32;
+            }
         }
     }
 }

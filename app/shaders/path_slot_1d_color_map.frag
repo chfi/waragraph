@@ -41,11 +41,10 @@ void main() {
   float c_t = clamp(t, 0.0, 1.0);
 
   uint data_ix = uint(round(c_t * float(data.row_size - 1)));
-  // uint data_ix = uint(i_uv.x * float(data.row_size - 1));
 
   float val = data.values[row_offset + data_ix];
 
-  // apply color mapping (i think)
+  // apply color mapping
 
   uint c_range_len = color_map.max_color_ix - color_map.min_color_ix;
   float val_range = color_map.max_val - color_map.min_val;
@@ -60,9 +59,14 @@ void main() {
       ix = ix + color_map.min_color_ix;
   }
 
-  vec4 color = ((t >= 0.0) && (t <= 1.0))
-               ? colors.colors[ix]
-               : vec4(1.0, 0.0, 0.0, 1.0);
+  if (isinf(val)) {
+    f_color = vec4(1.0, 0.0, 1.0, 1.0);
+  } else {
 
-  f_color = color;
+    vec4 color = ((t >= 0.0) && (t <= 1.0))
+      ? colors.colors[ix]
+      : vec4(1.0, 0.0, 0.0, 1.0);
+
+    f_color = color;
+  }
 }

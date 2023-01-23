@@ -34,11 +34,19 @@ void main() {
   // uint data_ix = uint(i_uv.x * float(data.row_size - 1));
 
   float val = data.values[row_offset + data_ix];
-  uint ix = min(uint(round(val)), colors.len - 2) + 1;
 
-  vec4 color = ((t >= 0.0) && (t <= 1.0))
-               ? colors.colors[ix]
-               : vec4(1.0, 0.0, 0.0, 1.0);
-  // vec4 color = colors.colors[ix];
-  f_color = color;
+
+  if (isinf(val)) {
+    // f_color = vec4(1.0);
+    f_color = vec4(0.5, 0.0, 0.7, 1.0);
+  } else {
+    uint ix = min(uint(round(val)), colors.len - 2) + 1;
+
+    vec4 color = ((t >= 0.0) && (t <= 1.0))
+      ? colors.colors[ix]
+      : vec4(1.0, 0.0, 0.0, 1.0);
+    // vec4 color = colors.colors[ix];
+    f_color = color;
+  }
+  
 }

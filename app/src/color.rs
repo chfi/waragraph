@@ -69,16 +69,6 @@ impl ColorStore {
             rgba(255, 0, 0),
         ];
 
-        // let black_red = [
-        //     rgba(255, 255, 255),
-        //     rgba(255, 0, 0),
-        //     rgba(255, 0, 0),
-        //     rgba(255, 0, 0),
-        //     rgba(0, 0, 0),
-        //     rgba(0, 0, 0),
-        //     rgba(0, 0, 0),
-        // ];
-
         result.add_color_scheme("black_red", black_red);
 
         result
