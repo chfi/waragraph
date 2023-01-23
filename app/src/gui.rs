@@ -16,9 +16,9 @@ pub mod list;
 pub mod util;
 
 pub struct FlexLayout<T> {
-    pub taffy: Taffy,
-    pub node_data: BTreeMap<Node, T>,
-    pub root: Option<Node>,
+    taffy: Taffy,
+    node_data: BTreeMap<Node, T>,
+    root: Option<Node>,
 
     computed_size: Option<Vec2>,
 }
@@ -238,8 +238,7 @@ pub fn layout_egui_rect(layout: &Layout) -> egui::Rect {
     let btm_left = layout.location;
     let size = layout.size;
     let size = egui::vec2(size.width, size.height);
-
     let bl = egui::pos2(btm_left.x, btm_left.y);
-    let center = bl + egui::vec2(size.x / 2.0, -size.y / 2.0);
+    let center = bl + egui::vec2(size.x / 2.0, size.y / 2.0);
     egui::Rect::from_center_size(center, size)
 }
