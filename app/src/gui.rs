@@ -40,6 +40,75 @@ impl<T> std::default::Default for FlexLayout<T> {
 }
 
 impl<T> FlexLayout<T> {
+    fn root_style() -> Style {
+        Style {
+            flex_direction: FlexDirection::Column,
+            flex_wrap: FlexWrap::Wrap,
+            min_size: Size {
+                width: Dimension::Auto,
+                height: Dimension::Auto,
+            },
+            margin: Rect {
+                left: Dimension::Points(0.0),
+                right: Dimension::Points(0.0),
+                top: Dimension::Points(10.0),
+                bottom: Dimension::Points(0.0),
+            },
+            size: Size {
+                width: Dimension::Auto,
+                height: Dimension::Auto,
+            },
+            gap: Size {
+                width: Dimension::Undefined,
+                height: Dimension::Points(10.0),
+            },
+            padding: Rect {
+                left: Dimension::Points(4.0),
+                right: Dimension::Points(4.0),
+                top: Dimension::Points(0.0),
+                bottom: Dimension::Points(0.0),
+            },
+            ..Default::default()
+        }
+    }
+
+    fn row_style() -> Style {
+        Style {
+            size: Size {
+                width: Dimension::Percent(1.0),
+                height: Dimension::Auto,
+            },
+            padding: Rect {
+                left: Dimension::Points(4.0),
+                right: Dimension::Points(4.0),
+                top: Dimension::Points(0.0),
+                bottom: Dimension::Points(0.0),
+            },
+            align_self: AlignSelf::Stretch,
+            // position_type: PositionType::Relative,
+            ..Style::default()
+        }
+    }
+
+    fn child_style(
+        width: Option<Dimension>,
+        height: Option<Dimension>,
+    ) -> Style {
+        let width = width.unwrap_or(Dimension::Auto);
+        let height = height.unwrap_or(Dimension::Auto);
+
+        Style {
+            margin: Rect {
+                left: Dimension::Points(4.0),
+                right: Dimension::Points(4.0),
+                top: Dimension::Points(0.0),
+                bottom: Dimension::Points(0.0),
+            },
+            size: Size { width, height },
+            ..Default::default()
+        }
+    }
+
     pub fn clear(&mut self) {
         self.taffy.clear();
         self.node_data.clear();
@@ -71,7 +140,7 @@ impl<T> FlexLayout<T> {
         }
     }
 
-    pub fn fill_with_rows<Rows, Row>(
+    pub fn prepend_rows<Rows, Row>(
         &mut self,
         rows: Rows,
     ) -> Result<(), TaffyError>
@@ -79,65 +148,11 @@ impl<T> FlexLayout<T> {
         Rows: IntoIterator<Item = Row>,
         Row: IntoIterator<Item = (T, Dimension, Dimension)>,
     {
-        let root_style = Style {
-            flex_direction: FlexDirection::Column,
-            flex_wrap: FlexWrap::Wrap,
-            min_size: Size {
-                width: Dimension::Auto,
-                height: Dimension::Auto,
-            },
-            margin: Rect {
-                left: Dimension::Points(0.0),
-                right: Dimension::Points(0.0),
-                top: Dimension::Points(10.0),
-                bottom: Dimension::Points(0.0),
-            },
-            size: Size {
-                width: Dimension::Auto,
-                height: Dimension::Auto,
-            },
-            gap: Size {
-                width: Dimension::Undefined,
-                height: Dimension::Points(10.0),
-            },
-            padding: Rect {
-                left: Dimension::Points(4.0),
-                right: Dimension::Points(4.0),
-                top: Dimension::Points(0.0),
-                bottom: Dimension::Points(0.0),
-            },
-            ..Default::default()
-        };
+        let root_style = Self::root_style();
+        let row_style = Self::row_style();
 
-        let row_style = Style {
-            size: Size {
-                width: Dimension::Percent(1.0),
-                height: Dimension::Auto,
-            },
-            padding: Rect {
-                left: Dimension::Points(4.0),
-                right: Dimension::Points(4.0),
-                top: Dimension::Points(0.0),
-                bottom: Dimension::Points(0.0),
-            },
-            align_self: AlignSelf::Stretch,
-            // position_type: PositionType::Relative,
-            ..Style::default()
-        };
-
-        let child_style = Style {
-            margin: Rect {
-                left: Dimension::Points(4.0),
-                right: Dimension::Points(4.0),
-                top: Dimension::Points(0.0),
-                bottom: Dimension::Points(0.0),
-            },
-            size: Size {
-                width: Dimension::Auto,
-                height: Dimension::Points(20.0),
-            },
-            ..Default::default()
-        };
+        let child_style =
+            Self::child_style(None, Some(Dimension::Points(20.0)));
 
         let mut children = Vec::new();
         let mut inner_children = Vec::new();
@@ -160,11 +175,67 @@ impl<T> FlexLayout<T> {
             children.push(row_node);
         }
 
-        let root = self
-            .taffy
-            .new_with_children(root_style, children.as_slice())?;
+        if let Some(root) = self.root {
+            let mut new_children = children;
+            new_children.extend(self.taffy.children(root)?);
+            self.taffy.set_children(root, &new_children)?;
+        } else {
+            let root = self
+                .taffy
+                .new_with_children(root_style, children.as_slice())?;
 
-        self.root = Some(root);
+            self.root = Some(root);
+        }
+
+        Ok(())
+    }
+
+    pub fn fill_with_rows<Rows, Row>(
+        &mut self,
+        rows: Rows,
+    ) -> Result<(), TaffyError>
+    where
+        Rows: IntoIterator<Item = Row>,
+        Row: IntoIterator<Item = (T, Dimension, Dimension)>,
+    {
+        let root_style = Self::root_style();
+        let row_style = Self::row_style();
+
+        let child_style =
+            Self::child_style(None, Some(Dimension::Points(20.0)));
+
+        let mut children = Vec::new();
+        let mut inner_children = Vec::new();
+
+        for row in rows {
+            inner_children.clear();
+
+            for (data, width, height) in row {
+                let mut style = child_style.clone();
+                style.size.width = width;
+                style.size.height = height;
+
+                let inner = self.taffy.new_leaf(style)?;
+                self.node_data.insert(inner, data);
+                inner_children.push(inner);
+            }
+
+            let row_node =
+                self.taffy.new_with_children(row_style, &inner_children)?;
+            children.push(row_node);
+        }
+
+        if let Some(root) = self.root {
+            let mut new_children = self.taffy.children(root)?;
+            new_children.extend(children);
+            self.taffy.set_children(root, &new_children)?;
+        } else {
+            let root = self
+                .taffy
+                .new_with_children(root_style, children.as_slice())?;
+
+            self.root = Some(root);
+        }
 
         Ok(())
     }

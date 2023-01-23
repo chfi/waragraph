@@ -101,7 +101,7 @@ impl<Row, Elem> DynamicListLayout<Row, Elem> {
         self.layout.fill_with_rows(row_iter)?;
         self.layout.compute_layout(offset, dims)?;
 
-        Ok(())
+        Ok(avail_height)
     }
 
     pub fn visit_layout(
