@@ -28,7 +28,6 @@ use waragraph_core::graph::PathIndex;
 use self::util::path_sampled_data_viz_buffer;
 use self::view::View1D;
 
-pub mod events;
 pub mod gui;
 
 pub mod util;
@@ -643,6 +642,8 @@ impl AppWindow for Viewer1D {
             let mut fg_shapes = Vec::new();
 
             let main_area = egui::Area::new("main_area_1d")
+                .order(egui::Order::Background)
+                .interactable(true)
                 .movable(false)
                 .constrain(true);
 
