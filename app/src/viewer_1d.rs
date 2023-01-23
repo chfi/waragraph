@@ -612,14 +612,6 @@ impl AppWindow for Viewer1D {
                 }
 
                 match elem {
-                    gui::SlotElem::SomeRect { height_px } => {
-                        let rect = egui::Shape::rect_filled(
-                            rect,
-                            egui::Rounding::same(5.0),
-                            egui::Color32::BLUE,
-                        );
-                        shapes.push(rect);
-                    }
                     gui::SlotElem::PathData { .. } => {
                         path_slot_region = path_slot_region.union(rect);
                     }

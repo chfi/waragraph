@@ -51,13 +51,63 @@ impl<Row, Elem> DynamicListLayout<Row, Elem> {
         self.column_widths.as_mut_slice()
     }
 
-    /// Returns the number of rows processed/laid out
+    pub fn prepend_rows(
+        &mut self,
+        offset: Vec2,
+        dims: Vec2,
+        mut avail_height: f32,
+        rows: impl IntoIterator<Item = Row>,
+    ) -> Result<usize, TaffyError> {
+        let mut row_elems = Vec::new();
+
+        for row in rows {
+            if avail_height < 0.0 {
+                break;
+            }
+
+            let mut row_height = 0f32;
+
+            let mut elems = Vec::with_capacity(self.column_count);
+
+            for col_ix in 0..self.column_count {
+                if let Some((elem, height)) = (self.column_getter)(&row, col_ix)
+                {
+                    elems.push((elem, height));
+
+                    let height = match height {
+                        Dimension::Points(p) => p,
+                        _ => 0.0,
+                    };
+
+                    row_height = row_height.max(height);
+                }
+            }
+
+            row_elems.push(elems);
+            avail_height -= row_height;
+        }
+
+        let row_iter = row_elems.into_iter().map(|row| {
+            row.into_iter().enumerate().map(|(col_ix, (elem, height))| {
+                let width = self.column_widths[col_ix];
+                (elem, width, height)
+            })
+        });
+
+        self.layout.prepend_rows(row_iter)?;
+        self.layout.compute_layout(offset, dims)?;
+        let added_count = self.layout.compute_layout(offset, dims)?;
+
+        Ok(added_count)
+    }
+
+    /// returns the remaining height in pixels inside the provided screen rect
     pub fn build_layout(
         &mut self,
         offset: Vec2,
         dims: Vec2,
         rows: impl IntoIterator<Item = Row>,
-    ) -> Result<(), TaffyError> {
+    ) -> Result<(usize, f32), TaffyError> {
         let mut avail_height = dims.y;
 
         let mut row_elems = Vec::new();
@@ -99,9 +149,9 @@ impl<Row, Elem> DynamicListLayout<Row, Elem> {
         });
 
         self.layout.fill_with_rows(row_iter)?;
-        self.layout.compute_layout(offset, dims)?;
+        let added_count = self.layout.compute_layout(offset, dims)?;
 
-        Ok(avail_height)
+        Ok((added_count, avail_height))
     }
 
     pub fn visit_layout(

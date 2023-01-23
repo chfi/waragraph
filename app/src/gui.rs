@@ -78,6 +78,12 @@ impl<T> FlexLayout<T> {
                 width: Dimension::Percent(1.0),
                 height: Dimension::Auto,
             },
+            margin: Rect {
+                left: Dimension::Points(4.0),
+                right: Dimension::Points(4.0),
+                top: Dimension::Points(0.0),
+                bottom: Dimension::Points(0.0),
+            },
             padding: Rect {
                 left: Dimension::Points(4.0),
                 right: Dimension::Points(4.0),
@@ -255,7 +261,7 @@ impl<T> FlexLayout<T> {
         &mut self,
         offset: Vec2,
         dims: Vec2,
-    ) -> Result<(), TaffyError> {
+    ) -> Result<usize, TaffyError> {
         if let Some(root) = self.root {
             let width = AvailableSpace::Definite(dims.x);
             let height = AvailableSpace::Definite(dims.y);
@@ -279,7 +285,44 @@ impl<T> FlexLayout<T> {
         self.offset = offset;
         self.computed_size = Some(dims);
 
-        Ok(())
+        let offset = self.offset;
+        let dims = self.computed_size.unwrap_or_default();
+
+        let center = offset + dims / 2.0;
+
+        let center = egui::pos2(center.x, center.y);
+        let dims = egui::vec2(dims.x, dims.y);
+
+        let screen_rect = egui::Rect::from_center_size(center, dims);
+
+        // loop through all rows, counting the ones that are visible
+        let root_children = {
+            let mut chdn = self.taffy.children(self.root.unwrap())?;
+
+            let mut i = 0;
+
+            loop {
+                if i >= chdn.len() {
+                    break;
+                }
+
+                let node = chdn[i];
+                let layout = self.taffy.layout(node)?;
+                let rect = layout_egui_rect(layout);
+
+                // this intersect check only works because of the margin
+                // in the row style
+                if !rect.intersects(screen_rect) {
+                    chdn.remove(i);
+                } else {
+                    i += 1;
+                }
+            }
+
+            chdn.len()
+        };
+
+        Ok(root_children)
     }
 
     pub fn visit_layout(
