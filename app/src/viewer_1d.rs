@@ -67,6 +67,8 @@ pub struct Viewer1D {
 
     active_viz_data_key: String,
     data_color_mappings: HashMap<String, ColorMapping>,
+
+    color_sampler: wgpu::Sampler,
 }
 
 impl Viewer1D {
@@ -298,6 +300,8 @@ impl Viewer1D {
             Arc::new(AtomicCell::new(VizInteractions::default()));
         let connected_viz_interact = None;
 
+        let color_sampler = crate::color::create_linear_sampler(&state.device);
+
         Ok(Viewer1D {
             render_graph: graph,
             draw_path_slot: draw_node,
@@ -324,6 +328,8 @@ impl Viewer1D {
 
             active_viz_data_key,
             data_color_mappings,
+
+            color_sampler,
         })
     }
 

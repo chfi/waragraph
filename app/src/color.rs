@@ -18,6 +18,27 @@ pub struct ColorStore {
     mapping_buffers: BTreeMap<ColorMapping, Arc<wgpu::Buffer>>,
 }
 
+pub(crate) fn create_linear_sampler(device: &wgpu::Device) -> wgpu::Sampler {
+    let address_mode = wgpu::AddressMode::ClampToEdge;
+
+    let sampler_desc = wgpu::SamplerDescriptor {
+        label: Some("Texture Sampler - Color Schemes, Linear"),
+        address_mode_u: address_mode,
+        address_mode_v: address_mode,
+        address_mode_w: address_mode,
+        mag_filter: wgpu::FilterMode::Linear,
+        min_filter: wgpu::FilterMode::Linear,
+        mipmap_filter: wgpu::FilterMode::Nearest,
+        lod_min_clamp: 1.0,
+        lod_max_clamp: 1.0,
+        compare: None,
+        anisotropy_clamp: None,
+        border_color: None,
+    };
+
+    device.create_sampler(&sampler_desc)
+}
+
 impl ColorStore {
     pub fn get_color_scheme_id(&self, name: &str) -> Option<ColorSchemeId> {
         self.scheme_name_map.get(name).copied()
