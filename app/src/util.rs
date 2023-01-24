@@ -30,6 +30,12 @@ impl<T, const N: usize> Uniform<T, N> {
         data: T,
         to_bytes: impl Fn(&T) -> [u8; N] + 'static,
     ) -> anyhow::Result<Self> {
+        if (N % wgpu::COPY_BUFFER_ALIGNMENT as usize) != 0 {
+            let al = wgpu::COPY_BUFFER_ALIGNMENT as usize;
+            anyhow::bail!("Uniform buffer size must be divisible by {al}, was {N}; {N} % {al} = {}",
+                          N % al);
+        }
+
         let to_bytes = Box::new(to_bytes);
         let name = name.to_string();
 
@@ -69,6 +75,11 @@ impl<T, const N: usize> Uniform<T, N> {
     pub fn update_data(&mut self, f: impl FnOnce(&mut T)) {
         f(&mut self.data);
         self.need_write = true;
+    }
+
+    pub fn update_data_maybe_write(&mut self, f: impl FnOnce(&mut T) -> bool) {
+        let w = f(&mut self.data);
+        self.need_write = w;
     }
 
     pub fn write_buffer(&mut self, state: &raving_wgpu::State) {

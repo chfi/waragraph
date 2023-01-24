@@ -135,7 +135,6 @@ impl Viewer1D {
 
             (vert_uniform, frag_uniform)
         };
-
         let draw_node = graph.add_node(draw_schema);
         graph.add_link_from_transient("vertices", draw_node, 0);
         graph.add_link_from_transient("swapchain", draw_node, 1);
@@ -218,8 +217,8 @@ impl Viewer1D {
             let id = colors.get_color_scheme_id("spectral").unwrap();
             let scheme = colors.get_color_scheme(id);
 
-            let color_range = 1..=(scheme.colors.len() as u32);
-            let val_range = 0f32..=13.0;
+            let color_range = 0..=((scheme.colors.len() - 1) as u32);
+            let val_range = 1f32..=14.0;
 
             let mapping = ColorMapping::new(
                 id,

@@ -59,8 +59,9 @@ void main() {
       ix = ix + color_map.min_color_ix;
   }
 
+  // infinity is used to signal a bin that doesn't contain any nodes in the path
   if (isinf(val)) {
-    f_color = vec4(1.0, 0.0, 1.0, 1.0);
+    f_color = vec4(1.0);
   } else {
 
     vec4 color = ((t >= 0.0) && (t <= 1.0))
