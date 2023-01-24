@@ -15,6 +15,9 @@ pub struct ColorStore {
 
     scheme_buffers: HashMap<ColorSchemeId, Arc<wgpu::Buffer>>,
 
+    scheme_textures:
+        HashMap<ColorSchemeId, Arc<(wgpu::Texture, wgpu::TextureView)>>,
+
     mapping_buffers: BTreeMap<ColorMapping, Arc<wgpu::Buffer>>,
 }
 
@@ -54,6 +57,8 @@ impl ColorStore {
             color_schemes: Vec::new(),
 
             scheme_buffers: HashMap::default(),
+            scheme_textures: HashMap::default(),
+
             mapping_buffers: BTreeMap::default(),
         };
 
@@ -93,6 +98,81 @@ impl ColorStore {
         result.add_color_scheme("black_red", black_red);
 
         result
+    }
+
+    pub fn create_color_scheme_texture(
+        &mut self,
+        state: &raving_wgpu::State,
+        scheme_name: &str,
+    ) {
+        // create texture & texture view
+        let scheme_id = *self.scheme_name_map.get(scheme_name).unwrap();
+
+        let color_scheme = &self.color_schemes[scheme_id.0];
+
+        let dimension = wgpu::TextureDimension::D1;
+        let format = wgpu::TextureFormat::Rgba8Unorm;
+
+        let label = format!("Texture - Color Scheme {scheme_name}");
+
+        let usage = wgpu::TextureUsages::TEXTURE_BINDING
+            | wgpu::TextureUsages::COPY_DST;
+
+        let pixel_data: Vec<_> = color_scheme
+            .colors
+            .iter()
+            .map(|&[r, g, b, _a]| {
+                let rgba = egui::Rgba::from_rgb(r, g, b);
+                egui::Color32::from(rgba).to_array()
+            })
+            .collect();
+
+        let width = color_scheme.colors.len() as u32;
+
+        let size = wgpu::Extent3d {
+            width,
+            height: 1,
+            depth_or_array_layers: 1,
+        };
+
+        let texture_desc = wgpu::TextureDescriptor {
+            label: Some(&label),
+            size,
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension,
+            format,
+            usage,
+        };
+
+        let texture = state.device.create_texture_with_data(
+            &state.queue,
+            &texture_desc,
+            bytemuck::cast_slice(&pixel_data),
+        );
+
+        let label = format!("Texture View - Color Scheme {scheme_name}");
+
+        let view = texture.create_view(&wgpu::TextureViewDescriptor {
+            label: Some(&label),
+            format: Some(format),
+            dimension: Some(wgpu::TextureViewDimension::D1),
+            aspect: wgpu::TextureAspect::All,
+            base_mip_level: 1,
+            mip_level_count: None,
+            base_array_layer: 0,
+            array_layer_count: None,
+        });
+
+        self.scheme_textures
+            .insert(scheme_id, Arc::new((texture, view)));
+    }
+
+    pub fn get_color_scheme_texture(
+        &self,
+        scheme: ColorSchemeId,
+    ) -> Option<Arc<(wgpu::Texture, wgpu::TextureView)>> {
+        self.scheme_textures.get(&scheme).cloned()
     }
 
     pub fn get_color_mapping_gpu_buffer(

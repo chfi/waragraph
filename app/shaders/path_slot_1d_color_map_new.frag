@@ -12,7 +12,7 @@ layout (set = 1, binding = 0) readonly buffer DataBuf {
 } u_data;
 
 layout (set = 1, binding = 1) uniform sampler u_sampler;
-layout (set = 1, binding = 2) uniform texture2D u_colors;
+layout (set = 1, binding = 2) uniform texture1D u_colors;
 
 layout (set = 1, binding = 3) uniform ColorMap {
   float min_val;
@@ -56,8 +56,8 @@ void main() {
 
   v = (v - u_color_map.min_val) / (u_color_map.max_val - u_color_map.min_val);
 
-  vec2 pos = vec2(v, 0.5);
-  vec4 color = texture(sampler2D(u_colors, u_sampler), pos);
+  // vec2 pos = vec2(v, 0.5);
+  vec4 color = texture(sampler1D(u_colors, u_sampler), v);
 
 }
 
