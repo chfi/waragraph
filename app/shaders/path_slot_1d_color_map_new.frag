@@ -17,6 +17,8 @@ layout (set = 1, binding = 2) uniform texture1D u_colors;
 layout (set = 1, binding = 3) uniform ColorMap {
   float min_val;
   float max_val;
+  float min_color;
+  float max_color;
 } u_color_map;
 
 layout (set = 1, binding = 4) uniform Transform {
@@ -39,10 +41,13 @@ void main() {
 
   float v = u_data.values[row_offset + data_ix];
 
-  v = (v - u_color_map.min_val) / (u_color_map.max_val - u_color_map.min_val);
+  float v_n = (v - u_color_map.min_val) / (u_color_map.max_val - u_color_map.min_val);
 
-  // vec2 pos = vec2(v, 0.5);
-  vec4 color = texture(sampler1D(u_colors, u_sampler), v);
+  float c_n = mix(u_color_map.min_color, u_color_map.max_color, v_n);
+
+  // v = (v - u_color_map.min_val) / (u_color_map.max_val - u_color_map.min_val);
+
+  vec4 color = texture(sampler1D(u_colors, u_sampler), c_n);
 
   f_color = color;
 

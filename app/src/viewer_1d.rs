@@ -855,6 +855,62 @@ impl AppWindow for Viewer1D {
                 },
             );
 
+            egui::Window::new("Color Mapping").show(egui_ctx.ctx(), |ui| {
+                let mut color_map = *self.new_color_mapping.data_ref();
+
+                let [min_v, max_v] = color_map.value_range;
+
+                let val_range = 0f32..=max_v;
+
+                {
+                    let s_min_v = egui::Slider::new(
+                        &mut color_map.value_range[0],
+                        val_range,
+                    );
+
+                    ui.add(s_min_v);
+                }
+
+                {
+                    let val_range = min_v..=(max_v + 1.0);
+                    let s_max_v = egui::Slider::new(
+                        &mut color_map.value_range[1],
+                        val_range,
+                    );
+
+                    ui.add(s_max_v);
+                }
+
+                {
+                    let col_range = 0f32..=1f32;
+                    let s_min_v = egui::Slider::new(
+                        &mut color_map.color_range[0],
+                        col_range,
+                    );
+
+                    ui.add(s_min_v);
+                }
+
+                {
+                    let col_range = 0f32..=1f32;
+                    let s_max_v = egui::Slider::new(
+                        &mut color_map.color_range[1],
+                        col_range,
+                    );
+
+                    ui.add(s_max_v);
+                }
+
+                // let val_range = 0f32..=max_v;
+                // let s_max_v = egui::Slider::new(&mut max_v, val_range);
+
+                self.new_color_mapping.update_data_maybe_write(|cm| {
+                    let changed = *cm != color_map;
+                    *cm = color_map;
+                    changed
+                });
+            });
+
             let painter =
                 egui_ctx.ctx().layer_painter(egui::LayerId::background());
             painter.extend(shapes);
@@ -926,6 +982,8 @@ impl AppWindow for Viewer1D {
         swapchain_view: &wgpu::TextureView,
         encoder: &mut wgpu::CommandEncoder,
     ) -> anyhow::Result<()> {
+        self.new_color_mapping.write_buffer(&state);
+
         let size: [u32; 2] = window.window.inner_size().into();
 
         let mut transient_res: HashMap<String, InputResource<'_>> =
