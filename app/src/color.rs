@@ -158,7 +158,7 @@ impl ColorStore {
             format: Some(format),
             dimension: Some(wgpu::TextureViewDimension::D1),
             aspect: wgpu::TextureAspect::All,
-            base_mip_level: 1,
+            base_mip_level: 0,
             mip_level_count: None,
             base_array_layer: 0,
             array_layer_count: None,

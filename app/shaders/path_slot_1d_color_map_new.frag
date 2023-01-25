@@ -19,26 +19,11 @@ layout (set = 1, binding = 3) uniform ColorMap {
   float max_val;
 } u_color_map;
 
-/*
-layout (set = 1, binding = 1) readonly buffer Colors {
-  uint len;
-  vec4 colors[];
-} colors;
-
-layout (set = 1, binding = 2) uniform ColorMap {
-  uint min_color_ix;
-  uint max_color_ix;
-  uint extreme_min_color_ix;
-  uint extreme_max_color_ix;
-  float min_val;
-  float max_val;
-} color_map;
-*/
-
-layout (set = 1, binding = 3) uniform Transform {
+layout (set = 1, binding = 4) uniform Transform {
   float a;
   float b;
 } u_transform;
+
 
 
 void main() {
@@ -58,6 +43,8 @@ void main() {
 
   // vec2 pos = vec2(v, 0.5);
   vec4 color = texture(sampler1D(u_colors, u_sampler), v);
+
+  f_color = color;
 
 }
 
