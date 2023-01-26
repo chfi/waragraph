@@ -284,6 +284,8 @@ impl Viewer1D {
                     // let slot_height = 80.0;
 
                     let height = match &val {
+                        gui::SlotElem::Empty => taffy::style::Dimension::Auto,
+                        gui::SlotElem::ViewRange => mk_h(slot_height),
                         gui::SlotElem::PathData { slot_id, data_id } => {
                             mk_h(slot_height)
                         }
@@ -522,6 +524,11 @@ impl AppWindow for Viewer1D {
                     },
                 );
 
+            let view_range_row =
+                vec![gui::SlotElem::Empty, gui::SlotElem::ViewRange];
+
+            let rows_iter = [view_range_row].into_iter().chain(rows_iter);
+
             let inner_offset = ultraviolet::Vec2::new(0.0, 4.0);
             let inner_dims = dims - inner_offset;
 
@@ -672,6 +679,15 @@ impl AppWindow for Viewer1D {
                 }
 
                 match elem {
+                    gui::SlotElem::Empty => (),
+                    gui::SlotElem::ViewRange => {
+                        let range = self.view.range();
+                        let left = Bp(range.start);
+                        let right = Bp(range.end);
+                        shapes.extend(gui::view_range_shapes(
+                            &fonts, rect, left, right, None,
+                        ));
+                    }
                     gui::SlotElem::PathData { .. } => {
                         path_slot_region = path_slot_region.union(rect);
                     }
