@@ -51,11 +51,40 @@ pub(super) fn view_range_shapes(
         right_pos,
         egui::Align2::RIGHT_CENTER,
         right.0,
-        font_id,
+        font_id.clone(),
         color,
     );
 
-    [left_text, right_text].into_iter()
+    let ruler_shapes = ruler.map(|r| {
+        let rf = r.0 as f64;
+        let rl = left.0 as f64;
+        let rr = right.0 as f64;
+
+        let t = (rf - rl) / (rr - rl);
+        let w = (r_right as f64) - (r_left as f64);
+        let x = (t * w) as f32;
+
+        let rt_pos = egui::pos2(r_left + x + 4.0, r_mid_y);
+
+        let ruler_text = egui::Shape::text(
+            &fonts,
+            rt_pos,
+            egui::Align2::LEFT_CENTER,
+            r.0,
+            font_id,
+            color,
+        );
+
+        // let stroke = egui::Stroke::new(2.0, color);
+
+        // let r_pos_u = egui::pos2(x, rect.top());
+        // let r_pos_d = egui::pos2(x, rect
+        // let ruler_line = egui::Shape::line_segment
+
+        ruler_text
+    });
+
+    [left_text, right_text].into_iter().chain(ruler_shapes)
 }
 
 /*

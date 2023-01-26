@@ -656,6 +656,8 @@ impl AppWindow for Viewer1D {
 
         let mut shapes = Vec::new();
 
+        let mut view_range_rect = None;
+
         let layout_result = {
             let fonts = egui_ctx.ctx().fonts();
 
@@ -681,12 +683,7 @@ impl AppWindow for Viewer1D {
                 match elem {
                     gui::SlotElem::Empty => (),
                     gui::SlotElem::ViewRange => {
-                        let range = self.view.range();
-                        let left = Bp(range.start);
-                        let right = Bp(range.end);
-                        shapes.extend(gui::view_range_shapes(
-                            &fonts, rect, left, right, None,
-                        ));
+                        view_range_rect = Some(rect);
                     }
                     gui::SlotElem::PathData { .. } => {
                         path_slot_region = path_slot_region.union(rect);
@@ -834,6 +831,20 @@ impl AppWindow for Viewer1D {
 
                     interact.interact_pan_pos = Some(Bp(pan_pos));
                     interact.interact_node = hovered_node;
+                }
+
+                if let Some(rect) = view_range_rect {
+                    let fonts = ui.fonts();
+                    let range = self.view.range();
+                    let left = Bp(range.start);
+                    let right = Bp(range.end);
+                    shapes.extend(gui::view_range_shapes(
+                        &fonts,
+                        rect,
+                        left,
+                        right,
+                        interact.interact_pan_pos,
+                    ));
                 }
 
                 self.self_viz_interact.store(interact);
