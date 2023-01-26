@@ -806,7 +806,7 @@ impl AppWindow for Viewer1D {
                     self.view.translate_norm_f32(-dx);
                 }
 
-                let mut interact = self.self_viz_interact.take();
+                let mut interact = VizInteractions::default();
 
                 if let Some(pos) = path_slots.hover_pos() {
                     let left = path_slot_region.left();
