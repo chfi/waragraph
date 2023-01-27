@@ -900,9 +900,6 @@ impl AppWindow for Viewer1D {
                     ui.add(color_map_widget);
                 }
 
-                // let val_range = 0f32..=max_v;
-                // let s_max_v = egui::Slider::new(&mut max_v, val_range);
-
                 self.new_color_mapping.update_data_maybe_write(|cm| {
                     let changed = *cm != color_map;
                     *cm = color_map;

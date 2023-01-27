@@ -6,8 +6,6 @@ use super::{ColorMap, ColorScheme, ColorSchemeId};
 
 pub struct ColorMapWidget<'a> {
     id: egui::Id,
-    // scheme_name: String,
-    color_scheme: ColorSchemeId,
     color_map: &'a mut super::ColorMap,
 }
 
@@ -86,21 +84,25 @@ impl<'a> ColorMapWidget<'a> {
 
         state.store(ctx, id);
 
-        Self {
-            id,
-            color_scheme: color_scheme.id,
-            color_map,
-        }
+        Self { id, color_map }
     }
 
     pub fn show(self, ui: &mut Ui) -> Response {
         let state =
             ColorMapWidgetState::load(ui.ctx(), self.id).unwrap_or_default();
 
+        /*
+        Instead of a bunch of sliders, at least the color range -- and maybe
+        the value range -- should be represented as points that can be dragged
+        along the X-axis of the color scheme image.
+
+        Hovering over a point in the color scheme image should show the value
+        that gets mapped to it (if any!)
+        */
+
         let mut resp;
 
         let [min_v, max_v] = self.color_map.value_range;
-
         let val_range = 0f32..=max_v;
 
         {
@@ -144,8 +146,49 @@ impl<'a> ColorMapWidget<'a> {
 
         if let Some((_scheme_id, handle)) = state.texture_handle.lock().as_ref()
         {
+            let [min_v, max_v] = self.color_map.value_range;
+            let [min_c, max_c] = self.color_map.color_range;
+
             let size = [200f32, 40f32];
-            resp = resp.union(ui.image(handle.id(), size));
+
+            let image = ui.image(handle.id(), size);
+
+            let rect = image.rect;
+            let (l, r) = rect.x_range().into_inner();
+
+            let len = r - l;
+
+            let l_ = l + len * min_c;
+            let r_ = l + len * max_c;
+
+            let paint = ui.painter();
+
+            let draw_line = |x: f32| {
+                let (y0, y1) = rect.y_range().into_inner();
+
+                let p0 = egui::pos2(x, y0);
+                let p1 = egui::pos2(x, y1);
+
+                paint.line_segment(
+                    [p0, p1],
+                    egui::Stroke::new(3.0, egui::Color32::GRAY),
+                );
+
+                paint.line_segment(
+                    [p0, p1],
+                    egui::Stroke::new(1.0, egui::Color32::WHITE),
+                );
+            };
+
+            draw_line(l_);
+            draw_line(r_);
+
+            if let Some(pos) = image.hover_pos() {
+                let col_x = (pos.x - l) / (r - l);
+                let val_x = min_v + (col_x * (max_v - min_v));
+            }
+
+            resp = resp.union(image);
         }
 
         resp
