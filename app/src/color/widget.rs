@@ -1,12 +1,13 @@
 use std::sync::Arc;
 
-use egui::{mutex::Mutex, Color32, Context, Id};
+use egui::{mutex::Mutex, Color32, Context, Id, Response, Ui};
 
-use super::{ColorScheme, ColorSchemeId};
+use super::{ColorMap, ColorScheme, ColorSchemeId};
 
 pub struct ColorMapWidget<'a> {
+    id: egui::Id,
+    // scheme_name: String,
     color_scheme: ColorSchemeId,
-    texture_handle: Option<(ColorSchemeId, egui::TextureHandle)>,
     color_map: &'a mut super::ColorMap,
 }
 
@@ -66,17 +67,38 @@ impl ColorMapWidgetState {
         let mut state = self.texture_handle.lock();
         *state = Some((scheme.id, handle));
     }
-
-    // pub fn prepare_texture
 }
 
-// impl<'a> ColorMapWidget<'a> {
-//     pub fn new(
-//     //
-// }
+impl<'a> ColorMapWidget<'a> {
+    pub fn new(
+        ctx: &Context,
+        id: Id,
+        scheme_name: &str,
+        color_scheme: &ColorScheme,
+        color_map: &'a mut ColorMap,
+    ) -> Self {
+        let state = ColorMapWidgetState::load(ctx, id).unwrap_or_default();
 
-impl<'a> egui::Widget for ColorMapWidget<'a> {
-    fn ui(self, ui: &mut egui::Ui) -> egui::Response {
+        // just upload the state here/on creation -- no need to
+        // try to do it as part of show(), which will be limited
+        // by the Widget trait
+        state.prepare_color_scheme(ctx, scheme_name, color_scheme);
+
+        state.store(ctx, id);
+
+        Self {
+            id,
+            color_scheme: color_scheme.id,
+            color_map,
+        }
+    }
+
+    pub fn show(self, ui: &mut Ui) -> Response {
+        let state =
+            ColorMapWidgetState::load(ui.ctx(), self.id).unwrap_or_default();
+
+        let mut resp;
+
         let [min_v, max_v] = self.color_map.value_range;
 
         let val_range = 0f32..=max_v;
@@ -87,7 +109,7 @@ impl<'a> egui::Widget for ColorMapWidget<'a> {
                 val_range,
             );
 
-            ui.add(s_min_v);
+            resp = ui.add(s_min_v);
         }
 
         {
@@ -97,7 +119,7 @@ impl<'a> egui::Widget for ColorMapWidget<'a> {
                 val_range,
             );
 
-            ui.add(s_max_v);
+            resp = resp.union(ui.add(s_max_v));
         }
 
         {
@@ -107,7 +129,7 @@ impl<'a> egui::Widget for ColorMapWidget<'a> {
                 col_range,
             );
 
-            ui.add(s_min_v);
+            resp = resp.union(ui.add(s_min_v));
         }
 
         {
@@ -117,8 +139,21 @@ impl<'a> egui::Widget for ColorMapWidget<'a> {
                 col_range,
             );
 
-            ui.add(s_max_v);
+            resp = resp.union(ui.add(s_max_v));
         }
-        todo!()
+
+        if let Some((_scheme_id, handle)) = state.texture_handle.lock().as_ref()
+        {
+            let size = [200f32, 40f32];
+            resp = resp.union(ui.image(handle.id(), size));
+        }
+
+        resp
+    }
+}
+
+impl<'a> egui::Widget for ColorMapWidget<'a> {
+    fn ui(self, ui: &mut egui::Ui) -> egui::Response {
+        self.show(ui)
     }
 }

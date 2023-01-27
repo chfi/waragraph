@@ -1,5 +1,6 @@
 use crate::app::resource::GraphPathData;
 use crate::app::{AppWindow, SharedState, VizInteractions};
+use crate::color::widget::ColorMapWidget;
 use crate::color::{ColorMap, ColorMapping};
 use crate::gui::list::DynamicListLayout;
 use crate::gui::FlexLayout;
@@ -874,49 +875,29 @@ impl AppWindow for Viewer1D {
             );
 
             egui::Window::new("Color Mapping").show(egui_ctx.ctx(), |ui| {
+                let colors = self.shared.colors.blocking_read();
+                let mapping = self
+                    .data_color_mappings
+                    .get(&self.active_viz_data_key)
+                    .unwrap();
+                let id = mapping.color_scheme;
+
+                let color_scheme = colors.get_color_scheme(id);
+
                 let mut color_map = *self.new_color_mapping.data_ref();
 
-                let [min_v, max_v] = color_map.value_range;
-
-                let val_range = 0f32..=max_v;
+                let scheme_name = &self.active_viz_data_key;
 
                 {
-                    let s_min_v = egui::Slider::new(
-                        &mut color_map.value_range[0],
-                        val_range,
+                    let color_map_widget = ColorMapWidget::new(
+                        ui.ctx(),
+                        "Viewer1D-ColorMapWidget".into(),
+                        scheme_name,
+                        &color_scheme,
+                        &mut color_map,
                     );
 
-                    ui.add(s_min_v);
-                }
-
-                {
-                    let val_range = min_v..=(max_v + 1.0);
-                    let s_max_v = egui::Slider::new(
-                        &mut color_map.value_range[1],
-                        val_range,
-                    );
-
-                    ui.add(s_max_v);
-                }
-
-                {
-                    let col_range = 0f32..=1f32;
-                    let s_min_v = egui::Slider::new(
-                        &mut color_map.color_range[0],
-                        col_range,
-                    );
-
-                    ui.add(s_min_v);
-                }
-
-                {
-                    let col_range = 0f32..=1f32;
-                    let s_max_v = egui::Slider::new(
-                        &mut color_map.color_range[1],
-                        col_range,
-                    );
-
-                    ui.add(s_max_v);
+                    ui.add(color_map_widget);
                 }
 
                 // let val_range = 0f32..=max_v;
