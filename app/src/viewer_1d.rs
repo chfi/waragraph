@@ -1,7 +1,7 @@
 use crate::app::resource::GraphPathData;
 use crate::app::{AppWindow, SharedState, VizInteractions};
 use crate::color::widget::ColorMapWidget;
-use crate::color::{ColorMap, ColorMapping};
+use crate::color::{ColorMap, ColorMapping, ColorSchemeId};
 use crate::gui::list::DynamicListLayout;
 use crate::gui::FlexLayout;
 use crate::list::ListView;
@@ -67,11 +67,8 @@ pub struct Viewer1D {
     shared: SharedState,
 
     active_viz_data_key: String,
-    data_color_mappings: HashMap<String, ColorMapping>,
 
-    color_sampler: wgpu::Sampler,
-
-    new_color_mapping: crate::util::Uniform<ColorMap, 16>,
+    color_mapping: crate::util::Uniform<ColorMap, 16>,
 }
 
 impl Viewer1D {
@@ -91,7 +88,6 @@ impl Viewer1D {
             ));
             let frag_src = include_bytes!(concat!(
                 env!("CARGO_MANIFEST_DIR"),
-                // "/shaders/path_slot_1d_color_map.frag.spv"
                 "/shaders/path_slot_1d_color_map_new.frag.spv"
             ));
 
@@ -151,7 +147,7 @@ impl Viewer1D {
         graph.add_link_from_transient("viz_data_buffer", draw_node, 3);
         graph.add_link_from_transient("sampler", draw_node, 4);
         graph.add_link_from_transient("color_texture", draw_node, 5);
-        graph.add_link_from_transient("color_mapping", draw_node, 6);
+        graph.add_link_from_transient("color_map", draw_node, 6);
         graph.add_link_from_transient("transform", draw_node, 7);
 
         /*
@@ -199,61 +195,6 @@ impl Viewer1D {
         };
 
         let mut gpu_buffers = HashMap::default();
-
-        let strand_color_map = {
-            let mut colors = shared.colors.blocking_write();
-
-            let id = colors.get_color_scheme_id("black_red").unwrap();
-            let scheme = colors.get_color_scheme(id);
-
-            let color_range = 2..=5u32;
-            let val_range = 0f32..=1.0;
-
-            let mapping = ColorMapping::new(
-                id,
-                color_range,
-                val_range,
-                1,
-                (scheme.colors.len() - 1) as u32,
-            );
-
-            // not really necessary to do here, but ensures it's ready
-            let _buffer =
-                colors.get_color_mapping_gpu_buffer(state, mapping).unwrap();
-
-            colors.create_color_scheme_texture(state, "black_red");
-
-            mapping
-        };
-
-        let depth_color_map = {
-            let mut colors = shared.colors.blocking_write();
-
-            let id = colors.get_color_scheme_id("spectral").unwrap();
-            let scheme = colors.get_color_scheme(id);
-
-            let color_range = 0..=((scheme.colors.len() - 1) as u32);
-            let val_range = 1f32..=14.0;
-
-            let mapping = ColorMapping::new(
-                id,
-                color_range,
-                val_range,
-                0,
-                (scheme.colors.len() - 1) as u32,
-            );
-
-            let _buffer =
-                colors.get_color_mapping_gpu_buffer(state, mapping).unwrap();
-
-            colors.create_color_scheme_texture(state, "spectral");
-
-            mapping
-        };
-
-        let mut data_color_mappings = HashMap::default();
-        data_color_mappings.insert("strand".to_string(), strand_color_map);
-        data_color_mappings.insert("depth".to_string(), depth_color_map);
 
         gpu_buffers.insert("viz_data_buffer".to_string(), viz_data_buffer);
 
@@ -317,14 +258,12 @@ impl Viewer1D {
             Arc::new(AtomicCell::new(VizInteractions::default()));
         let connected_viz_interact = None;
 
-        let color_sampler = crate::color::create_linear_sampler(&state.device);
-
         let color_mapping = ColorMap {
             value_range: [0.0, 1.0],
             color_range: [0.0, 1.0],
         };
 
-        let new_color_mapping = crate::util::Uniform::new(
+        let color_mapping = crate::util::Uniform::new(
             &state,
             wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
             "Viewer 1D Color Mapping",
@@ -360,10 +299,8 @@ impl Viewer1D {
             shared: shared.clone(),
 
             active_viz_data_key,
-            data_color_mappings,
 
-            color_sampler,
-            new_color_mapping,
+            color_mapping,
         })
     }
 
@@ -855,10 +792,6 @@ impl AppWindow for Viewer1D {
                     let mut current_key = self.active_viz_data_key.clone();
 
                     for key in path_data_sources {
-                        if !self.data_color_mappings.contains_key(key) {
-                            continue;
-                        }
-
                         if ui
                             .add_enabled(
                                 key != &current_key,
@@ -876,15 +809,16 @@ impl AppWindow for Viewer1D {
 
             egui::Window::new("Color Mapping").show(egui_ctx.ctx(), |ui| {
                 let colors = self.shared.colors.blocking_read();
-                let mapping = self
-                    .data_color_mappings
+
+                let id = self
+                    .shared
+                    .data_color_schemes
                     .get(&self.active_viz_data_key)
                     .unwrap();
-                let id = mapping.color_scheme;
 
-                let color_scheme = colors.get_color_scheme(id);
+                let color_scheme = colors.get_color_scheme(*id);
 
-                let mut color_map = *self.new_color_mapping.data_ref();
+                let mut color_map = *self.color_mapping.data_ref();
 
                 let scheme_name = &self.active_viz_data_key;
 
@@ -909,7 +843,7 @@ impl AppWindow for Viewer1D {
                     ui.add(color_map_widget);
                 }
 
-                self.new_color_mapping.update_data_maybe_write(|cm| {
+                self.color_mapping.update_data_maybe_write(|cm| {
                     let changed = *cm != color_map;
                     *cm = color_map;
                     changed
@@ -987,7 +921,7 @@ impl AppWindow for Viewer1D {
         swapchain_view: &wgpu::TextureView,
         encoder: &mut wgpu::CommandEncoder,
     ) -> anyhow::Result<()> {
-        self.new_color_mapping.write_buffer(&state);
+        self.color_mapping.write_buffer(&state);
 
         let size: [u32; 2] = window.window.inner_size().into();
 
@@ -1026,21 +960,22 @@ impl AppWindow for Viewer1D {
             },
         );
 
-        let (tex, tex_size) = {
+        let (sampler, tex, tex_size) = {
             let colors = self.shared.colors.blocking_read();
-            let mapping = self
-                .data_color_mappings
+
+            let sampler = colors.linear_sampler.clone();
+
+            let id = self
+                .shared
+                .data_color_schemes
                 .get(&self.active_viz_data_key)
                 .unwrap();
-            let id = mapping.color_scheme;
 
-            let scheme = colors.get_color_scheme(id);
+            let scheme = colors.get_color_scheme(*id);
             let size = [scheme.colors.len() as u32, 1];
 
-            (colors.get_color_scheme_texture(id).unwrap(), size)
+            (sampler, colors.get_color_scheme_texture(*id).unwrap(), size)
         };
-
-        let sampler = &self.color_sampler;
 
         let texture = &tex.0;
         let view = &tex.1;
@@ -1061,21 +996,18 @@ impl AppWindow for Viewer1D {
             InputResource::Texture {
                 size: tex_size,
                 format,
-                sampler: Some(sampler),
+                sampler: Some(&sampler),
                 texture: None,
                 view: None,
             },
         );
 
-        let color_map_buf = self.new_color_mapping.buffer();
-        let buf_size = self.new_color_mapping.buffer_size();
-
         transient_res.insert(
-            "color_mapping".into(),
+            "color_map".into(),
             InputResource::Buffer {
-                size: buf_size,
+                size: self.color_mapping.buffer_size(),
                 stride: None,
-                buffer: color_map_buf,
+                buffer: self.color_mapping.buffer(),
             },
         );
 

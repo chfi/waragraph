@@ -12,7 +12,11 @@ use std::{collections::HashMap, path::PathBuf, sync::Arc};
 
 use anyhow::Result;
 
-use crate::{color::ColorStore, viewer_1d::Viewer1D, viewer_2d::Viewer2D};
+use crate::{
+    color::{ColorSchemeId, ColorStore},
+    viewer_1d::Viewer1D,
+    viewer_2d::Viewer2D,
+};
 
 mod window;
 
@@ -33,6 +37,8 @@ pub struct SharedState {
 
     pub gfa_path: Arc<PathBuf>,
     pub tsv_path: Option<Arc<PathBuf>>,
+
+    pub data_color_schemes: HashMap<String, ColorSchemeId>,
 
     // TODO these cells are clunky and temporary
     viewer_1d_interactions: Arc<AtomicCell<VizInteractions>>,
@@ -55,7 +61,7 @@ pub struct App {
 }
 
 impl App {
-    pub fn init(args: Args) -> Result<Self> {
+    pub fn init(state: &raving_wgpu::State, args: Args) -> Result<Self> {
         let runtime = tokio::runtime::Builder::new_multi_thread()
             .worker_threads(4)
             .thread_name("waragraph-tokio")
@@ -72,7 +78,25 @@ impl App {
 
             let graph_data_cache = Arc::new(GraphDataCache::init(&path_index));
 
-            let colors = Arc::new(RwLock::new(ColorStore::init()));
+            let colors = Arc::new(RwLock::new(ColorStore::init(state)));
+
+            let mut data_color_schemes = HashMap::default();
+
+            {
+                // let mut colors = shared.colors.blocking_write();
+                let mut colors = colors.blocking_write();
+
+                let mut add_entry = |data: &str, color: &str| {
+                    let scheme = colors.get_color_scheme_id(color).unwrap();
+
+                    colors.create_color_scheme_texture(state, color);
+
+                    data_color_schemes.insert(data.into(), scheme);
+                };
+
+                add_entry("depth", "spectral");
+                add_entry("strand", "black_red");
+            }
 
             SharedState {
                 graph: path_index,
@@ -81,6 +105,8 @@ impl App {
                 graph_data_cache,
 
                 colors,
+
+                data_color_schemes,
 
                 gfa_path,
                 tsv_path,

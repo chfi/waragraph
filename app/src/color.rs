@@ -31,9 +31,11 @@ pub struct ColorStore {
 
     mapping_buffers: BTreeMap<ColorMapping, Arc<wgpu::Buffer>>,
     // egui_textures: HashMap<ColorSchemeId, egui::TextureId>,
+    pub linear_sampler: Arc<wgpu::Sampler>,
+    pub nearest_sampler: Arc<wgpu::Sampler>,
 }
 
-pub(crate) fn create_linear_sampler(device: &wgpu::Device) -> wgpu::Sampler {
+fn create_linear_sampler(device: &wgpu::Device) -> wgpu::Sampler {
     let address_mode = wgpu::AddressMode::ClampToEdge;
 
     let sampler_desc = wgpu::SamplerDescriptor {
@@ -54,6 +56,27 @@ pub(crate) fn create_linear_sampler(device: &wgpu::Device) -> wgpu::Sampler {
     device.create_sampler(&sampler_desc)
 }
 
+fn create_nearest_sampler(device: &wgpu::Device) -> wgpu::Sampler {
+    let address_mode = wgpu::AddressMode::ClampToEdge;
+
+    let sampler_desc = wgpu::SamplerDescriptor {
+        label: Some("Texture Sampler - Color Schemes, Nearest"),
+        address_mode_u: address_mode,
+        address_mode_v: address_mode,
+        address_mode_w: address_mode,
+        mag_filter: wgpu::FilterMode::Nearest,
+        min_filter: wgpu::FilterMode::Nearest,
+        mipmap_filter: wgpu::FilterMode::Nearest,
+        lod_min_clamp: 1.0,
+        lod_max_clamp: 1.0,
+        compare: None,
+        anisotropy_clamp: None,
+        border_color: None,
+    };
+
+    device.create_sampler(&sampler_desc)
+}
+
 impl ColorStore {
     pub fn get_color_scheme_id(&self, name: &str) -> Option<ColorSchemeId> {
         self.scheme_name_map.get(name).copied()
@@ -63,7 +86,10 @@ impl ColorStore {
         &self.color_schemes[id.0]
     }
 
-    pub fn init() -> Self {
+    pub fn init(state: &raving_wgpu::State) -> Self {
+        let linear_sampler = Arc::new(create_linear_sampler(&state.device));
+        let nearest_sampler = Arc::new(create_nearest_sampler(&state.device));
+
         let mut result = Self {
             scheme_name_map: HashMap::default(),
             color_schemes: Vec::new(),
@@ -72,6 +98,8 @@ impl ColorStore {
             scheme_textures: HashMap::default(),
 
             mapping_buffers: BTreeMap::default(),
+            linear_sampler,
+            nearest_sampler,
             // egui_textures: HashMap::default(),
         };
 
@@ -98,7 +126,11 @@ impl ColorStore {
         ];
         result.add_color_scheme("spectral", spectral);
 
-        let black_red = [rgba(0, 0, 0), rgba(255, 0, 0)];
+        let black_red = (0..8).map(|i: i32| {
+            // for i = 8 this is 255, which is what we want
+            let r = ((i * 64 - 1) / 2).max(0);
+            rgba(r as u8, 0, 0)
+        });
 
         result.add_color_scheme("black_red", black_red);
 

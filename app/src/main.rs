@@ -21,7 +21,7 @@ pub fn main() -> Result<()> {
     let (event_loop, state) =
         pollster::block_on(raving_wgpu::initialize_no_window())?;
 
-    let mut app = App::init(args)?;
+    let mut app = App::init(&state, args)?;
 
     app.init_viewer_1d(&event_loop, &state)?;
 

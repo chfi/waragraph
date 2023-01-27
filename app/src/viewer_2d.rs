@@ -1,5 +1,5 @@
 use crate::app::{AppWindow, SharedState, VizInteractions};
-use crate::color::ColorMapping;
+use crate::color::{ColorMap, ColorMapping};
 
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -57,7 +57,7 @@ pub struct Viewer2D {
     shared: SharedState,
 
     active_viz_data_key: String,
-    color_mapping: ColorMapping,
+    color_mapping: crate::util::Uniform<ColorMap, 16>,
     data_buffer: wgpu::Buffer,
 }
 
@@ -126,8 +126,7 @@ impl Viewer2D {
             ));
             let frag_src = include_bytes!(concat!(
                 env!("CARGO_MANIFEST_DIR"),
-                // "/shaders/path_2d_direct_index.frag.spv"
-                "/shaders/path_2d_color_map.frag.spv"
+                "/shaders/path_2d_color_map_new.frag.spv"
             ));
 
             let primitive = wgpu::PrimitiveState {
@@ -188,8 +187,13 @@ impl Viewer2D {
         graph.add_link_from_transient("vert_cfg", draw_node, 3);
 
         graph.add_link_from_transient("node_data", draw_node, 4);
-        graph.add_link_from_transient("color", draw_node, 5);
-        graph.add_link_from_transient("color_mapping", draw_node, 6);
+
+        graph.add_link_from_transient("sampler", draw_node, 5);
+        graph.add_link_from_transient("color_texture", draw_node, 6);
+        graph.add_link_from_transient("color_map", draw_node, 7);
+
+        // graph.add_link_from_transient("color", draw_node, 5);
+        // graph.add_link_from_transient("color_mapping", draw_node, 6);
 
         let instances = instance_count as u32;
         println!("instance count: {instances}");
@@ -203,30 +207,6 @@ impl Viewer2D {
         let self_viz_interact =
             Arc::new(AtomicCell::new(VizInteractions::default()));
         let connected_viz_interact = None;
-
-        let color_mapping = {
-            let mut colors = shared.colors.blocking_write();
-
-            let id = colors.get_color_scheme_id("spectral").unwrap();
-            let scheme = colors.get_color_scheme(id);
-
-            let color_range = 1..=(scheme.colors.len() as u32);
-            let val_range = 0f32..=13.0;
-
-            let mapping = ColorMapping::new(
-                id,
-                color_range,
-                val_range,
-                0,
-                (scheme.colors.len() - 1) as u32,
-            );
-
-            // not really necessary to do here, but ensures it's ready
-            let _buffer =
-                colors.get_color_mapping_gpu_buffer(state, mapping).unwrap();
-
-            mapping
-        };
 
         // let active_viz_data_key = "node_id".to_string();
         let active_viz_data_key = "depth".to_string();
@@ -244,6 +224,22 @@ impl Viewer2D {
                 usage: buffer_usage,
             })
         };
+
+        let color_mapping = ColorMap {
+            value_range: [0.0, 13.0],
+            color_range: [0.0, 1.0],
+        };
+
+        let color_mapping = crate::util::Uniform::new(
+            &state,
+            wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            "Viewer 1D Color Mapping",
+            color_mapping,
+            |cm| {
+                let data: [u8; 16] = bytemuck::cast(*cm);
+                data
+            },
+        )?;
 
         Ok(Self {
             node_positions: Arc::new(node_positions),
@@ -535,22 +531,6 @@ impl AppWindow for Viewer2D {
             },
         );
 
-        let (color_buf, color_buf_size, color_map_buf) = {
-            let mut colors = self.shared.colors.blocking_write();
-            let mapping = self.color_mapping;
-            let id = mapping.color_scheme;
-
-            let scheme = colors.get_color_scheme(id);
-            let color_buf_size = scheme.required_buffer_size();
-            let color_buf = colors.get_color_scheme_gpu_buffer(id).unwrap();
-
-            let map_buf = colors
-                .get_color_mapping_gpu_buffer(&state, mapping)
-                .unwrap();
-
-            (color_buf, color_buf_size, map_buf)
-        };
-
         let data_buf_size =
             self.shared.graph.node_count * std::mem::size_of::<[f32; 5]>();
         // println!("data_buf
@@ -564,23 +544,78 @@ impl AppWindow for Viewer2D {
             },
         );
 
+        // transient_res.insert(
+        //     "color".to_string(),
+        //     InputResource::Buffer {
+        //         size: color_buf_size,
+        //         stride: None,
+        //         buffer: &color_buf,
+        //     },
+        // );
+
+        // transient_res.insert(
+        //     "color_mapping".to_string(),
+        //     InputResource::Buffer {
+        //         size: 24,
+        //         stride: None,
+        //         buffer: &color_map_buf,
+        //     },
+        // );
+
+        ////
+
+        let (sampler, tex, tex_size) = {
+            let colors = self.shared.colors.blocking_read();
+
+            let sampler = colors.linear_sampler.clone();
+
+            let id = self
+                .shared
+                .data_color_schemes
+                .get(&self.active_viz_data_key)
+                .unwrap();
+
+            let scheme = colors.get_color_scheme(*id);
+            let size = [scheme.colors.len() as u32, 1];
+
+            (sampler, colors.get_color_scheme_texture(*id).unwrap(), size)
+        };
+
+        let texture = &tex.0;
+        let view = &tex.1;
+
         transient_res.insert(
-            "color".to_string(),
-            InputResource::Buffer {
-                size: color_buf_size,
-                stride: None,
-                buffer: &color_buf,
+            "color_texture".to_string(),
+            InputResource::Texture {
+                size: tex_size,
+                format,
+                sampler: None,
+                texture: Some(texture),
+                view: Some(view),
             },
         );
 
         transient_res.insert(
-            "color_mapping".to_string(),
-            InputResource::Buffer {
-                size: 24,
-                stride: None,
-                buffer: &color_map_buf,
+            "sampler".to_string(),
+            InputResource::Texture {
+                size: tex_size,
+                format,
+                sampler: Some(&sampler),
+                texture: None,
+                view: None,
             },
         );
+
+        transient_res.insert(
+            "color_map".into(),
+            InputResource::Buffer {
+                size: self.color_mapping.buffer_size(),
+                stride: None,
+                buffer: self.color_mapping.buffer(),
+            },
+        );
+
+        /////
 
         transient_res.insert(
             "vert_cfg".into(),
