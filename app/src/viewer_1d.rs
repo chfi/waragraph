@@ -1101,46 +1101,6 @@ impl AppWindow for Viewer1D {
             },
         );
 
-        /*
-
-        let (color_buf, color_buf_size, color_map_buf) = {
-            let mut colors = self.shared.colors.blocking_write();
-            let mapping = self
-                .data_color_mappings
-                .get(&self.active_viz_data_key)
-                .unwrap();
-            let id = mapping.color_scheme;
-
-            let scheme = colors.get_color_scheme(id);
-            let color_buf_size = scheme.required_buffer_size();
-            let color_buf = colors.get_color_scheme_gpu_buffer(id).unwrap();
-
-            let map_buf = colors
-                .get_color_mapping_gpu_buffer(&state, *mapping)
-                .unwrap();
-
-            (color_buf, color_buf_size, map_buf)
-        };
-
-        transient_res.insert(
-            "color".to_string(),
-            InputResource::Buffer {
-                size: color_buf_size,
-                stride: None,
-                buffer: &color_buf,
-            },
-        );
-
-        transient_res.insert(
-            "color_mapping".to_string(),
-            InputResource::Buffer {
-                size: 24,
-                stride: None,
-                buffer: &color_map_buf,
-            },
-        );
-        */
-
         for name in ["viz_data_buffer"] {
             if let Some(desc) = self.gpu_buffers.get(name) {
                 transient_res.insert(

@@ -39,10 +39,11 @@ pub struct SharedState {
     viewer_2d_interactions: Arc<AtomicCell<VizInteractions>>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum AppType {
     Viewer1D,
     Viewer2D,
+    Custom(String),
 }
 
 pub struct App {
@@ -100,6 +101,28 @@ impl App {
             windows: HashMap::default(),
             apps: HashMap::default(),
         })
+    }
+
+    pub fn init_custom_window(
+        &mut self,
+        event_loop: &EventLoop<()>,
+        state: &raving_wgpu::State,
+        id: &str,
+        title: Option<&str>,
+        constructor: impl FnOnce(&WindowState) -> anyhow::Result<Box<dyn AppWindow>>,
+    ) -> Result<()> {
+        let id = id.to_string();
+        let title = title.map(|s| s.to_string()).unwrap_or(id.clone());
+        let app_id = AppType::Custom(id);
+
+        let app = AppWindowState::init(event_loop, state, &title, constructor)?;
+
+        let winid = app.window.window.id();
+
+        self.apps.insert(app_id.clone(), app);
+        self.windows.insert(winid, app_id);
+
+        Ok(())
     }
 
     pub fn init_viewer_1d(
