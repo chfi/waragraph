@@ -2,12 +2,12 @@ use anyhow::Result;
 use std::collections::HashMap;
 use ultraviolet::Vec2;
 
-use waragraph_core::graph::PathIndex;
+use waragraph_core::graph::{Bp, PathIndex};
 
 #[derive(Default, Clone)]
 struct AnnotationStore {
     // path name -> list of (range, text) pairs
-    path_annotations: HashMap<String, Vec<(std::ops::Range<usize>, String)>>,
+    path_annotations: HashMap<String, Vec<(std::ops::Range<Bp>, String)>>,
 }
 
 impl AnnotationStore {
@@ -62,7 +62,7 @@ impl AnnotationStore {
                 self.path_annotations
                     .entry(path.to_string())
                     .or_default()
-                    .push((start..end, name.to_string()))
+                    .push((Bp(start as u64)..Bp(end as u64), name.to_string()))
             }
         }
 

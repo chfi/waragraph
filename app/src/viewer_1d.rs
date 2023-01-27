@@ -1,6 +1,6 @@
 use crate::app::resource::GraphPathData;
 use crate::app::{AppWindow, SharedState, VizInteractions};
-use crate::color::ColorMapping;
+use crate::color::{ColorMap, ColorMapping};
 use crate::gui::list::DynamicListLayout;
 use crate::gui::FlexLayout;
 use crate::list::ListView;
@@ -70,16 +70,7 @@ pub struct Viewer1D {
 
     color_sampler: wgpu::Sampler,
 
-    new_color_mapping: crate::util::Uniform<NewColorMap, 16>,
-}
-
-#[derive(
-    Clone, Copy, PartialEq, PartialOrd, bytemuck::Pod, bytemuck::Zeroable,
-)]
-#[repr(C)]
-struct NewColorMap {
-    value_range: [f32; 2],
-    color_range: [f32; 2],
+    new_color_mapping: crate::util::Uniform<ColorMap, 16>,
 }
 
 impl Viewer1D {
@@ -327,7 +318,7 @@ impl Viewer1D {
 
         let color_sampler = crate::color::create_linear_sampler(&state.device);
 
-        let color_mapping = NewColorMap {
+        let color_mapping = ColorMap {
             value_range: [0.0, 13.0],
             color_range: [0.0, 1.0],
         };

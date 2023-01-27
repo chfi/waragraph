@@ -6,6 +6,17 @@ use wgpu::{
     BufferUsages,
 };
 
+pub mod widget;
+
+#[derive(
+    Clone, Copy, PartialEq, PartialOrd, bytemuck::Pod, bytemuck::Zeroable,
+)]
+#[repr(C)]
+pub struct ColorMap {
+    pub value_range: [f32; 2],
+    pub color_range: [f32; 2],
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ColorSchemeId(usize);
 
@@ -19,6 +30,7 @@ pub struct ColorStore {
         HashMap<ColorSchemeId, Arc<(wgpu::Texture, wgpu::TextureView)>>,
 
     mapping_buffers: BTreeMap<ColorMapping, Arc<wgpu::Buffer>>,
+    // egui_textures: HashMap<ColorSchemeId, egui::TextureId>,
 }
 
 pub(crate) fn create_linear_sampler(device: &wgpu::Device) -> wgpu::Sampler {
@@ -60,6 +72,7 @@ impl ColorStore {
             scheme_textures: HashMap::default(),
 
             mapping_buffers: BTreeMap::default(),
+            // egui_textures: HashMap::default(),
         };
 
         let rgba = |r: u8, g: u8, b: u8| {
@@ -98,6 +111,25 @@ impl ColorStore {
         result.add_color_scheme("black_red", black_red);
 
         result
+    }
+
+    pub fn upload_egui_texture(
+        &mut self,
+        ctx: &egui::Context,
+        schema_name: &str,
+    ) {
+        let opts = egui::TextureOptions {
+            magnification: egui::TextureFilter::Linear,
+            minification: egui::TextureFilter::Linear,
+        };
+
+        let name = format!("Color Scheme: {schema_name}");
+
+        // let image_data = egui::ColorImage::from_rgb
+
+        // ctx.load_texture(name, image_data, opts);
+
+        todo!();
     }
 
     pub fn create_color_scheme_texture(
