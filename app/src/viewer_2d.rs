@@ -1,5 +1,5 @@
 use crate::app::{AppWindow, SharedState, VizInteractions};
-use crate::color::{ColorMap, ColorMapping};
+use crate::color::ColorMap;
 
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -126,7 +126,7 @@ impl Viewer2D {
             ));
             let frag_src = include_bytes!(concat!(
                 env!("CARGO_MANIFEST_DIR"),
-                "/shaders/path_2d_color_map_new.frag.spv"
+                "/shaders/path_2d_color_map.frag.spv"
             ));
 
             let primitive = wgpu::PrimitiveState {

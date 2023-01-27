@@ -9,36 +9,22 @@ layout (set = 1, binding = 0) readonly buffer NodeData {
   float values[];
 } data;
 
-layout (set = 1, binding = 1) readonly buffer Colors {
-  uint len;
-  vec4 colors[];
-} colors;
+layout (set = 1, binding = 1) uniform sampler u_sampler;
+layout (set = 1, binding = 2) uniform texture1D u_colors;
 
-layout (set = 1, binding = 2) uniform ColorMap {
-  uint min_color_ix;
-  uint max_color_ix;
-  uint extreme_min_color_ix;
-  uint extreme_max_color_ix;
+layout (set = 1, binding = 3) uniform ColorMap {
   float min_val;
   float max_val;
-} color_map;
+  float min_color;
+  float max_color;
+} u_color_map;
 
 void main() {
-  float val = data.values[i_node_id];
+  float v = data.values[i_node_id];
 
-  uint c_range_len = color_map.max_color_ix - color_map.min_color_ix;
-  float val_range = color_map.max_val - color_map.min_val;
+  float v_n = (v - u_color_map.min_val) / (u_color_map.max_val - u_color_map.min_val);
+  float c_n = mix(u_color_map.min_color, u_color_map.max_color, v_n);
+  vec4 color = texture(sampler1D(u_colors, u_sampler), c_n);
 
-  uint ix = min(uint(round(val)), c_range_len - 1) + 1;
-  // uint ix = uint(round(val)) % (c_range_len - 1);
-
-  if (val < color_map.min_val) {
-      ix = color_map.extreme_min_color_ix;
-  } else if (val > color_map.max_val) {
-      ix = color_map.extreme_max_color_ix;
-  } else {
-      ix = ix + color_map.min_color_ix;
-  }
-
-  f_color = colors.colors[ix];
+  f_color = color;
 }

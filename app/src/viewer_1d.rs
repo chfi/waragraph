@@ -1,7 +1,7 @@
 use crate::app::resource::GraphPathData;
 use crate::app::{AppWindow, SharedState, VizInteractions};
 use crate::color::widget::ColorMapWidget;
-use crate::color::{ColorMap, ColorMapping, ColorSchemeId};
+use crate::color::{ColorMap, ColorSchemeId};
 use crate::gui::list::DynamicListLayout;
 use crate::gui::FlexLayout;
 use crate::list::ListView;
@@ -88,7 +88,7 @@ impl Viewer1D {
             ));
             let frag_src = include_bytes!(concat!(
                 env!("CARGO_MANIFEST_DIR"),
-                "/shaders/path_slot_1d_color_map_new.frag.spv"
+                "/shaders/path_slot_1d_color_map.frag.spv"
             ));
 
             let primitive = wgpu::PrimitiveState {

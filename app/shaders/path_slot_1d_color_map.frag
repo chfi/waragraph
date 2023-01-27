@@ -9,29 +9,53 @@ layout (set = 1, binding = 0) readonly buffer DataBuf {
   uint total_size;
   uint row_size;
   float values[];
-} data;
+} u_data;
 
-layout (set = 1, binding = 1) readonly buffer Colors {
-  uint len;
-  vec4 colors[];
-} colors;
+layout (set = 1, binding = 1) uniform sampler u_sampler;
+layout (set = 1, binding = 2) uniform texture1D u_colors;
 
-layout (set = 1, binding = 2) uniform ColorMap {
-  uint min_color_ix;
-  uint max_color_ix;
-  uint extreme_min_color_ix;
-  uint extreme_max_color_ix;
+layout (set = 1, binding = 3) uniform ColorMap {
   float min_val;
   float max_val;
-} color_map;
+  float min_color;
+  float max_color;
+} u_color_map;
 
-layout (set = 1, binding = 3) uniform Transform {
+layout (set = 1, binding = 4) uniform Transform {
   float a;
   float b;
-} transform;
+} u_transform;
+
 
 
 void main() {
+  uint row_offset = i_slot_id * u_data.row_size;
+
+  float t = i_uv.x;
+
+  t = u_transform.a * t + u_transform.b;
+
+  float c_t = clamp(t, 0.0, 1.0);
+
+  uint data_ix = uint(round(c_t * float(u_data.row_size - 1)));
+
+  float v = u_data.values[row_offset + data_ix];
+
+  float v_n = (v - u_color_map.min_val) / (u_color_map.max_val - u_color_map.min_val);
+
+  float c_n = mix(u_color_map.min_color, u_color_map.max_color, v_n);
+
+  // v = (v - u_color_map.min_val) / (u_color_map.max_val - u_color_map.min_val);
+
+  vec4 color = texture(sampler1D(u_colors, u_sampler), c_n);
+
+  f_color = color;
+
+}
+
+  /*
+void main() {
+
   uint row_offset = i_slot_id * data.row_size;
 
   float t = i_uv.x;
@@ -71,3 +95,4 @@ void main() {
     f_color = color;
   }
 }
+  */
