@@ -6,14 +6,14 @@ use wgpu::util::{BufferInitDescriptor, DeviceExt};
 
 use waragraph_core::graph::sampling::PathDepthData;
 
-use crate::app::resource::GraphPathData;
+use crate::app::resource::{FStats, GraphPathData};
 
 use super::BufferDesc;
 
-pub(super) fn path_sampled_data_viz_buffer(
+pub(super) fn path_sampled_data_viz_buffer<S>(
     device: &wgpu::Device,
     index: &PathIndex,
-    data: &GraphPathData<f32>,
+    data: &GraphPathData<f32, S>,
     paths: impl IntoIterator<Item = PathId>,
     view_range: std::ops::Range<u64>,
     bins: usize,

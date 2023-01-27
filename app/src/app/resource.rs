@@ -47,15 +47,54 @@ impl AnyArcMap {
     }
 }
 
-pub struct GraphData<T> {
+pub struct GraphData<T, Stats> {
     pub node_data: Vec<T>,
+    pub stats: Stats,
 }
 
-pub struct GraphPathData<T> {
+pub struct GraphPathData<T, Stats> {
     pub path_data: Vec<Vec<T>>,
+    pub path_stats: Vec<Stats>,
+    pub global_stats: Stats,
 }
 
-impl<T> PathData<T> for GraphPathData<T> {
+#[derive(Clone, Copy, PartialEq)]
+pub struct FStats {
+    min: f32,
+    max: f32,
+    // mean: Option<f32>,
+    // var: Option<f32>,
+    // std_dev: f32,
+}
+
+impl FStats {
+    pub fn from_items(items: impl Iterator<Item = f32>) -> Self {
+        let mut result = Self {
+            min: std::f32::INFINITY,
+            max: std::f32::NEG_INFINITY,
+            // var: 0.0,
+            // std_dev: 0.0,
+        };
+
+        // let mut sum = 0.0;
+        // let mut count = 0.0;
+
+        for item in items {
+            result.min = result.min.min(item);
+            result.max = result.max.max(item);
+            // result.sum += item;
+
+            // sum += item;
+            // count += 1.0;
+        }
+
+        // result.mean = sum / count;
+
+        result
+    }
+}
+
+impl<T, S> PathData<T> for GraphPathData<T, S> {
     fn get_path(&self, path_id: PathId) -> &[T] {
         &self.path_data[path_id.ix()]
     }
@@ -165,8 +204,8 @@ impl GraphDataSources {
 
 pub struct GraphDataCache {
     graph: Arc<PathIndex>,
-    graph_f32: RwLock<HashMap<String, Arc<GraphData<f32>>>>,
-    path_f32: RwLock<HashMap<String, Arc<GraphPathData<f32>>>>,
+    graph_f32: RwLock<HashMap<String, Arc<GraphData<f32, FStats>>>>,
+    path_f32: RwLock<HashMap<String, Arc<GraphPathData<f32, FStats>>>>,
 
     sources: GraphDataSources,
 }
@@ -203,7 +242,7 @@ impl GraphDataCache {
     pub fn fetch_graph_data_blocking(
         &self,
         key: &str,
-    ) -> Option<Arc<GraphData<f32>>> {
+    ) -> Option<Arc<GraphData<f32, FStats>>> {
         if let Some(data) = self.graph_f32.blocking_read().get(key) {
             return Some(data.clone());
         }
@@ -211,7 +250,10 @@ impl GraphDataCache {
         let source = self.sources.graph_f32.get(key)?;
 
         let node_data = source().unwrap();
-        let data = Arc::new(GraphData { node_data });
+
+        let stats = FStats::from_items(node_data.iter().copied());
+
+        let data = Arc::new(GraphData { node_data, stats });
 
         self.graph_f32
             .blocking_write()
@@ -223,7 +265,7 @@ impl GraphDataCache {
     pub fn fetch_path_data_blocking(
         &self,
         key: &str,
-    ) -> Option<Arc<GraphPathData<f32>>> {
+    ) -> Option<Arc<GraphPathData<f32, FStats>>> {
         if let Some(data) = self.path_f32.blocking_read().get(key) {
             return Some(data.clone());
         }
@@ -233,12 +275,31 @@ impl GraphDataCache {
         let path_ids = self.graph.path_names.left_values();
         let mut data = Vec::with_capacity(self.graph.path_names.len());
 
+        let mut path_stats = Vec::new();
+
+        let mut global_stats = FStats {
+            min: std::f32::INFINITY,
+            max: std::f32::NEG_INFINITY,
+        };
+
         for &path in path_ids {
             let path_data = source(path).unwrap();
+
+            let stats = FStats::from_items(path_data.iter().copied());
+
+            global_stats.min = global_stats.min.min(stats.min);
+            global_stats.max = global_stats.max.max(stats.max);
+
+            path_stats.push(stats);
+
             data.push(path_data);
         }
 
-        let data = Arc::new(GraphPathData { path_data: data });
+        let data = Arc::new(GraphPathData {
+            path_data: data,
+            path_stats,
+            global_stats,
+        });
 
         self.path_f32
             .blocking_write()

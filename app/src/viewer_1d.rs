@@ -400,9 +400,9 @@ impl Viewer1D {
         size
     }
 
-    fn sample_into_vec(
+    fn sample_into_vec<S>(
         index: &PathIndex,
-        data: &GraphPathData<f32>,
+        data: &GraphPathData<f32, S>,
         paths: &[PathId],
         view_range: std::ops::Range<u64>,
         buffer: &mut Vec<u8>,
@@ -413,9 +413,9 @@ impl Viewer1D {
         Self::sample_into_data_buffer(index, data, paths, view_range, buffer)
     }
 
-    fn sample_into_data_buffer(
+    fn sample_into_data_buffer<S>(
         index: &PathIndex,
-        data: &GraphPathData<f32>,
+        data: &GraphPathData<f32, S>,
         paths: &[PathId],
         view_range: std::ops::Range<u64>,
         buffer: &mut [u8],
