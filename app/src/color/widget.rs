@@ -2,6 +2,8 @@ use std::sync::Arc;
 
 use egui::{mutex::Mutex, Color32, Context, Id, Response, Ui};
 
+use crate::app::resource::FStats;
+
 use super::{ColorMap, ColorScheme, ColorSchemeId};
 
 pub struct ColorMapWidget<'a> {
@@ -14,6 +16,8 @@ pub struct ColorMapWidgetState {
     // TODO: maybe store the WindowId here for reference, since the
     // egui contexts are paired with windows
     texture_handle: Arc<Mutex<Option<(ColorSchemeId, egui::TextureHandle)>>>,
+
+    data_mode: String,
 }
 
 impl ColorMapWidgetState {
@@ -71,16 +75,27 @@ impl<'a> ColorMapWidget<'a> {
     pub fn new(
         ctx: &Context,
         id: Id,
+        data_stats: impl Fn(&str) -> Option<FStats>,
+        data_mode: &str,
         scheme_name: &str,
         color_scheme: &ColorScheme,
         color_map: &'a mut ColorMap,
     ) -> Self {
-        let state = ColorMapWidgetState::load(ctx, id).unwrap_or_default();
+        let mut state = ColorMapWidgetState::load(ctx, id).unwrap_or_default();
 
         // just upload the state here/on creation -- no need to
         // try to do it as part of show(), which will be limited
         // by the Widget trait
         state.prepare_color_scheme(ctx, scheme_name, color_scheme);
+
+        if state.data_mode != data_mode {
+            if let Some(stats) = data_stats(data_mode) {
+                color_map.value_range = [stats.min, stats.max];
+                color_map.color_range = [0.0, 1.0];
+            }
+
+            state.data_mode = data_mode.to_string();
+        }
 
         state.store(ctx, id);
 

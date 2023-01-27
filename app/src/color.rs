@@ -81,7 +81,7 @@ impl ColorStore {
         };
 
         let spectral = [
-            rgba(255, 255, 255),
+            // rgba(255, 255, 255),
             rgba(196, 196, 196),
             rgba(128, 128, 128),
             rgba(158, 1, 66),
@@ -98,15 +98,7 @@ impl ColorStore {
         ];
         result.add_color_scheme("spectral", spectral);
 
-        let black_red = [
-            rgba(255, 255, 255),
-            rgba(0, 0, 0),
-            rgba(0, 0, 0),
-            rgba(0, 0, 0),
-            rgba(255, 0, 0),
-            rgba(255, 0, 0),
-            rgba(255, 0, 0),
-        ];
+        let black_red = [rgba(0, 0, 0), rgba(255, 0, 0)];
 
         result.add_color_scheme("black_red", black_red);
 

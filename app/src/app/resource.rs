@@ -60,8 +60,8 @@ pub struct GraphPathData<T, Stats> {
 
 #[derive(Clone, Copy, PartialEq)]
 pub struct FStats {
-    min: f32,
-    max: f32,
+    pub min: f32,
+    pub max: f32,
     // mean: Option<f32>,
     // var: Option<f32>,
     // std_dev: f32,

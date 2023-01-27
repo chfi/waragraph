@@ -320,7 +320,7 @@ impl Viewer1D {
         let color_sampler = crate::color::create_linear_sampler(&state.device);
 
         let color_mapping = ColorMap {
-            value_range: [0.0, 13.0],
+            value_range: [0.0, 1.0],
             color_range: [0.0, 1.0],
         };
 
@@ -888,10 +888,19 @@ impl AppWindow for Viewer1D {
 
                 let scheme_name = &self.active_viz_data_key;
 
+                let data_cache = &self.shared.graph_data_cache;
+                let stats_getter = |key: &str| {
+                    let data = data_cache.fetch_path_data_blocking(key)?;
+                    Some(data.global_stats)
+                };
+
                 {
+                    let data_mode = &self.active_viz_data_key;
                     let color_map_widget = ColorMapWidget::new(
                         ui.ctx(),
                         "Viewer1D-ColorMapWidget".into(),
+                        stats_getter,
+                        &data_mode,
                         scheme_name,
                         &color_scheme,
                         &mut color_map,
