@@ -32,6 +32,7 @@ pub use window::AppWindowState;
 use self::{
     main_menu::WindowDelta,
     resource::{AnyArcMap, GraphDataCache},
+    settings_menu::SettingsWindow,
     window::AsleepWindow,
     workspace::Workspace,
 };
@@ -74,6 +75,9 @@ pub struct App {
     pub apps: HashMap<AppType, AppWindowState>,
     // main_menu_target: Option<WindowId>,
     sleeping: HashMap<AppType, AsleepWindow>,
+
+    settings: SettingsWindow,
+    settings_window_tgt: Option<WindowId>,
 }
 
 impl App {
@@ -88,11 +92,21 @@ impl App {
         let path_index = waragraph_core::graph::PathIndex::from_gfa(&args.gfa)?;
         let path_index = Arc::new(path_index);
 
+        let mut settings = SettingsWindow::default();
+
         let shared = {
             let workspace = Arc::new(RwLock::new(Workspace {
                 gfa_path: args.gfa,
                 tsv_path: args.tsv,
             }));
+
+            {
+                let ws = workspace.clone();
+                settings.register_widget("Workspace", move |ui| {
+                    let mut ws = ws.blocking_write();
+                    ui.add((&mut ws) as &mut Workspace);
+                });
+            }
 
             let graph_data_cache = Arc::new(GraphDataCache::init(&path_index));
 
@@ -101,7 +115,6 @@ impl App {
             let mut data_color_schemes = HashMap::default();
 
             {
-                // let mut colors = shared.colors.blocking_write();
                 let mut colors = colors.blocking_write();
 
                 let mut add_entry = |data: &str, color: &str| {
@@ -149,6 +162,9 @@ impl App {
             apps: HashMap::default(),
 
             sleeping: HashMap::default(),
+
+            settings,
+            settings_window_tgt: None,
             // main_menu_ctx,
         })
     }
@@ -244,6 +260,7 @@ impl App {
         let winid = app.window.window.id();
 
         self.apps.insert(AppType::Viewer1D, app);
+        self.settings_window_tgt = Some(winid);
         self.windows.insert(winid, AppType::Viewer1D);
 
         Ok(())
@@ -398,6 +415,13 @@ impl App {
 
                     for (_app_type, app) in self.apps.iter_mut() {
                         app.update(self.tokio_rt.handle(), &state, dt);
+
+                        if Some(app.window.window.id())
+                            == self.settings_window_tgt
+                        {
+                            self.settings.show(app.egui.ctx());
+                        }
+
                         app.window.window.request_redraw();
                     }
 

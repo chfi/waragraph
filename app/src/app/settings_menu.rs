@@ -13,6 +13,7 @@ struct SettingsHandler {
     // validate: Option<Box<dyn Fn() -> bool + Send + Sync + 'static>;
 }
 
+#[derive(Default)]
 pub struct SettingsWindow {
     handlers: Vec<SettingsHandler>,
 }

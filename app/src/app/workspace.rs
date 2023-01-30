@@ -17,7 +17,7 @@ impl Workspace {
 
 impl egui::Widget for &mut Workspace {
     fn ui(self, ui: &mut egui::Ui) -> egui::Response {
-        ui.horizontal(|ui| {
+        ui.horizontal_wrapped(|ui| {
             ui.label("GFA:");
             let mut gfa_buf =
                 self.gfa_path.clone().to_string_lossy().to_string();
@@ -31,6 +31,8 @@ impl egui::Widget for &mut Workspace {
                 .as_ref()
                 .map(|tsv| tsv.to_string_lossy().to_string())
                 .unwrap_or_default();
+
+            ui.label("Layout:");
             ui.add_enabled(enabled, egui::TextEdit::singleline(&mut tsv_buf));
 
             if ui.button("Choose").clicked() {
