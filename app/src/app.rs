@@ -4,7 +4,7 @@ use tokio::{runtime::Runtime, sync::RwLock};
 use waragraph_core::graph::{Bp, PathId};
 use winit::{
     event::{ElementState, Event, VirtualKeyCode, WindowEvent},
-    event_loop::{ControlFlow, EventLoop},
+    event_loop::{ControlFlow, EventLoop, EventLoopWindowTarget},
     window::WindowId,
 };
 
@@ -20,11 +20,17 @@ use crate::{
 
 mod window;
 
+pub mod main_menu;
+
 pub mod resource;
 
 pub use window::AppWindowState;
 
-use self::resource::{AnyArcMap, GraphDataCache};
+use self::{
+    main_menu::WindowDelta,
+    resource::{AnyArcMap, GraphDataCache},
+    window::AsleepWindow,
+};
 
 #[derive(Clone)]
 pub struct SharedState {
@@ -40,6 +46,8 @@ pub struct SharedState {
 
     pub data_color_schemes: HashMap<String, ColorSchemeId>,
 
+    pub tmp_window_delta: Arc<AtomicCell<Option<main_menu::WindowDelta>>>,
+
     // TODO these cells are clunky and temporary
     viewer_1d_interactions: Arc<AtomicCell<VizInteractions>>,
     viewer_2d_interactions: Arc<AtomicCell<VizInteractions>>,
@@ -49,6 +57,7 @@ pub struct SharedState {
 pub enum AppType {
     Viewer1D,
     Viewer2D,
+    // MainMenu,
     Custom(String),
 }
 
@@ -58,6 +67,8 @@ pub struct App {
 
     pub windows: HashMap<WindowId, AppType>,
     pub apps: HashMap<AppType, AppWindowState>,
+    // main_menu_target: Option<WindowId>,
+    sleeping: HashMap<AppType, AsleepWindow>,
 }
 
 impl App {
@@ -111,6 +122,8 @@ impl App {
                 gfa_path,
                 tsv_path,
 
+                tmp_window_delta: Arc::new(None.into()),
+
                 viewer_1d_interactions: Arc::new(AtomicCell::new(
                     Default::default(),
                 )),
@@ -126,7 +139,50 @@ impl App {
 
             windows: HashMap::default(),
             apps: HashMap::default(),
+
+            sleeping: HashMap::default(),
         })
+    }
+
+    pub fn handle_window_delta(
+        &mut self,
+        event_loop: &EventLoopWindowTarget<()>,
+        state: &raving_wgpu::State,
+        delta: WindowDelta,
+    ) -> Result<()> {
+        match delta {
+            WindowDelta::Open(app_ty) => {
+                if self.apps.contains_key(&app_ty) {
+                    return Ok(());
+                }
+
+                let asleep = self.sleeping.remove(&app_ty).ok_or(
+                    anyhow::anyhow!("Can't wake a window that's not asleep"),
+                )?;
+                let state = asleep.wake(event_loop, state)?;
+
+                self.windows
+                    .insert(state.window.window.id(), app_ty.clone());
+                self.apps.insert(app_ty, state);
+
+                Ok(())
+            }
+            WindowDelta::Close(app_ty) => {
+                if let Some(win_id) =
+                    self.apps.get(&app_ty).map(|s| s.window.window.id())
+                {
+                    if self.windows.len() == 1 {
+                        anyhow::bail!("Can't close the only open window!");
+                    }
+
+                    let _app_ty = self.windows.remove(&win_id);
+                    let app = self.apps.remove(&app_ty).unwrap();
+                    self.sleeping.insert(app_ty, app.sleep());
+                }
+
+                Ok(())
+            }
+        }
     }
 
     pub fn init_custom_window(
@@ -236,88 +292,103 @@ impl App {
             colors.upload_color_schemes_to_gpu(&state)?;
         }
 
-        event_loop.run(move |event, _, control_flow| match &event {
-            Event::Resumed => {
-                if !is_ready {
-                    is_ready = true;
-                }
-            }
-            Event::WindowEvent { window_id, event } => {
-                let app_type = self.windows.get(&window_id);
-                if app_type.is_none() {
-                    return;
-                }
-                let app_type = app_type.unwrap();
-                let app = self.apps.get_mut(app_type).unwrap();
-
-                let size = app.window.window.inner_size();
-
-                let mut consumed = app.on_event(event);
-
-                if !consumed {
-                    match &event {
-                        WindowEvent::KeyboardInput { input, .. } => {
-                            use VirtualKeyCode as Key;
-
-                            let pressed =
-                                matches!(input.state, ElementState::Pressed);
-
-                            if let Some(code) = input.virtual_keycode {
-                                if let Key::Escape = code {
-                                    *control_flow = ControlFlow::Exit;
-                                }
-                            }
-                        }
-                        WindowEvent::CloseRequested => {
-                            *control_flow = ControlFlow::Exit
-                        }
-                        WindowEvent::Resized(phys_size) => {
-                            if is_ready {
-                                app.resize(&state);
-                                app.app
-                                    .on_resize(
-                                        &state,
-                                        app.window.size.into(),
-                                        (*phys_size).into(),
-                                    )
-                                    .unwrap();
-                            }
-                        }
-                        WindowEvent::ScaleFactorChanged {
-                            new_inner_size,
-                            ..
-                        } => {
-                            if is_ready {
-                                app.resize(&state);
-                            }
-                        }
-                        _ => {}
+        event_loop.run(
+            move |event, event_loop_tgt, control_flow| match &event {
+                Event::Resumed => {
+                    if !is_ready {
+                        is_ready = true;
                     }
                 }
-            }
+                Event::WindowEvent { window_id, event } => {
+                    let app_type = self.windows.get(&window_id);
+                    if app_type.is_none() {
+                        return;
+                    }
+                    let app_type = app_type.unwrap();
+                    let app = self.apps.get_mut(app_type).unwrap();
 
-            Event::RedrawRequested(window_id) => {
-                let app_type = self.windows.get(&window_id);
-                if app_type.is_none() {
-                    return;
+                    let size = app.window.window.inner_size();
+
+                    let mut consumed = app.on_event(event);
+
+                    if !consumed {
+                        match &event {
+                            WindowEvent::KeyboardInput { input, .. } => {
+                                use VirtualKeyCode as Key;
+
+                                let pressed = matches!(
+                                    input.state,
+                                    ElementState::Pressed
+                                );
+
+                                if let Some(code) = input.virtual_keycode {
+                                    if let Key::Escape = code {
+                                        *control_flow = ControlFlow::Exit;
+                                    }
+                                }
+                            }
+                            WindowEvent::CloseRequested => {
+                                *control_flow = ControlFlow::Exit
+                            }
+                            WindowEvent::Resized(phys_size) => {
+                                if is_ready {
+                                    app.resize(&state);
+                                    app.app
+                                        .on_resize(
+                                            &state,
+                                            app.window.size.into(),
+                                            (*phys_size).into(),
+                                        )
+                                        .unwrap();
+                                }
+                            }
+                            WindowEvent::ScaleFactorChanged {
+                                new_inner_size,
+                                ..
+                            } => {
+                                if is_ready {
+                                    app.resize(&state);
+                                }
+                            }
+                            _ => {}
+                        }
+                    }
                 }
-                let app_type = app_type.unwrap();
 
-                let app = self.apps.get_mut(app_type).unwrap();
-                app.render(&state).unwrap();
-            }
-            Event::MainEventsCleared => {
-                let dt = prev_frame_t.elapsed().as_secs_f32();
-                prev_frame_t = std::time::Instant::now();
+                Event::RedrawRequested(window_id) => {
+                    let app_type = self.windows.get(&window_id);
+                    if app_type.is_none() {
+                        return;
+                    }
+                    let app_type = app_type.unwrap();
 
-                for (_app_type, app) in self.apps.iter_mut() {
-                    app.update(self.tokio_rt.handle(), &state, dt);
-                    app.window.window.request_redraw();
+                    let app = self.apps.get_mut(app_type).unwrap();
+                    app.render(&state).unwrap();
                 }
-            }
+                Event::MainEventsCleared => {
+                    let dt = prev_frame_t.elapsed().as_secs_f32();
+                    prev_frame_t = std::time::Instant::now();
 
-            _ => {}
-        })
+                    for (_app_type, app) in self.apps.iter_mut() {
+                        app.update(self.tokio_rt.handle(), &state, dt);
+                        app.window.window.request_redraw();
+                    }
+
+                    if let Some(win_delta) = self.shared.tmp_window_delta.take()
+                    {
+                        if let Err(e) = self.handle_window_delta(
+                            &event_loop_tgt,
+                            &state,
+                            win_delta,
+                        ) {
+                            log::error!("{e:?}");
+                        }
+                    }
+                }
+
+                _ => {}
+            },
+        )
     }
 }
 

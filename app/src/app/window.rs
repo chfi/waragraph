@@ -4,7 +4,7 @@ use std::sync::Arc;
 use raving_wgpu::{gui::EguiCtx, WindowState};
 use winit::{
     event::{ElementState, Event, VirtualKeyCode, WindowEvent},
-    event_loop::{ControlFlow, EventLoop},
+    event_loop::{ControlFlow, EventLoop, EventLoopWindowTarget},
     window::WindowBuilder,
 };
 
@@ -18,6 +18,14 @@ pub struct AppWindowState {
 }
 
 impl AppWindowState {
+    pub(super) fn sleep(self) -> AsleepWindow {
+        AsleepWindow {
+            title: self.title,
+            app: self.app,
+            egui: self.egui,
+        }
+    }
+
     pub(super) fn init(
         event_loop: &EventLoop<()>,
         state: &raving_wgpu::State,
@@ -99,5 +107,32 @@ impl AppWindowState {
         }
 
         Ok(())
+    }
+}
+
+pub struct AsleepWindow {
+    pub title: String,
+    pub(super) app: Box<dyn AppWindow>,
+    pub(super) egui: EguiCtx,
+}
+
+impl AsleepWindow {
+    pub(super) fn wake(
+        self,
+        event_loop: &EventLoopWindowTarget<()>,
+        state: &raving_wgpu::State,
+    ) -> anyhow::Result<AppWindowState> {
+        let window = WindowBuilder::new()
+            .with_title(&self.title)
+            .build(event_loop)?;
+
+        let win_state = state.prepare_window(window)?;
+
+        Ok(AppWindowState {
+            title: self.title,
+            window: win_state,
+            app: self.app,
+            egui: self.egui,
+        })
     }
 }
