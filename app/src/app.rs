@@ -21,6 +21,9 @@ use crate::{
 mod window;
 
 pub mod main_menu;
+pub mod settings_menu;
+
+pub mod workspace;
 
 pub mod resource;
 
@@ -30,6 +33,7 @@ use self::{
     main_menu::WindowDelta,
     resource::{AnyArcMap, GraphDataCache},
     window::AsleepWindow,
+    workspace::Workspace,
 };
 
 #[derive(Clone)]
@@ -41,9 +45,9 @@ pub struct SharedState {
 
     pub colors: Arc<RwLock<ColorStore>>,
 
-    pub gfa_path: Arc<PathBuf>,
-    pub tsv_path: Option<Arc<PathBuf>>,
-
+    pub workspace: Arc<RwLock<Workspace>>,
+    // gfa_path: Arc<PathBuf>,
+    // tsv_path: Option<Arc<RwLock<PathBuf>>>,
     pub data_color_schemes: HashMap<String, ColorSchemeId>,
 
     pub tmp_window_delta: Arc<AtomicCell<Option<main_menu::WindowDelta>>>,
@@ -85,8 +89,10 @@ impl App {
         let path_index = Arc::new(path_index);
 
         let shared = {
-            let gfa_path = Arc::new(args.gfa);
-            let tsv_path = args.tsv.map(|p| Arc::new(p));
+            let workspace = Arc::new(RwLock::new(Workspace {
+                gfa_path: args.gfa,
+                tsv_path: args.tsv,
+            }));
 
             let graph_data_cache = Arc::new(GraphDataCache::init(&path_index));
 
@@ -120,8 +126,7 @@ impl App {
 
                 data_color_schemes,
 
-                gfa_path,
-                tsv_path,
+                workspace,
 
                 tmp_window_delta: Arc::new(None.into()),
 
@@ -249,7 +254,9 @@ impl App {
         event_loop: &EventLoop<()>,
         state: &raving_wgpu::State,
     ) -> Result<()> {
-        let tsv = if let Some(tsv) = self.shared.tsv_path.as_ref() {
+        let tsv = if let Some(tsv) =
+            self.shared.workspace.blocking_read().tsv_path().cloned()
+        {
             tsv
         } else {
             anyhow::bail!("Can't initialize 2D viewer without layout TSV");
@@ -262,7 +269,7 @@ impl App {
                 state,
                 &window,
                 self.shared.graph.clone(),
-                tsv.as_ref(),
+                tsv,
                 &self.shared,
             )?;
 

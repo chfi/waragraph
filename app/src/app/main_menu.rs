@@ -40,8 +40,6 @@ impl MainMenuUi {
     }
 
     fn show(self, ui: &mut Ui) -> MainMenuOutput {
-        // ui.with_layout(egui::Layout::top_down_justified(egui::Align::Min), |ui| {
-
         let mut out = MainMenuOutput::default();
 
         ui.horizontal_wrapped(|ui| {
@@ -62,7 +60,6 @@ impl MainMenuUi {
                 ui.end_row();
             }
         });
-        // });
 
         out
     }

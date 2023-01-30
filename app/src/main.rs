@@ -25,7 +25,7 @@ pub fn main() -> Result<()> {
 
     app.init_viewer_1d(&event_loop, &state)?;
 
-    if app.shared.tsv_path.is_some() {
+    if app.shared.workspace.blocking_read().tsv_path().is_some() {
         app.init_viewer_2d(&event_loop, &state)?;
     }
 
