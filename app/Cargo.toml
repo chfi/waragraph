@@ -28,6 +28,8 @@ taffy = "0.2"
 mint = "0.5"
 ultraviolet = { version = "0.9", features = ["bytemuck", "f64", "mint"]}
 
+# rstar = "0.9"
+
 bytemuck = { version = "1.4", features = ["derive"] }
 
 palette = { version = "0.6", features = ["bytemuck"] }

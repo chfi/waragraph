@@ -65,6 +65,7 @@ pub struct App {
     pub tokio_rt: Arc<Runtime>,
     pub shared: SharedState,
 
+    // main_menu_ctx: MainMenuCtx,
     pub windows: HashMap<WindowId, AppType>,
     pub apps: HashMap<AppType, AppWindowState>,
     // main_menu_target: Option<WindowId>,
@@ -133,6 +134,8 @@ impl App {
             }
         };
 
+        // let main_menu_ctx =
+
         Ok(Self {
             tokio_rt,
             shared,
@@ -141,6 +144,7 @@ impl App {
             apps: HashMap::default(),
 
             sleeping: HashMap::default(),
+            // main_menu_ctx,
         })
     }
 
@@ -275,6 +279,22 @@ impl App {
         self.windows.insert(winid, AppType::Viewer2D);
 
         Ok(())
+    }
+
+    pub fn init_menu_window_test(
+        &mut self,
+        event_loop: &EventLoop<()>,
+        state: &raving_wgpu::State,
+        // id: &str,
+        // title: Option<&str>,
+        // constructor: impl FnOnce(&WindowState) -> anyhow::Result<Box<dyn AppWindow>>,
+    ) -> Result<()> {
+        let constructor =
+            |window: &WindowState| -> anyhow::Result<Box<dyn AppWindow>> {
+                todo!();
+            };
+
+        todo!();
     }
 
     pub fn run(
