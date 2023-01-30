@@ -716,6 +716,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "egui_file"
+version = "0.5.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4dd8fb5d6629a755626143724ce4760eca8b2e97ae75d8e377e4341fe3882723"
+dependencies = [
+ "egui",
+]
+
+[[package]]
 name = "either"
 version = "1.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2731,6 +2740,7 @@ dependencies = [
  "egui",
  "egui-wgpu",
  "egui-winit",
+ "egui_file",
  "env_logger 0.9.3",
  "log",
  "lyon",

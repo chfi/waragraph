@@ -20,6 +20,8 @@ egui = { version = "0.20", features = ["mint"] }
 egui-wgpu = { version = "0.20" }
 egui-winit = { version = "0.20" }
 
+egui_file = "0.5"
+
 wgpu = { version = "0.14.0", features = ["spirv"] }
 # naga = { version = "0.10", features = ["clone", "spv-in", "glsl-in", "spv-out"] }
 
