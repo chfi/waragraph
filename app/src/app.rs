@@ -102,6 +102,7 @@ impl App {
 
             {
                 let ws = workspace.clone();
+                settings.register_widget("Workspace", ws);
                 // settings.register_widget("Graph & Layout", move |ui| {
                 //     let mut ws = ws.blocking_write();
                 //     ui.add((&mut ws) as &mut Workspace);

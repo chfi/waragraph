@@ -1,10 +1,11 @@
 use std::{
     collections::{BTreeMap, HashMap},
     path::PathBuf,
+    sync::Arc,
 };
 
 use egui::mutex::Mutex;
-use tokio::sync::oneshot;
+use tokio::sync::{oneshot, RwLock};
 
 // pub struct AppSettings {
 // }
@@ -17,7 +18,7 @@ struct SettingsHandler {
     name: String,
     // show: Box<dyn Fn(&mut egui::Ui) + Send + Sync + 'static>,
     // validate: Option<Box<dyn Fn() -> bool + Send + Sync + 'static>;
-    widget: Box<dyn SettingsWidget>,
+    widget: Arc<RwLock<dyn SettingsWidget + 'static>>,
 }
 
 #[derive(Default)]
@@ -31,29 +32,52 @@ impl SettingsWindow {
     pub fn register_widget(
         &mut self,
         name: &str,
-        widget: impl SettingsWidget,
-        // show: impl Fn(&mut egui::Ui) + Send + Sync + 'static,
+        // widget: impl SettingsWidget + 'static,
+        widget: Arc<RwLock<dyn SettingsWidget + 'static>>,
     ) {
         let h = SettingsHandler {
             name: name.to_string(),
-            // show: Box::new(show),
-            widget: Box::new(widget),
+            widget,
         };
 
         self.handlers.push(h);
     }
 
     pub fn show(&mut self, ctx: &egui::Context) {
+        self.process_file_dialogs(ctx);
+
         egui::Window::new("Settings").show(ctx, |ui| {
             for h in self.handlers.iter_mut() {
                 let name = &h.name;
                 let widget = &mut h.widget;
 
                 ui.collapsing(name, |ui| {
-                    let _resp = widget.show(ui, &self.ctx);
+                    let mut lock = widget.blocking_write();
+                    let _resp = lock.show(ui, &self.ctx);
                 });
             }
         });
+    }
+}
+
+impl SettingsWindow {
+    fn process_file_dialogs(&mut self, ctx: &egui::Context) {
+        let mut lock = self.ctx.file_dialogs.lock();
+
+        let mut done = Vec::new();
+
+        for (id, dialog) in lock.iter_mut() {
+            if dialog.dialog.show(ctx).selected() {
+                done.push(*id);
+            }
+        }
+
+        for id in done {
+            if let Some(dialog) = lock.remove(&id) {
+                let path = dialog.dialog.path();
+                (dialog.callback)(path);
+            }
+        }
     }
 }
 
@@ -78,7 +102,7 @@ impl SettingsUiContext {
 
         let f = move |path| {
             if let Some(path) = path {
-                send.send(path);
+                let _ = send.send(path);
             }
         };
 
