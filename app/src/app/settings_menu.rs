@@ -3,6 +3,9 @@ use std::{
     path::PathBuf,
 };
 
+use egui::mutex::Mutex;
+use tokio::sync::oneshot;
+
 // pub struct AppSettings {
 // }
 
@@ -62,7 +65,33 @@ struct FileDialogState {
 // provides the interface for opening file dialogs etc. from settings widgets
 #[derive(Default)]
 pub struct SettingsUiContext {
-    file_dialogs: HashMap<egui::Id, egui_file::FileDialog>,
+    file_dialogs: Mutex<HashMap<egui::Id, FileDialogState>>,
+}
+
+impl SettingsUiContext {
+    pub fn with_file_dialog_oneshot(
+        &self,
+        id: egui::Id,
+        dialog: egui_file::FileDialog,
+    ) -> oneshot::Receiver<PathBuf> {
+        let (send, recv) = oneshot::channel::<PathBuf>();
+
+        let f = move |path| {
+            if let Some(path) = path {
+                send.send(path);
+            }
+        };
+
+        let state = FileDialogState {
+            dialog,
+            callback: Box::new(f),
+        };
+
+        let mut lock = self.file_dialogs.lock();
+        lock.insert(id, state);
+
+        recv
+    }
 }
 
 pub struct SettingsUiResponse {
