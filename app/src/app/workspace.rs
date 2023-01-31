@@ -4,6 +4,10 @@ use std::sync::Arc;
 use egui::{mutex::Mutex, Context, Id};
 use egui_file::FileDialog;
 
+use super::settings_menu::{
+    SettingsUiContext, SettingsUiResponse, SettingsWidget,
+};
+
 pub struct Workspace {
     pub(super) gfa_path: PathBuf,
     pub(super) tsv_path: Option<PathBuf>,
@@ -16,6 +20,16 @@ impl Workspace {
 
     pub fn tsv_path(&self) -> Option<&PathBuf> {
         self.tsv_path.as_ref()
+    }
+}
+
+impl SettingsWidget for Workspace {
+    fn show(
+        &mut self,
+        ui: &mut egui::Ui,
+        settings_ctx: &SettingsUiContext,
+    ) -> SettingsUiResponse {
+        todo!();
     }
 }
 

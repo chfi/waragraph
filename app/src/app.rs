@@ -102,10 +102,10 @@ impl App {
 
             {
                 let ws = workspace.clone();
-                settings.register_widget("Workspace", move |ui| {
-                    let mut ws = ws.blocking_write();
-                    ui.add((&mut ws) as &mut Workspace);
-                });
+                // settings.register_widget("Graph & Layout", move |ui| {
+                //     let mut ws = ws.blocking_write();
+                //     ui.add((&mut ws) as &mut Workspace);
+                // });
             }
 
             let graph_data_cache = Arc::new(GraphDataCache::init(&path_index));
