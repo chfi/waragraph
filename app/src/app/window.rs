@@ -10,7 +10,6 @@ use winit::{
 };
 
 use super::{
-    main_menu::WindowDelta,
     settings_menu::{SettingsUiResponse, SettingsWidget},
     AppMsg, AppType, AppWindow,
 };
@@ -142,19 +141,6 @@ impl AsleepWindow {
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Eq)]
-pub enum WindowWakeState {
-    // Uninitialized,
-    Sleeping,
-    Awake(WindowId),
-}
-
-impl WindowWakeState {
-    pub fn is_awake(&self) -> bool {
-        matches!(self, Self::Awake(_))
-    }
-}
-
 #[derive(Default, Clone)]
 pub struct AppWindowsWidgetState {
     window_app_map: HashMap<WindowId, AppType>,
@@ -274,5 +260,24 @@ impl AppWindows {
                 Ok(())
             }
         }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub enum WindowDelta {
+    Open(super::AppType),
+    Close(super::AppType),
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum WindowWakeState {
+    // Uninitialized,
+    Sleeping,
+    Awake(WindowId),
+}
+
+impl WindowWakeState {
+    pub fn is_awake(&self) -> bool {
+        matches!(self, Self::Awake(_))
     }
 }

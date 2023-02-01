@@ -779,15 +779,6 @@ impl AppWindow for Viewer1D {
                 self.self_viz_interact.store(interact);
             });
 
-            egui::Window::new("Window testing").show(egui_ctx.ctx(), |ui| {
-                crate::app::main_menu::test_window_toggler(
-                    ui,
-                    &self.shared.tmp_window_delta,
-                    "2D Viewer",
-                    crate::app::AppType::Viewer2D,
-                );
-            });
-
             egui::Window::new("Visualization Modes").show(
                 egui_ctx.ctx(),
                 |ui| {

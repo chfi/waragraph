@@ -23,7 +23,6 @@ use crate::{
 
 mod window;
 
-pub mod main_menu;
 pub mod settings_menu;
 
 pub mod workspace;
@@ -33,10 +32,9 @@ pub mod resource;
 pub use window::AppWindowState;
 
 use self::{
-    main_menu::WindowDelta,
     resource::{AnyArcMap, GraphDataCache},
     settings_menu::SettingsWindow,
-    window::{AppWindows, AsleepWindow},
+    window::{AppWindows, AsleepWindow, WindowDelta},
     workspace::Workspace,
 };
 
@@ -53,8 +51,6 @@ pub struct SharedState {
     // gfa_path: Arc<PathBuf>,
     // tsv_path: Option<Arc<RwLock<PathBuf>>>,
     pub data_color_schemes: HashMap<String, ColorSchemeId>,
-
-    pub tmp_window_delta: Arc<AtomicCell<Option<main_menu::WindowDelta>>>,
 
     // TODO these cells are clunky and temporary
     viewer_1d_interactions: Arc<AtomicCell<VizInteractions>>,
@@ -156,8 +152,6 @@ impl App {
                 data_color_schemes,
 
                 workspace,
-
-                tmp_window_delta: Arc::new(None.into()),
 
                 viewer_1d_interactions: Arc::new(AtomicCell::new(
                     Default::default(),
@@ -405,17 +399,6 @@ impl App {
                         }
 
                         app.window.window.request_redraw();
-                    }
-
-                    if let Some(win_delta) = self.shared.tmp_window_delta.take()
-                    {
-                        if let Err(e) = self.app_windows.handle_window_delta(
-                            &event_loop_tgt,
-                            &state,
-                            win_delta,
-                        ) {
-                            log::error!("{e:?}");
-                        }
                     }
                 }
 
