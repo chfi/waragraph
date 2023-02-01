@@ -36,7 +36,7 @@ use self::{
     main_menu::WindowDelta,
     resource::{AnyArcMap, GraphDataCache},
     settings_menu::SettingsWindow,
-    window::AsleepWindow,
+    window::{AppWindows, AsleepWindow},
     workspace::Workspace,
 };
 
@@ -75,11 +75,11 @@ pub struct App {
     pub tokio_rt: Arc<Runtime>,
     pub shared: SharedState,
 
-    pub windows: HashMap<WindowId, AppType>,
-    pub apps: HashMap<AppType, AppWindowState>,
+    app_windows: AppWindows,
+    // pub windows: HashMap<WindowId, AppType>,
+    // pub apps: HashMap<AppType, AppWindowState>,
 
-    sleeping: HashMap<AppType, AsleepWindow>,
-
+    // sleeping: HashMap<AppType, AsleepWindow>,
     settings: SettingsWindow,
     settings_window_tgt: Option<WindowId>,
 
@@ -104,6 +104,8 @@ impl App {
             tokio_rt.handle().clone(),
             app_msg_send.clone(),
         );
+
+        // settings.register_widget("Window", "Windows",
 
         let shared = {
             let workspace = Arc::new(RwLock::new(Workspace {
@@ -166,57 +168,16 @@ impl App {
             tokio_rt,
             shared,
 
-            windows: HashMap::default(),
-            apps: HashMap::default(),
+            app_windows: AppWindows::default(),
+            // windows: HashMap::default(),
+            // apps: HashMap::default(),
 
-            sleeping: HashMap::default(),
-
+            // sleeping: HashMap::default(),
             settings,
             settings_window_tgt: None,
 
             app_msg_recv,
         })
-    }
-
-    pub fn handle_window_delta(
-        &mut self,
-        event_loop: &EventLoopWindowTarget<()>,
-        state: &raving_wgpu::State,
-        delta: WindowDelta,
-    ) -> Result<()> {
-        match delta {
-            WindowDelta::Open(app_ty) => {
-                if self.apps.contains_key(&app_ty) {
-                    return Ok(());
-                }
-
-                let asleep = self.sleeping.remove(&app_ty).ok_or(
-                    anyhow::anyhow!("Can't wake a window that's not asleep"),
-                )?;
-                let state = asleep.wake(event_loop, state)?;
-
-                self.windows
-                    .insert(state.window.window.id(), app_ty.clone());
-                self.apps.insert(app_ty, state);
-
-                Ok(())
-            }
-            WindowDelta::Close(app_ty) => {
-                if let Some(win_id) =
-                    self.apps.get(&app_ty).map(|s| s.window.window.id())
-                {
-                    if self.windows.len() == 1 {
-                        anyhow::bail!("Can't close the only open window!");
-                    }
-
-                    let _app_ty = self.windows.remove(&win_id);
-                    let app = self.apps.remove(&app_ty).unwrap();
-                    self.sleeping.insert(app_ty, app.sleep());
-                }
-
-                Ok(())
-            }
-        }
     }
 
     pub fn init_custom_window(
@@ -235,8 +196,8 @@ impl App {
 
         let winid = app.window.window.id();
 
-        self.apps.insert(app_id.clone(), app);
-        self.windows.insert(winid, app_id);
+        self.app_windows.apps.insert(app_id.clone(), app);
+        self.app_windows.windows.insert(winid, app_id);
 
         Ok(())
     }
@@ -268,8 +229,8 @@ impl App {
 
         let winid = app.window.window.id();
 
-        self.apps.insert(AppType::Viewer1D, app);
-        self.windows.insert(winid, AppType::Viewer1D);
+        self.app_windows.apps.insert(AppType::Viewer1D, app);
+        self.app_windows.windows.insert(winid, AppType::Viewer1D);
 
         Ok(())
     }
@@ -307,8 +268,8 @@ impl App {
 
         let winid = app.window.window.id();
 
-        self.apps.insert(AppType::Viewer2D, app);
-        self.windows.insert(winid, AppType::Viewer2D);
+        self.app_windows.apps.insert(AppType::Viewer2D, app);
+        self.app_windows.windows.insert(winid, AppType::Viewer2D);
 
         Ok(())
     }
@@ -336,12 +297,12 @@ impl App {
                     }
                 }
                 Event::WindowEvent { window_id, event } => {
-                    let app_type = self.windows.get(&window_id);
+                    let app_type = self.app_windows.windows.get(&window_id);
                     if app_type.is_none() {
                         return;
                     }
                     let app_type = app_type.unwrap();
-                    let app = self.apps.get_mut(app_type).unwrap();
+                    let app = self.app_windows.apps.get_mut(app_type).unwrap();
 
                     let size = app.window.window.inner_size();
 
@@ -401,13 +362,13 @@ impl App {
                 }
 
                 Event::RedrawRequested(window_id) => {
-                    let app_type = self.windows.get(&window_id);
+                    let app_type = self.app_windows.windows.get(&window_id);
                     if app_type.is_none() {
                         return;
                     }
                     let app_type = app_type.unwrap();
 
-                    let app = self.apps.get_mut(app_type).unwrap();
+                    let app = self.app_windows.apps.get_mut(app_type).unwrap();
                     app.render(&state).unwrap();
                 }
                 Event::MainEventsCleared => {
@@ -418,7 +379,7 @@ impl App {
                         self.process_msg(event_loop_tgt, &state, msg);
                     }
 
-                    for (_app_type, app) in self.apps.iter_mut() {
+                    for (_app_type, app) in self.app_windows.apps.iter_mut() {
                         app.update(self.tokio_rt.handle(), &state, dt);
 
                         if Some(app.window.window.id())
@@ -432,7 +393,7 @@ impl App {
 
                     if let Some(win_delta) = self.shared.tmp_window_delta.take()
                     {
-                        if let Err(e) = self.handle_window_delta(
+                        if let Err(e) = self.app_windows.handle_window_delta(
                             &event_loop_tgt,
                             &state,
                             win_delta,
@@ -457,12 +418,12 @@ impl App {
     ) {
         match msg {
             AppMsg::InitViewer1D => {
-                if !self.apps.contains_key(&AppType::Viewer1D) {
+                if !self.app_windows.apps.contains_key(&AppType::Viewer1D) {
                     // todo
                 }
             }
             AppMsg::InitViewer2D => {
-                if !self.apps.contains_key(&AppType::Viewer2D) {
+                if !self.app_windows.apps.contains_key(&AppType::Viewer2D) {
                     if let Err(e) = self.init_viewer_2d(event_loop, state) {
                         log::error!("Error initializing 2D viewer");
                     }

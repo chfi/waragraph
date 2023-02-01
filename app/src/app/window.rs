@@ -2,13 +2,16 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use raving_wgpu::{gui::EguiCtx, WindowState};
+use tokio::sync::RwLock;
 use winit::{
     event::{ElementState, Event, VirtualKeyCode, WindowEvent},
     event_loop::{ControlFlow, EventLoop, EventLoopWindowTarget},
-    window::WindowBuilder,
+    window::{WindowBuilder, WindowId},
 };
 
-use super::AppWindow;
+use super::{
+    main_menu::WindowDelta, settings_menu::SettingsWidget, AppType, AppWindow,
+};
 
 pub struct AppWindowState {
     pub title: String,
@@ -134,5 +137,87 @@ impl AsleepWindow {
             app: self.app,
             egui: self.egui,
         })
+    }
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum WindowWakeState {
+    // Uninitialized,
+    Sleeping,
+    Awake(WindowId),
+}
+
+#[derive(Default, Clone)]
+pub struct AppWindowsWidgetState {
+    window_app_map: HashMap<WindowId, AppType>,
+    window_wake_state: HashMap<AppType, WindowWakeState>,
+}
+
+#[derive(Default)]
+pub struct AppWindows {
+    pub(super) windows: HashMap<WindowId, AppType>,
+    pub(super) apps: HashMap<AppType, AppWindowState>,
+    pub(super) sleeping: HashMap<AppType, AsleepWindow>,
+
+    pub(super) widget_state: Arc<RwLock<AppWindowsWidgetState>>,
+}
+
+impl AppWindows {
+    pub(super) fn update_widget_state(
+        &self,
+        state: &mut AppWindowsWidgetState,
+    ) {
+        self.windows.clone_into(&mut state.window_app_map);
+
+        for (app_ty, app) in self.apps.iter() {
+            let wake_state = WindowWakeState::Awake(app.window.window.id());
+            state.window_wake_state.insert(app_ty.clone(), wake_state);
+        }
+
+        for (app_ty, app) in self.sleeping.iter() {
+            let wake_state = WindowWakeState::Sleeping;
+            state.window_wake_state.insert(app_ty.clone(), wake_state);
+        }
+    }
+
+    pub(super) fn handle_window_delta(
+        &mut self,
+        event_loop: &EventLoopWindowTarget<()>,
+        state: &raving_wgpu::State,
+        delta: WindowDelta,
+    ) -> anyhow::Result<()> {
+        match delta {
+            WindowDelta::Open(app_ty) => {
+                if self.apps.contains_key(&app_ty) {
+                    return Ok(());
+                }
+
+                let asleep = self.sleeping.remove(&app_ty).ok_or(
+                    anyhow::anyhow!("Can't wake a window that's not asleep"),
+                )?;
+                let state = asleep.wake(event_loop, state)?;
+
+                self.windows
+                    .insert(state.window.window.id(), app_ty.clone());
+                self.apps.insert(app_ty, state);
+
+                Ok(())
+            }
+            WindowDelta::Close(app_ty) => {
+                if let Some(win_id) =
+                    self.apps.get(&app_ty).map(|s| s.window.window.id())
+                {
+                    if self.windows.len() == 1 {
+                        anyhow::bail!("Can't close the only open window!");
+                    }
+
+                    let _app_ty = self.windows.remove(&win_id);
+                    let app = self.apps.remove(&app_ty).unwrap();
+                    self.sleeping.insert(app_ty, app.sleep());
+                }
+
+                Ok(())
+            }
+        }
     }
 }
