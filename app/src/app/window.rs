@@ -27,7 +27,7 @@ impl AppWindowState {
     }
 
     pub(super) fn init(
-        event_loop: &EventLoop<()>,
+        event_loop: &EventLoopWindowTarget<()>,
         state: &raving_wgpu::State,
         title: &str,
         constructor: impl FnOnce(&WindowState) -> anyhow::Result<Box<dyn AppWindow>>,

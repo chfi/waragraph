@@ -1,6 +1,9 @@
 use crossbeam::atomic::AtomicCell;
 use raving_wgpu::{gui::EguiCtx, WindowState};
-use tokio::{runtime::Runtime, sync::RwLock};
+use tokio::{
+    runtime::Runtime,
+    sync::{mpsc, RwLock},
+};
 use waragraph_core::graph::{Bp, PathId};
 use winit::{
     event::{ElementState, Event, VirtualKeyCode, WindowEvent},
@@ -56,6 +59,8 @@ pub struct SharedState {
     // TODO these cells are clunky and temporary
     viewer_1d_interactions: Arc<AtomicCell<VizInteractions>>,
     viewer_2d_interactions: Arc<AtomicCell<VizInteractions>>,
+
+    pub app_msg_send: tokio::sync::mpsc::Sender<AppMsg>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -78,6 +83,8 @@ pub struct App {
 
     settings: SettingsWindow,
     settings_window_tgt: Option<WindowId>,
+
+    app_msg_recv: tokio::sync::mpsc::Receiver<AppMsg>,
 }
 
 impl App {
@@ -93,6 +100,8 @@ impl App {
         let path_index = Arc::new(path_index);
 
         let mut settings = SettingsWindow::default();
+
+        let (app_msg_send, app_msg_recv) = mpsc::channel::<AppMsg>(256);
 
         let shared = {
             let workspace = Arc::new(RwLock::new(Workspace {
@@ -150,10 +159,10 @@ impl App {
                 viewer_2d_interactions: Arc::new(AtomicCell::new(
                     Default::default(),
                 )),
+
+                app_msg_send,
             }
         };
-
-        // let main_menu_ctx =
 
         Ok(Self {
             tokio_rt,
@@ -166,7 +175,8 @@ impl App {
 
             settings,
             settings_window_tgt: None,
-            // main_menu_ctx,
+
+            app_msg_recv,
         })
     }
 
@@ -235,7 +245,7 @@ impl App {
 
     pub fn init_viewer_1d(
         &mut self,
-        event_loop: &EventLoop<()>,
+        event_loop: &EventLoopWindowTarget<()>,
         state: &raving_wgpu::State,
     ) -> Result<()> {
         let title = "Waragraph 1D";
@@ -269,7 +279,7 @@ impl App {
 
     pub fn init_viewer_2d(
         &mut self,
-        event_loop: &EventLoop<()>,
+        event_loop: &EventLoopWindowTarget<()>,
         state: &raving_wgpu::State,
     ) -> Result<()> {
         let tsv = if let Some(tsv) =
@@ -414,6 +424,10 @@ impl App {
                     let dt = prev_frame_t.elapsed().as_secs_f32();
                     prev_frame_t = std::time::Instant::now();
 
+                    while let Ok(msg) = self.app_msg_recv.try_recv() {
+                        self.process_msg(event_loop_tgt, &state, msg);
+                    }
+
                     for (_app_type, app) in self.apps.iter_mut() {
                         app.update(self.tokio_rt.handle(), &state, dt);
 
@@ -441,6 +455,35 @@ impl App {
                 _ => {}
             },
         )
+    }
+}
+
+impl App {
+    fn process_msg(
+        &mut self,
+        event_loop: &EventLoopWindowTarget<()>,
+        state: &raving_wgpu::State,
+        msg: AppMsg,
+    ) {
+        match msg {
+            AppMsg::InitViewer1D => {
+                if !self.apps.contains_key(&AppType::Viewer1D) {
+                    // todo
+                }
+            }
+            AppMsg::InitViewer2D => {
+                if !self.apps.contains_key(&AppType::Viewer2D) {
+                    if let Err(e) = self.init_viewer_2d(event_loop, state) {
+                        log::error!("Error initializing 2D viewer");
+                    }
+                }
+            }
+            AppMsg::OpenSettings { src } => {
+                if self.settings_window_tgt.is_none() {
+                    self.settings_window_tgt = Some(src);
+                }
+            }
+        }
     }
 }
 
@@ -536,4 +579,11 @@ impl VizInteractions {
             }
         }
     }
+}
+
+#[derive(Debug, Clone)]
+pub enum AppMsg {
+    InitViewer1D,
+    InitViewer2D,
+    OpenSettings { src: WindowId },
 }
