@@ -21,8 +21,25 @@ struct SettingsHandler {
     widget: Arc<RwLock<dyn SettingsWidget + 'static>>,
 }
 
-pub struct SettingsWindow {
+pub struct SettingsWindowTab {
+    name: String,
     handlers: Vec<SettingsHandler>,
+}
+
+impl SettingsWindowTab {
+    pub fn new(name: &str) -> Self {
+        Self {
+            name: name.to_string(),
+            handlers: Vec::new(),
+        }
+    }
+}
+
+pub struct SettingsWindow {
+    // handlers: Vec<SettingsHandler>,
+    tabs: BTreeMap<String, SettingsWindowTab>,
+
+    active_tab: Option<String>,
 
     ctx: SettingsUiContext,
 }
@@ -33,38 +50,96 @@ impl SettingsWindow {
         app_msg_send: mpsc::Sender<AppMsg>,
     ) -> Self {
         Self {
-            handlers: Vec::new(),
-
+            tabs: BTreeMap::default(),
+            active_tab: None,
             ctx: SettingsUiContext::new(tokio_handle, app_msg_send),
         }
     }
 
     pub fn register_widget(
         &mut self,
+        tab_name: &str,
         name: &str,
         widget: Arc<RwLock<dyn SettingsWidget + 'static>>,
     ) {
+        let tab = self
+            .tabs
+            .entry(tab_name.into())
+            .or_insert_with(|| SettingsWindowTab::new(name));
+
         let h = SettingsHandler {
             name: name.to_string(),
             widget,
         };
 
-        self.handlers.push(h);
+        tab.handlers.push(h);
+    }
+
+    fn validate_active_tab(&mut self) {
+        let need_fix = self
+            .active_tab
+            .as_ref()
+            .map(|tab_name| !self.tabs.contains_key(tab_name))
+            .unwrap_or(true);
+
+        if need_fix {
+            if let Some(tab_name) = self.tabs.keys().next() {
+                self.active_tab = Some(tab_name.clone());
+            }
+        }
     }
 
     pub fn show(&mut self, ctx: &egui::Context) {
         self.process_file_dialogs(ctx);
 
-        egui::Window::new("Settings").show(ctx, |ui| {
-            for h in self.handlers.iter_mut() {
-                let name = &h.name;
-                let widget = &mut h.widget;
+        self.validate_active_tab();
 
-                ui.collapsing(name, |ui| {
-                    let mut lock = widget.blocking_write();
-                    let _resp = lock.show(ui, &self.ctx);
-                });
-            }
+        egui::Window::new("Settings").show(ctx, |ui| {
+            ui.set_min_size(egui::vec2(500.0, 400.0));
+            egui::Grid::new("SettingsWindowGrid").num_columns(2).show(
+                ui,
+                |ui| {
+                    ui.vertical(|ui| {
+                        ui.set_min_width(120.0);
+                        for tab_name in self.tabs.keys() {
+                            let enabled =
+                                Some(tab_name) == self.active_tab.as_ref();
+                            let button = ui.add_enabled(
+                                enabled,
+                                egui::Button::new(tab_name),
+                            );
+
+                            if button.clicked() {
+                                self.active_tab = Some(tab_name.to_string());
+                            }
+                        }
+                    });
+
+                    egui::ScrollArea::vertical()
+                        .auto_shrink([false, true])
+                        .min_scrolled_height(400.0)
+                        .show(ui, |ui| {
+                            if let Some(active_tab) = self.active_tab.as_ref() {
+                                if let Some(tab) = self.tabs.get_mut(active_tab)
+                                {
+                                    for h in tab.handlers.iter_mut() {
+                                        let name = &h.name;
+                                        let widget = &mut h.widget;
+
+                                        ui.collapsing(name, |ui| {
+                                            let mut lock =
+                                                widget.blocking_write();
+                                            let _resp =
+                                                lock.show(ui, &self.ctx);
+                                        });
+                                    }
+                                }
+                            }
+                        });
+
+                    ui.end_row();
+                },
+            );
         });
     }
 }

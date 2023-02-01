@@ -75,10 +75,9 @@ pub struct App {
     pub tokio_rt: Arc<Runtime>,
     pub shared: SharedState,
 
-    // main_menu_ctx: MainMenuCtx,
     pub windows: HashMap<WindowId, AppType>,
     pub apps: HashMap<AppType, AppWindowState>,
-    // main_menu_target: Option<WindowId>,
+
     sleeping: HashMap<AppType, AsleepWindow>,
 
     settings: SettingsWindow,
@@ -114,7 +113,7 @@ impl App {
 
             {
                 let ws = workspace.clone();
-                settings.register_widget("Workspace", ws);
+                settings.register_widget("General", "Graph & Layout", ws);
             }
 
             let graph_data_cache = Arc::new(GraphDataCache::init(&path_index));
