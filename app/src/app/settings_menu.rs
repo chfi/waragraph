@@ -100,7 +100,7 @@ impl SettingsWindow {
                 ui,
                 |ui| {
                     ui.vertical(|ui| {
-                        ui.set_min_width(120.0);
+                        ui.set_min_width(64.0);
                         for tab_name in self.tabs.keys() {
                             let enabled =
                                 Some(tab_name) == self.active_tab.as_ref();

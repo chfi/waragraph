@@ -269,7 +269,6 @@ impl App {
         let winid = app.window.window.id();
 
         self.apps.insert(AppType::Viewer1D, app);
-        self.settings_window_tgt = Some(winid);
         self.windows.insert(winid, AppType::Viewer1D);
 
         Ok(())
@@ -312,22 +311,6 @@ impl App {
         self.windows.insert(winid, AppType::Viewer2D);
 
         Ok(())
-    }
-
-    pub fn init_menu_window_test(
-        &mut self,
-        event_loop: &EventLoop<()>,
-        state: &raving_wgpu::State,
-        // id: &str,
-        // title: Option<&str>,
-        // constructor: impl FnOnce(&WindowState) -> anyhow::Result<Box<dyn AppWindow>>,
-    ) -> Result<()> {
-        let constructor =
-            |window: &WindowState| -> anyhow::Result<Box<dyn AppWindow>> {
-                todo!();
-            };
-
-        todo!();
     }
 
     pub fn run(
@@ -374,9 +357,18 @@ impl App {
                                     ElementState::Pressed
                                 );
 
-                                if let Some(code) = input.virtual_keycode {
-                                    if let Key::Escape = code {
-                                        *control_flow = ControlFlow::Exit;
+                                if let Some(Key::Escape) = input.virtual_keycode
+                                {
+                                    if pressed {
+                                        if let Err(e) =
+                                            self.shared.app_msg_send.try_send(
+                                                AppMsg::ToggleSettingsWindow {
+                                                    src: *window_id,
+                                                },
+                                            )
+                                        {
+                                            log::error!("{e:?}");
+                                        }
                                     }
                                 }
                             }
@@ -476,8 +468,17 @@ impl App {
                     }
                 }
             }
-            AppMsg::OpenSettings { src } => {
+            AppMsg::OpenSettingsWindow { src } => {
                 if self.settings_window_tgt.is_none() {
+                    self.settings_window_tgt = Some(src);
+                }
+            }
+            AppMsg::ToggleSettingsWindow { src } => {
+                if let Some(tgt) = self.settings_window_tgt.take() {
+                    if src != tgt {
+                        self.settings_window_tgt = Some(src);
+                    }
+                } else {
                     self.settings_window_tgt = Some(src);
                 }
             }
@@ -583,5 +584,6 @@ impl VizInteractions {
 pub enum AppMsg {
     InitViewer1D,
     InitViewer2D,
-    OpenSettings { src: WindowId },
+    OpenSettingsWindow { src: WindowId },
+    ToggleSettingsWindow { src: WindowId },
 }
