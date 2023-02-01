@@ -99,9 +99,12 @@ impl App {
         let path_index = waragraph_core::graph::PathIndex::from_gfa(&args.gfa)?;
         let path_index = Arc::new(path_index);
 
-        let mut settings = SettingsWindow::default();
-
         let (app_msg_send, app_msg_recv) = mpsc::channel::<AppMsg>(256);
+
+        let mut settings = SettingsWindow::new(
+            tokio_rt.handle().clone(),
+            app_msg_send.clone(),
+        );
 
         let shared = {
             let workspace = Arc::new(RwLock::new(Workspace {
@@ -112,10 +115,6 @@ impl App {
             {
                 let ws = workspace.clone();
                 settings.register_widget("Workspace", ws);
-                // settings.register_widget("Graph & Layout", move |ui| {
-                //     let mut ws = ws.blocking_write();
-                //     ui.add((&mut ws) as &mut Workspace);
-                // });
             }
 
             let graph_data_cache = Arc::new(GraphDataCache::init(&path_index));

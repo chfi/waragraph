@@ -5,7 +5,9 @@ use std::{
 };
 
 use egui::mutex::Mutex;
-use tokio::sync::{oneshot, RwLock};
+use tokio::sync::{mpsc, oneshot, RwLock};
+
+use super::AppMsg;
 
 // pub struct AppSettings {
 // }
@@ -16,12 +18,9 @@ use tokio::sync::{oneshot, RwLock};
 
 struct SettingsHandler {
     name: String,
-    // show: Box<dyn Fn(&mut egui::Ui) + Send + Sync + 'static>,
-    // validate: Option<Box<dyn Fn() -> bool + Send + Sync + 'static>;
     widget: Arc<RwLock<dyn SettingsWidget + 'static>>,
 }
 
-#[derive(Default)]
 pub struct SettingsWindow {
     handlers: Vec<SettingsHandler>,
 
@@ -29,10 +28,20 @@ pub struct SettingsWindow {
 }
 
 impl SettingsWindow {
+    pub fn new(
+        tokio_handle: tokio::runtime::Handle,
+        app_msg_send: mpsc::Sender<AppMsg>,
+    ) -> Self {
+        Self {
+            handlers: Vec::new(),
+
+            ctx: SettingsUiContext::new(tokio_handle, app_msg_send),
+        }
+    }
+
     pub fn register_widget(
         &mut self,
         name: &str,
-        // widget: impl SettingsWidget + 'static,
         widget: Arc<RwLock<dyn SettingsWidget + 'static>>,
     ) {
         let h = SettingsHandler {
@@ -87,12 +96,32 @@ struct FileDialogState {
 }
 
 // provides the interface for opening file dialogs etc. from settings widgets
-#[derive(Default)]
 pub struct SettingsUiContext {
+    pub tokio_handle: tokio::runtime::Handle,
+    pub app_msg_send: mpsc::Sender<AppMsg>,
+
     file_dialogs: Mutex<HashMap<egui::Id, FileDialogState>>,
 }
 
 impl SettingsUiContext {
+    pub fn send_app_msg_task(&self, app_msg: AppMsg) {
+        let send = self.app_msg_send.clone();
+        self.tokio_handle
+            .spawn(async move { send.send(app_msg).await });
+    }
+
+    pub fn new(
+        tokio_handle: tokio::runtime::Handle,
+        app_msg_send: mpsc::Sender<AppMsg>,
+    ) -> Self {
+        Self {
+            tokio_handle,
+            app_msg_send,
+
+            file_dialogs: Default::default(),
+        }
+    }
+
     pub fn with_file_dialog_oneshot(
         &self,
         id: egui::Id,

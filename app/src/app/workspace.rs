@@ -9,8 +9,9 @@ use tokio::{
     task::JoinHandle,
 };
 
-use super::settings_menu::{
-    SettingsUiContext, SettingsUiResponse, SettingsWidget,
+use super::{
+    settings_menu::{SettingsUiContext, SettingsUiResponse, SettingsWidget},
+    AppMsg,
 };
 
 pub struct Workspace {
@@ -48,6 +49,7 @@ impl SettingsWidget for Workspace {
                 match ch.try_recv() {
                     Ok(path) => {
                         self.tsv_path = Some(path);
+                        settings_ctx.send_app_msg_task(AppMsg::InitViewer2D);
                     }
                     Err(e) => {
                         if matches!(e, TryRecvError::Empty) {
