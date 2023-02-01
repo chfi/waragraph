@@ -102,12 +102,12 @@ impl SettingsWindow {
                     ui.vertical(|ui| {
                         ui.set_min_width(64.0);
                         for tab_name in self.tabs.keys() {
-                            let enabled =
+                            let active =
                                 Some(tab_name) == self.active_tab.as_ref();
-                            let button = ui.add_enabled(
-                                enabled,
-                                egui::Button::new(tab_name),
-                            );
+
+                            let button = ui.add(egui::SelectableLabel::new(
+                                active, tab_name,
+                            ));
 
                             if button.clicked() {
                                 self.active_tab = Some(tab_name.to_string());

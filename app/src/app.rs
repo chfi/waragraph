@@ -105,7 +105,13 @@ impl App {
             app_msg_send.clone(),
         );
 
-        // settings.register_widget("Window", "Windows",
+        let app_windows = AppWindows::default();
+
+        settings.register_widget(
+            "Window",
+            "Windows",
+            app_windows.widget_state.clone(),
+        );
 
         let shared = {
             let workspace = Arc::new(RwLock::new(Workspace {
@@ -168,7 +174,7 @@ impl App {
             tokio_rt,
             shared,
 
-            app_windows: AppWindows::default(),
+            app_windows,
             // windows: HashMap::default(),
             // apps: HashMap::default(),
 
@@ -282,6 +288,8 @@ impl App {
         let mut is_ready = false;
         let mut prev_frame_t = std::time::Instant::now();
 
+        self.app_windows.update_widget_state();
+
         {
             // upload color buffers -- should obviously be handled better,
             // rather than just once at the start!
@@ -376,8 +384,16 @@ impl App {
                     prev_frame_t = std::time::Instant::now();
 
                     while let Ok(msg) = self.app_msg_recv.try_recv() {
-                        self.process_msg(event_loop_tgt, &state, msg);
+                        if let Err(e) =
+                            self.process_msg(event_loop_tgt, &state, msg)
+                        {
+                            log::error!("Error processing AppMsg: {e:?}");
+                        }
                     }
+
+                    // TODO: don't really like just having this here,
+                    // but good enough for now
+                    self.app_windows.update_widget_state();
 
                     for (_app_type, app) in self.app_windows.apps.iter_mut() {
                         app.update(self.tokio_rt.handle(), &state, dt);
@@ -415,7 +431,7 @@ impl App {
         event_loop: &EventLoopWindowTarget<()>,
         state: &raving_wgpu::State,
         msg: AppMsg,
-    ) {
+    ) -> Result<()> {
         match msg {
             AppMsg::InitViewer1D => {
                 if !self.app_windows.apps.contains_key(&AppType::Viewer1D) {
@@ -443,7 +459,13 @@ impl App {
                     self.settings_window_tgt = Some(src);
                 }
             }
+            AppMsg::WindowDelta(delta) => {
+                self.app_windows
+                    .handle_window_delta(event_loop, state, delta)?;
+            }
         }
+
+        Ok(())
     }
 }
 
@@ -547,4 +569,5 @@ pub enum AppMsg {
     InitViewer2D,
     OpenSettingsWindow { src: WindowId },
     ToggleSettingsWindow { src: WindowId },
+    WindowDelta(WindowDelta),
 }

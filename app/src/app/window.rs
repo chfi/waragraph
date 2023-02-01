@@ -10,7 +10,9 @@ use winit::{
 };
 
 use super::{
-    main_menu::WindowDelta, settings_menu::SettingsWidget, AppType, AppWindow,
+    main_menu::WindowDelta,
+    settings_menu::{SettingsUiResponse, SettingsWidget},
+    AppMsg, AppType, AppWindow,
 };
 
 pub struct AppWindowState {
@@ -147,10 +149,65 @@ pub enum WindowWakeState {
     Awake(WindowId),
 }
 
+impl WindowWakeState {
+    pub fn is_awake(&self) -> bool {
+        matches!(self, Self::Awake(_))
+    }
+}
+
 #[derive(Default, Clone)]
 pub struct AppWindowsWidgetState {
     window_app_map: HashMap<WindowId, AppType>,
     window_wake_state: HashMap<AppType, WindowWakeState>,
+}
+
+impl SettingsWidget for AppWindowsWidgetState {
+    fn show(
+        &mut self,
+        ui: &mut egui::Ui,
+        settings_ctx: &super::settings_menu::SettingsUiContext,
+    ) -> super::settings_menu::SettingsUiResponse {
+        let mut windows = self
+            .window_wake_state
+            .iter()
+            .map(|(app_ty, state)| {
+                let title = match app_ty {
+                    AppType::Viewer1D => "1D Viewer".to_string(),
+                    AppType::Viewer2D => "2D Viewer".to_string(),
+                    AppType::Custom(name) => name.to_string(),
+                };
+                (title, app_ty.clone(), state)
+            })
+            .collect::<Vec<_>>();
+
+        windows.sort_by(|(t1, _, _), (t2, _, _)| t1.cmp(t2));
+
+        let resp = ui.horizontal(|ui| {
+            //
+            for (label, app_ty, wake_state) in windows {
+                let active = wake_state.is_awake();
+                let btn = egui::SelectableLabel::new(active, label);
+
+                if ui.add(btn).clicked() {
+                    if active {
+                        // sleep
+                        settings_ctx.send_app_msg_task(AppMsg::WindowDelta(
+                            WindowDelta::Close(app_ty),
+                        ));
+                    } else {
+                        // wake
+                        settings_ctx.send_app_msg_task(AppMsg::WindowDelta(
+                            WindowDelta::Open(app_ty),
+                        ));
+                    }
+                }
+            }
+        });
+
+        SettingsUiResponse {
+            response: resp.response,
+        }
+    }
 }
 
 #[derive(Default)]
@@ -163,10 +220,8 @@ pub struct AppWindows {
 }
 
 impl AppWindows {
-    pub(super) fn update_widget_state(
-        &self,
-        state: &mut AppWindowsWidgetState,
-    ) {
+    pub(super) fn update_widget_state(&self) {
+        let mut state = self.widget_state.blocking_write();
         self.windows.clone_into(&mut state.window_app_map);
 
         for (app_ty, app) in self.apps.iter() {
@@ -174,7 +229,7 @@ impl AppWindows {
             state.window_wake_state.insert(app_ty.clone(), wake_state);
         }
 
-        for (app_ty, app) in self.sleeping.iter() {
+        for (app_ty, _app) in self.sleeping.iter() {
             let wake_state = WindowWakeState::Sleeping;
             state.window_wake_state.insert(app_ty.clone(), wake_state);
         }
