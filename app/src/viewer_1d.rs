@@ -828,7 +828,7 @@ impl AppWindow for Viewer1D {
                 };
 
                 {
-                    let data_mode = &self.active_viz_data_key;
+                    // let data_mode = &self.active_viz_data_key;
                     let color_map_widget = ColorMapWidget::new(
                         ui.ctx(),
                         "Viewer1D-ColorMapWidget".into(),

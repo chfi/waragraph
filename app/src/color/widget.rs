@@ -106,65 +106,116 @@ impl<'a> ColorMapWidget<'a> {
         let state =
             ColorMapWidgetState::load(ui.ctx(), self.id).unwrap_or_default();
 
-        /*
-        Instead of a bunch of sliders, at least the color range -- and maybe
-        the value range -- should be represented as points that can be dragged
-        along the X-axis of the color scheme image.
+        // allocate space, then insert the sliders "on top of" the image... kind of.
+        // probably good enough to make them aligned, at least
 
-        Hovering over a point in the color scheme image should show the value
-        that gets mapped to it (if any!)
-        */
+        // remember to set ui.spacing.slider_width
 
-        let mut resp;
+        // let top_left = ui.cursor().min;
 
-        let [min_v, max_v] = self.color_map.value_range;
-        let val_range = 0f32..=max_v;
+        let height = 192.0;
+        let width = ui.available_width().min(300.0);
+        let size = egui::vec2(width, height);
 
-        {
-            let s_min_v = egui::Slider::new(
-                &mut self.color_map.value_range[0],
-                val_range,
-            );
+        // let rect = egui::Rect::from_min_size(top_left, size);
 
-            resp = ui.add(s_min_v);
-        }
+        // let resp = ui.allocate_ui_at_rect(size, |ui| {
+        // let resp = ui.allocate_ui(size, |ui| {
+        let resp = ui.allocate_ui_with_layout(
+            size,
+            egui::Layout::top_down(egui::Align::Min),
+            |ui| {
+                let top_left = ui.cursor().min;
+                let size = ui.available_size();
+                ui.spacing_mut().slider_width = size.x;
 
-        {
-            let val_range = min_v..=(max_v + 1.0);
-            let s_max_v = egui::Slider::new(
-                &mut self.color_map.value_range[1],
-                val_range,
-            );
+                ui.add_space(64.0);
 
-            resp = resp.union(ui.add(s_max_v));
-        }
+                let value_sliders_rect = egui::Rect::from_min_size(
+                    top_left,
+                    egui::vec2(size.x, 64.0),
+                );
 
-        {
-            let col_range = 0f32..=1f32;
-            let s_min_v = egui::Slider::new(
-                &mut self.color_map.color_range[0],
-                col_range,
-            );
+                // let img_top_left = ui.cursor().min;
 
-            resp = resp.union(ui.add(s_min_v));
-        }
+                let img_size = egui::vec2(size.x, 48.0);
 
-        {
-            let col_range = 0f32..=1f32;
-            let s_max_v = egui::Slider::new(
-                &mut self.color_map.color_range[1],
-                col_range,
-            );
+                Self::show_color_scheme_image(
+                    &state,
+                    &self.color_map,
+                    img_size,
+                    ui,
+                );
 
-            resp = resp.union(ui.add(s_max_v));
-        }
+                ui.add_space(4.0);
+                let img_bottom_left = ui.cursor().min;
 
+                let color_sliders_rect = egui::Rect::from_min_size(
+                    img_bottom_left,
+                    egui::vec2(size.x, 48.0),
+                );
+
+                let [min_v, max_v] = self.color_map.value_range;
+                let val_range = 0f32..=max_v;
+
+                ui.allocate_ui_at_rect(value_sliders_rect, |ui| {
+                    // ui.spacing_mut().item_spacing.y = 4.0;
+                    ui.label("Value range");
+                    {
+                        let s_min_v = egui::Slider::new(
+                            &mut self.color_map.value_range[0],
+                            val_range,
+                        );
+                        ui.add(s_min_v);
+                    }
+
+                    {
+                        let val_range = min_v..=(max_v + 1.0);
+                        let s_max_v = egui::Slider::new(
+                            &mut self.color_map.value_range[1],
+                            val_range,
+                        );
+                        ui.add(s_max_v);
+                    }
+                });
+
+                ui.allocate_ui_at_rect(color_sliders_rect, |ui| {
+                    // ui.spacing_mut().item_spacing.y = 4.0;
+                    ui.label("Color range");
+                    {
+                        let col_range = 0f32..=1f32;
+                        let s_min_v = egui::Slider::new(
+                            &mut self.color_map.color_range[0],
+                            col_range,
+                        );
+                        ui.add(s_min_v);
+                    }
+
+                    {
+                        let col_range = 0f32..=1f32;
+                        let s_max_v = egui::Slider::new(
+                            &mut self.color_map.color_range[1],
+                            col_range,
+                        );
+                        ui.add(s_max_v);
+                    }
+                });
+            },
+        );
+
+        resp.response
+    }
+
+    fn show_color_scheme_image(
+        state: &ColorMapWidgetState,
+        color_map: &ColorMap,
+        size: egui::Vec2,
+        ui: &mut egui::Ui,
+    ) {
         if let Some((_scheme_id, handle)) = state.texture_handle.lock().as_ref()
         {
-            let [min_v, max_v] = self.color_map.value_range;
-            let [min_c, max_c] = self.color_map.color_range;
-
-            let size = [200f32, 40f32];
+            let [min_v, max_v] = color_map.value_range;
+            let [min_c, max_c] = color_map.color_range;
 
             let image = ui.image(handle.id(), size);
 
@@ -198,15 +249,13 @@ impl<'a> ColorMapWidget<'a> {
             draw_line(l_);
             draw_line(r_);
 
-            if let Some(pos) = image.hover_pos() {
-                let col_x = (pos.x - l) / (r - l);
-                let val_x = min_v + (col_x * (max_v - min_v));
-            }
+            // if let Some(pos) = image.hover_pos() {
+            //     let col_x = (pos.x - l) / (r - l);
+            //     let val_x = min_v + (col_x * (max_v - min_v));
+            // }
 
-            resp = resp.union(image);
+            // resp = resp.union(image);
         }
-
-        resp
     }
 }
 
