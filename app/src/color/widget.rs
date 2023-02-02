@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use crossbeam::atomic::AtomicCell;
 use egui::{mutex::Mutex, Color32, Context, Id, Response, Ui};
 use tokio::sync::RwLock;
 
@@ -14,10 +15,10 @@ pub struct ColorMapWidgetShared {
     colors: Arc<RwLock<ColorStore>>,
 
     id: egui::Id,
-    data_stats: FStats,
+    data_stats: FStats, // TODO: use stats to add reset value range button
     data_mode: String,
     scheme_id: ColorSchemeId,
-    color_map: Arc<RwLock<super::ColorMap>>,
+    color_map: Arc<AtomicCell<super::ColorMap>>,
 }
 
 impl ColorMapWidgetShared {
@@ -27,7 +28,7 @@ impl ColorMapWidgetShared {
         data_stats: FStats,
         data_mode: &str,
         scheme_id: ColorSchemeId,
-        color_map: Arc<RwLock<ColorMap>>,
+        color_map: Arc<AtomicCell<ColorMap>>,
     ) -> Self {
         let result = Self {
             colors,
@@ -50,11 +51,12 @@ impl ColorMapWidgetShared {
         let colors = self.colors.blocking_read();
 
         if self.data_mode != data_mode {
-            let mut color_map = self.color_map.blocking_write();
+            let mut color_map = self.color_map.load();
             if let Some(stats) = data_stats(data_mode) {
                 color_map.value_range = [stats.min, stats.max];
                 color_map.color_range = [0.0, 1.0];
             }
+            self.color_map.store(color_map);
 
             self.data_mode = data_mode.to_string();
         }
@@ -83,12 +85,13 @@ impl SettingsWidget for ColorMapWidgetShared {
             state.store(ctx, self.id);
         }
 
-        let mut color_map = self.color_map.blocking_write();
+        let mut color_map = self.color_map.load();
         let widget = ColorMapWidget {
             id: self.id,
             color_map: &mut color_map,
         };
         let response = widget.show(ui);
+        self.color_map.store(color_map);
 
         SettingsUiResponse { response }
     }
@@ -108,17 +111,6 @@ pub struct ColorMapWidgetState {
 }
 
 impl ColorMapWidgetState {
-    pub fn update(
-        ctx: &Context,
-        id: Id,
-        data_stats: impl Fn(&str) -> Option<FStats>,
-        data_mode: &str,
-        scheme_name: &str,
-        color_scheme: &ColorScheme,
-        color_map: Arc<RwLock<ColorMap>>,
-    ) {
-    }
-
     pub fn load(ctx: &Context, id: Id) -> Option<Self> {
         ctx.data().get_temp(id)
     }

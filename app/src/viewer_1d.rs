@@ -74,7 +74,7 @@ pub struct Viewer1D {
     active_viz_data_key: Arc<RwLock<String>>,
 
     // color_mapping: crate::util::Uniform<ColorMap, 16>,
-    color_mapping: crate::util::Uniform<Arc<RwLock<ColorMap>>, 16>,
+    color_mapping: crate::util::Uniform<Arc<AtomicCell<ColorMap>>, 16>,
     color_map_widget: Arc<RwLock<ColorMapWidgetShared>>,
 }
 
@@ -266,7 +266,7 @@ impl Viewer1D {
             Arc::new(AtomicCell::new(VizInteractions::default()));
         let connected_viz_interact = None;
 
-        let color_mapping_val = Arc::new(RwLock::new(ColorMap {
+        let color_mapping_val = Arc::new(AtomicCell::new(ColorMap {
             value_range: [0.0, 1.0],
             color_range: [0.0, 1.0],
         }));
@@ -276,9 +276,8 @@ impl Viewer1D {
             wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
             "Viewer 1D Color Mapping",
             color_mapping_val.clone(),
-            |cm| {
-                let color_map = cm.blocking_read();
-                let data: [u8; 16] = bytemuck::cast(*color_map);
+            |color_map| {
+                let data: [u8; 16] = bytemuck::cast(color_map.load());
                 data
             },
         )?;
@@ -294,8 +293,9 @@ impl Viewer1D {
                 .unwrap()
                 .global_stats;
 
-            color_mapping_val.blocking_write().value_range =
-                [stats.min, stats.max];
+            let mut map = color_mapping_val.load();
+            map.value_range = [stats.min, stats.max];
+            color_mapping_val.store(map);
 
             let color_map_widget = ColorMapWidgetShared::new(
                 shared.colors.clone(),
