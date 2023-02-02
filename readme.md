@@ -10,10 +10,18 @@ cargo build --release
 ```
 
 Run by providing a GFA file, and, optionally, a TSV layout file from [`odgi layout`](https://odgi.readthedocs.io/en/stable/rst/commands/odgi_layout.html).
+A layout file can also be provided after the program has started, from the settings window.
 
 ```sh
 ./target/release/waragraph graph.gfa layout.tsv
 ```
+
+
+### Global
+
+Press `Escape` to open the settings window. If not provided on startup, a TSV layout file
+can be loaded under "Graph & Layout" in the "General" tab.
+
 
 ### 1D
 
