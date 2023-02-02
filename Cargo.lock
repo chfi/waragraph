@@ -2733,6 +2733,7 @@ name = "waragraph"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "bimap",
  "btoi",
  "bytemuck",
  "colorous",

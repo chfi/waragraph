@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
+use bimap::BiBTreeMap;
 use wgpu::{
     util::{BufferInitDescriptor, DeviceExt},
     BufferUsages,
@@ -21,7 +22,7 @@ pub struct ColorMap {
 pub struct ColorSchemeId(usize);
 
 pub struct ColorStore {
-    scheme_name_map: HashMap<String, ColorSchemeId>,
+    scheme_name_map: BiBTreeMap<String, ColorSchemeId>,
     color_schemes: Vec<ColorScheme>,
 
     scheme_buffers: HashMap<ColorSchemeId, Arc<wgpu::Buffer>>,
@@ -78,7 +79,13 @@ fn create_nearest_sampler(device: &wgpu::Device) -> wgpu::Sampler {
 
 impl ColorStore {
     pub fn get_color_scheme_id(&self, name: &str) -> Option<ColorSchemeId> {
-        self.scheme_name_map.get(name).copied()
+        self.scheme_name_map.get_by_left(name).copied()
+    }
+
+    pub fn get_scheme_name(&self, id: ColorSchemeId) -> &str {
+        // unwrap is fine here since ColorSchemeIds can only be created
+        // by adding a color scheme
+        self.scheme_name_map.get_by_right(&id).unwrap()
     }
 
     pub fn get_color_scheme(&self, id: ColorSchemeId) -> &ColorScheme {
@@ -90,7 +97,7 @@ impl ColorStore {
         let nearest_sampler = Arc::new(create_nearest_sampler(&state.device));
 
         let mut result = Self {
-            scheme_name_map: HashMap::default(),
+            scheme_name_map: BiBTreeMap::default(),
             color_schemes: Vec::new(),
 
             scheme_buffers: HashMap::default(),
@@ -160,7 +167,7 @@ impl ColorStore {
         scheme_name: &str,
     ) {
         // create texture & texture view
-        let scheme_id = *self.scheme_name_map.get(scheme_name).unwrap();
+        let scheme_id = *self.scheme_name_map.get_by_left(scheme_name).unwrap();
 
         let color_scheme = &self.color_schemes[scheme_id.0];
 

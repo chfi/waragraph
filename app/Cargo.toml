@@ -7,6 +7,7 @@ edition = "2021"
 
 [dependencies]
 waragraph-core = { path = "../lib" }
+bimap = "0.6"
 
 tokio = { version = "1", features = ["full"] }
 

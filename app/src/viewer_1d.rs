@@ -806,7 +806,6 @@ impl AppWindow for Viewer1D {
             let active_viz_data =
                 self.active_viz_data_key.blocking_read().clone();
 
-            /*
             egui::Window::new("Color Mapping").show(egui_ctx.ctx(), |ui| {
                 let colors = self.shared.colors.blocking_read();
 
@@ -820,8 +819,7 @@ impl AppWindow for Viewer1D {
 
                 let mut color_map = *self.color_mapping.data_ref();
 
-                // let scheme_name = &self.active_viz_data_key;
-                // let scheme_name = colors.
+                let scheme_name = colors.get_scheme_name(*id);
 
                 let data_cache = &self.shared.graph_data_cache;
                 let stats_getter = |key: &str| {
@@ -835,7 +833,7 @@ impl AppWindow for Viewer1D {
                         ui.ctx(),
                         "Viewer1D-ColorMapWidget".into(),
                         stats_getter,
-                        &data_mode,
+                        &active_viz_data,
                         scheme_name,
                         &color_scheme,
                         &mut color_map,
@@ -850,7 +848,6 @@ impl AppWindow for Viewer1D {
                     changed
                 });
             });
-            */
 
             let painter =
                 egui_ctx.ctx().layer_painter(egui::LayerId::background());
