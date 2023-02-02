@@ -100,7 +100,7 @@ impl SettingsWindow {
                 ui,
                 |ui| {
                     ui.vertical(|ui| {
-                        ui.set_min_width(64.0);
+                        ui.set_min_width(128.0);
                         for tab_name in self.tabs.keys() {
                             let active =
                                 Some(tab_name) == self.active_tab.as_ref();
@@ -119,22 +119,28 @@ impl SettingsWindow {
                         .auto_shrink([false, true])
                         .min_scrolled_height(400.0)
                         .show(ui, |ui| {
-                            if let Some(active_tab) = self.active_tab.as_ref() {
-                                if let Some(tab) = self.tabs.get_mut(active_tab)
+                            ui.vertical(|ui| {
+                                if let Some(active_tab) =
+                                    self.active_tab.as_ref()
                                 {
-                                    for h in tab.handlers.iter_mut() {
-                                        let name = &h.name;
-                                        let widget = &mut h.widget;
+                                    if let Some(tab) =
+                                        self.tabs.get_mut(active_tab)
+                                    {
+                                        for h in tab.handlers.iter_mut() {
+                                            let name = &h.name;
+                                            let widget = &mut h.widget;
 
-                                        ui.collapsing(name, |ui| {
-                                            let mut lock =
-                                                widget.blocking_write();
-                                            let _resp =
-                                                lock.show(ui, &self.ctx);
-                                        });
+                                            ui.collapsing(name, |ui| {
+                                                let mut lock =
+                                                    widget.blocking_write();
+                                                let _resp =
+                                                    lock.show(ui, &self.ctx);
+                                            });
+                                            ui.separator();
+                                        }
                                     }
                                 }
-                            }
+                            })
                         });
 
                     ui.end_row();
