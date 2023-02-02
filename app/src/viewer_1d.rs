@@ -1,4 +1,5 @@
 use crate::app::resource::GraphPathData;
+use crate::app::settings_menu::SettingsWindow;
 use crate::app::{AppWindow, SharedState, VizInteractions};
 use crate::color::widget::ColorMapWidget;
 use crate::color::ColorMap;
@@ -8,6 +9,7 @@ use crate::list::ListView;
 use crate::util::BufferDesc;
 use crossbeam::atomic::AtomicCell;
 use taffy::style::Dimension;
+use tokio::sync::RwLock;
 use waragraph_core::graph::{Bp, PathId};
 use wgpu::BufferUsages;
 
@@ -28,8 +30,10 @@ use waragraph_core::graph::PathIndex;
 
 use self::util::path_sampled_data_viz_buffer;
 use self::view::View1D;
+use self::widgets::VisualizationModesWidget;
 
 pub mod gui;
+pub mod widgets;
 
 pub mod util;
 pub mod view;
@@ -66,7 +70,8 @@ pub struct Viewer1D {
 
     shared: SharedState,
 
-    active_viz_data_key: String,
+    // active_viz_data_key: String,
+    active_viz_data_key: Arc<RwLock<String>>,
 
     color_mapping: crate::util::Uniform<ColorMap, 16>,
 }
@@ -78,6 +83,7 @@ impl Viewer1D {
         window: &WindowState,
         path_index: Arc<PathIndex>,
         shared: &SharedState,
+        settings_window: &mut SettingsWindow,
     ) -> Result<Self> {
         let mut graph = Graph::new();
 
@@ -274,6 +280,21 @@ impl Viewer1D {
             },
         )?;
 
+        let active_viz_data_key = Arc::new(RwLock::new(active_viz_data_key));
+
+        {
+            let viz_mode_widget = VisualizationModesWidget {
+                shared: shared.clone(),
+                active_viz_data_key: active_viz_data_key.clone(),
+            };
+
+            settings_window.register_widget(
+                "1D Viewer",
+                "Visualization Modes",
+                Arc::new(RwLock::new(viz_mode_widget)),
+            );
+        }
+
         Ok(Viewer1D {
             render_graph: graph,
             draw_path_slot: draw_node,
@@ -437,7 +458,7 @@ impl AppWindow for Viewer1D {
         );
 
         if self.dyn_slot_layout.layout().computed_size() != Some(dims) {
-            let data_id = std::sync::Arc::new(self.active_viz_data_key.clone());
+            let data_id = self.active_viz_data_key.blocking_read().clone();
 
             let rows_iter =
                 self.path_list_view.offset_to_end_iter().enumerate().map(
@@ -526,10 +547,13 @@ impl AppWindow for Viewer1D {
             let view_range = self.view.range().clone();
 
             let path_index = self.shared.graph.clone();
+
+            let data_id = self.active_viz_data_key.blocking_read().clone();
+
             let data = self
                 .shared
                 .graph_data_cache
-                .fetch_path_data_blocking(&self.active_viz_data_key)
+                .fetch_path_data_blocking(&data_id)
                 .unwrap();
 
             let join = tokio_rt.spawn_blocking(move || {
@@ -779,48 +803,25 @@ impl AppWindow for Viewer1D {
                 self.self_viz_interact.store(interact);
             });
 
-            egui::Window::new("Visualization Modes").show(
-                egui_ctx.ctx(),
-                |ui| {
-                    let mut path_data_sources = self
-                        .shared
-                        .graph_data_cache
-                        .path_data_source_names()
-                        .collect::<Vec<_>>();
-                    path_data_sources.sort();
+            let active_viz_data =
+                self.active_viz_data_key.blocking_read().clone();
 
-                    let mut current_key = self.active_viz_data_key.clone();
-
-                    for key in path_data_sources {
-                        if ui
-                            .add_enabled(
-                                key != &current_key,
-                                egui::Button::new(key),
-                            )
-                            .clicked()
-                        {
-                            current_key = key.to_string();
-                        }
-                    }
-
-                    self.active_viz_data_key = current_key;
-                },
-            );
-
+            /*
             egui::Window::new("Color Mapping").show(egui_ctx.ctx(), |ui| {
                 let colors = self.shared.colors.blocking_read();
 
                 let id = self
                     .shared
                     .data_color_schemes
-                    .get(&self.active_viz_data_key)
+                    .get(&active_viz_data)
                     .unwrap();
 
                 let color_scheme = colors.get_color_scheme(*id);
 
                 let mut color_map = *self.color_mapping.data_ref();
 
-                let scheme_name = &self.active_viz_data_key;
+                // let scheme_name = &self.active_viz_data_key;
+                // let scheme_name = colors.
 
                 let data_cache = &self.shared.graph_data_cache;
                 let stats_getter = |key: &str| {
@@ -849,6 +850,7 @@ impl AppWindow for Viewer1D {
                     changed
                 });
             });
+            */
 
             let painter =
                 egui_ctx.ctx().layer_painter(egui::LayerId::background());
@@ -965,11 +967,9 @@ impl AppWindow for Viewer1D {
 
             let sampler = colors.linear_sampler.clone();
 
-            let id = self
-                .shared
-                .data_color_schemes
-                .get(&self.active_viz_data_key)
-                .unwrap();
+            let data_key = self.active_viz_data_key.blocking_read().clone();
+
+            let id = self.shared.data_color_schemes.get(&data_key).unwrap();
 
             let scheme = colors.get_color_scheme(*id);
             let size = [scheme.colors.len() as u32, 1];

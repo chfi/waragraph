@@ -7,13 +7,8 @@ use crate::gui::FlexLayout;
 pub(super) enum SlotElem {
     Empty,
     ViewRange,
-    PathData {
-        slot_id: usize,
-        data_id: std::sync::Arc<String>,
-    },
-    PathName {
-        slot_id: usize,
-    },
+    PathData { slot_id: usize, data_id: String },
+    PathName { slot_id: usize },
 }
 
 pub(super) fn view_range_shapes(

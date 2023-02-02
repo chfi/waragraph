@@ -42,7 +42,7 @@ use self::{
 pub struct SharedState {
     pub graph: Arc<waragraph_core::graph::PathIndex>,
 
-    pub shared: Arc<RwLock<AnyArcMap>>,
+    // pub shared: Arc<RwLock<AnyArcMap>>,
     pub graph_data_cache: Arc<GraphDataCache>,
 
     pub colors: Arc<RwLock<ColorStore>>,
@@ -144,7 +144,7 @@ impl App {
             SharedState {
                 graph: path_index,
 
-                shared: Arc::new(RwLock::new(AnyArcMap::default())),
+                // shared: Arc::new(RwLock::new(AnyArcMap::default())),
                 graph_data_cache,
 
                 colors,
@@ -218,6 +218,7 @@ impl App {
                 &window,
                 self.shared.graph.clone(),
                 &self.shared,
+                &mut self.settings,
             )?;
 
             app.self_viz_interact = self.shared.viewer_1d_interactions.clone();
