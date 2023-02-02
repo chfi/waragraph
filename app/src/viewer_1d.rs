@@ -1,7 +1,7 @@
 use crate::app::resource::GraphPathData;
 use crate::app::settings_menu::SettingsWindow;
 use crate::app::{AppWindow, SharedState, VizInteractions};
-use crate::color::widget::ColorMapWidget;
+use crate::color::widget::{ColorMapWidget, ColorMapWidgetShared};
 use crate::color::ColorMap;
 use crate::gui::list::DynamicListLayout;
 use crate::gui::FlexLayout;
@@ -73,7 +73,8 @@ pub struct Viewer1D {
     // active_viz_data_key: String,
     active_viz_data_key: Arc<RwLock<String>>,
 
-    color_mapping: crate::util::Uniform<ColorMap, 16>,
+    // color_mapping: crate::util::Uniform<ColorMap, 16>,
+    color_mapping: crate::util::Uniform<Arc<RwLock<ColorMap>>, 16>,
 }
 
 impl Viewer1D {
@@ -264,21 +265,35 @@ impl Viewer1D {
             Arc::new(AtomicCell::new(VizInteractions::default()));
         let connected_viz_interact = None;
 
-        let color_mapping = ColorMap {
+        let color_mapping_val = Arc::new(RwLock::new(ColorMap {
             value_range: [0.0, 1.0],
             color_range: [0.0, 1.0],
-        };
+        }));
 
         let color_mapping = crate::util::Uniform::new(
             &state,
             wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
             "Viewer 1D Color Mapping",
-            color_mapping,
+            color_mapping_val.clone(),
             |cm| {
-                let data: [u8; 16] = bytemuck::cast(*cm);
+                let color_map = cm.blocking_read();
+                let data: [u8; 16] = bytemuck::cast(*color_map);
                 data
             },
         )?;
+
+        {
+            let color_map_widget = ColorMapWidgetShared::new(
+                "Viewer1D-ColorMapWidget".into(),
+                color_mapping_val,
+            );
+
+            settings_window.register_widget(
+                "1D Viewer",
+                "Color Map",
+                Arc::new(RwLock::new(color_map_widget)),
+            );
+        }
 
         let active_viz_data_key = Arc::new(RwLock::new(active_viz_data_key));
 
@@ -806,6 +821,7 @@ impl AppWindow for Viewer1D {
             let active_viz_data =
                 self.active_viz_data_key.blocking_read().clone();
 
+            /*
             egui::Window::new("Color Mapping").show(egui_ctx.ctx(), |ui| {
                 let colors = self.shared.colors.blocking_read();
 
@@ -848,6 +864,7 @@ impl AppWindow for Viewer1D {
                     changed
                 });
             });
+            */
 
             let painter =
                 egui_ctx.ctx().layer_painter(egui::LayerId::background());

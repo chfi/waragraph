@@ -1,10 +1,98 @@
 use std::sync::Arc;
 
 use egui::{mutex::Mutex, Color32, Context, Id, Response, Ui};
+use tokio::sync::RwLock;
 
-use crate::app::resource::FStats;
+use crate::app::{
+    resource::FStats,
+    settings_menu::{SettingsUiContext, SettingsUiResponse, SettingsWidget},
+};
 
-use super::{ColorMap, ColorScheme, ColorSchemeId};
+use super::{ColorMap, ColorScheme, ColorSchemeId, ColorStore};
+
+pub struct ColorMapWidgetShared {
+    colors: Arc<RwLock<ColorStore>>,
+
+    id: egui::Id,
+    data_stats: FStats,
+    data_mode: String,
+    scheme_name: String,
+    color_map: Arc<RwLock<super::ColorMap>>,
+}
+
+impl ColorMapWidgetShared {
+    pub fn new(
+        colors: Arc<RwLock<ColorStore>>,
+        id: Id,
+        data_stats: FStats,
+        data_mode: &str,
+        scheme_name: &str,
+        color_map: Arc<RwLock<ColorMap>>,
+    ) -> Self {
+        let result = Self {
+            colors,
+            id,
+            data_stats,
+            data_mode: data_mode.to_string(),
+            scheme_name: scheme_name.to_string(),
+            color_map,
+        };
+
+        result
+    }
+
+    pub fn update(
+        &mut self,
+        data_stats: impl Fn(&str) -> Option<FStats>,
+        data_mode: &str,
+        scheme_name: &str,
+    ) {
+        let colors = self.colors.blocking_read();
+        let scheme_id = colors.get_color_scheme_id(scheme_name).unwrap();
+
+        if self.data_mode != data_mode {
+            let mut color_map = self.color_map.blocking_write();
+            if let Some(stats) = data_stats(data_mode) {
+                color_map.value_range = [stats.min, stats.max];
+                color_map.color_range = [0.0, 1.0];
+            }
+
+            self.data_mode = data_mode.to_string();
+        }
+    }
+}
+
+impl SettingsWidget for ColorMapWidgetShared {
+    fn show(
+        &mut self,
+        ui: &mut egui::Ui,
+        settings_ctx: &SettingsUiContext,
+    ) -> SettingsUiResponse {
+        {
+            let ctx = ui.ctx();
+            let mut state =
+                ColorMapWidgetState::load(ctx, self.id).unwrap_or_default();
+
+            let colors = self.colors.blocking_read();
+            let scheme_id =
+                colors.get_color_scheme_id(&self.scheme_name).unwrap();
+            let color_scheme = colors.get_color_scheme(scheme_id);
+
+            state.prepare_color_scheme(ctx, &self.scheme_name, color_scheme);
+
+            state.store(ctx, self.id);
+        }
+
+        let mut color_map = self.color_map.blocking_write();
+        let widget = ColorMapWidget {
+            id: self.id,
+            color_map: &mut color_map,
+        };
+        let response = widget.show(ui);
+
+        SettingsUiResponse { response }
+    }
+}
 
 pub struct ColorMapWidget<'a> {
     id: egui::Id,
@@ -16,11 +104,21 @@ pub struct ColorMapWidgetState {
     // TODO: maybe store the WindowId here for reference, since the
     // egui contexts are paired with windows
     texture_handle: Arc<Mutex<Option<(ColorSchemeId, egui::TextureHandle)>>>,
-
-    data_mode: String,
+    // data_mode: String,
 }
 
 impl ColorMapWidgetState {
+    pub fn update(
+        ctx: &Context,
+        id: Id,
+        data_stats: impl Fn(&str) -> Option<FStats>,
+        data_mode: &str,
+        scheme_name: &str,
+        color_scheme: &ColorScheme,
+        color_map: Arc<RwLock<ColorMap>>,
+    ) {
+    }
+
     pub fn load(ctx: &Context, id: Id) -> Option<Self> {
         ctx.data().get_temp(id)
     }
