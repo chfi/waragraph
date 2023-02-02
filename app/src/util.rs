@@ -19,7 +19,7 @@ pub struct Uniform<T, const N: usize> {
     buffer: wgpu::Buffer,
 
     to_bytes: Box<dyn Fn(&T) -> [u8; N]>,
-    need_write: bool,
+    // need_write: bool,
 }
 
 impl<T, const N: usize> Uniform<T, N> {
@@ -56,7 +56,7 @@ impl<T, const N: usize> Uniform<T, N> {
             data,
             buffer,
             to_bytes,
-            need_write: false,
+            // need_write: false,
         })
     }
 
@@ -74,20 +74,17 @@ impl<T, const N: usize> Uniform<T, N> {
 
     pub fn update_data(&mut self, f: impl FnOnce(&mut T)) {
         f(&mut self.data);
-        self.need_write = true;
+        // self.need_write = true;
     }
 
-    pub fn update_data_maybe_write(&mut self, f: impl FnOnce(&mut T) -> bool) {
-        let w = f(&mut self.data);
-        self.need_write = w;
-    }
+    // pub fn update_data_maybe_write(&mut self, f: impl FnOnce(&mut T) -> bool) {
+    //     let w = f(&mut self.data);
+    // self.need_write = w;
+    // }
 
     pub fn write_buffer(&mut self, state: &raving_wgpu::State) {
-        if self.need_write {
-            let data = (self.to_bytes)(&self.data);
-            state.queue.write_buffer(&self.buffer, 0, data.as_slice());
-            self.need_write = false;
-        }
+        let data = (self.to_bytes)(&self.data);
+        state.queue.write_buffer(&self.buffer, 0, data.as_slice());
     }
 
     //

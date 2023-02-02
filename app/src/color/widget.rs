@@ -16,7 +16,7 @@ pub struct ColorMapWidgetShared {
     id: egui::Id,
     data_stats: FStats,
     data_mode: String,
-    scheme_name: String,
+    scheme_id: ColorSchemeId,
     color_map: Arc<RwLock<super::ColorMap>>,
 }
 
@@ -26,7 +26,7 @@ impl ColorMapWidgetShared {
         id: Id,
         data_stats: FStats,
         data_mode: &str,
-        scheme_name: &str,
+        scheme_id: ColorSchemeId,
         color_map: Arc<RwLock<ColorMap>>,
     ) -> Self {
         let result = Self {
@@ -34,7 +34,7 @@ impl ColorMapWidgetShared {
             id,
             data_stats,
             data_mode: data_mode.to_string(),
-            scheme_name: scheme_name.to_string(),
+            scheme_id,
             color_map,
         };
 
@@ -45,10 +45,9 @@ impl ColorMapWidgetShared {
         &mut self,
         data_stats: impl Fn(&str) -> Option<FStats>,
         data_mode: &str,
-        scheme_name: &str,
+        scheme_id: ColorSchemeId,
     ) {
         let colors = self.colors.blocking_read();
-        let scheme_id = colors.get_color_scheme_id(scheme_name).unwrap();
 
         if self.data_mode != data_mode {
             let mut color_map = self.color_map.blocking_write();
@@ -59,6 +58,7 @@ impl ColorMapWidgetShared {
 
             self.data_mode = data_mode.to_string();
         }
+        self.scheme_id = scheme_id;
     }
 }
 
@@ -70,15 +70,15 @@ impl SettingsWidget for ColorMapWidgetShared {
     ) -> SettingsUiResponse {
         {
             let ctx = ui.ctx();
-            let mut state =
+            let state =
                 ColorMapWidgetState::load(ctx, self.id).unwrap_or_default();
 
             let colors = self.colors.blocking_read();
-            let scheme_id =
-                colors.get_color_scheme_id(&self.scheme_name).unwrap();
-            let color_scheme = colors.get_color_scheme(scheme_id);
+            let color_scheme = colors.get_color_scheme(self.scheme_id);
 
-            state.prepare_color_scheme(ctx, &self.scheme_name, color_scheme);
+            let scheme_name = colors.get_scheme_name(self.scheme_id);
+
+            state.prepare_color_scheme(ctx, scheme_name, color_scheme);
 
             state.store(ctx, self.id);
         }
@@ -185,15 +185,6 @@ impl<'a> ColorMapWidget<'a> {
         // try to do it as part of show(), which will be limited
         // by the Widget trait
         state.prepare_color_scheme(ctx, scheme_name, color_scheme);
-
-        if state.data_mode != data_mode {
-            if let Some(stats) = data_stats(data_mode) {
-                color_map.value_range = [stats.min, stats.max];
-                color_map.color_range = [0.0, 1.0];
-            }
-
-            state.data_mode = data_mode.to_string();
-        }
 
         state.store(ctx, id);
 

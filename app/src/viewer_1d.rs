@@ -75,6 +75,7 @@ pub struct Viewer1D {
 
     // color_mapping: crate::util::Uniform<ColorMap, 16>,
     color_mapping: crate::util::Uniform<Arc<RwLock<ColorMap>>, 16>,
+    color_map_widget: Arc<RwLock<ColorMapWidgetShared>>,
 }
 
 impl Viewer1D {
@@ -282,18 +283,39 @@ impl Viewer1D {
             },
         )?;
 
-        {
+        let color_map_widget = {
+            let scheme_id =
+                shared.data_color_schemes.get(&active_viz_data_key).unwrap();
+
+            let stats = shared
+                .graph_data_cache
+                .fetch_path_data_blocking(&active_viz_data_key)
+                .as_ref()
+                .unwrap()
+                .global_stats;
+
+            color_mapping_val.blocking_write().value_range =
+                [stats.min, stats.max];
+
             let color_map_widget = ColorMapWidgetShared::new(
+                shared.colors.clone(),
                 "Viewer1D-ColorMapWidget".into(),
-                color_mapping_val,
+                stats,
+                &active_viz_data_key,
+                *scheme_id,
+                color_mapping_val.clone(),
             );
+
+            let widget = Arc::new(RwLock::new(color_map_widget));
 
             settings_window.register_widget(
                 "1D Viewer",
                 "Color Map",
-                Arc::new(RwLock::new(color_map_widget)),
+                widget.clone(),
             );
-        }
+
+            widget
+        };
 
         let active_viz_data_key = Arc::new(RwLock::new(active_viz_data_key));
 
@@ -337,6 +359,7 @@ impl Viewer1D {
             active_viz_data_key,
 
             color_mapping,
+            color_map_widget,
         })
     }
 
@@ -458,6 +481,32 @@ impl AppWindow for Viewer1D {
         egui_ctx: &mut EguiCtx,
         dt: f32,
     ) {
+        {
+            let mut color_map_widget = self.color_map_widget.blocking_write();
+
+            let active_viz_data_key = self.active_viz_data_key.blocking_read();
+
+            let data_cache = &self.shared.graph_data_cache;
+            let stats_getter = |key: &str| {
+                let data = data_cache.fetch_path_data_blocking(key)?;
+                Some(data.global_stats)
+            };
+
+            let scheme_id = self
+                .shared
+                .data_color_schemes
+                .get(active_viz_data_key.as_str())
+                .unwrap();
+
+            color_map_widget.update(
+                stats_getter,
+                active_viz_data_key.as_str(),
+                *scheme_id,
+            );
+
+            self.color_mapping.write_buffer(state);
+        }
+
         let other_interactions = self
             .connected_viz_interact
             .as_ref()
@@ -817,54 +866,6 @@ impl AppWindow for Viewer1D {
 
                 self.self_viz_interact.store(interact);
             });
-
-            let active_viz_data =
-                self.active_viz_data_key.blocking_read().clone();
-
-            /*
-            egui::Window::new("Color Mapping").show(egui_ctx.ctx(), |ui| {
-                let colors = self.shared.colors.blocking_read();
-
-                let id = self
-                    .shared
-                    .data_color_schemes
-                    .get(&active_viz_data)
-                    .unwrap();
-
-                let color_scheme = colors.get_color_scheme(*id);
-
-                let mut color_map = *self.color_mapping.data_ref();
-
-                let scheme_name = colors.get_scheme_name(*id);
-
-                let data_cache = &self.shared.graph_data_cache;
-                let stats_getter = |key: &str| {
-                    let data = data_cache.fetch_path_data_blocking(key)?;
-                    Some(data.global_stats)
-                };
-
-                {
-                    // let data_mode = &self.active_viz_data_key;
-                    let color_map_widget = ColorMapWidget::new(
-                        ui.ctx(),
-                        "Viewer1D-ColorMapWidget".into(),
-                        stats_getter,
-                        &active_viz_data,
-                        scheme_name,
-                        &color_scheme,
-                        &mut color_map,
-                    );
-
-                    ui.add(color_map_widget);
-                }
-
-                self.color_mapping.update_data_maybe_write(|cm| {
-                    let changed = *cm != color_map;
-                    *cm = color_map;
-                    changed
-                });
-            });
-            */
 
             let painter =
                 egui_ctx.ctx().layer_painter(egui::LayerId::background());
