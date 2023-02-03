@@ -9,6 +9,8 @@ pub struct AnnotationLayout1D<T> {
     paths: Vec<PathId>,
 
     cache: Arc<AnnotationCache<T>>,
+    // record_pos: Vec<egui::
 
-    record_aabbs: BTreeMap<usize, egui::Rect>,
+    // record_pos
+    // record_sizes: BTreeMap<usize, egui::Vec2>,
 }
