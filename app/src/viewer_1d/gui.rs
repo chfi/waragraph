@@ -9,6 +9,7 @@ pub(super) enum SlotElem {
     ViewRange,
     PathData { slot_id: usize, data_id: String },
     PathName { slot_id: usize },
+    Annotations { path: PathId, annotation_id: String },
 }
 
 pub(super) fn view_range_shapes(

@@ -1,8 +1,17 @@
 use anyhow::Result;
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use ultraviolet::Vec2;
 
-use waragraph_core::graph::{Bp, PathIndex};
+use waragraph_core::graph::{Bp, PathId};
+
+pub mod layout;
+
+pub struct AnnotationCache<T> {
+    records: Vec<T>,
+
+    // BTreeMap is a map from ranges to sets of record indices
+    annotations: HashMap<PathId, BTreeMap<(Bp, Bp), Vec<usize>>>,
+}
 
 #[derive(Default, Clone)]
 struct AnnotationStore {

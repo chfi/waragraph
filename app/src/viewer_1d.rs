@@ -226,6 +226,13 @@ impl Viewer1D {
 
                     let height = match &val {
                         gui::SlotElem::Empty => taffy::style::Dimension::Auto,
+                        gui::SlotElem::Annotations {
+                            path,
+                            annotation_id,
+                        } => {
+                            // TODO this should be dynamic
+                            mk_h(slot_height)
+                        }
                         gui::SlotElem::ViewRange => mk_h(slot_height),
                         gui::SlotElem::PathData { slot_id, data_id } => {
                             mk_h(slot_height)
@@ -736,6 +743,13 @@ impl AppWindow for Viewer1D {
                         let shape = egui::Shape::Text(text_shape);
 
                         shapes.push(shape);
+                    }
+                    gui::SlotElem::Annotations {
+                        path,
+                        annotation_id,
+                    } => {
+                        // TODO
+                        //
                     }
                 }
             })
