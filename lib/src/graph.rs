@@ -70,6 +70,11 @@ impl OrientedNode {
     pub fn is_reverse(&self) -> bool {
         (self.0 & 1) == 1
     }
+
+    #[inline]
+    pub fn flip(self) -> Self {
+        Self::new(self.node().0, !self.is_reverse())
+    }
 }
 
 impl From<u64> for Bp {
@@ -143,6 +148,8 @@ pub struct PathIndex {
     pub sequence_total_len: Bp,
     pub segment_id_range: (u32, u32),
 
+    edges: Vec<(OrientedNode, OrientedNode)>,
+
     pub path_names: BiBTreeMap<PathId, String>,
     // pub path_names: BTreeMap<String, usize>,
     pub path_steps: Vec<Vec<OrientedNode>>,
@@ -170,6 +177,12 @@ impl<'a> Iterator for PathStepRangeIter<'a> {
 }
 
 impl PathIndex {
+    pub fn edges_iter<'a>(
+        &'a self,
+    ) -> impl Iterator<Item = &'a (OrientedNode, OrientedNode)> {
+        self.edges.iter()
+    }
+
     pub fn pangenome_len(&self) -> Bp {
         self.sequence_total_len
     }
@@ -359,6 +372,27 @@ impl PathIndex {
         seg_id_range.1 - seg_id_range.0,
         );
 
+        let mut edges = Vec::new();
+
+        loop {
+            line_buf.clear();
+
+            let len = gfa_reader.read_until(0xA, &mut line_buf)?;
+            if len == 0 {
+                break;
+            }
+
+            let line = &line_buf[..len - 1];
+
+            if !matches!(line.first(), Some(b'L')) {
+                continue;
+            }
+
+            let fields = line.split(|&c| c == b'\t');
+            let edge = Self::parse_gfa_link(seg_id_range.0, fields)?;
+            edges.push(edge);
+        }
+
         let node_count = seg_lens.len();
 
         let gfa = std::fs::File::open(&gfa_path)?;
@@ -442,7 +476,53 @@ impl PathIndex {
             node_count,
             segment_id_range: seg_id_range,
             sequence_total_len: Bp(sequence_total_len as u64),
+
+            edges,
         })
+    }
+}
+
+impl PathIndex {
+    fn parse_gfa_link<'a>(
+        min_id: u32,
+        mut fields: impl Iterator<Item = &'a [u8]>,
+    ) -> std::io::Result<(OrientedNode, OrientedNode)> {
+        let fields_missing =
+            || std::io::Error::new(std::io::ErrorKind::Other, "Fields missing");
+
+        let parse_id = |bs: &[u8]| {
+            btoi::btou::<u32>(bs).map(|i| i - min_id).map_err(|e| {
+                std::io::Error::new(std::io::ErrorKind::InvalidData, e)
+            })
+        };
+
+        let parse_orient = |bs: &[u8]| match bs {
+            b"+" => Ok(false),
+            b"-" => Ok(true),
+            _ => Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                "Could not parse link orientation",
+            )),
+        };
+
+        let _type = fields.next().ok_or_else(&fields_missing)?;
+
+        let from = fields.next().ok_or_else(&fields_missing)?;
+        let from_orient = fields.next().ok_or_else(&fields_missing)?;
+
+        let to = fields.next().ok_or_else(&fields_missing)?;
+        let to_orient = fields.next().ok_or_else(&fields_missing)?;
+
+        let from_id = parse_id(from)?;
+        let from_rev = parse_orient(from_orient)?;
+
+        let to_id = parse_id(to)?;
+        let to_rev = parse_orient(from_orient)?;
+
+        let from = OrientedNode::new(from_id, from_rev);
+        let to = OrientedNode::new(to_id, to_rev);
+
+        Ok((from, to))
     }
 }
 
