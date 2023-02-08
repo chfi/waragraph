@@ -53,3 +53,4 @@ memchr = "2.5"
 noodles = { version = "0.29", features = ["sam", "bam", "fasta", "bed"]}
 btoi = "0.4.2"
 
+reunion = "0.1"

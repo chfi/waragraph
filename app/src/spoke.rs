@@ -22,32 +22,128 @@ pub mod app;
 #[repr(transparent)]
 pub struct HubId(u32);
 
-pub struct SpokeLayout {
+pub struct SpokeGraph {
     graph: Arc<PathIndex>,
 
     node_hub_map: BTreeMap<Node, (Option<HubId>, Option<HubId>)>,
 
     hubs: Vec<Hub>,
-
-    geometry: HubSpokeGeometry,
 }
 
-struct HubSpokeGeometry {
-    // implicitly indexed by NodeId
-    node_lengths: Vec<f32>,
-
-    // outer Vec implicitly indexed by HubId,
-    // inner Vec corresponds to `Hub`s `spokes` field
-    hub_spoke_angles: Vec<Vec<f32>>,
-}
-
+#[derive(Default, Clone)]
 pub struct Hub {
     // the set of edges that is mapped to this hub
     edges: BTreeSet<(OrientedNode, OrientedNode)>,
 
-    // spokes are given clockwise, and map to the corresponding node endpoint, i.e.
     // [(a+, b+)] would map to the spokes [a+, b-]
     spokes: Vec<OrientedNode>,
+    // node_spoke_map: BTreeMap<Node, usize>,
+}
 
-    node_spoke_map: BTreeMap<Node, usize>,
+impl SpokeGraph {
+    pub fn new(graph: Arc<PathIndex>) -> Self {
+        use reunion::{UnionFind, UnionFindTrait};
+
+        let mut ufind = UnionFind::<OrientedNode>::new();
+
+        for &(from, to) in graph.edges_iter() {
+            let (a, b) = match (from.is_reverse(), to.is_reverse()) {
+                (false, false) => (from, to.flip()),
+                (false, true) => (from, to),
+                (true, false) => (from.flip(), to.flip()),
+                (true, true) => (from.flip(), to),
+            };
+
+            ufind.union(a, b);
+        }
+
+        // for each representative in the disjoint set, create a hub
+        let mut hubs: BTreeMap<HubId, Hub> = BTreeMap::new();
+        let mut hub_ids: BTreeMap<OrientedNode, HubId> = BTreeMap::new();
+
+        for &(from, to) in graph.edges_iter() {
+            let rep = ufind.find(from);
+            assert_eq!(ufind.find(to), rep);
+
+            let hub_id = if let Some(id) = hub_ids.get(&rep).copied() {
+                id
+            } else {
+                let id = HubId(hubs.len() as u32);
+                hub_ids.insert(rep, id);
+                id
+            };
+
+            let hub = hubs.entry(hub_id).or_default();
+            hub.edges.insert((from, to));
+
+            let (a, b) = match (from.is_reverse(), to.is_reverse()) {
+                (false, false) => (from, to.flip()),
+                (false, true) => (from, to),
+                (true, false) => (from.flip(), to.flip()),
+                (true, true) => (from.flip(), to),
+            };
+
+            hub.spokes.push(a);
+            hub.spokes.push(b);
+        }
+
+        // fill node_hub_map
+
+        let mut node_hub_map = BTreeMap::default();
+        for node in (0..graph.node_count as u32).map(Node::from) {
+            let l = node.as_reverse();
+            let r = node.as_forward();
+
+            let l_hub = hub_ids.get(&l).copied();
+            let r_hub = hub_ids.get(&r).copied();
+
+            node_hub_map.insert(node, (l_hub, r_hub));
+        }
+
+        let hubs = hubs.into_values().collect();
+
+        Self {
+            graph,
+            node_hub_map,
+            hubs,
+        }
+    }
+
+    pub fn find_hub_from_edge(
+        &self,
+        (from, to): (OrientedNode, OrientedNode),
+    ) -> Option<HubId> {
+        let (f_hub_l, f_hub_r) = *self.node_hub_map.get(&from.node())?;
+        // let (t_hub_l, t_hub_r) = *self.node_hub_map.get(&to.node())?;
+
+        if from.is_reverse() {
+            f_hub_l
+        } else {
+            f_hub_r
+        }
+    }
+}
+
+impl Hub {
+    pub fn edges<'a>(
+        &'a self,
+    ) -> impl Iterator<Item = (OrientedNode, OrientedNode)> + 'a {
+        self.edges.iter().copied()
+    }
+}
+
+pub struct SpokeLayout {
+    graph: SpokeGraph,
+    geometry: HubSpokeGeometry,
+}
+
+type HubSpokeGeometry = HubSpokeData<f32, f32>;
+
+struct HubSpokeData<Node, Edge> {
+    // implicitly indexed by NodeId
+    node_data: Vec<Node>,
+
+    // outer Vec implicitly indexed by HubId,
+    // inner Vec corresponds to `Hub`s `spokes` field
+    hub_spoke_data: Vec<Vec<Edge>>,
 }

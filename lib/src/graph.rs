@@ -20,6 +20,25 @@ pub struct OrientedNode(u32);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(C)]
+pub struct Edge {
+    pub from: OrientedNode,
+    pub to: OrientedNode,
+}
+
+impl From<(OrientedNode, OrientedNode)> for Edge {
+    fn from((from, to): (OrientedNode, OrientedNode)) -> Self {
+        Self { from, to }
+    }
+}
+
+impl Edge {
+    pub fn new(from: OrientedNode, to: OrientedNode) -> Self {
+        Self { from, to }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[repr(C)]
 pub struct Bp(pub u64);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -59,6 +78,18 @@ impl OrientedNode {
     #[inline]
     pub fn new(id: u32, reverse: bool) -> Self {
         OrientedNode((id << 1) | reverse as u32)
+    }
+
+    #[inline]
+    pub fn node_start(&self) -> OrientedNode {
+        let i = self.node().0;
+        Self::new(i, true)
+    }
+
+    #[inline]
+    pub fn node_end(&self) -> OrientedNode {
+        let i = self.node().0;
+        Self::new(i, false)
     }
 
     #[inline]
