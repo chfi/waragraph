@@ -71,13 +71,44 @@ pub struct HyperSpokeGraph {
 }
 
 impl HyperSpokeGraph {
-    pub fn new<I, P>(spoke_graph: Arc<SpokeGraph>, hub_partitions: I) -> Self
+    /*
+    pub fn new(spoke_graph: Arc<SpokeGraph>) -> Self {
+        let vertices = spoke_graph
+            .hubs
+            .iter()
+            .enumerate()
+            .map(|(i, _)| {
+                let id = VertexId(i as u32);
+                let hubs = Some(HubId(i as u32)).into_iter().collect();
+
+                Vertex {
+                    hubs,
+                    internal_edges: Vec::new(),
+                    interface_edges:
+                }
+            })
+            .collect::<Vec<_>>();
+
+        Self {
+            spoke_graph,
+            vertices: todo!(),
+        }
+    }
+    */
+
+    pub fn new_from_partitions<I, P>(
+        spoke_graph: Arc<SpokeGraph>,
+        hub_partitions: I,
+    ) -> Self
     where
         I: IntoIterator<Item = P>,
         P: IntoIterator<Item = HubId>,
     {
         for partition in hub_partitions {
             // assume iterator produces a partition, or check?
+            // assume for now
+
+            // combine partition into a single vertex
             for hub_id in partition {
                 //
             }

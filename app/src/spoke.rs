@@ -40,6 +40,7 @@ pub struct Hub {
     // [(a+, b+)] would map to the spokes [a+, b-]
     spokes: Vec<OrientedNode>,
     // node_spoke_map: BTreeMap<Node, usize>,
+    adj_hubs: Vec<HubId>,
 }
 
 impl SpokeGraph {
@@ -89,6 +90,20 @@ impl SpokeGraph {
             hub.spokes.push(b);
         }
 
+        for (hub_id, hub) in hubs.iter_mut() {
+            let mut adj_hubs = hub
+                .edges
+                .iter()
+                .flat_map(|&(from, to)| [from, to])
+                .filter_map(|onode| {
+                    let proj_hub = hub_ids.get(&onode)?;
+                    (proj_hub != hub_id).then_some(*proj_hub)
+                })
+                .collect::<Vec<_>>();
+
+            adj_hubs.sort();
+        }
+
         // fill node_hub_map
 
         let mut node_hub_map = BTreeMap::default();
@@ -125,27 +140,32 @@ impl SpokeGraph {
         }
     }
 
-    /*
-    pub fn incoming_segments<'a>(
+    pub fn neighbors<'a>(
         &'a self,
         hub: HubId,
-    ) -> Option<impl Iterator<Item = OrientedNode> + 'a> {
+    ) -> Option<impl Iterator<Item = HubId> + 'a> {
         let hub = self.hubs.get(hub.0 as usize)?;
-        let iter = todo!();
-        /*
-        let iter = hub.edges.iter().map(|&(from, to)| {
-            match (from.is_reverse(), to.is_reverse()) {
-                (false, false) => from,
-                (false, true) => from,
-                (true, false) => from.flip(),
-                (true, true) => from.flip(),
-            }
-        });
-        */
+        let iter = hub.adj_hubs.iter().copied();
 
         Some(iter)
     }
-    */
+
+    // pub fn incoming_segments<'a>(
+    //     &'a self,
+    //     hub: HubId,
+    // ) -> Option<impl Iterator<Item = OrientedNode> + 'a> {
+    //     let hub = self.hubs.get(hub.0 as usize)?;
+    //     let iter = hub.edges.iter().map(|&(from, to)| {
+    //         match (from.is_reverse(), to.is_reverse()) {
+    //             (false, false) => from,
+    //             (false, true) => from,
+    //             (true, false) => from.flip(),
+    //             (true, true) => from.flip(),
+    //         }
+    //     });
+
+    //     Some(iter)
+    // }
 }
 
 impl Hub {
