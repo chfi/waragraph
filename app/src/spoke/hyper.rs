@@ -71,7 +71,18 @@ pub struct HyperSpokeGraph {
 }
 
 impl HyperSpokeGraph {
-    pub fn new(spoke_graph: Arc<SpokeGraph>) -> Self {
+    pub fn new<I, P>(spoke_graph: Arc<SpokeGraph>, hub_partitions: I) -> Self
+    where
+        I: IntoIterator<Item = P>,
+        P: IntoIterator<Item = HubId>,
+    {
+        for partition in hub_partitions {
+            // assume iterator produces a partition, or check?
+            for hub_id in partition {
+                //
+            }
+        }
+
         todo!();
     }
 }
