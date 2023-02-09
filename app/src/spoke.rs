@@ -7,6 +7,8 @@ use waragraph_core::graph::{Node, OrientedNode, PathIndex};
 
 pub mod app;
 
+pub mod hyper;
+
 #[derive(
     Debug,
     Clone,
@@ -122,6 +124,28 @@ impl SpokeGraph {
             f_hub_r
         }
     }
+
+    /*
+    pub fn incoming_segments<'a>(
+        &'a self,
+        hub: HubId,
+    ) -> Option<impl Iterator<Item = OrientedNode> + 'a> {
+        let hub = self.hubs.get(hub.0 as usize)?;
+        let iter = todo!();
+        /*
+        let iter = hub.edges.iter().map(|&(from, to)| {
+            match (from.is_reverse(), to.is_reverse()) {
+                (false, false) => from,
+                (false, true) => from,
+                (true, false) => from.flip(),
+                (true, true) => from.flip(),
+            }
+        });
+        */
+
+        Some(iter)
+    }
+    */
 }
 
 impl Hub {

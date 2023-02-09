@@ -1,7 +1,31 @@
-use crate::app::AppWindow;
+use std::sync::Arc;
+
+use waragraph_core::graph::PathIndex;
+
+use anyhow::Result;
+
+use crate::app::{AppWindow, SharedState};
+
+use super::SpokeGraph;
 
 pub struct SpokeViewer {
-    //
+    spoke_graph: Arc<SpokeGraph>,
+
+    render_graph: raving_wgpu::dfrog::Graph,
+    draw_node: raving_wgpu::NodeId,
+}
+
+impl SpokeViewer {
+    pub fn init(
+        state: &raving_wgpu::State,
+        window: &raving_wgpu::WindowState,
+        path_index: Arc<PathIndex>,
+        shared: &SharedState,
+    ) -> Result<Self> {
+        let spoke_graph = SpokeGraph::new(path_index);
+
+        todo!();
+    }
 }
 
 impl AppWindow for SpokeViewer {
