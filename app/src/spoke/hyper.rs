@@ -1,6 +1,6 @@
 use std::{collections::BTreeSet, sync::Arc};
 
-use waragraph_core::graph::Edge;
+use waragraph_core::graph::{Edge, OrientedNode};
 
 use super::{HubId, SpokeGraph};
 
@@ -71,31 +71,6 @@ pub struct HyperSpokeGraph {
 }
 
 impl HyperSpokeGraph {
-    /*
-    pub fn new(spoke_graph: Arc<SpokeGraph>) -> Self {
-        let vertices = spoke_graph
-            .hubs
-            .iter()
-            .enumerate()
-            .map(|(i, _)| {
-                let id = VertexId(i as u32);
-                let hubs = Some(HubId(i as u32)).into_iter().collect();
-
-                Vertex {
-                    hubs,
-                    internal_edges: Vec::new(),
-                    interface_edges:
-                }
-            })
-            .collect::<Vec<_>>();
-
-        Self {
-            spoke_graph,
-            vertices: todo!(),
-        }
-    }
-    */
-
     pub fn new_from_partitions<I, P>(
         spoke_graph: Arc<SpokeGraph>,
         hub_partitions: I,
@@ -104,16 +79,59 @@ impl HyperSpokeGraph {
         I: IntoIterator<Item = P>,
         P: IntoIterator<Item = HubId>,
     {
-        for partition in hub_partitions {
-            // assume iterator produces a partition, or check?
-            // assume for now
+        let mut vertices = Vec::new();
 
+        // we assume iterator produces partitions
+        for partition in hub_partitions {
             // combine partition into a single vertex
-            for hub_id in partition {
-                //
-            }
+
+            let hub_ids = partition.into_iter().collect::<BTreeSet<_>>();
+
+            let edges = hub_ids
+                .iter()
+                .filter_map(|hid| {
+                    let hub = spoke_graph.hubs.get(hid.0 as usize)?;
+                    Some(hub)
+                })
+                .flat_map(|hub| {
+                    hub.edges.iter().map(|(from, to)| Edge::new(*from, *to))
+                });
+
+            let onode_in_hub = |onode: OrientedNode| {
+                let hub = spoke_graph.node_endpoint_hub(onode);
+                hub.map(|hid| hub_ids.contains(&hid)).unwrap_or(false)
+            };
+
+            let (internal_edges, interface_edges): (Vec<_>, Vec<_>) = edges
+                .partition(|edge| {
+                    // if both are inside the graph, it's an internal edge
+                    // if only one, it's an interface edge
+
+                    let from_inside = onode_in_hub(edge.from);
+                    let to_inside = onode_in_hub(edge.to);
+
+                    if from_inside && to_inside {
+                        true
+                    } else if from_inside || to_inside {
+                        false
+                    } else {
+                        unreachable!()
+                    }
+                });
+
+            let vertex_id = VertexId(vertices.len() as u32);
+
+            vertices.push(Vertex {
+                id: vertex_id,
+                hubs: hub_ids,
+                internal_edges,
+                interface_edges,
+            });
         }
 
-        todo!();
+        Self {
+            spoke_graph,
+            vertices,
+        }
     }
 }

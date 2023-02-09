@@ -126,6 +126,20 @@ impl SpokeGraph {
         }
     }
 
+    pub fn node_endpoint_hub(
+        &self,
+        node_endpoint: OrientedNode,
+    ) -> Option<HubId> {
+        let (f_hub_l, f_hub_r) =
+            *self.node_hub_map.get(&node_endpoint.node())?;
+
+        if node_endpoint.is_reverse() {
+            f_hub_l
+        } else {
+            f_hub_r
+        }
+    }
+
     pub fn find_hub_from_edge(
         &self,
         (from, to): (OrientedNode, OrientedNode),

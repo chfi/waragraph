@@ -56,6 +56,7 @@ btoi = "0.4.2"
 reunion = "0.1"
 sprs = "0.11"
 
+three-edge-connected = "0.2"
 
 # temporary test utility
 [[bin]]
