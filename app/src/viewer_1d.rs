@@ -87,6 +87,8 @@ impl Viewer1D {
         shared: &SharedState,
         settings_window: &mut SettingsWindow,
     ) -> Result<Self> {
+        let t0 = std::time::Instant::now();
+
         let mut graph = Graph::new();
 
         let draw_schema = {
@@ -338,6 +340,8 @@ impl Viewer1D {
                 Arc::new(RwLock::new(viz_mode_widget)),
             );
         }
+
+        log::error!("Initialized in {} seconds", t0.elapsed().as_secs_f32());
 
         Ok(Viewer1D {
             render_graph: graph,

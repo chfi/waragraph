@@ -24,6 +24,12 @@ pub mod hyper;
 #[repr(transparent)]
 pub struct HubId(u32);
 
+impl HubId {
+    pub fn ix(&self) -> usize {
+        self.0 as usize
+    }
+}
+
 pub struct SpokeGraph {
     graph: Arc<PathIndex>,
 
