@@ -71,6 +71,12 @@ impl SpokeGraph {
         let mut hub_ids: BTreeMap<OrientedNode, HubId> = BTreeMap::new();
 
         for &(from, to) in graph.edges_iter() {
+            let (from, to) = match (from.is_reverse(), to.is_reverse()) {
+                (false, false) => (from, to.flip()),
+                (false, true) => (from, to),
+                (true, false) => (from.flip(), to.flip()),
+                (true, true) => (from.flip(), to),
+            };
             let rep = ufind.find(from);
             assert_eq!(ufind.find(to), rep);
 

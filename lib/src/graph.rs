@@ -403,6 +403,9 @@ impl PathIndex {
         seg_id_range.1 - seg_id_range.0,
         );
 
+        let gfa = std::fs::File::open(&gfa_path)?;
+        let mut gfa_reader = BufReader::new(gfa);
+
         let mut edges = Vec::new();
 
         loop {
@@ -548,7 +551,7 @@ impl PathIndex {
         let from_rev = parse_orient(from_orient)?;
 
         let to_id = parse_id(to)?;
-        let to_rev = parse_orient(from_orient)?;
+        let to_rev = parse_orient(to_orient)?;
 
         let from = OrientedNode::new(from_id, from_rev);
         let to = OrientedNode::new(to_id, to_rev);
