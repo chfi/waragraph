@@ -217,3 +217,50 @@ struct HubSpokeData<Node, Edge> {
     // inner Vec corresponds to `Hub`s `spokes` field
     hub_spoke_data: Vec<Vec<Edge>>,
 }
+
+#[cfg(test)]
+mod tests {
+
+    use super::*;
+
+    use waragraph_core::graph::Edge;
+
+    fn example_graph_edges() -> Vec<Edge> {
+        /*
+        (a+, b+)
+        (a+, c+)
+        (b+, d+)
+        (c+, d+)
+        (d+, e+)
+        (d+, f+)
+        (e+, g+)
+        (f+, g+)
+        (f+, h+)
+        (g+, k+)
+        (g+, l+)
+        (h+, i+)
+        (h+, j+)
+        (i+, j+)
+        (j+, l+)
+        (l+, m+)
+        (m+, n+)
+        (m+, o+)
+        (n+, p+)
+        (o+, p+)
+        (p+, m+)
+        (p+, q+)
+        (p+, r+)
+        */
+        todo!();
+    }
+
+    #[test]
+    fn spoke_graph_construction() {
+        todo!();
+    }
+
+    #[test]
+    fn spoke_graph_projections() {
+        todo!();
+    }
+}
