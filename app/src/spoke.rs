@@ -32,7 +32,9 @@ impl HubId {
 }
 
 pub struct SpokeGraph {
+    // implicitly indexed by HubId
     hub_adj: Vec<BTreeMap<HubId, Vec<OrientedNode>>>,
+    hub_endpoints: Vec<HashSet<OrientedNode>>,
 
     // implicitly indexed by OrientedNode
     endpoint_hubs: Vec<HubId>,
@@ -100,6 +102,8 @@ impl SpokeGraph {
             }
         }
 
+        let mut hub_endpoints = partitions;
+
         for (other_hub_ix, this_end) in to_add {
             let hub_id = HubId(hub_adj.len() as u32);
 
@@ -116,6 +120,8 @@ impl SpokeGraph {
                 .push(this_end);
 
             rep_end_hub_map.insert(this_end, hub_id);
+
+            hub_endpoints.push(HashSet::from_iter([this_end]));
         }
 
         for hub_map in hub_adj.iter_mut() {
@@ -133,6 +139,7 @@ impl SpokeGraph {
 
         Self {
             hub_adj,
+            hub_endpoints,
             endpoint_hubs,
         }
     }
@@ -278,8 +285,9 @@ mod tests {
                 })
                 .collect::<Vec<_>>();
 
-            seg_hubs.sort();
-            seg_hubs.dedup();
+            // with these, it unsurprisingly doesn't find the 3ECs
+            // seg_hubs.sort();
+            // seg_hubs.dedup();
 
             let tec_graph = three_edge_connected::Graph::from_edges(
                 seg_hubs.into_iter().map(|(l, r)| (l.ix(), r.ix())),
@@ -291,17 +299,13 @@ mod tests {
             components
         };
 
-        // for some reason the components... are wildly random, even
-        // varying in size (but not number) across runs
+        // the results vary wildly across runs and don't match the
+        // paper results, so something's wrong
 
         for (ix, comp) in three_ecs.iter().enumerate() {
             let endpoints = comp
                 .iter()
-                .flat_map(|&hub_ix| {
-                    todo!();
-                    // let hub_id = HubId(hub_ix as u32);
-                    // graph.hub_adj[hub_ix].values().flatten().copied()
-                })
+                .flat_map(|&hub_ix| graph.hub_endpoints[hub_ix].iter().copied())
                 .collect::<Vec<_>>();
             print!("comp {ix}\t");
             for endpoint in endpoints {
