@@ -242,7 +242,7 @@ mod tests {
 
         for ((path_id, _path_name), expected) in path_names.iter().zip(expected)
         {
-            let data = &depth_data.node_depth_per_path[**path_id];
+            let data = &depth_data.node_depth_per_path[path_id.ix()];
             let iter = PangenomePathDataPosRangeIter::new_pos_range(
                 &index,
                 pos_range.clone(),

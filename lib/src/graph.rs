@@ -35,6 +35,16 @@ impl Edge {
     pub fn new(from: OrientedNode, to: OrientedNode) -> Self {
         Self { from, to }
     }
+
+    pub fn endpoints(&self) -> (OrientedNode, OrientedNode) {
+        let Edge { from, to } = self;
+        match (from.is_reverse(), to.is_reverse()) {
+            (false, false) => (from.node_end(), to.node_start()),
+            (false, true) => (from.node_end(), to.node_end()),
+            (true, false) => (from.node_start(), to.node_start()),
+            (true, true) => (from.node_start(), to.node_end()),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -426,6 +436,7 @@ impl PathIndex {
             let edge = Self::parse_gfa_link(seg_id_range.0, fields)?;
             edges.push(edge);
         }
+        println!("parsed {} edges", edges.len());
 
         let node_count = seg_lens.len();
 
@@ -539,23 +550,29 @@ impl PathIndex {
             )),
         };
 
+        dbg!();
         let _type = fields.next().ok_or_else(&fields_missing)?;
 
+        dbg!();
         let from = fields.next().ok_or_else(&fields_missing)?;
         let from_orient = fields.next().ok_or_else(&fields_missing)?;
 
+        dbg!();
         let to = fields.next().ok_or_else(&fields_missing)?;
         let to_orient = fields.next().ok_or_else(&fields_missing)?;
 
+        dbg!();
         let from_id = parse_id(from)?;
         let from_rev = parse_orient(from_orient)?;
 
         let to_id = parse_id(to)?;
         let to_rev = parse_orient(to_orient)?;
 
+        dbg!();
         let from = OrientedNode::new(from_id, from_rev);
         let to = OrientedNode::new(to_id, to_rev);
 
+        dbg!();
         Ok((from, to))
     }
 }

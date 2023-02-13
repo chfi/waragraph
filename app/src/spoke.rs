@@ -1,9 +1,9 @@
 use std::{
-    collections::{BTreeMap, BTreeSet},
+    collections::{BTreeMap, BTreeSet, HashMap},
     sync::Arc,
 };
 
-use reunion::UnionFind;
+use reunion::{UnionFind, UnionFindTrait};
 use waragraph_core::graph::{Edge, Node, OrientedNode, PathIndex};
 
 pub mod app;
@@ -32,23 +32,60 @@ impl HubId {
 }
 
 pub struct Graph {
-    graph: Arc<PathIndex>,
-
-    hub_adj: Vec<(HubId, Vec<OrientedNode>)>,
+    hub_adj: Vec<BTreeMap<HubId, Vec<OrientedNode>>>,
     endpoint_partitions: UnionFind<OrientedNode>,
+
+    rep_endpoint_hub_map: HashMap<OrientedNode, HubId>,
 }
 
 impl Graph {
-    pub fn new(graph: Arc<PathIndex>) -> Self {
+    pub fn new(edges: impl IntoIterator<Item = Edge>) -> Self {
         let mut end_ufind = UnionFind::<OrientedNode>::new();
 
-        for &(from, to) in graph.edges_iter() {
-            let (a, b) = match (from.is_reverse(), to.is_reverse()) {
-                (false, false) => (from.node_end(), to.node_start()),
-                (false, true) => (from.node_end(), to.node_end()),
-                (true, false) => (from.node_start(), to.node_start()),
-                (true, true) => (from.node_start(), to.node_end()),
-            };
+        for edge in edges {
+            let (a, b) = edge.endpoints();
+            end_ufind.union(a, b);
+        }
+
+        let mut rep_end_hub_map: HashMap<OrientedNode, HubId> =
+            HashMap::default();
+
+        let mut hub_adj: Vec<BTreeMap<HubId, Vec<OrientedNode>>> = Vec::new();
+
+        let partitions = end_ufind.subsets();
+
+        for (hub_ix, set) in partitions.iter().enumerate() {
+            let first = *set.iter().next().unwrap_or_else(|| unreachable!());
+            let rep = end_ufind.find(first);
+
+            let hub_id = HubId(hub_ix as u32);
+
+            rep_end_hub_map.insert(rep, hub_id);
+
+            let mut hub = BTreeMap::default();
+
+            hub_adj.push(hub);
+        }
+
+        for (hub_ix, hub) in hub_adj.iter_mut().enumerate() {
+            let this_set = &partitions[hub_ix];
+
+            let neighbors = this_set
+                .iter()
+                .map(|end| end.flip())
+                .filter_map(|other_end| {
+                    let rep = end_ufind.find(other_end);
+                    let hub_id = *rep_end_hub_map.get(&rep)?;
+                    Some((other_end, hub_id))
+                })
+                .collect::<Vec<_>>();
+
+            for (other_end, other_hub) in neighbors {
+                //
+            }
+
+            // for (other,
+            //
         }
 
         todo!();
@@ -62,7 +99,7 @@ pub struct SpokeGraph {
     pub hubs: Vec<Hub>,
 }
 
-#[derive(Default, Clone)]
+#[derive(Debug, Default, Clone)]
 pub struct Hub {
     // the set of edges that is mapped to this hub
     pub edges: BTreeSet<(OrientedNode, OrientedNode)>,
@@ -78,19 +115,12 @@ impl SpokeGraph {
         node_count: usize,
         edges: impl IntoIterator<Item = Edge>,
     ) -> Self {
-        use reunion::{UnionFind, UnionFindTrait};
-
         let edges = edges.into_iter().collect::<Vec<_>>();
 
         let mut ufind = UnionFind::<OrientedNode>::new();
 
-        for &Edge { from, to } in edges.iter() {
-            let (a, b) = match (from.is_reverse(), to.is_reverse()) {
-                (false, false) => (from.node_end(), to.node_start()),
-                (false, true) => (from.node_end(), to.node_end()),
-                (true, false) => (from.node_start(), to.node_start()),
-                (true, true) => (from.node_start(), to.node_end()),
-            };
+        for edge in edges.iter() {
+            let (a, b) = edge.endpoints();
 
             ufind.union(a, b);
         }
@@ -99,13 +129,8 @@ impl SpokeGraph {
         let mut hubs: BTreeMap<HubId, Hub> = BTreeMap::new();
         let mut hub_ids: BTreeMap<OrientedNode, HubId> = BTreeMap::new();
 
-        for &Edge { from, to } in edges.iter() {
-            let (from, to) = match (from.is_reverse(), to.is_reverse()) {
-                (false, false) => (from, to.flip()),
-                (false, true) => (from, to),
-                (true, false) => (from.flip(), to.flip()),
-                (true, true) => (from.flip(), to),
-            };
+        for edge in edges.iter() {
+            let (from, to) = edge.endpoints();
             let rep = ufind.find(from);
             assert_eq!(ufind.find(to), rep);
 
@@ -259,6 +284,7 @@ mod tests {
 
     use waragraph_core::graph::Edge;
 
+    // corresponds to the graph in fig 3A in the paper
     fn example_graph_edges() -> Vec<Edge> {
         let oriented_node = |c: char, rev: bool| -> OrientedNode {
             let node = (c as u32) - 'a' as u32;
@@ -300,41 +326,37 @@ mod tests {
         .map(|(a, b)| edge(a, false, b, false))
         .collect::<Vec<_>>();
 
-        /*
-        (a+, b+)
-        (a+, c+)
-        (b+, d+)
-        (c+, d+)
-        (d+, e+)
-        (d+, f+)
-        (e+, g+)
-        (f+, g+)
-        (f+, h+)
-        (g+, k+)
-        (g+, l+)
-        (h+, i+)
-        (h+, j+)
-        (i+, j+)
-        (j+, l+)
-        (l+, m+)
-        (m+, n+)
-        (m+, o+)
-        (n+, p+)
-        (o+, p+)
-        (p+, m+)
-        (p+, q+)
-        (p+, r+)
-        */
-        todo!();
+        edges
+    }
+
+    fn example_graph() -> SpokeGraph {
+        let edges = example_graph_edges();
+
+        let graph = SpokeGraph::from_edges(18, edges);
+
+        graph
     }
 
     #[test]
     fn spoke_graph_construction() {
-        todo!();
+        let graph = example_graph();
+
+        println!("hubs");
+        for (hub_ix, hub) in graph.hubs.iter().enumerate() {
+            println!("{hub_ix}\n\t{hub:?}");
+        }
+
+        println!();
+
+        println!("node -> (hub, hub) map");
+        for (node, (left, right)) in graph.node_hub_map.iter() {
+            let n = node.ix();
+            println!("{n:2} -> {left:?}\t{right:?}");
+        }
     }
 
     #[test]
     fn spoke_graph_projections() {
-        todo!();
+        // todo!();
     }
 }
