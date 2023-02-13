@@ -14,24 +14,57 @@ pub fn main() -> Result<()> {
 
     let path_index = Arc::new(PathIndex::from_gfa(&args.gfa)?);
 
-    let spoke_graph = SpokeGraph::new(path_index.clone());
+    let spoke_graph = SpokeGraph::new(&path_index);
+
+    println!("hub count: {}", spoke_graph.hubs.len());
+    println!("node_hub_map.len(): {}", spoke_graph.node_hub_map.len());
 
     // run 3EC algorithm on spoke_graph to get partition of *node endpoints*
+    /*
     let three_ecs = {
         let segments = (0..path_index.node_count as u32).map(|i| {
             let node = Node::from(i);
             [node.as_reverse(), node.as_forward()]
         });
-        let mut edges: Vec<(HubId, HubId)> = segments
+
+        let edges_ = segments
+            .map(|[l, r]| {
+                // project endpoints to HubIds
+                let l_hub = spoke_graph.node_endpoint_hub(l);
+                let r_hub = spoke_graph.node_endpoint_hub(r);
+                (l_hub, r_hub)
+            })
+            .collect::<Vec<_>>();
+
+        let edges_ = edges_
+            .into_iter()
+            .filter(|(l, r)| r.is_some())
+            .collect::<Vec<_>>();
+
+        println!("edges_.len() {}", edges_.len());
+
+        let segments = (0..path_index.node_count as u32).map(|i| {
+            let node = Node::from(i);
+            [node.as_reverse(), node.as_forward()]
+        });
+
+        let edges: Vec<(HubId, HubId)> = segments
             .filter_map(|[l, r]| {
                 // project endpoints to HubIds
                 let l_hub = spoke_graph.node_endpoint_hub(l)?;
                 let r_hub = spoke_graph.node_endpoint_hub(r)?;
-
-                // if proj(l) = proj(r), filter out
-                (l_hub != r_hub).then_some((l_hub, r_hub))
+                Some((l_hub, r_hub))
             })
+            // .filter_map(|[l, r]| {
+            //     // project endpoints to HubIds
+            //     let l_hub = spoke_graph.node_endpoint_hub(l)?;
+            //     let r_hub = spoke_graph.node_endpoint_hub(r)?;
+            //     // if proj(l) = proj(r), filter out
+            //     (l_hub != r_hub).then_some((l_hub, r_hub))
+            // })
             .collect::<Vec<_>>();
+
+        println!("edges.len() {}", edges.len());
 
         // doing this shouldn't make a difference to the output
         // edges.sort();
@@ -51,8 +84,8 @@ pub fn main() -> Result<()> {
 
         components
     };
-
-    // transform node endpoint partitions into hub partitions
+    println!("found {} 3EC components", three_ecs.len());
+    */
 
     // create HyperSpokeGraph from hub partitions
 

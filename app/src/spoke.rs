@@ -3,7 +3,8 @@ use std::{
     sync::Arc,
 };
 
-use waragraph_core::graph::{Node, OrientedNode, PathIndex};
+use reunion::UnionFind;
+use waragraph_core::graph::{Edge, Node, OrientedNode, PathIndex};
 
 pub mod app;
 
@@ -30,37 +31,65 @@ impl HubId {
     }
 }
 
-pub struct SpokeGraph {
+pub struct Graph {
     graph: Arc<PathIndex>,
 
-    node_hub_map: BTreeMap<Node, (Option<HubId>, Option<HubId>)>,
+    hub_adj: Vec<(HubId, Vec<OrientedNode>)>,
+    endpoint_partitions: UnionFind<OrientedNode>,
+}
 
-    hubs: Vec<Hub>,
+impl Graph {
+    pub fn new(graph: Arc<PathIndex>) -> Self {
+        let mut end_ufind = UnionFind::<OrientedNode>::new();
+
+        for &(from, to) in graph.edges_iter() {
+            let (a, b) = match (from.is_reverse(), to.is_reverse()) {
+                (false, false) => (from.node_end(), to.node_start()),
+                (false, true) => (from.node_end(), to.node_end()),
+                (true, false) => (from.node_start(), to.node_start()),
+                (true, true) => (from.node_start(), to.node_end()),
+            };
+        }
+
+        todo!();
+    }
+}
+
+pub struct SpokeGraph {
+    // graph: Arc<PathIndex>,
+    pub node_hub_map: BTreeMap<Node, (Option<HubId>, Option<HubId>)>,
+
+    pub hubs: Vec<Hub>,
 }
 
 #[derive(Default, Clone)]
 pub struct Hub {
     // the set of edges that is mapped to this hub
-    edges: BTreeSet<(OrientedNode, OrientedNode)>,
+    pub edges: BTreeSet<(OrientedNode, OrientedNode)>,
 
     // [(a+, b+)] would map to the spokes [a+, b-]
-    spokes: Vec<OrientedNode>,
+    pub spokes: Vec<OrientedNode>,
     // node_spoke_map: BTreeMap<Node, usize>,
-    adj_hubs: Vec<HubId>,
+    pub adj_hubs: Vec<HubId>,
 }
 
 impl SpokeGraph {
-    pub fn new(graph: Arc<PathIndex>) -> Self {
+    pub fn from_edges(
+        node_count: usize,
+        edges: impl IntoIterator<Item = Edge>,
+    ) -> Self {
         use reunion::{UnionFind, UnionFindTrait};
+
+        let edges = edges.into_iter().collect::<Vec<_>>();
 
         let mut ufind = UnionFind::<OrientedNode>::new();
 
-        for &(from, to) in graph.edges_iter() {
+        for &Edge { from, to } in edges.iter() {
             let (a, b) = match (from.is_reverse(), to.is_reverse()) {
-                (false, false) => (from, to.flip()),
-                (false, true) => (from, to),
-                (true, false) => (from.flip(), to.flip()),
-                (true, true) => (from.flip(), to),
+                (false, false) => (from.node_end(), to.node_start()),
+                (false, true) => (from.node_end(), to.node_end()),
+                (true, false) => (from.node_start(), to.node_start()),
+                (true, true) => (from.node_start(), to.node_end()),
             };
 
             ufind.union(a, b);
@@ -70,7 +99,7 @@ impl SpokeGraph {
         let mut hubs: BTreeMap<HubId, Hub> = BTreeMap::new();
         let mut hub_ids: BTreeMap<OrientedNode, HubId> = BTreeMap::new();
 
-        for &(from, to) in graph.edges_iter() {
+        for &Edge { from, to } in edges.iter() {
             let (from, to) = match (from.is_reverse(), to.is_reverse()) {
                 (false, false) => (from, to.flip()),
                 (false, true) => (from, to),
@@ -119,7 +148,7 @@ impl SpokeGraph {
         // fill node_hub_map
 
         let mut node_hub_map = BTreeMap::default();
-        for node in (0..graph.node_count as u32).map(Node::from) {
+        for node in (0..node_count as u32).map(Node::from) {
             let l = node.as_reverse();
             let r = node.as_forward();
 
@@ -129,13 +158,18 @@ impl SpokeGraph {
             node_hub_map.insert(node, (l_hub, r_hub));
         }
 
-        let hubs = hubs.into_values().collect();
+        let hubs = hubs.into_values().collect::<Vec<_>>();
 
-        Self {
-            graph,
-            node_hub_map,
-            hubs,
-        }
+        println!("spoke graph contains {} hubs", hubs.len());
+
+        Self { node_hub_map, hubs }
+    }
+
+    pub fn new(graph: &PathIndex) -> Self {
+        Self::from_edges(
+            graph.node_count,
+            graph.edges_iter().map(|&(a, b)| Edge::new(a, b)),
+        )
     }
 
     pub fn node_endpoint_hub(
@@ -226,6 +260,46 @@ mod tests {
     use waragraph_core::graph::Edge;
 
     fn example_graph_edges() -> Vec<Edge> {
+        let oriented_node = |c: char, rev: bool| -> OrientedNode {
+            let node = (c as u32) - 'a' as u32;
+            OrientedNode::new(node, rev)
+        };
+
+        let edge = |a: char, a_r: bool, b: char, b_r: bool| -> Edge {
+            let a = oriented_node(a, a_r);
+            let b = oriented_node(b, b_r);
+            Edge::new(a, b)
+        };
+
+        let edges = [
+            ('a', 'b'),
+            ('a', 'c'),
+            ('b', 'd'),
+            ('c', 'd'),
+            ('d', 'e'),
+            ('d', 'f'),
+            ('e', 'g'),
+            ('f', 'g'),
+            ('f', 'h'),
+            ('g', 'k'),
+            ('g', 'l'),
+            ('h', 'i'),
+            ('h', 'j'),
+            ('i', 'j'),
+            ('j', 'l'),
+            ('l', 'm'),
+            ('m', 'n'),
+            ('m', 'o'),
+            ('n', 'p'),
+            ('o', 'p'),
+            ('p', 'm'),
+            ('p', 'q'),
+            ('p', 'r'),
+        ]
+        .into_iter()
+        .map(|(a, b)| edge(a, false, b, false))
+        .collect::<Vec<_>>();
+
         /*
         (a+, b+)
         (a+, c+)
