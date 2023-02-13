@@ -555,29 +555,23 @@ impl PathIndex {
             )),
         };
 
-        dbg!();
         let _type = fields.next().ok_or_else(&fields_missing)?;
 
-        dbg!();
         let from = fields.next().ok_or_else(&fields_missing)?;
         let from_orient = fields.next().ok_or_else(&fields_missing)?;
 
-        dbg!();
         let to = fields.next().ok_or_else(&fields_missing)?;
         let to_orient = fields.next().ok_or_else(&fields_missing)?;
 
-        dbg!();
         let from_id = parse_id(from)?;
         let from_rev = parse_orient(from_orient)?;
 
         let to_id = parse_id(to)?;
         let to_rev = parse_orient(to_orient)?;
 
-        dbg!();
         let from = OrientedNode::new(from_id, from_rev);
         let to = OrientedNode::new(to_id, to_rev);
 
-        dbg!();
         Ok((from, to))
     }
 }

@@ -260,4 +260,60 @@ mod tests {
             println!("{node_ix:2} => {left:?}\t{right:?}");
         }
     }
+
+    #[test]
+    fn spoke_graph_3ec() {
+        let edges = example_graph_edges();
+        let graph = SpokeGraph::new(edges);
+
+        let node_count = 18;
+
+        let three_ecs = {
+            let mut seg_hubs = (0..node_count as u32)
+                .map(|i| {
+                    let node = Node::from(i);
+                    let left = graph.node_endpoint_hub(node.as_reverse());
+                    let right = graph.node_endpoint_hub(node.as_forward());
+                    (left, right)
+                })
+                .collect::<Vec<_>>();
+
+            seg_hubs.sort();
+            seg_hubs.dedup();
+
+            let tec_graph = three_edge_connected::Graph::from_edges(
+                seg_hubs.into_iter().map(|(l, r)| (l.ix(), r.ix())),
+            );
+
+            let mut components =
+                three_edge_connected::find_components(&tec_graph.graph);
+
+            components
+        };
+
+        // for some reason the components... are wildly random, even
+        // varying in size (but not number) across runs
+
+        for (ix, comp) in three_ecs.iter().enumerate() {
+            let endpoints = comp
+                .iter()
+                .flat_map(|&hub_ix| {
+                    todo!();
+                    // let hub_id = HubId(hub_ix as u32);
+                    // graph.hub_adj[hub_ix].values().flatten().copied()
+                })
+                .collect::<Vec<_>>();
+            print!("comp {ix}\t");
+            for endpoint in endpoints {
+                let c = endpoint.node().ix() as u8;
+                let c = (c + 'a' as u8) as char;
+                let o = if endpoint.is_reverse() { "-" } else { "+" };
+
+                print!("{c}{o}, ");
+            }
+            println!();
+        }
+
+        // assert_eq!(three_ecs.len(), 11);
+    }
 }

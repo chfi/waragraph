@@ -59,8 +59,6 @@ of steps) map to which "hypervertex" (as each such vertex is both a
 partition/subgraph of the original graph, and consists of a set of
 edges, which can be used to generate a sequence of steps)
 
-
-
 */
 
 pub struct HyperSpokeGraph {
