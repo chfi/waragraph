@@ -65,12 +65,16 @@ edges, which can be used to generate a sequence of steps)
 
 pub struct HyperSpokeGraph {
     spoke_graph: Arc<SpokeGraph>,
-
-    vertices: Vec<Vertex>,
+    // vertices: Vec<Vertex>,
     // vertex_adj:
 }
 
 impl HyperSpokeGraph {
+    pub fn new(spoke_graph: Arc<SpokeGraph>) -> Self {
+        todo!();
+    }
+
+    /*
     pub fn new_from_partitions<I, P>(
         spoke_graph: Arc<SpokeGraph>,
         hub_partitions: I,
@@ -134,4 +138,5 @@ impl HyperSpokeGraph {
             vertices,
         }
     }
+    */
 }

@@ -31,17 +31,20 @@ impl HubId {
     }
 }
 
-pub struct Graph {
+pub struct SpokeGraph {
     hub_adj: Vec<BTreeMap<HubId, Vec<OrientedNode>>>,
 
-    // endpoint_hub_map: HashMap<OrientedNode, HubId>,
     // implicitly indexed by OrientedNode
     endpoint_hubs: Vec<HubId>,
 }
 
-impl Graph {
+impl SpokeGraph {
     pub fn node_endpoint_hub(&self, node_endpoint: OrientedNode) -> HubId {
         self.endpoint_hubs[node_endpoint.ix()]
+    }
+
+    pub fn new_from_graph(graph: &PathIndex) -> Self {
+        Self::new(graph.edges_iter().map(|&(a, b)| Edge::new(a, b)))
     }
 
     pub fn new(edges: impl IntoIterator<Item = Edge>) -> Self {
@@ -92,16 +95,6 @@ impl Graph {
                 }
             }
 
-            // let neighbors = this_set
-            //     .iter()
-            //     .map(|end| end.flip())
-            //     .filter_map(|other_end| {
-            //         let rep = end_ufind.find(other_end);
-            //         let hub_id = *rep_end_hub_map.get(&rep)?;
-            //         Some((other_end, hub_id))
-            //     })
-            //     .collect::<Vec<_>>();
-
             for (other_end, other_hub) in neighbors {
                 hub_map.entry(other_hub).or_default().push(other_end);
             }
@@ -114,13 +107,13 @@ impl Graph {
 
             let mut this_hub = BTreeMap::default();
 
-            this_hub.insert(other_hub, vec![this_end]);
+            this_hub.insert(other_hub, vec![this_end.flip()]);
             hub_adj.push(this_hub);
 
             hub_adj[other_hub_ix]
                 .entry(hub_id)
                 .or_default()
-                .push(this_end.flip());
+                .push(this_end);
 
             rep_end_hub_map.insert(this_end, hub_id);
         }
@@ -140,17 +133,9 @@ impl Graph {
 
         Self {
             hub_adj,
-            // endpoint_hub_map: rep_end_hub_map,
             endpoint_hubs,
         }
     }
-}
-
-pub struct SpokeGraph {
-    // graph: Arc<PathIndex>,
-    pub node_hub_map: BTreeMap<Node, (Option<HubId>, Option<HubId>)>,
-
-    pub hubs: Vec<Hub>,
 }
 
 #[derive(Debug, Default, Clone)]
@@ -162,149 +147,6 @@ pub struct Hub {
     pub spokes: Vec<OrientedNode>,
     // node_spoke_map: BTreeMap<Node, usize>,
     pub adj_hubs: Vec<HubId>,
-}
-
-impl SpokeGraph {
-    pub fn from_edges(
-        node_count: usize,
-        edges: impl IntoIterator<Item = Edge>,
-    ) -> Self {
-        let edges = edges.into_iter().collect::<Vec<_>>();
-
-        let mut ufind = UnionFind::<OrientedNode>::new();
-
-        for edge in edges.iter() {
-            let (a, b) = edge.endpoints();
-
-            ufind.union(a, b);
-        }
-
-        // for each representative in the disjoint set, create a hub
-        let mut hubs: BTreeMap<HubId, Hub> = BTreeMap::new();
-        let mut hub_ids: BTreeMap<OrientedNode, HubId> = BTreeMap::new();
-
-        for edge in edges.iter() {
-            let (from, to) = edge.endpoints();
-            let rep = ufind.find(from);
-            assert_eq!(ufind.find(to), rep);
-
-            let hub_id = if let Some(id) = hub_ids.get(&rep).copied() {
-                id
-            } else {
-                let id = HubId(hubs.len() as u32);
-                hub_ids.insert(rep, id);
-                id
-            };
-
-            let hub = hubs.entry(hub_id).or_default();
-            hub.edges.insert((from, to));
-
-            let (a, b) = match (from.is_reverse(), to.is_reverse()) {
-                (false, false) => (from, to.flip()),
-                (false, true) => (from, to),
-                (true, false) => (from.flip(), to.flip()),
-                (true, true) => (from.flip(), to),
-            };
-
-            hub.spokes.push(a);
-            hub.spokes.push(b);
-        }
-
-        for (hub_id, hub) in hubs.iter_mut() {
-            let mut adj_hubs = hub
-                .edges
-                .iter()
-                .flat_map(|&(from, to)| [from, to])
-                .filter_map(|onode| {
-                    let proj_hub = hub_ids.get(&onode)?;
-                    (proj_hub != hub_id).then_some(*proj_hub)
-                })
-                .collect::<Vec<_>>();
-
-            adj_hubs.sort();
-        }
-
-        // fill node_hub_map
-
-        let mut node_hub_map = BTreeMap::default();
-        for node in (0..node_count as u32).map(Node::from) {
-            let l = node.as_reverse();
-            let r = node.as_forward();
-
-            let l_hub = hub_ids.get(&l).copied();
-            let r_hub = hub_ids.get(&r).copied();
-
-            node_hub_map.insert(node, (l_hub, r_hub));
-        }
-
-        let hubs = hubs.into_values().collect::<Vec<_>>();
-
-        println!("spoke graph contains {} hubs", hubs.len());
-
-        Self { node_hub_map, hubs }
-    }
-
-    pub fn new(graph: &PathIndex) -> Self {
-        Self::from_edges(
-            graph.node_count,
-            graph.edges_iter().map(|&(a, b)| Edge::new(a, b)),
-        )
-    }
-
-    pub fn node_endpoint_hub(
-        &self,
-        node_endpoint: OrientedNode,
-    ) -> Option<HubId> {
-        let (f_hub_l, f_hub_r) =
-            *self.node_hub_map.get(&node_endpoint.node())?;
-
-        if node_endpoint.is_reverse() {
-            f_hub_l
-        } else {
-            f_hub_r
-        }
-    }
-
-    pub fn find_hub_from_edge(
-        &self,
-        (from, to): (OrientedNode, OrientedNode),
-    ) -> Option<HubId> {
-        let (f_hub_l, f_hub_r) = *self.node_hub_map.get(&from.node())?;
-        // let (t_hub_l, t_hub_r) = *self.node_hub_map.get(&to.node())?;
-
-        if from.is_reverse() {
-            f_hub_l
-        } else {
-            f_hub_r
-        }
-    }
-
-    pub fn neighbors<'a>(
-        &'a self,
-        hub: HubId,
-    ) -> Option<impl Iterator<Item = HubId> + 'a> {
-        let hub = self.hubs.get(hub.0 as usize)?;
-        let iter = hub.adj_hubs.iter().copied();
-
-        Some(iter)
-    }
-
-    // pub fn incoming_segments<'a>(
-    //     &'a self,
-    //     hub: HubId,
-    // ) -> Option<impl Iterator<Item = OrientedNode> + 'a> {
-    //     let hub = self.hubs.get(hub.0 as usize)?;
-    //     let iter = hub.edges.iter().map(|&(from, to)| {
-    //         match (from.is_reverse(), to.is_reverse()) {
-    //             (false, false) => from,
-    //             (false, true) => from,
-    //             (true, false) => from.flip(),
-    //             (true, true) => from.flip(),
-    //         }
-    //     });
-
-    //     Some(iter)
-    // }
 }
 
 impl Hub {
@@ -384,18 +226,14 @@ mod tests {
         edges
     }
 
-    fn example_graph() -> SpokeGraph {
-        let edges = example_graph_edges();
-
-        let graph = SpokeGraph::from_edges(18, edges);
-
-        graph
-    }
-
     #[test]
-    fn new_graph_ctr() {
+    fn spoke_graph_construction() {
+        // TODO: test this more thoroughly; the current implementation
+        // produces different internal IDs each run, so right now the
+        // only thing this tests is that all node endpoints are mapped
+
         let edges = example_graph_edges();
-        let graph = Graph::new(edges);
+        let graph = SpokeGraph::new(edges);
 
         println!("hub adj");
         for (hub_ix, hub) in graph.hub_adj.iter().enumerate() {
@@ -409,40 +247,17 @@ mod tests {
                 }
                 println!();
             }
-            // println!("{hub_ix}\n\t{hub:?}");
-        }
-
-        println!();
-
-        // println!("node -> (hub, hub) map");
-        // for node_ix in 0..18 {
-        //     let node = Node::from(node_ix as u32);
-        //     let left = graph.endpoint_hub_map.get(&node.as_reverse());
-        //     let right = graph.endpoint_hub_map.get(&node.as_forward());
-        //     println!("{node_ix:2} => {left:?}\t{right:?}");
-        // }
-    }
-
-    #[test]
-    fn spoke_graph_construction() {
-        let graph = example_graph();
-
-        println!("hubs");
-        for (hub_ix, hub) in graph.hubs.iter().enumerate() {
-            println!("{hub_ix}\n\t{hub:?}");
         }
 
         println!();
 
         println!("node -> (hub, hub) map");
-        for (node, (left, right)) in graph.node_hub_map.iter() {
-            let n = node.ix();
-            println!("{n:2} -> {left:?}\t{right:?}");
-        }
-    }
+        for node_ix in 0..18 {
+            let node = Node::from(node_ix as u32);
+            let left = graph.node_endpoint_hub(node.as_reverse());
+            let right = graph.node_endpoint_hub(node.as_forward());
 
-    #[test]
-    fn spoke_graph_projections() {
-        // todo!();
+            println!("{node_ix:2} => {left:?}\t{right:?}");
+        }
     }
 }

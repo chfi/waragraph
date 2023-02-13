@@ -22,7 +22,7 @@ impl SpokeViewer {
         path_index: Arc<PathIndex>,
         shared: &SharedState,
     ) -> Result<Self> {
-        let spoke_graph = SpokeGraph::new(&path_index);
+        // let spoke_graph = SpokeGraph::new(&path_index);
 
         todo!();
     }
