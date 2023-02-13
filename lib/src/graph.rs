@@ -116,6 +116,11 @@ impl OrientedNode {
     pub fn flip(self) -> Self {
         Self::new(self.node().0, !self.is_reverse())
     }
+
+    #[inline]
+    pub fn ix(&self) -> usize {
+        self.0 as usize
+    }
 }
 
 impl From<u64> for Bp {

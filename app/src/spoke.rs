@@ -1,5 +1,5 @@
 use std::{
-    collections::{BTreeMap, BTreeSet, HashMap},
+    collections::{BTreeMap, BTreeSet, HashMap, HashSet},
     sync::Arc,
 };
 
@@ -33,17 +33,25 @@ impl HubId {
 
 pub struct Graph {
     hub_adj: Vec<BTreeMap<HubId, Vec<OrientedNode>>>,
-    endpoint_partitions: UnionFind<OrientedNode>,
 
-    rep_endpoint_hub_map: HashMap<OrientedNode, HubId>,
+    // endpoint_hub_map: HashMap<OrientedNode, HubId>,
+    // implicitly indexed by OrientedNode
+    endpoint_hubs: Vec<HubId>,
 }
 
 impl Graph {
+    pub fn node_endpoint_hub(&self, node_endpoint: OrientedNode) -> HubId {
+        self.endpoint_hubs[node_endpoint.ix()]
+    }
+
     pub fn new(edges: impl IntoIterator<Item = Edge>) -> Self {
         let mut end_ufind = UnionFind::<OrientedNode>::new();
 
+        let mut max_end = usize::MIN;
+
         for edge in edges {
             let (a, b) = edge.endpoints();
+            max_end = max_end.max(a.node().ix().max(b.node().ix()));
             end_ufind.union(a, b);
         }
 
@@ -55,40 +63,86 @@ impl Graph {
         let partitions = end_ufind.subsets();
 
         for (hub_ix, set) in partitions.iter().enumerate() {
-            let first = *set.iter().next().unwrap_or_else(|| unreachable!());
-            let rep = end_ufind.find(first);
-
             let hub_id = HubId(hub_ix as u32);
 
-            rep_end_hub_map.insert(rep, hub_id);
+            for &node_end in set.iter() {
+                rep_end_hub_map.insert(node_end, hub_id);
+            }
 
-            let mut hub = BTreeMap::default();
-
+            let hub = BTreeMap::default();
             hub_adj.push(hub);
         }
 
-        for (hub_ix, hub) in hub_adj.iter_mut().enumerate() {
+        let mut to_add = Vec::new();
+
+        for (hub_ix, hub_map) in hub_adj.iter_mut().enumerate() {
             let this_set = &partitions[hub_ix];
 
-            let neighbors = this_set
-                .iter()
-                .map(|end| end.flip())
-                .filter_map(|other_end| {
-                    let rep = end_ufind.find(other_end);
-                    let hub_id = *rep_end_hub_map.get(&rep)?;
-                    Some((other_end, hub_id))
-                })
-                .collect::<Vec<_>>();
+            let mut neighbors = Vec::new();
 
-            for (other_end, other_hub) in neighbors {
+            for &endpoint in this_set.iter() {
                 //
+                let other_end = endpoint.flip();
+                let rep = end_ufind.find(other_end);
+
+                if let Some(hub_id) = rep_end_hub_map.get(&rep) {
+                    neighbors.push((other_end, *hub_id));
+                } else {
+                    to_add.push((hub_ix, other_end));
+                }
             }
 
-            // for (other,
-            //
+            // let neighbors = this_set
+            //     .iter()
+            //     .map(|end| end.flip())
+            //     .filter_map(|other_end| {
+            //         let rep = end_ufind.find(other_end);
+            //         let hub_id = *rep_end_hub_map.get(&rep)?;
+            //         Some((other_end, hub_id))
+            //     })
+            //     .collect::<Vec<_>>();
+
+            for (other_end, other_hub) in neighbors {
+                hub_map.entry(other_hub).or_default().push(other_end);
+            }
         }
 
-        todo!();
+        for (other_hub_ix, this_end) in to_add {
+            let hub_id = HubId(hub_adj.len() as u32);
+
+            let other_hub = HubId(other_hub_ix as u32);
+
+            let mut this_hub = BTreeMap::default();
+
+            this_hub.insert(other_hub, vec![this_end]);
+            hub_adj.push(this_hub);
+
+            hub_adj[other_hub_ix]
+                .entry(hub_id)
+                .or_default()
+                .push(this_end.flip());
+
+            rep_end_hub_map.insert(this_end, hub_id);
+        }
+
+        for hub_map in hub_adj.iter_mut() {
+            for nodes in hub_map.values_mut() {
+                nodes.sort();
+            }
+        }
+
+        let mut endpoint_hubs: Vec<(OrientedNode, HubId)> =
+            rep_end_hub_map.into_iter().collect();
+        endpoint_hubs.sort_by_key(|(n, _)| *n);
+
+        let endpoint_hubs =
+            endpoint_hubs.into_iter().map(|(_node, hub)| hub).collect();
+
+        Self {
+            hub_adj,
+            // endpoint_hub_map: rep_end_hub_map,
+            endpoint_hubs,
+        }
     }
 }
 
@@ -313,6 +367,7 @@ mod tests {
             ('h', 'j'),
             ('i', 'j'),
             ('j', 'l'),
+            ('k', 'l'),
             ('l', 'm'),
             ('m', 'n'),
             ('m', 'o'),
@@ -335,6 +390,37 @@ mod tests {
         let graph = SpokeGraph::from_edges(18, edges);
 
         graph
+    }
+
+    #[test]
+    fn new_graph_ctr() {
+        let edges = example_graph_edges();
+        let graph = Graph::new(edges);
+
+        println!("hub adj");
+        for (hub_ix, hub) in graph.hub_adj.iter().enumerate() {
+            println!("{hub_ix}");
+            for (o_id, nodes) in hub {
+                print!("{o_id:?}: ");
+                for node in nodes {
+                    let c = ('a' as u8 + node.node().ix() as u8) as char;
+                    let o = if node.is_reverse() { "-" } else { "+" };
+                    print!("{c}{o}, ");
+                }
+                println!();
+            }
+            // println!("{hub_ix}\n\t{hub:?}");
+        }
+
+        println!();
+
+        // println!("node -> (hub, hub) map");
+        // for node_ix in 0..18 {
+        //     let node = Node::from(node_ix as u32);
+        //     let left = graph.endpoint_hub_map.get(&node.as_reverse());
+        //     let right = graph.endpoint_hub_map.get(&node.as_forward());
+        //     println!("{node_ix:2} => {left:?}\t{right:?}");
+        // }
     }
 
     #[test]
