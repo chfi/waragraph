@@ -41,12 +41,22 @@ pub struct SpokeGraph {
 }
 
 impl SpokeGraph {
+    pub fn hub_count(&self) -> usize {
+        self.hub_adj.len()
+    }
+
     pub fn node_endpoint_hub(&self, node_endpoint: OrientedNode) -> HubId {
         self.endpoint_hubs[node_endpoint.ix()]
     }
 
     pub fn new_from_graph(graph: &PathIndex) -> Self {
         Self::new(graph.edges_iter().map(|&(a, b)| Edge::new(a, b)))
+    }
+
+    pub fn map_edge(&self, edge: Edge) -> HubId {
+        let (l, _r) = edge.endpoints();
+        let hub = self.endpoint_hubs[l.ix()];
+        hub
     }
 
     pub fn new(edges: impl IntoIterator<Item = Edge>) -> Self {

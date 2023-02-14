@@ -1,4 +1,7 @@
-use std::{collections::BTreeSet, sync::Arc};
+use std::{
+    collections::{BTreeSet, HashMap, HashSet},
+    sync::Arc,
+};
 
 use waragraph_core::graph::{Edge, OrientedNode};
 
@@ -20,11 +23,10 @@ use super::{HubId, SpokeGraph};
 struct VertexId(u32);
 
 struct Vertex {
-    id: VertexId,
-
+    // id: VertexId,
     hubs: BTreeSet<HubId>,
-    internal_edges: Vec<Edge>,
-    interface_edges: Vec<Edge>,
+    // internal_edges: Vec<Edge>,
+    // interface_edges: Vec<Edge>,
 }
 
 /*
@@ -63,14 +65,78 @@ edges, which can be used to generate a sequence of steps)
 
 pub struct HyperSpokeGraph {
     spoke_graph: Arc<SpokeGraph>,
+
+    // implicitly indexed by HubId
+    hub_vertex_map: Vec<VertexId>,
+
+    // implicitly indexed by VertexId
+    vertices: Vec<Vertex>,
+    // vertex_partitions: Vec<Vec<HubId>>,
+    to_delete: HashSet<VertexId>,
+    // vertices: Vec
     // vertices: Vec<Vertex>,
     // vertex_adj:
 }
 
 impl HyperSpokeGraph {
     pub fn new(spoke_graph: Arc<SpokeGraph>) -> Self {
-        todo!();
+        let mut hub_vertex_map = Vec::with_capacity(spoke_graph.hub_count());
+        let mut vertices = Vec::with_capacity(spoke_graph.hub_count());
+
+        for hub_ix in 0..spoke_graph.hub_count() {
+            let hub_id = HubId(hub_ix as u32);
+            let vx = Vertex {
+                hubs: BTreeSet::from_iter([hub_id]),
+            };
+
+            let vx_id = VertexId(vertices.len() as u32);
+
+            hub_vertex_map.push(vx_id);
+            vertices.push(vx);
+        }
+
+        Self {
+            spoke_graph,
+            vertices,
+            hub_vertex_map,
+            to_delete: HashSet::default(),
+        }
     }
+
+    // pub fn flush_deleted(&mut self) {
+    //     let to_delete = std::mem::take(&mut self.to_delete);
+    //     todo!();
+    // }
+
+    // merges set into a single vertex, marking the other vertices
+    // as deleted and updating the HubId -> VertexId map
+    pub fn merge_hub_partition(
+        &mut self,
+        set: impl IntoIterator<Item = HubId>,
+    ) {
+        let hubs = set.into_iter().collect::<Vec<_>>();
+        if hubs.len() < 2 {
+            return;
+        }
+
+        // hubs.sort();
+        // hubs.dedup();
+
+        let mut hubs = hubs.into_iter();
+
+        let tgt_vx = hubs
+            .next()
+            .map(|hub| self.hub_vertex_map[hub.ix()])
+            .unwrap();
+
+        for hub in hubs {
+            let vx = self.hub_vertex_map[hub.ix()];
+            self.hub_vertex_map[hub.ix()] = tgt_vx;
+            self.to_delete.insert(vx);
+        }
+    }
+
+    // pub fn merge_vertices(&mut self, set: impl IntoIterator<Item = VertexId>
 
     /*
     pub fn new_from_partitions<I, P>(
