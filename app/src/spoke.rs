@@ -261,10 +261,13 @@ mod tests {
         println!("node -> (hub, hub) map");
         for node_ix in 0..18 {
             let node = Node::from(node_ix as u32);
+
+            let c = ('a' as u8 + node_ix as u8) as char;
+
             let left = graph.node_endpoint_hub(node.as_reverse());
             let right = graph.node_endpoint_hub(node.as_forward());
 
-            println!("{node_ix:2} => {left:?}\t{right:?}");
+            println!("{c} => {left:?}\t{right:?}");
         }
     }
 
@@ -275,49 +278,51 @@ mod tests {
 
         let node_count = 18;
 
-        let three_ecs = {
-            let mut seg_hubs = (0..node_count as u32)
+        println!("hub adj");
+        for (hub_ix, hub) in graph.hub_adj.iter().enumerate() {
+            println!("{hub_ix}");
+            for (o_id, nodes) in hub {
+                print!("{o_id:?}: ");
+                for node in nodes {
+                    let c = ('a' as u8 + node.node().ix() as u8) as char;
+                    let o = if node.is_reverse() { "-" } else { "+" };
+                    print!("{c}{o}, ");
+                }
+                println!();
+            }
+        }
+
+        println!();
+
+        let inverted_comps = {
+            let seg_hubs = (0..node_count as u32)
                 .map(|i| {
                     let node = Node::from(i);
                     let left = graph.node_endpoint_hub(node.as_reverse());
                     let right = graph.node_endpoint_hub(node.as_forward());
                     (left, right)
                 })
+                .filter(|(a, b)| a != b)
                 .collect::<Vec<_>>();
-
-            // with these, it unsurprisingly doesn't find the 3ECs
-            // seg_hubs.sort();
-            // seg_hubs.dedup();
 
             let tec_graph = three_edge_connected::Graph::from_edges(
                 seg_hubs.into_iter().map(|(l, r)| (l.ix(), r.ix())),
             );
 
-            let mut components =
+            let components =
                 three_edge_connected::find_components(&tec_graph.graph);
 
-            components
+            let inverted = tec_graph.invert_components(components);
+
+            inverted
         };
 
-        // the results vary wildly across runs and don't match the
-        // paper results, so something's wrong
-
-        for (ix, comp) in three_ecs.iter().enumerate() {
-            let endpoints = comp
-                .iter()
-                .flat_map(|&hub_ix| graph.hub_endpoints[hub_ix].iter().copied())
-                .collect::<Vec<_>>();
-            print!("comp {ix}\t");
-            for endpoint in endpoints {
-                let c = endpoint.node().ix() as u8;
-                let c = (c + 'a' as u8) as char;
-                let o = if endpoint.is_reverse() { "-" } else { "+" };
-
-                print!("{c}{o}, ");
-            }
-            println!();
-        }
-
-        // assert_eq!(three_ecs.len(), 11);
+        // rs-3-edge maps the vertex IDs to a compact usize range
+        // (since vertex IDs can be any type), even with the
+        // (usize, usize) iterator from_edges() constructor, so
+        // the output from `find_components` can't be used directly
+        // `invert_components` also filters out all singleton components
+        assert_eq!(inverted_comps.len(), 1);
+        assert_eq!(inverted_comps[0].len(), 2);
     }
 }
