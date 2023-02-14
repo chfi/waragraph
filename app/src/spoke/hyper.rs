@@ -22,6 +22,7 @@ use super::{HubId, SpokeGraph};
 #[repr(transparent)]
 struct VertexId(u32);
 
+#[derive(Debug)]
 struct Vertex {
     // id: VertexId,
     hubs: BTreeSet<HubId>,
@@ -63,6 +64,7 @@ edges, which can be used to generate a sequence of steps)
 
 */
 
+#[derive(Debug)]
 pub struct HyperSpokeGraph {
     spoke_graph: Arc<SpokeGraph>,
 
@@ -71,14 +73,17 @@ pub struct HyperSpokeGraph {
 
     // implicitly indexed by VertexId
     vertices: Vec<Vertex>,
-    // vertex_partitions: Vec<Vec<HubId>>,
     to_delete: HashSet<VertexId>,
-    // vertices: Vec
-    // vertices: Vec<Vertex>,
-    // vertex_adj:
 }
 
 impl HyperSpokeGraph {
+    pub fn vertex_count(&self) -> usize {
+        self.vertices
+            .len()
+            .checked_sub(self.to_delete.len())
+            .unwrap_or_default()
+    }
+
     pub fn new(spoke_graph: Arc<SpokeGraph>) -> Self {
         let mut hub_vertex_map = Vec::with_capacity(spoke_graph.hub_count());
         let mut vertices = Vec::with_capacity(spoke_graph.hub_count());
@@ -203,4 +208,54 @@ impl HyperSpokeGraph {
         }
     }
     */
+}
+
+#[cfg(test)]
+mod tests {
+    use waragraph_core::graph::Node;
+
+    use super::super::SpokeGraph;
+    use super::*;
+
+    #[test]
+    fn merging_3ec_components() {
+        let edges = super::super::tests::example_graph_edges();
+        let graph = SpokeGraph::new(edges);
+
+        let node_count = 18;
+
+        let inverted_comps = {
+            let seg_hubs = (0..node_count as u32)
+                .map(|i| {
+                    let node = Node::from(i);
+                    let left = graph.node_endpoint_hub(node.as_reverse());
+                    let right = graph.node_endpoint_hub(node.as_forward());
+                    (left, right)
+                })
+                .filter(|(a, b)| a != b)
+                .collect::<Vec<_>>();
+
+            let tec_graph = three_edge_connected::Graph::from_edges(
+                seg_hubs.into_iter().map(|(l, r)| (l.ix(), r.ix())),
+            );
+
+            let components =
+                three_edge_connected::find_components(&tec_graph.graph);
+
+            let inverted = tec_graph.invert_components(components);
+
+            inverted
+        };
+
+        let spoke_graph = Arc::new(graph);
+
+        let mut hyper_graph = HyperSpokeGraph::new(spoke_graph);
+
+        for comp in inverted_comps {
+            let hubs = comp.into_iter().map(|i| HubId(i as u32));
+            hyper_graph.merge_hub_partition(hubs);
+        }
+
+        assert_eq!(hyper_graph.vertex_count(), 11);
+    }
 }

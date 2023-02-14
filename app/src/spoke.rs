@@ -31,6 +31,7 @@ impl HubId {
     }
 }
 
+#[derive(Debug)]
 pub struct SpokeGraph {
     // implicitly indexed by HubId
     hub_adj: Vec<BTreeMap<HubId, Vec<OrientedNode>>>,
@@ -198,7 +199,7 @@ mod tests {
     use waragraph_core::graph::Edge;
 
     // corresponds to the graph in fig 3A in the paper
-    fn example_graph_edges() -> Vec<Edge> {
+    pub(crate) fn example_graph_edges() -> Vec<Edge> {
         let oriented_node = |c: char, rev: bool| -> OrientedNode {
             let node = (c as u32) - 'a' as u32;
             OrientedNode::new(node, rev)
