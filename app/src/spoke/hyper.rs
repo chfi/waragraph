@@ -20,10 +20,10 @@ use super::{HubId, SpokeGraph};
     bytemuck::Zeroable,
 )]
 #[repr(transparent)]
-struct VertexId(u32);
+pub struct VertexId(u32);
 
 #[derive(Debug)]
-struct Vertex {
+pub struct Vertex {
     // id: VertexId,
     hubs: BTreeSet<HubId>,
     // internal_edges: Vec<Edge>,
@@ -77,6 +77,30 @@ pub struct HyperSpokeGraph {
 }
 
 impl HyperSpokeGraph {
+    pub fn vertex_spokes<'a>(
+        &'a self,
+        vertex: VertexId,
+    ) -> impl Iterator<Item = (OrientedNode, VertexId)> + 'a {
+        if self.to_delete.contains(&vertex) {
+            panic!("Can't find the neighbors of a deleted node");
+        }
+
+        let vx = &self.vertices[vertex.0 as usize];
+
+        // this looks a little ridiculous, but it's just projecting to
+        // get all the segments from this vertex by looking at the
+        // underlying spokegraph
+        vx.hubs
+            .iter()
+            .filter_map(|hub| self.spoke_graph.hub_adj.get(hub.ix()))
+            .flat_map(|neighbors| {
+                neighbors.iter().flat_map(|(other_hub, nodes)| {
+                    let dst_vx = self.hub_vertex_map[other_hub.ix()];
+                    nodes.iter().map(move |n| (*n, dst_vx))
+                })
+            })
+    }
+
     pub fn vertex_count(&self) -> usize {
         self.vertices
             .len()
@@ -140,74 +164,6 @@ impl HyperSpokeGraph {
             self.to_delete.insert(vx);
         }
     }
-
-    // pub fn merge_vertices(&mut self, set: impl IntoIterator<Item = VertexId>
-
-    /*
-    pub fn new_from_partitions<I, P>(
-        spoke_graph: Arc<SpokeGraph>,
-        hub_partitions: I,
-    ) -> Self
-    where
-        I: IntoIterator<Item = P>,
-        P: IntoIterator<Item = HubId>,
-    {
-        let mut vertices = Vec::new();
-
-        // we assume iterator produces partitions
-        for partition in hub_partitions {
-            // combine partition into a single vertex
-
-            let hub_ids = partition.into_iter().collect::<BTreeSet<_>>();
-
-            let edges = hub_ids
-                .iter()
-                .filter_map(|hid| {
-                    let hub = spoke_graph.hubs.get(hid.0 as usize)?;
-                    Some(hub)
-                })
-                .flat_map(|hub| {
-                    hub.edges.iter().map(|(from, to)| Edge::new(*from, *to))
-                });
-
-            let onode_in_hub = |onode: OrientedNode| {
-                let hub = spoke_graph.node_endpoint_hub(onode);
-                hub.map(|hid| hub_ids.contains(&hid)).unwrap_or(false)
-            };
-
-            let (internal_edges, interface_edges): (Vec<_>, Vec<_>) = edges
-                .partition(|edge| {
-                    // if both are inside the graph, it's an internal edge
-                    // if only one, it's an interface edge
-
-                    let from_inside = onode_in_hub(edge.from);
-                    let to_inside = onode_in_hub(edge.to);
-
-                    if from_inside && to_inside {
-                        true
-                    } else if from_inside || to_inside {
-                        false
-                    } else {
-                        unreachable!()
-                    }
-                });
-
-            let vertex_id = VertexId(vertices.len() as u32);
-
-            vertices.push(Vertex {
-                id: vertex_id,
-                hubs: hub_ids,
-                internal_edges,
-                interface_edges,
-            });
-        }
-
-        Self {
-            spoke_graph,
-            vertices,
-        }
-    }
-    */
 }
 
 #[cfg(test)]
@@ -257,5 +213,42 @@ mod tests {
         }
 
         assert_eq!(hyper_graph.vertex_count(), 11);
+
+        let mut all_neighbors = Vec::new();
+        let mut neighbor_count: HashMap<_, usize> = HashMap::default();
+
+        for (vx_ix, vx) in hyper_graph.vertices.iter().enumerate() {
+            let vx_id = VertexId(vx_ix as u32);
+            if hyper_graph.to_delete.contains(&vx_id) {
+                continue;
+            }
+
+            let neighbors =
+                hyper_graph.vertex_spokes(vx_id).collect::<Vec<_>>();
+
+            *neighbor_count.entry(neighbors.len()).or_default() += 1usize;
+
+            all_neighbors.push((vx_id, neighbors));
+        }
+
+        assert_eq!(neighbor_count.get(&1), Some(&3));
+        assert_eq!(neighbor_count.get(&3), Some(&4));
+        assert_eq!(neighbor_count.get(&4), Some(&2));
+        assert_eq!(neighbor_count.get(&5), Some(&2));
+
+        all_neighbors.sort_by_key(|(_, n)| n.len());
+
+        for (vx_id, neighbors) in all_neighbors {
+            println!("{vx_id:?}");
+            print!("\t");
+
+            for (node, dst_vx) in neighbors {
+                let c = ('a' as u8 + node.node().ix() as u8) as char;
+                let o = if node.is_reverse() { "-" } else { "+" };
+                let dst = dst_vx.0;
+                print!("{c}{o}[{dst}], ");
+            }
+            println!();
+        }
     }
 }
