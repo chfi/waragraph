@@ -229,6 +229,8 @@ pub fn find_cactus_graph_cycles(graph: &HyperSpokeGraph) -> Vec<Cycle> {
                 // cycle_steps.push((current, *parent));
                 cycle_steps.push(*step);
                 current = *parent;
+            } else {
+                break;
             }
         }
 
@@ -237,7 +239,9 @@ pub fn find_cactus_graph_cycles(graph: &HyperSpokeGraph) -> Vec<Cycle> {
             steps: cycle_steps,
         };
 
-        cycles.push(cycle);
+        if !cycle.steps.is_empty() {
+            cycles.push(cycle);
+        }
     }
 
     cycles
@@ -330,7 +334,7 @@ mod tests {
     }
 
     #[test]
-    fn find_cycles() {
+    fn cactus_graph_find_cycles() {
         let edges = super::super::tests::example_graph_edges();
         let graph = SpokeGraph::new(edges);
 
@@ -366,6 +370,21 @@ mod tests {
         for comp in inverted_comps {
             let hubs = comp.into_iter().map(|i| HubId(i as u32));
             cactus_graph.merge_hub_partition(hubs);
+        }
+
+        let cycles = find_cactus_graph_cycles(&cactus_graph);
+
+        println!("{cycles:#?}");
+
+        for cycle in cycles {
+            print!("Cycle endpoint: {:?}\t", cycle.endpoint);
+
+            for step in &cycle.steps {
+                let c = ('a' as u8 + step.node().ix() as u8) as char;
+                let o = if step.is_reverse() { "-" } else { "+" };
+                print!("{c}{o}, ");
+            }
+            println!();
         }
 
         todo!();
