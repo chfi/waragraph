@@ -83,6 +83,71 @@ pub struct HyperSpokeGraph {
 }
 
 impl HyperSpokeGraph {
+    pub fn vertices<'a>(
+        &'a self,
+    ) -> impl Iterator<Item = (VertexId, &'a Vertex)> {
+        self.vertices.iter().enumerate().filter_map(|(i, v)| {
+            let vx_id = VertexId(i as u32);
+            if self.to_delete.contains(&vx_id) {
+                None
+            } else {
+                Some((vx_id, v))
+            }
+        })
+    }
+
+    pub fn dfs_preorder(
+        &self,
+        source: Option<VertexId>,
+        mut callback: impl FnMut(usize, Option<(VertexId, OrientedNode)>, VertexId),
+    ) {
+        let mut visited: HashSet<VertexId> = HashSet::default();
+
+        let mut stack: Vec<(Option<(VertexId, OrientedNode)>, VertexId)> =
+            Vec::new();
+
+        let mut count = 0;
+
+        if let Some(src) = source {
+            stack.push((None, src));
+        }
+
+        for (vx_id, _vertex) in self.vertices() {
+            if stack.is_empty() {
+                stack.push((None, vx_id));
+            }
+
+            while let Some((step, current)) = stack.pop() {
+                if !visited.contains(&current) {
+                    visited.insert(current);
+                    callback(count, step, current);
+                    count += 1;
+
+                    for (step, next) in self.vertex_spokes(current) {
+                        if !visited.contains(&next) {
+                            stack.push((Some((current, step)), next));
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    pub fn links_between_vertices(
+        &self,
+        a: VertexId,
+        b: VertexId,
+    ) -> Vec<OrientedNode> {
+        // TODO this could be done better/faster, but good enough for now
+        let neighbors = self.vertex_spokes(a);
+
+        let segments = neighbors
+            .filter_map(|(seg, vx)| (vx == b).then_some(seg))
+            .collect::<Vec<_>>();
+
+        segments
+    }
+
     pub fn vertex_spokes<'a>(
         &'a self,
         vertex: VertexId,
@@ -174,7 +239,7 @@ impl HyperSpokeGraph {
 
 /// Returns the cycles in a cactus graph as a sequence of segment
 /// traversals. The graph must be a cactus graph.
-pub fn find_cactus_graph_cycles(graph: &HyperSpokeGraph) -> Vec<Cycle> {
+pub fn bad_find_cactus_graph_cycles(graph: &HyperSpokeGraph) -> Vec<Cycle> {
     let mut visited: HashSet<VertexId> = HashSet::default();
     let mut parents: HashMap<VertexId, (OrientedNode, VertexId)> =
         HashMap::default();
@@ -253,6 +318,47 @@ mod tests {
 
     use super::super::SpokeGraph;
     use super::*;
+
+    fn paper_cactus_graph() -> HyperSpokeGraph {
+        let edges = super::super::tests::example_graph_edges();
+        let graph = SpokeGraph::new(edges);
+
+        let node_count = 18;
+
+        let inverted_comps = {
+            let seg_hubs = (0..node_count as u32)
+                .map(|i| {
+                    let node = Node::from(i);
+                    let left = graph.node_endpoint_hub(node.as_reverse());
+                    let right = graph.node_endpoint_hub(node.as_forward());
+                    (left, right)
+                })
+                .filter(|(a, b)| a != b)
+                .collect::<Vec<_>>();
+
+            let tec_graph = three_edge_connected::Graph::from_edges(
+                seg_hubs.into_iter().map(|(l, r)| (l.ix(), r.ix())),
+            );
+
+            let components =
+                three_edge_connected::find_components(&tec_graph.graph);
+
+            let inverted = tec_graph.invert_components(components);
+
+            inverted
+        };
+
+        let spoke_graph = Arc::new(graph);
+
+        let mut cactus_graph = HyperSpokeGraph::new(spoke_graph);
+
+        for comp in inverted_comps {
+            let hubs = comp.into_iter().map(|i| HubId(i as u32));
+            cactus_graph.merge_hub_partition(hubs);
+        }
+
+        cactus_graph
+    }
 
     #[test]
     fn merging_3ec_components() {
@@ -335,44 +441,9 @@ mod tests {
 
     #[test]
     fn cactus_graph_find_cycles() {
-        let edges = super::super::tests::example_graph_edges();
-        let graph = SpokeGraph::new(edges);
+        let cactus_graph = paper_cactus_graph();
 
-        let node_count = 18;
-
-        let inverted_comps = {
-            let seg_hubs = (0..node_count as u32)
-                .map(|i| {
-                    let node = Node::from(i);
-                    let left = graph.node_endpoint_hub(node.as_reverse());
-                    let right = graph.node_endpoint_hub(node.as_forward());
-                    (left, right)
-                })
-                .filter(|(a, b)| a != b)
-                .collect::<Vec<_>>();
-
-            let tec_graph = three_edge_connected::Graph::from_edges(
-                seg_hubs.into_iter().map(|(l, r)| (l.ix(), r.ix())),
-            );
-
-            let components =
-                three_edge_connected::find_components(&tec_graph.graph);
-
-            let inverted = tec_graph.invert_components(components);
-
-            inverted
-        };
-
-        let spoke_graph = Arc::new(graph);
-
-        let mut cactus_graph = HyperSpokeGraph::new(spoke_graph);
-
-        for comp in inverted_comps {
-            let hubs = comp.into_iter().map(|i| HubId(i as u32));
-            cactus_graph.merge_hub_partition(hubs);
-        }
-
-        let cycles = find_cactus_graph_cycles(&cactus_graph);
+        let cycles = bad_find_cactus_graph_cycles(&cactus_graph);
 
         println!("{cycles:#?}");
 
@@ -388,5 +459,66 @@ mod tests {
         }
 
         todo!();
+    }
+
+    #[test]
+    fn cactus_graph_dfs() {
+        let graph = paper_cactus_graph();
+
+        let mut visit = Vec::new();
+
+        // graph.dfs(Some(VertexId(0)), |_, v| visit.push(v));
+        graph.dfs_preorder(None, |i, step, vertex| {
+            visit.push((i, step, vertex))
+        });
+
+        for (i, step, vertex) in visit {
+            //
+            if let Some((parent, step)) = step {
+                let v = parent.0;
+                let c = ('a' as u8 + step.node().ix() as u8) as char;
+                let o = if step.is_reverse() { "-" } else { "+" };
+                print!("{i:2} - [{v}]{c}{o},\t");
+            } else {
+                print!("{i:2} -        \t");
+            }
+
+            println!("{vertex:?}");
+        }
+
+        // let mut remaining_segments =
+
+        // println!("{visit:?}");
+
+        let mut all_neighbors = Vec::new();
+        let mut neighbor_count: HashMap<_, usize> = HashMap::default();
+
+        for (vx_ix, vx) in graph.vertices.iter().enumerate() {
+            let vx_id = VertexId(vx_ix as u32);
+            if graph.to_delete.contains(&vx_id) {
+                continue;
+            }
+
+            let neighbors = graph.vertex_spokes(vx_id).collect::<Vec<_>>();
+
+            *neighbor_count.entry(neighbors.len()).or_default() += 1usize;
+
+            all_neighbors.push((vx_id, neighbors));
+        }
+
+        // all_neighbors.sort_by_key(|(_, n)| n.len());
+
+        for (vx_id, neighbors) in all_neighbors {
+            print!("{vx_id:?}\t");
+            // print!("\t");
+
+            for (node, dst_vx) in neighbors {
+                let c = ('a' as u8 + node.node().ix() as u8) as char;
+                let o = if node.is_reverse() { "-" } else { "+" };
+                let dst = dst_vx.0;
+                print!("{c}{o}[{dst}], ");
+            }
+            println!();
+        }
     }
 }
