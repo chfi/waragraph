@@ -3,7 +3,7 @@ use std::{
     sync::Arc,
 };
 
-use waragraph_core::graph::{Edge, OrientedNode};
+use waragraph_core::graph::{Edge, Node, OrientedNode};
 
 use super::{HubId, SpokeGraph};
 
@@ -28,6 +28,12 @@ pub struct Vertex {
     hubs: BTreeSet<HubId>,
     // internal_edges: Vec<Edge>,
     // interface_edges: Vec<Edge>,
+}
+
+#[derive(Debug, Clone)]
+pub struct Cycle {
+    pub endpoint: VertexId,
+    pub steps: Vec<OrientedNode>,
 }
 
 /*
@@ -166,6 +172,77 @@ impl HyperSpokeGraph {
     }
 }
 
+/// Returns the cycles in a cactus graph as a sequence of segment
+/// traversals. The graph must be a cactus graph.
+pub fn find_cactus_graph_cycles(graph: &HyperSpokeGraph) -> Vec<Cycle> {
+    let mut visited: HashSet<VertexId> = HashSet::default();
+    let mut parents: HashMap<VertexId, (OrientedNode, VertexId)> =
+        HashMap::default();
+
+    let mut stack: Vec<VertexId> = Vec::new();
+
+    let mut cycles = Vec::new();
+    let mut cycle_ends: Vec<(VertexId, VertexId)> = Vec::new();
+
+    let mut neighbors = Vec::new();
+
+    for (vx_ix, vertex) in graph.vertices.iter().enumerate() {
+        let vx_id = VertexId(vx_ix as u32);
+        if visited.contains(&vx_id) || graph.to_delete.contains(&vx_id) {
+            continue;
+        }
+
+        stack.push(vx_id);
+        while let Some(current) = stack.pop() {
+            if !visited.contains(&current) {
+                visited.insert(current);
+
+                neighbors.clear();
+                neighbors.extend(graph.vertex_spokes(vx_id));
+
+                for &(segment, adj) in neighbors.iter() {
+                    if adj == current {
+                        let cycle = Cycle {
+                            endpoint: current,
+                            steps: vec![segment],
+                        };
+                        cycles.push(cycle);
+                    } else if !visited.contains(&adj) {
+                        stack.push(adj);
+                        parents.insert(adj, (segment, current));
+                    } else if parents.get(&current).map(|(_, v)| v)
+                        != Some(&adj)
+                    {
+                        cycle_ends.push((adj, current));
+                    }
+                }
+            }
+        }
+    }
+
+    for (start, end) in cycle_ends {
+        let mut cycle_steps: Vec<OrientedNode> = vec![];
+        let mut current = end;
+
+        while current != start {
+            if let Some((step, parent)) = parents.get(&current) {
+                // cycle_steps.push((current, *parent));
+                cycle_steps.push(*step);
+                current = *parent;
+            }
+        }
+
+        let cycle = Cycle {
+            endpoint: start,
+            steps: cycle_steps,
+        };
+
+        cycles.push(cycle);
+    }
+
+    cycles
+}
+
 #[cfg(test)]
 mod tests {
     use waragraph_core::graph::Node;
@@ -250,5 +327,47 @@ mod tests {
             }
             println!();
         }
+    }
+
+    #[test]
+    fn find_cycles() {
+        let edges = super::super::tests::example_graph_edges();
+        let graph = SpokeGraph::new(edges);
+
+        let node_count = 18;
+
+        let inverted_comps = {
+            let seg_hubs = (0..node_count as u32)
+                .map(|i| {
+                    let node = Node::from(i);
+                    let left = graph.node_endpoint_hub(node.as_reverse());
+                    let right = graph.node_endpoint_hub(node.as_forward());
+                    (left, right)
+                })
+                .filter(|(a, b)| a != b)
+                .collect::<Vec<_>>();
+
+            let tec_graph = three_edge_connected::Graph::from_edges(
+                seg_hubs.into_iter().map(|(l, r)| (l.ix(), r.ix())),
+            );
+
+            let components =
+                three_edge_connected::find_components(&tec_graph.graph);
+
+            let inverted = tec_graph.invert_components(components);
+
+            inverted
+        };
+
+        let spoke_graph = Arc::new(graph);
+
+        let mut cactus_graph = HyperSpokeGraph::new(spoke_graph);
+
+        for comp in inverted_comps {
+            let hubs = comp.into_iter().map(|i| HubId(i as u32));
+            cactus_graph.merge_hub_partition(hubs);
+        }
+
+        todo!();
     }
 }
