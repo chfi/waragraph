@@ -29,6 +29,7 @@ pub struct Vertex {
     hubs: BTreeSet<HubId>,
     // internal_edges: Vec<Edge>,
     // interface_edges: Vec<Edge>,
+    degree: usize,
 }
 
 #[derive(Debug, Clone)]
@@ -191,8 +192,13 @@ impl HyperSpokeGraph {
 
         for hub_ix in 0..spoke_graph.hub_count() {
             let hub_id = HubId(hub_ix as u32);
+
+            let hub = spoke_graph.hub_adj.get(hub_ix).unwrap();
+            let degree = hub.values().map(|s| s.len()).sum();
+
             let vx = Vertex {
                 hubs: BTreeSet::from_iter([hub_id]),
+                degree,
             };
 
             let vx_id = VertexId(vertices.len() as u32);
