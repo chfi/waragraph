@@ -84,6 +84,11 @@ pub struct HyperSpokeGraph {
 }
 
 impl HyperSpokeGraph {
+    pub fn endpoint_vertex(&self, endpoint: OrientedNode) -> VertexId {
+        let hub = self.spoke_graph.endpoint_hubs[endpoint.ix()];
+        self.hub_vertex_map[hub.ix()]
+    }
+
     pub fn vertices<'a>(
         &'a self,
     ) -> impl Iterator<Item = (VertexId, &'a Vertex)> {
@@ -240,75 +245,84 @@ impl HyperSpokeGraph {
 
 /// Returns the cycles in a cactus graph as a sequence of segment
 /// traversals. The graph must be a cactus graph.
-pub fn bad_find_cactus_graph_cycles(graph: &HyperSpokeGraph) -> Vec<Cycle> {
-    let mut visited: HashSet<VertexId> = HashSet::default();
-    let mut parents: HashMap<VertexId, (OrientedNode, VertexId)> =
-        HashMap::default();
+pub fn find_cactus_graph_cycles(graph: &HyperSpokeGraph) -> Vec<Cycle> {
+    let mut visit = Vec::new();
+    let mut visited_segments: HashSet<Node> = HashSet::default();
+    let mut vx_visit: HashMap<VertexId, usize> = HashMap::default();
+    let mut remaining_segments = RoaringBitmap::default();
+    remaining_segments
+        .insert_range(0..graph.spoke_graph.max_endpoint.ix() as u32);
 
-    let mut stack: Vec<VertexId> = Vec::new();
+    graph.dfs_preorder(None, |i, step, vertex| {
+        vx_visit.insert(vertex, i);
+        visit.push((i, step, vertex));
 
-    let mut cycles = Vec::new();
-    let mut cycle_ends: Vec<(VertexId, VertexId)> = Vec::new();
+        if let Some((_parent, step)) = step {
+            let seg = step.node();
+            visited_segments.insert(seg);
+            remaining_segments.remove(seg.ix() as u32);
+        }
+    });
 
-    let mut neighbors = Vec::new();
+    // the DFS produces a spanning tree; from this, we can start from any
+    // of the remaining segments and use the tree to reconstruct the cycle
+    // it's part of
 
-    for (vx_ix, vertex) in graph.vertices.iter().enumerate() {
-        let vx_id = VertexId(vx_ix as u32);
-        if visited.contains(&vx_id) || graph.to_delete.contains(&vx_id) {
+    let mut cycles: Vec<Cycle> = Vec::new();
+
+    for seg_ix in remaining_segments {
+        let node = Node::from(seg_ix);
+
+        let l = graph.endpoint_vertex(node.as_reverse());
+        let r = graph.endpoint_vertex(node.as_forward());
+
+        let l_ix = *vx_visit.get(&l).unwrap();
+        let r_ix = *vx_visit.get(&r).unwrap();
+
+        if l_ix == r_ix {
+            cycles.push(Cycle {
+                endpoint: l,
+                steps: vec![node.as_forward()],
+            });
             continue;
         }
 
-        stack.push(vx_id);
-        while let Some(current) = stack.pop() {
-            if !visited.contains(&current) {
-                visited.insert(current);
+        let start = l_ix.min(r_ix);
+        let end = l_ix.max(r_ix);
 
-                neighbors.clear();
-                neighbors.extend(graph.vertex_spokes(vx_id));
+        let mut cur_ix = end;
 
-                for &(segment, adj) in neighbors.iter() {
-                    if adj == current {
-                        let cycle = Cycle {
-                            endpoint: current,
-                            steps: vec![segment],
-                        };
-                        cycles.push(cycle);
-                    } else if !visited.contains(&adj) {
-                        stack.push(adj);
-                        parents.insert(adj, (segment, current));
-                    } else if parents.get(&current).map(|(_, v)| v)
-                        != Some(&adj)
-                    {
-                        cycle_ends.push((adj, current));
-                    }
+        let mut cycle_steps = Vec::new();
+
+        loop {
+            if let Some((parent, incoming)) = visit[cur_ix].1 {
+                cycle_steps.push(incoming);
+
+                // if parent's visit ix == start, we're done
+                let parent_ix = *vx_visit.get(&parent).unwrap();
+                cur_ix = parent_ix;
+
+                if parent_ix == start {
+                    break;
                 }
-            }
-        }
-    }
-
-    for (start, end) in cycle_ends {
-        let mut cycle_steps: Vec<OrientedNode> = vec![];
-        let mut current = end;
-
-        while current != start {
-            if let Some((step, parent)) = parents.get(&current) {
-                // cycle_steps.push((current, *parent));
-                cycle_steps.push(*step);
-                current = *parent;
             } else {
                 break;
             }
         }
 
-        let cycle = Cycle {
-            endpoint: start,
-            steps: cycle_steps,
-        };
-
-        if !cycle.steps.is_empty() {
-            cycles.push(cycle);
+        if start == l_ix {
+            cycle_steps.push(node.as_reverse());
+        } else {
+            cycle_steps.push(node.as_forward());
         }
+
+        cycles.push(Cycle {
+            endpoint: l,
+            steps: cycle_steps,
+        });
     }
+
+    cycles.sort_by_key(|c| c.steps.len());
 
     cycles
 }
@@ -444,20 +458,20 @@ mod tests {
     fn cactus_graph_find_cycles() {
         let cactus_graph = paper_cactus_graph();
 
-        let cycles = bad_find_cactus_graph_cycles(&cactus_graph);
+        let cycles = find_cactus_graph_cycles(&cactus_graph);
 
         println!("{cycles:#?}");
 
-        for cycle in cycles {
-            print!("Cycle endpoint: {:?}\t", cycle.endpoint);
+        // for cycle in cycles {
+        //     print!("Cycle endpoint: {:?}\t", cycle.endpoint);
 
-            for step in &cycle.steps {
-                let c = ('a' as u8 + step.node().ix() as u8) as char;
-                let o = if step.is_reverse() { "-" } else { "+" };
-                print!("{c}{o}, ");
-            }
-            println!();
-        }
+        //     for step in &cycle.steps {
+        //         let c = ('a' as u8 + step.node().ix() as u8) as char;
+        //         let o = if step.is_reverse() { "-" } else { "+" };
+        //         print!("{c}{o}, ");
+        //     }
+        //     println!();
+        // }
 
         todo!();
     }
