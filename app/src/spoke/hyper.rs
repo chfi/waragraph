@@ -38,6 +38,12 @@ pub struct Cycle {
     pub steps: Vec<OrientedNode>,
 }
 
+impl Cycle {
+    pub fn len(&self) -> usize {
+        self.steps.len()
+    }
+}
+
 /*
 
 the idea is to allow the merging of a spoke graph's vertices by
@@ -462,24 +468,64 @@ mod tests {
 
     #[test]
     fn cactus_graph_find_cycles() {
-        let cactus_graph = paper_cactus_graph();
+        let graph = paper_cactus_graph();
 
-        let cycles = find_cactus_graph_cycles(&cactus_graph);
+        let cycles = find_cactus_graph_cycles(&graph);
 
-        println!("{cycles:#?}");
+        // println!("{cycles:#?}");
 
-        // for cycle in cycles {
-        //     print!("Cycle endpoint: {:?}\t", cycle.endpoint);
+        let mut bridge_cands = RoaringBitmap::default();
+        bridge_cands
+            .insert_range(0..graph.spoke_graph.max_endpoint.ix() as u32);
 
-        //     for step in &cycle.steps {
-        //         let c = ('a' as u8 + step.node().ix() as u8) as char;
-        //         let o = if step.is_reverse() { "-" } else { "+" };
-        //         print!("{c}{o}, ");
-        //     }
-        //     println!();
-        // }
+        let mut len_count_map: HashMap<usize, usize> = HashMap::default();
 
-        todo!();
+        for cycle in cycles {
+            print!("Cycle endpoint: {:?}\t", cycle.endpoint);
+
+            *len_count_map.entry(cycle.len()).or_default() += 1;
+
+            for step in &cycle.steps {
+                bridge_cands.remove(step.node().ix() as u32);
+                let c = ('a' as u8 + step.node().ix() as u8) as char;
+                let o = if step.is_reverse() { "-" } else { "+" };
+                print!("{c}{o}, ");
+            }
+            println!();
+        }
+
+        assert_eq!(len_count_map.get(&1), Some(&4));
+        assert_eq!(len_count_map.get(&2), Some(&3));
+        assert_eq!(len_count_map.get(&3), Some(&1));
+
+        let mut bridges = Vec::new();
+
+        for b_ix in bridge_cands {
+            let node = Node::from(b_ix);
+
+            let l = graph.endpoint_vertex(node.as_reverse()).0 as usize;
+            let r = graph.endpoint_vertex(node.as_forward()).0 as usize;
+
+            /*
+            let l_degree = graph.vertices[l].degree;
+            let r_degree = graph.vertices[r].degree;
+
+            // don't count tips as bridges
+            if l_degree == 1 || r_degree == 1 {
+                continue;
+            }
+            */
+
+            bridges.push(node);
+        }
+
+        for bridge in &bridges {
+            let c = ('a' as u8 + bridge.ix() as u8) as char;
+            print!("{c}, ");
+        }
+        println!();
+
+        assert_eq!(bridges.len(), 4);
     }
 
     #[test]
