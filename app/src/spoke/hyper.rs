@@ -23,7 +23,7 @@ use super::{HubId, SpokeGraph};
 #[repr(transparent)]
 pub struct VertexId(u32);
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Vertex {
     // id: VertexId,
     hubs: BTreeSet<HubId>,
@@ -78,7 +78,7 @@ edges, which can be used to generate a sequence of steps)
 
 */
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct HyperSpokeGraph {
     spoke_graph: Arc<SpokeGraph>,
 
@@ -249,8 +249,11 @@ impl HyperSpokeGraph {
 
         for hub in hubs {
             let vx = self.hub_vertex_map[hub.ix()];
-            self.hub_vertex_map[hub.ix()] = tgt_vx;
-            self.to_delete.insert(vx);
+            if vx != tgt_vx {
+                self.hub_vertex_map[hub.ix()] = tgt_vx;
+                self.to_delete.insert(vx);
+                self.vertices[tgt_vx.0 as usize].hubs.insert(hub);
+            }
         }
     }
 }
@@ -614,5 +617,47 @@ mod tests {
             let c = ('a' as u8 + seg.ix() as u8) as char;
             println!("  {c}");
         }
+    }
+
+    #[test]
+    fn cactus_graph_bridge_forest() {
+        let graph = paper_cactus_graph();
+        let cycles = find_cactus_graph_cycles(&graph);
+
+        let mut bridge_forest = graph.clone();
+
+        for cycle in &cycles {
+            let hubs = cycle
+                .steps
+                .iter()
+                .map(|s| graph.spoke_graph.endpoint_hubs[s.ix()]);
+            bridge_forest.merge_hub_partition(hubs);
+        }
+
+        // let mut vxs = bridge_forest.vertices().collect::<Vec<_>>();
+
+        let mut vx_hub_count = HashMap::new();
+
+        println!("bridge forest");
+        for (vx_id, vertex) in bridge_forest.vertices() {
+            *vx_hub_count.entry(vertex.hubs.len()).or_insert(0usize) += 1;
+            let vi = vx_id.0;
+            println!("{vi:2} - {vertex:?}");
+        }
+
+        // from the paper, each of the following sets of endpoints
+        // should map to its own vertex in the bridge forest
+
+        // a+, b, c, d-
+        // d+, e, f, g, h, i, j, k, l-
+        // l+, m, n, o, p
+
+        // but i'm lazy so let's just check cardinality one level
+        // deep (still matches the paper)
+
+        assert_eq!(vx_hub_count.get(&1), Some(&3));
+        assert_eq!(vx_hub_count.get(&2), Some(&1));
+        assert_eq!(vx_hub_count.get(&3), Some(&1));
+        assert_eq!(vx_hub_count.get(&4), Some(&1));
     }
 }
