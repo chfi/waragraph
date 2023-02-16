@@ -39,6 +39,8 @@ pub struct SpokeGraph {
 
     // implicitly indexed by OrientedNode
     endpoint_hubs: Vec<HubId>,
+
+    max_endpoint: OrientedNode,
 }
 
 impl SpokeGraph {
@@ -70,6 +72,13 @@ impl SpokeGraph {
             max_end = max_end.max(a.node().ix().max(b.node().ix()));
             end_ufind.union(a, b);
         }
+
+        // just in case the very last endpoint never shows up
+        if max_end % 2 == 0 {
+            max_end += 1;
+        }
+
+        let max_endpoint = OrientedNode::from(max_end as u32);
 
         let mut rep_end_hub_map: HashMap<OrientedNode, HubId> =
             HashMap::default();
@@ -152,6 +161,7 @@ impl SpokeGraph {
             hub_adj,
             hub_endpoints,
             endpoint_hubs,
+            max_endpoint,
         }
     }
 }

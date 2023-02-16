@@ -3,6 +3,7 @@ use std::{
     sync::Arc,
 };
 
+use roaring::RoaringBitmap;
 use waragraph_core::graph::{Edge, Node, OrientedNode};
 
 use super::{HubId, SpokeGraph};
@@ -467,12 +468,11 @@ mod tests {
 
         let mut visit = Vec::new();
 
-        // graph.dfs(Some(VertexId(0)), |_, v| visit.push(v));
         graph.dfs_preorder(None, |i, step, vertex| {
             visit.push((i, step, vertex))
         });
 
-        for (i, step, vertex) in visit {
+        for (i, step, vertex) in &visit {
             //
             if let Some((parent, step)) = step {
                 let v = parent.0;
@@ -486,9 +486,15 @@ mod tests {
             println!("{vertex:?}");
         }
 
-        // let mut remaining_segments =
+        let walked = visit
+            .iter()
+            .filter_map(|(_, step, _)| step.map(|(_, s)| s.node()))
+            .collect::<HashSet<_>>();
 
-        // println!("{visit:?}");
+        let remaining_segments = (0..18)
+            .map(|i| Node::from(i as u32))
+            .filter(|s| !walked.contains(&s))
+            .collect::<HashSet<_>>();
 
         let mut all_neighbors = Vec::new();
         let mut neighbor_count: HashMap<_, usize> = HashMap::default();
@@ -519,6 +525,28 @@ mod tests {
                 print!("{c}{o}[{dst}], ");
             }
             println!();
+        }
+
+        println!();
+        println!("visited segments:");
+
+        let mut visited = walked.into_iter().collect::<Vec<_>>();
+        visited.sort();
+
+        for seg in visited {
+            let c = ('a' as u8 + seg.ix() as u8) as char;
+            println!("  {c}");
+        }
+
+        println!();
+        println!("remaining segments:");
+
+        let mut remaining = remaining_segments.into_iter().collect::<Vec<_>>();
+        remaining.sort();
+
+        for seg in remaining {
+            let c = ('a' as u8 + seg.ix() as u8) as char;
+            println!("  {c}");
         }
     }
 }

@@ -84,6 +84,12 @@ impl From<usize> for Node {
     }
 }
 
+impl From<u32> for OrientedNode {
+    fn from(u: u32) -> OrientedNode {
+        OrientedNode(u)
+    }
+}
+
 impl OrientedNode {
     #[inline]
     pub fn new(id: u32, reverse: bool) -> Self {
