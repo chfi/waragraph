@@ -342,6 +342,26 @@ pub fn find_cactus_graph_cycles(graph: &HyperSpokeGraph) -> Vec<Cycle> {
     cycles
 }
 
+pub enum CactusVertex {
+    Net { vertex: () },
+    Chain { vertex: (), cycle_id: usize },
+}
+
+// pub enum CactusVxId {
+//     Net(usize),
+//     Chain(usize),
+// }
+
+pub struct CactusTree {
+    graph: HyperSpokeGraph,
+    cycles: Vec<Cycle>,
+
+    // net_vertices: Vec<
+    // vertices: Vec<()>,
+    net_vertex_range: std::ops::Range<usize>,
+    chain_vertex_range: std::ops::Range<usize>,
+}
+
 #[cfg(test)]
 mod tests {
     use waragraph_core::graph::Node;
@@ -659,5 +679,13 @@ mod tests {
         assert_eq!(vx_hub_count.get(&2), Some(&1));
         assert_eq!(vx_hub_count.get(&3), Some(&1));
         assert_eq!(vx_hub_count.get(&4), Some(&1));
+    }
+
+    #[test]
+    fn paper_cactus_tree() {
+        let graph = paper_cactus_graph();
+        let cycles = find_cactus_graph_cycles(&graph);
+
+        todo!();
     }
 }

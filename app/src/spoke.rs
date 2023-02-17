@@ -185,21 +185,21 @@ impl Hub {
     }
 }
 
-pub struct SpokeLayout {
-    graph: SpokeGraph,
-    geometry: HubSpokeGeometry,
-}
+// pub struct SpokeLayout {
+//     graph: SpokeGraph,
+//     geometry: HubSpokeGeometry,
+// }
 
-type HubSpokeGeometry = HubSpokeData<f32, f32>;
+// type HubSpokeGeometry = HubSpokeData<f32, f32>;
 
-struct HubSpokeData<Node, Edge> {
-    // implicitly indexed by NodeId
-    node_data: Vec<Node>,
+// struct HubSpokeData<Node, Edge> {
+//     // implicitly indexed by NodeId
+//     node_data: Vec<Node>,
 
-    // outer Vec implicitly indexed by HubId,
-    // inner Vec corresponds to `Hub`s `spokes` field
-    hub_spoke_data: Vec<Vec<Edge>>,
-}
+//     // outer Vec implicitly indexed by HubId,
+//     // inner Vec corresponds to `Hub`s `spokes` field
+//     hub_spoke_data: Vec<Vec<Edge>>,
+// }
 
 #[cfg(test)]
 mod tests {
