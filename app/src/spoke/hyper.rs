@@ -249,11 +249,16 @@ impl HyperSpokeGraph {
             })
             .collect();
 
-        for vx_id in self.hub_vertex_map.iter_mut() {
+        for (hub_ix, vx_id) in self.hub_vertex_map.iter_mut().enumerate() {
+            println!("hub ix: {hub_ix}\tvertex: {vx_id:?}");
             *vx_id = new_ids[&vx_id];
         }
     }
 
+    // TODO: this one needs to be rewritten; the Hub indirection
+    // doesn't help, and it'd be easier to ensure correctness if a
+    // single function takes care of merging all of the partitions
+    //
     // merges set into a single vertex, marking the other vertices
     // as deleted and updating the HubId -> VertexId map
     pub fn merge_hub_partition(
@@ -265,9 +270,6 @@ impl HyperSpokeGraph {
             return;
         }
 
-        // hubs.sort();
-        // hubs.dedup();
-
         let mut hubs = hubs.into_iter();
 
         let tgt_vx = hubs
@@ -277,7 +279,7 @@ impl HyperSpokeGraph {
 
         for hub in hubs {
             let vx = self.hub_vertex_map[hub.ix()];
-            if vx != tgt_vx {
+            if vx != tgt_vx && !self.to_delete.contains(&vx) {
                 self.hub_vertex_map[hub.ix()] = tgt_vx;
                 self.to_delete.insert(vx);
 
@@ -285,7 +287,22 @@ impl HyperSpokeGraph {
                     std::mem::take(&mut self.vertices[vx.0 as usize].hubs);
                 self.vertices[tgt_vx.0 as usize].hubs.extend(to_add);
                 self.vertices[tgt_vx.0 as usize].hubs.insert(hub);
+
+                // TODO update cached vertex degree
             }
+        }
+
+        /*
+        for (hub_ix, vx_id) in self.hub_vertex_map.iter_mut().enumerate() {
+            if self.to_delete.contains(&vx_id) {
+                *vx_id = hub_vx_map
+            }
+        }
+        */
+
+        #[cfg(feature = "debug")]
+        for (hub_ix, vx_id) in self.hub_vertex_map.iter().enumerate() {
+            assert!(!self.to_delete.contains(vx_id));
         }
     }
 }
@@ -374,6 +391,49 @@ pub fn find_cactus_graph_cycles(graph: &HyperSpokeGraph) -> Vec<Cycle> {
     cycles
 }
 
+pub fn enumerate_chain_pairs(
+    graph: &HyperSpokeGraph,
+) -> Vec<(OrientedNode, OrientedNode)> {
+    let cycles = find_cactus_graph_cycles(&graph);
+
+    // a chain pair is a pair of segment endpoints that project
+    // to the same vertex in the cactus graph, and their corresponding
+    // segments map to the same cycle.
+
+    let mut chain_pairs = Vec::new();
+
+    // each segment is only in one cycle, by construction
+    for (cycle_ix, cycle) in cycles.iter().enumerate() {
+        /*
+
+        */
+
+        for chunk in cycle.steps.windows(2) {
+            if let [prev, here] = chunk {
+                //
+            }
+        }
+
+        /*
+        for step in cycle.steps.iter() {
+            let node = step.node();
+
+            let left = graph.spoke_graph.node_endpoint_hub(node.as_reverse());
+            let right = graph.spoke_graph.node_endpoint_hub(node.as_forward());
+
+            if step.is_reverse() {
+                chain_pairs.push
+            } else {
+            }
+            // chain_pairs.push(
+
+        }
+        */
+    }
+
+    chain_pairs
+}
+
 pub enum CactusVertex {
     Net { vertex: () },
     Chain { vertex: (), cycle_id: usize },
@@ -388,11 +448,30 @@ pub struct CactusTree {
     graph: HyperSpokeGraph,
     cycles: Vec<Cycle>,
 
+    bridge_pairs: Vec<Node>,
+
+    segment_cycle_map: HashMap<Node, usize>,
+
     // net_vertices: Vec<
     // vertices: Vec<()>,
     net_vertex_range: std::ops::Range<usize>,
     chain_vertex_range: std::ops::Range<usize>,
 }
+
+// impl CactusTree {
+//     pub fn from_cactus_graph(graph: HyperSpokeGraph) -> Self {
+//         let cycles = find_cactus_graph_cycles(&graph);
+
+//         // replace each cycle with a chain vertex
+//         let mut chain_vx_neighbors: Vec<VertexId> = Vec::new();
+
+//         for (cycle_ix, cycle) in cycles.iter().enumerate() {
+//             //
+//         }
+
+//         todo!();
+//     }
+// }
 
 #[cfg(test)]
 mod tests {
@@ -685,12 +764,39 @@ mod tests {
                 .steps
                 .iter()
                 .map(|s| graph.spoke_graph.endpoint_hubs[s.ix()]);
+            let hubs = hubs.collect::<Vec<_>>();
+            println!("hubs: {hubs:?}");
             bridge_forest.merge_hub_partition(hubs);
+
+            print!("Cycle endpoint: {:?}\t", cycle.endpoint);
+            for step in &cycle.steps {
+                let c = ('a' as u8 + step.node().ix() as u8) as char;
+                let o = if step.is_reverse() { "-" } else { "+" };
+                print!("{c}{o}, ");
+            }
+            println!();
         }
 
-        bridge_forest.apply_deletions();
-
         let mut vx_hub_count = HashMap::new();
+
+        println!();
+
+        println!("node -> (hub, hub) map");
+        for node_ix in 0..18 {
+            let node = Node::from(node_ix as u32);
+
+            let c = ('a' as u8 + node_ix as u8) as char;
+
+            let left = bridge_forest
+                .spoke_graph
+                .node_endpoint_hub(node.as_reverse());
+            let right = bridge_forest
+                .spoke_graph
+                .node_endpoint_hub(node.as_forward());
+
+            println!("{c} => {left:?}\t{right:?}");
+        }
+        println!();
 
         println!("bridge forest");
         for (vx_id, vertex) in bridge_forest.vertices() {
@@ -713,13 +819,7 @@ mod tests {
         assert_eq!(vx_hub_count.get(&2), Some(&1));
         assert_eq!(vx_hub_count.get(&3), Some(&1));
         assert_eq!(vx_hub_count.get(&4), Some(&1));
-    }
 
-    #[test]
-    fn paper_cactus_tree() {
-        let graph = paper_cactus_graph();
-        let cycles = find_cactus_graph_cycles(&graph);
-
-        todo!();
+        bridge_forest.apply_deletions();
     }
 }
