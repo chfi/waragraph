@@ -221,10 +221,38 @@ impl HyperSpokeGraph {
         }
     }
 
-    // pub fn flush_deleted(&mut self) {
-    //     let to_delete = std::mem::take(&mut self.to_delete);
-    //     todo!();
-    // }
+    pub fn apply_deletions(&mut self) {
+        let to_delete = std::mem::take(&mut self.to_delete);
+
+        let mut next_id = 0u32;
+        // let mut kept_vertices = Vec::with_capacity(self.vertices.len());
+        let mut new_ids = HashMap::new();
+
+        // walk the vertices, creating the map from old to new vertex IDs
+        for (vx_id, _vertex) in self.vertices() {
+            if to_delete.contains(&vx_id) {
+                continue;
+            }
+
+            new_ids.insert(vx_id, VertexId(next_id));
+            next_id += 1;
+        }
+
+        // update all existing vertices by applying the map
+        let vertices = std::mem::take(&mut self.vertices);
+        self.vertices = vertices
+            .into_iter()
+            .enumerate()
+            .filter_map(|(i, vx)| {
+                let v = VertexId(i as u32);
+                (!to_delete.contains(&v)).then_some(vx)
+            })
+            .collect();
+
+        for vx_id in self.hub_vertex_map.iter_mut() {
+            *vx_id = new_ids[&vx_id];
+        }
+    }
 
     // merges set into a single vertex, marking the other vertices
     // as deleted and updating the HubId -> VertexId map
@@ -453,6 +481,8 @@ mod tests {
             hyper_graph.merge_hub_partition(hubs);
         }
 
+        hyper_graph.apply_deletions();
+
         assert_eq!(hyper_graph.vertex_count(), 11);
 
         let mut all_neighbors = Vec::new();
@@ -658,7 +688,7 @@ mod tests {
             bridge_forest.merge_hub_partition(hubs);
         }
 
-        // let mut vxs = bridge_forest.vertices().collect::<Vec<_>>();
+        bridge_forest.apply_deletions();
 
         let mut vx_hub_count = HashMap::new();
 
