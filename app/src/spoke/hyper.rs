@@ -252,6 +252,10 @@ impl HyperSpokeGraph {
             if vx != tgt_vx {
                 self.hub_vertex_map[hub.ix()] = tgt_vx;
                 self.to_delete.insert(vx);
+
+                let to_add =
+                    std::mem::take(&mut self.vertices[vx.0 as usize].hubs);
+                self.vertices[tgt_vx.0 as usize].hubs.extend(to_add);
                 self.vertices[tgt_vx.0 as usize].hubs.insert(hub);
             }
         }
@@ -468,11 +472,6 @@ mod tests {
             all_neighbors.push((vx_id, neighbors));
         }
 
-        assert_eq!(neighbor_count.get(&1), Some(&3));
-        assert_eq!(neighbor_count.get(&3), Some(&4));
-        assert_eq!(neighbor_count.get(&4), Some(&2));
-        assert_eq!(neighbor_count.get(&5), Some(&2));
-
         all_neighbors.sort_by_key(|(_, n)| n.len());
 
         for (vx_id, neighbors) in all_neighbors {
@@ -487,6 +486,11 @@ mod tests {
             }
             println!();
         }
+
+        assert_eq!(neighbor_count.get(&1), Some(&3));
+        assert_eq!(neighbor_count.get(&3), Some(&3));
+        assert_eq!(neighbor_count.get(&4), Some(&2));
+        assert_eq!(neighbor_count.get(&5), Some(&2));
     }
 
     #[test]
