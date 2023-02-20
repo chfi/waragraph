@@ -444,34 +444,34 @@ pub enum CactusVertex {
 //     Chain(usize),
 // }
 
-pub struct CactusTree {
-    graph: HyperSpokeGraph,
+pub struct Saboten {
+    cactus_graph: HyperSpokeGraph,
     cycles: Vec<Cycle>,
 
-    bridge_pairs: Vec<Node>,
-
-    segment_cycle_map: HashMap<Node, usize>,
-
-    // net_vertices: Vec<
-    // vertices: Vec<()>,
-    net_vertex_range: std::ops::Range<usize>,
-    chain_vertex_range: std::ops::Range<usize>,
+    cactus_tree: (),
+    bridge_forest: (),
 }
 
-// impl CactusTree {
-//     pub fn from_cactus_graph(graph: HyperSpokeGraph) -> Self {
-//         let cycles = find_cactus_graph_cycles(&graph);
+impl Saboten {
+    pub fn from_cactus_graph(cactus: HyperSpokeGraph) -> Self {
+        let cycles = find_cactus_graph_cycles(&cactus);
 
-//         // replace each cycle with a chain vertex
-//         let mut chain_vx_neighbors: Vec<VertexId> = Vec::new();
+        // each cycle is mapped to a new chain vertex in the cactus tree,
+        // with the edges (segments) in the cycle deleted, and *new* edges
+        // added between the chain vertex and each existing vertex that was
+        // adjacent to the cycle
+        //
+        // these new edges do not correspond directly to segments!
 
-//         for (cycle_ix, cycle) in cycles.iter().enumerate() {
-//             //
-//         }
+        // for each cycle, find the neighboring vertices not in the cycle...
+        // ... but what if they're in another cycle??
+        for (cix, cycle) in cycles.iter().enumerate() {
+            //
+        }
 
-//         todo!();
-//     }
-// }
+        todo!();
+    }
+}
 
 #[cfg(test)]
 mod tests {

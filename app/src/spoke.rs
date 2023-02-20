@@ -9,6 +9,7 @@ use waragraph_core::graph::{Edge, Node, OrientedNode, PathIndex};
 pub mod app;
 
 pub mod hyper;
+pub mod matrix;
 
 #[derive(
     Debug,
