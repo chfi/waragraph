@@ -36,7 +36,6 @@ pub struct Vertex {
     hubs: BTreeSet<HubId>,
     // internal_edges: Vec<Edge>,
     // interface_edges: Vec<Edge>,
-    degree: usize,
 }
 
 #[derive(Debug, Clone)]
@@ -210,11 +209,11 @@ impl HyperSpokeGraph {
             let hub_id = HubId(hub_ix as u32);
 
             let hub = spoke_graph.hub_adj.get(hub_ix).unwrap();
-            let degree = hub.values().map(|s| s.len()).sum();
+            // let degree = hub.values().map(|s| s.len()).sum();
 
             let vx = Vertex {
                 hubs: BTreeSet::from_iter([hub_id]),
-                degree,
+                // degree,
             };
 
             let vx_id = VertexId(vertices.len() as u32);
@@ -265,6 +264,36 @@ impl HyperSpokeGraph {
         }
     }
 
+    pub fn contract_edge(&mut self, va: VertexId, vb: VertexId) {
+        println!("va == vb: {}", va == vb);
+        println!("va deleted: {}", self.to_delete.contains(&va));
+        println!("vb deleted: {}", self.to_delete.contains(&vb));
+
+        if va == vb
+            || self.to_delete.contains(&va)
+            || self.to_delete.contains(&vb)
+        {
+            return;
+        }
+
+        println!("contracting {va:?} -- {vb:?}");
+
+        // find all the hubs that map to vertex `vb`
+        let new_hubs = self.vertices[vb.ix()]
+            .hubs
+            .iter()
+            .copied()
+            .collect::<Vec<_>>();
+
+        self.vertices[va.ix()].hubs.extend(new_hubs.iter().copied());
+
+        for hub in new_hubs {
+            self.hub_vertex_map[hub.ix()] = va;
+        }
+
+        self.to_delete.insert(vb);
+    }
+
     // TODO: this one needs to be rewritten; the Hub indirection
     // doesn't help, and it'd be easier to ensure correctness if a
     // single function takes care of merging all of the partitions
@@ -275,6 +304,7 @@ impl HyperSpokeGraph {
         &mut self,
         set: impl IntoIterator<Item = HubId>,
     ) {
+        println!("vertex count before merge: {}", self.vertex_count());
         let hubs = set.into_iter().collect::<Vec<_>>();
         if hubs.len() < 2 {
             return;
@@ -301,6 +331,11 @@ impl HyperSpokeGraph {
                 // TODO update cached vertex degree
             }
         }
+
+        println!("--------------------");
+        println!("to delete count: {}", self.to_delete.len());
+
+        println!("vertex count after merge: {}", self.vertex_count());
 
         /*
         for (hub_ix, vx_id) in self.hub_vertex_map.iter_mut().enumerate() {
@@ -788,6 +823,22 @@ pub(crate) mod tests {
 
         let mut bridge_forest = graph.clone();
 
+        let mut contracted_segments = RoaringBitmap::new();
+
+        for cycle in &cycles {
+            let mut va = cycle.endpoint;
+
+            for step in &cycle.steps {
+                contracted_segments.insert(step.ix() as u32);
+                let hub_b = bridge_forest.spoke_graph.endpoint_hubs[step.ix()];
+                let vb = bridge_forest.hub_vertex_map[hub_b.ix()];
+                bridge_forest.contract_edge(va, vb);
+            }
+        }
+
+        println!("contracted segment count: {}", contracted_segments.len());
+
+        /*
         for cycle in &cycles {
             let hubs = cycle
                 .steps
@@ -805,6 +856,7 @@ pub(crate) mod tests {
             }
             println!();
         }
+        */
 
         let mut vx_hub_count = HashMap::new();
 
