@@ -23,6 +23,13 @@ use super::{HubId, SpokeGraph};
 #[repr(transparent)]
 pub struct VertexId(u32);
 
+impl VertexId {
+    #[inline]
+    pub fn ix(&self) -> usize {
+        self.0 as usize
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct Vertex {
     // id: VertexId,
@@ -80,10 +87,10 @@ edges, which can be used to generate a sequence of steps)
 
 #[derive(Debug, Clone)]
 pub struct HyperSpokeGraph {
-    spoke_graph: Arc<SpokeGraph>,
+    pub spoke_graph: Arc<SpokeGraph>,
 
     // implicitly indexed by HubId
-    hub_vertex_map: Vec<VertexId>,
+    pub hub_vertex_map: Vec<VertexId>,
 
     // implicitly indexed by VertexId
     vertices: Vec<Vertex>,
