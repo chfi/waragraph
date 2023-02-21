@@ -632,8 +632,9 @@ pub(crate) mod tests {
 
         let mut bridge_cands = RoaringBitmap::default();
 
-        let max_ix = (graph.spoke_graph.max_endpoint.ix() / 2) - 1;
+        let max_ix = (graph.spoke_graph.max_endpoint.ix() / 2);
         bridge_cands.insert_range(0..max_ix as u32);
+        println!("max_ix: {max_ix}, {:?}", ('a'..'z').nth(max_ix));
 
         let mut len_count_map: HashMap<usize, usize> = HashMap::default();
 
@@ -660,6 +661,8 @@ pub(crate) mod tests {
         assert_eq!(len_count_map.get(&3), Some(&1));
 
         let mut bridges = Vec::new();
+
+        println!("bridge candidate count: {}", bridge_cands.len());
 
         for b_ix in bridge_cands {
             let node = Node::from(b_ix);

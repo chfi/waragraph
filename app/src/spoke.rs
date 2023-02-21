@@ -64,6 +64,97 @@ impl SpokeGraph {
         hub
     }
 
+    pub fn new_improved(
+        segment_count: usize,
+        edges: impl IntoIterator<Item = Edge>,
+    ) -> Self {
+        let mut end_ufind = UnionFind::<OrientedNode>::new();
+
+        for edge in edges {
+            let (a, b) = edge.endpoints();
+            end_ufind.union(a, b);
+        }
+
+        let mut next_hub = 0u32;
+
+        let mut rep_end_hub_map: HashMap<OrientedNode, HubId> =
+            HashMap::default();
+
+        for segment in 0..segment_count {
+            let node = Node::from(segment);
+            let fwd = node.as_forward();
+            let f_rep = end_ufind.find(fwd);
+            if !rep_end_hub_map.contains_key(&f_rep) {
+                let hub_id = HubId(next_hub);
+                rep_end_hub_map.insert(f_rep, hub_id);
+                next_hub += 1;
+            }
+
+            let rev = node.as_reverse();
+            let r_rep = end_ufind.find(rev);
+            if !rep_end_hub_map.contains_key(&r_rep) {
+                let hub_id = HubId(next_hub);
+                rep_end_hub_map.insert(r_rep, hub_id);
+                next_hub += 1;
+            }
+        }
+
+        let hub_count = next_hub as usize;
+
+        let mut hub_adj: Vec<BTreeMap<HubId, Vec<OrientedNode>>> =
+            vec![BTreeMap::new(); hub_count];
+        let mut hub_endpoints: Vec<HashSet<OrientedNode>> =
+            vec![HashSet::new(); hub_count];
+
+        let endpoints = (0..segment_count).flat_map(|seg| {
+            let node = Node::from(seg);
+            let fwd = node.as_forward();
+            let rev = node.as_reverse();
+            [fwd, rev]
+        });
+
+        let mut endpoint_hubs = Vec::with_capacity(segment_count * 2);
+
+        let mut max_endpoint = OrientedNode::from(0);
+
+        // for segment in 0..segment_count {
+        for endpoint in endpoints {
+            max_endpoint = max_endpoint.max(endpoint);
+
+            let rep = end_ufind.find(endpoint);
+            let hub = rep_end_hub_map.get(&rep).unwrap();
+
+            endpoint_hubs.push(*hub);
+
+            let adj = &mut hub_adj[hub.ix()];
+            let endpoint_set = &mut hub_endpoints[hub.ix()];
+
+            // add this endpoint to the hub
+            endpoint_set.insert(endpoint);
+
+            // add an edge for each segment
+            let op_rep = end_ufind.find(endpoint.flip());
+            let op_hub = rep_end_hub_map.get(&op_rep).unwrap();
+
+            adj.entry(*op_hub).or_default().push(endpoint);
+        }
+
+        // shouldn't be necessary, but~~
+        for adj in hub_adj.iter_mut() {
+            for ends in adj.values_mut() {
+                ends.sort();
+                ends.dedup();
+            }
+        }
+
+        Self {
+            hub_adj,
+            hub_endpoints,
+            endpoint_hubs,
+            max_endpoint,
+        }
+    }
+
     pub fn new(
         segment_count: usize,
         edges: impl IntoIterator<Item = Edge>,
