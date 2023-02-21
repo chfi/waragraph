@@ -100,6 +100,8 @@ impl MatGraph<CacTreeVx, CacTreeEdge> {
             cycle_vertices.push(vertices);
         }
 
+        println!("remaining segments: {}", remaining_segments.len());
+
         for i in remaining_segments.iter() {
             let node = Node::from(i);
 
@@ -164,5 +166,20 @@ impl MatGraph<CacTreeVx, CacTreeEdge> {
             vertex,
             edge: edges,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_cactus_tree() {
+        let cactus_graph = super::super::hyper::tests::paper_cactus_graph();
+
+        let cactus_tree = MatGraph::build_cactus_tree(&cactus_graph);
+
+        println!("vertex_count: {}", cactus_tree.vertex_count);
+        println!("edge_count: {}", cactus_tree.edge_count);
     }
 }

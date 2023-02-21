@@ -481,13 +481,13 @@ impl Saboten {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use waragraph_core::graph::Node;
 
     use super::super::SpokeGraph;
     use super::*;
 
-    fn paper_cactus_graph() -> HyperSpokeGraph {
+    pub(crate) fn paper_cactus_graph() -> HyperSpokeGraph {
         let edges = super::super::tests::example_graph_edges();
         let graph = SpokeGraph::new(edges);
 
