@@ -71,6 +71,9 @@ impl MatGraph<CacTreeVx, CacTreeEdge> {
         let chain_vx_count = cycles.len();
         let vertex_count = net_vx_count + chain_vx_count;
 
+        println!("net_vx_count: {net_vx_count}");
+        println!("chain_vx_count: {chain_vx_count}");
+
         let mut vertex: Vec<CacTreeVx> = Vec::new();
 
         for (vxid, _) in cactus.vertices() {
@@ -83,7 +86,7 @@ impl MatGraph<CacTreeVx, CacTreeEdge> {
         println!("seg_count: {seg_count}");
 
         let mut remaining_segments = RoaringBitmap::default();
-        remaining_segments.insert_range(0..seg_count as u32);
+        remaining_segments.insert_range(0..=seg_count as u32);
 
         println!("remaining segments: {}", remaining_segments.len());
         let mut cycle_vertices: Vec<Vec<VertexId>> = Vec::new();
@@ -99,6 +102,7 @@ impl MatGraph<CacTreeVx, CacTreeEdge> {
                 vertices.push(cactus.endpoint_vertex(*step));
             }
 
+            println!("vertices: {vertices:?}");
             cycle_vertices.push(vertices);
         }
 
@@ -122,7 +126,14 @@ impl MatGraph<CacTreeVx, CacTreeEdge> {
                 from: from_vx,
                 to: to_vx,
             });
+
+            let c = ('a' as u8 + node.ix() as u8) as char;
+
+            println!("pushing net edge `{c}` {from_vx:?}, {to_vx:?}");
         }
+
+        let net_edges = edges.len();
+        println!("net edge count: {}", edges.len());
 
         for (cix, vertices) in cycle_vertices.into_iter().enumerate() {
             for vertex in vertices {
@@ -130,8 +141,11 @@ impl MatGraph<CacTreeVx, CacTreeEdge> {
                     cycle: cix,
                     net: vertex,
                 });
+                println!("pushing chain edge {cix}, {vertex:?}");
             }
         }
+
+        println!("chain edge count: {}", edges.len() - net_edges);
 
         use sprs::TriMat;
 
@@ -142,6 +156,9 @@ impl MatGraph<CacTreeVx, CacTreeEdge> {
         let mut inc: TriMat<u8> = TriMat::new((v_n, e_n));
 
         edges.sort();
+        println!("edges len: {}", edges.len());
+        edges.dedup();
+        println!("edges dedup len: {}", edges.len());
 
         for (i, edge) in edges.iter().enumerate() {
             match edge {
@@ -185,5 +202,8 @@ mod tests {
 
         println!("vertex_count: {}", cactus_tree.vertex_count);
         println!("edge_count: {}", cactus_tree.edge_count);
+
+        assert_eq!(cactus_tree.vertex_count, 19);
+        assert_eq!(cactus_tree.edge_count, 18);
     }
 }

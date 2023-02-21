@@ -430,9 +430,9 @@ pub fn find_cactus_graph_cycles(graph: &HyperSpokeGraph) -> Vec<Cycle> {
         }
 
         if start == l_ix {
-            cycle_steps.push(node.as_reverse());
-        } else {
             cycle_steps.push(node.as_forward());
+        } else {
+            cycle_steps.push(node.as_reverse());
         }
 
         cycles.push(Cycle {
@@ -826,7 +826,7 @@ pub(crate) mod tests {
         let mut contracted_segments = RoaringBitmap::new();
 
         for cycle in &cycles {
-            let mut va = cycle.endpoint;
+            let va = cycle.endpoint;
 
             for step in &cycle.steps {
                 contracted_segments.insert(step.ix() as u32);
