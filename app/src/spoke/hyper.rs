@@ -99,6 +99,9 @@ pub struct HyperSpokeGraph {
 
 impl HyperSpokeGraph {
     pub fn endpoint_vertex(&self, endpoint: OrientedNode) -> VertexId {
+        let c = ('a' as u8 + endpoint.node().ix() as u8) as char;
+        let o = if endpoint.is_reverse() { "-" } else { "+" };
+        println!("endpoint_vertex: {c}{o}");
         let hub = self.spoke_graph.endpoint_hubs[endpoint.ix()];
         self.hub_vertex_map[hub.ix()]
     }
@@ -321,19 +324,28 @@ pub fn find_cactus_graph_cycles(graph: &HyperSpokeGraph) -> Vec<Cycle> {
     let mut visited_segments: HashSet<Node> = HashSet::default();
     let mut vx_visit: HashMap<VertexId, usize> = HashMap::default();
     let mut remaining_segments = RoaringBitmap::default();
-    remaining_segments
-        .insert_range(0..graph.spoke_graph.max_endpoint.ix() as u32);
+
+    let max_ix = (graph.spoke_graph.max_endpoint.ix() / 2) - 1;
+    remaining_segments.insert_range(0..max_ix as u32);
+    println!("max_ix!!! {max_ix}");
+    println!("remaining segments: {}", remaining_segments.len());
+    dbg!(remaining_segments.max());
+    dbg!(remaining_segments.len());
 
     graph.dfs_preorder(None, |i, step, vertex| {
         vx_visit.insert(vertex, i);
         visit.push((i, step, vertex));
 
         if let Some((_parent, step)) = step {
+            dbg!(step);
             let seg = step.node();
             visited_segments.insert(seg);
             remaining_segments.remove(seg.ix() as u32);
         }
     });
+
+    dbg!(remaining_segments.max());
+    dbg!(remaining_segments.len());
 
     // the DFS produces a spanning tree; from this, we can start from any
     // of the remaining segments and use the tree to reconstruct the cycle
@@ -342,6 +354,7 @@ pub fn find_cactus_graph_cycles(graph: &HyperSpokeGraph) -> Vec<Cycle> {
     let mut cycles: Vec<Cycle> = Vec::new();
 
     for seg_ix in remaining_segments {
+        println!("seg_ix: {seg_ix}");
         let node = Node::from(seg_ix);
 
         let l = graph.endpoint_vertex(node.as_reverse());
@@ -489,9 +502,9 @@ pub(crate) mod tests {
 
     pub(crate) fn paper_cactus_graph() -> HyperSpokeGraph {
         let edges = super::super::tests::example_graph_edges();
-        let graph = SpokeGraph::new(edges);
 
         let node_count = 18;
+        let graph = SpokeGraph::new(node_count, edges);
 
         let inverted_comps = {
             let seg_hubs = (0..node_count as u32)
@@ -531,9 +544,9 @@ pub(crate) mod tests {
     #[test]
     fn merging_3ec_components() {
         let edges = super::super::tests::example_graph_edges();
-        let graph = SpokeGraph::new(edges);
 
         let node_count = 18;
+        let graph = SpokeGraph::new(node_count, edges);
 
         let inverted_comps = {
             let seg_hubs = (0..node_count as u32)
@@ -618,8 +631,9 @@ pub(crate) mod tests {
         // println!("{cycles:#?}");
 
         let mut bridge_cands = RoaringBitmap::default();
-        bridge_cands
-            .insert_range(0..graph.spoke_graph.max_endpoint.ix() as u32);
+
+        let max_ix = (graph.spoke_graph.max_endpoint.ix() / 2) - 1;
+        bridge_cands.insert_range(0..max_ix as u32);
 
         let mut len_count_map: HashMap<usize, usize> = HashMap::default();
 
@@ -635,6 +649,10 @@ pub(crate) mod tests {
                 print!("{c}{o}, ");
             }
             println!();
+        }
+
+        for (len, count) in &len_count_map {
+            println!("{len}\t{count}");
         }
 
         assert_eq!(len_count_map.get(&1), Some(&4));
@@ -662,13 +680,14 @@ pub(crate) mod tests {
             bridges.push(node);
         }
 
+        println!("bridges");
         for bridge in &bridges {
             let c = ('a' as u8 + bridge.ix() as u8) as char;
             print!("{c}, ");
         }
         println!();
 
-        assert_eq!(bridges.len(), 4);
+        assert_eq!(bridges.len(), 5);
     }
 
     #[test]

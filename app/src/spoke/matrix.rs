@@ -80,10 +80,12 @@ impl MatGraph<CacTreeVx, CacTreeEdge> {
         let mut edges: Vec<CacTreeEdge> = Vec::new();
 
         let seg_count = cactus.spoke_graph.max_endpoint.ix() / 2;
+        println!("seg_count: {seg_count}");
 
         let mut remaining_segments = RoaringBitmap::default();
         remaining_segments.insert_range(0..seg_count as u32);
 
+        println!("remaining segments: {}", remaining_segments.len());
         let mut cycle_vertices: Vec<Vec<VertexId>> = Vec::new();
 
         for (cix, cycle) in cycles.iter().enumerate() {
@@ -101,9 +103,11 @@ impl MatGraph<CacTreeVx, CacTreeEdge> {
         }
 
         println!("remaining segments: {}", remaining_segments.len());
+        println!("cycle vertices: {}", cycle_vertices.len());
 
         for i in remaining_segments.iter() {
             let node = Node::from(i);
+            println!("remaining: {node:?}");
 
             let from_hub =
                 cactus.spoke_graph.node_endpoint_hub(node.as_reverse());

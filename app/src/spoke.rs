@@ -54,7 +54,8 @@ impl SpokeGraph {
     }
 
     pub fn new_from_graph(graph: &PathIndex) -> Self {
-        Self::new(graph.edges_iter().map(|&(a, b)| Edge::new(a, b)))
+        let seg_count = graph.node_count;
+        Self::new(seg_count, graph.edges_iter().map(|&(a, b)| Edge::new(a, b)))
     }
 
     pub fn map_edge(&self, edge: Edge) -> HubId {
@@ -63,23 +64,37 @@ impl SpokeGraph {
         hub
     }
 
-    pub fn new(edges: impl IntoIterator<Item = Edge>) -> Self {
+    pub fn new(
+        segment_count: usize,
+        edges: impl IntoIterator<Item = Edge>,
+    ) -> Self {
         let mut end_ufind = UnionFind::<OrientedNode>::new();
 
-        let mut max_end = usize::MIN;
+        // let mut remaining_segments = RoaringBitmap::default();
+        // remaining_segments
+        //     .insert_range(0..segment_count as u32);
+
+        // for seg_id in 0..segment_count {
+        //     let node = Node::from(seg_id);
+        // }
 
         for edge in edges {
             let (a, b) = edge.endpoints();
-            max_end = max_end.max(a.node().ix().max(b.node().ix()));
             end_ufind.union(a, b);
         }
 
         // just in case the very last endpoint never shows up
-        if max_end % 2 == 0 {
-            max_end += 1;
-        }
+        // if max_end % 2 == 0 {
+        //     max_end += 1;
+        // }
 
-        let max_endpoint = OrientedNode::from(max_end as u32);
+        let max_endpoint = Node::from(segment_count - 1).as_reverse();
+        let c = ('a' as u8 + max_endpoint.node().ix() as u8) as char;
+        let o = if max_endpoint.is_reverse() { "-" } else { "+" };
+        println!("max_endpoint: {c}{o}");
+        println!("max_endpoint: {}", max_endpoint.ix());
+
+        // let max_endpoint = OrientedNode::from(max_end as u32);
 
         let mut rep_end_hub_map: HashMap<OrientedNode, HubId> =
             HashMap::default();
@@ -154,6 +169,7 @@ impl SpokeGraph {
         let mut endpoint_hubs: Vec<(OrientedNode, HubId)> =
             rep_end_hub_map.into_iter().collect();
         endpoint_hubs.sort_by_key(|(n, _)| *n);
+        println!("endpoint_hubs.len(): {}", endpoint_hubs.len());
 
         let endpoint_hubs =
             endpoint_hubs.into_iter().map(|(_node, hub)| hub).collect();
@@ -262,7 +278,8 @@ mod tests {
         // only thing this tests is that all node endpoints are mapped
 
         let edges = example_graph_edges();
-        let graph = SpokeGraph::new(edges);
+        let node_count = 18;
+        let graph = SpokeGraph::new(node_count, edges);
 
         println!("hub adj");
         for (hub_ix, hub) in graph.hub_adj.iter().enumerate() {
@@ -296,9 +313,9 @@ mod tests {
     #[test]
     fn spoke_graph_3ec() {
         let edges = example_graph_edges();
-        let graph = SpokeGraph::new(edges);
 
         let node_count = 18;
+        let graph = SpokeGraph::new(node_count, edges);
 
         println!("hub adj");
         for (hub_ix, hub) in graph.hub_adj.iter().enumerate() {
