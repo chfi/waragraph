@@ -64,7 +64,7 @@ impl SpokeGraph {
         hub
     }
 
-    pub fn new_improved(
+    pub fn new(
         segment_count: usize,
         edges: impl IntoIterator<Item = Edge>,
     ) -> Self {
@@ -146,124 +146,6 @@ impl SpokeGraph {
                 ends.dedup();
             }
         }
-
-        Self {
-            hub_adj,
-            hub_endpoints,
-            endpoint_hubs,
-            max_endpoint,
-        }
-    }
-
-    pub fn new(
-        segment_count: usize,
-        edges: impl IntoIterator<Item = Edge>,
-    ) -> Self {
-        let mut end_ufind = UnionFind::<OrientedNode>::new();
-
-        // let mut remaining_segments = RoaringBitmap::default();
-        // remaining_segments
-        //     .insert_range(0..segment_count as u32);
-
-        // for seg_id in 0..segment_count {
-        //     let node = Node::from(seg_id);
-        // }
-
-        for edge in edges {
-            let (a, b) = edge.endpoints();
-            end_ufind.union(a, b);
-        }
-
-        // just in case the very last endpoint never shows up
-        // if max_end % 2 == 0 {
-        //     max_end += 1;
-        // }
-
-        let max_endpoint = Node::from(segment_count - 1).as_reverse();
-        let c = ('a' as u8 + max_endpoint.node().ix() as u8) as char;
-        let o = if max_endpoint.is_reverse() { "-" } else { "+" };
-        println!("max_endpoint: {c}{o}");
-        println!("max_endpoint: {}", max_endpoint.ix());
-
-        // let max_endpoint = OrientedNode::from(max_end as u32);
-
-        let mut rep_end_hub_map: HashMap<OrientedNode, HubId> =
-            HashMap::default();
-
-        let mut hub_adj: Vec<BTreeMap<HubId, Vec<OrientedNode>>> = Vec::new();
-
-        let partitions = end_ufind.subsets();
-
-        for (hub_ix, set) in partitions.iter().enumerate() {
-            let hub_id = HubId(hub_ix as u32);
-
-            for &node_end in set.iter() {
-                rep_end_hub_map.insert(node_end, hub_id);
-            }
-
-            let hub = BTreeMap::default();
-            hub_adj.push(hub);
-        }
-
-        let mut to_add = Vec::new();
-
-        for (hub_ix, hub_map) in hub_adj.iter_mut().enumerate() {
-            let this_set = &partitions[hub_ix];
-
-            let mut neighbors = Vec::new();
-
-            for &endpoint in this_set.iter() {
-                //
-                let other_end = endpoint.flip();
-                let rep = end_ufind.find(other_end);
-
-                if let Some(hub_id) = rep_end_hub_map.get(&rep) {
-                    neighbors.push((other_end, *hub_id));
-                } else {
-                    to_add.push((hub_ix, other_end));
-                }
-            }
-
-            for (other_end, other_hub) in neighbors {
-                hub_map.entry(other_hub).or_default().push(other_end);
-            }
-        }
-
-        let mut hub_endpoints = partitions;
-
-        for (other_hub_ix, this_end) in to_add {
-            let hub_id = HubId(hub_adj.len() as u32);
-
-            let other_hub = HubId(other_hub_ix as u32);
-
-            let mut this_hub = BTreeMap::default();
-
-            this_hub.insert(other_hub, vec![this_end.flip()]);
-            hub_adj.push(this_hub);
-
-            hub_adj[other_hub_ix]
-                .entry(hub_id)
-                .or_default()
-                .push(this_end);
-
-            rep_end_hub_map.insert(this_end, hub_id);
-
-            hub_endpoints.push(HashSet::from_iter([this_end]));
-        }
-
-        for hub_map in hub_adj.iter_mut() {
-            for nodes in hub_map.values_mut() {
-                nodes.sort();
-            }
-        }
-
-        let mut endpoint_hubs: Vec<(OrientedNode, HubId)> =
-            rep_end_hub_map.into_iter().collect();
-        endpoint_hubs.sort_by_key(|(n, _)| *n);
-        println!("endpoint_hubs.len(): {}", endpoint_hubs.len());
-
-        let endpoint_hubs =
-            endpoint_hubs.into_iter().map(|(_node, hub)| hub).collect();
 
         Self {
             hub_adj,

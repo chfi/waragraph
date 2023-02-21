@@ -633,7 +633,7 @@ pub(crate) mod tests {
         let mut bridge_cands = RoaringBitmap::default();
 
         let max_ix = (graph.spoke_graph.max_endpoint.ix() / 2);
-        bridge_cands.insert_range(0..max_ix as u32);
+        bridge_cands.insert_range(0..=max_ix as u32);
         println!("max_ix: {max_ix}, {:?}", ('a'..'z').nth(max_ix));
 
         let mut len_count_map: HashMap<usize, usize> = HashMap::default();
