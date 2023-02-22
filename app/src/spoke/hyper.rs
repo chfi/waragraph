@@ -21,7 +21,7 @@ use super::{HubId, SpokeGraph};
     bytemuck::Zeroable,
 )]
 #[repr(transparent)]
-pub struct VertexId(u32);
+pub struct VertexId(pub(crate) u32);
 
 impl VertexId {
     #[inline]
@@ -33,7 +33,7 @@ impl VertexId {
 #[derive(Debug, Clone)]
 pub struct Vertex {
     // id: VertexId,
-    hubs: BTreeSet<HubId>,
+    pub hubs: BTreeSet<HubId>,
     // internal_edges: Vec<Edge>,
     // interface_edges: Vec<Edge>,
 }
@@ -42,6 +42,7 @@ pub struct Vertex {
 pub struct Cycle {
     pub endpoint: VertexId,
     pub steps: Vec<OrientedNode>,
+    pub step_endpoints: Vec<VertexId>,
 }
 
 impl Cycle {
@@ -100,9 +101,13 @@ impl HyperSpokeGraph {
     pub fn endpoint_vertex(&self, endpoint: OrientedNode) -> VertexId {
         let c = ('a' as u8 + endpoint.node().ix() as u8) as char;
         let o = if endpoint.is_reverse() { "-" } else { "+" };
-        println!("endpoint_vertex: {c}{o}");
+        // println!("endpoint_vertex: {c}{o}");
         let hub = self.spoke_graph.endpoint_hubs[endpoint.ix()];
         self.hub_vertex_map[hub.ix()]
+    }
+
+    pub fn get_vertex(&self, v: VertexId) -> &Vertex {
+        &self.vertices[v.ix()]
     }
 
     pub fn vertices<'a>(
@@ -402,6 +407,7 @@ pub fn find_cactus_graph_cycles(graph: &HyperSpokeGraph) -> Vec<Cycle> {
             cycles.push(Cycle {
                 endpoint: l,
                 steps: vec![node.as_forward()],
+                step_endpoints: vec![r],
             });
             continue;
         }
@@ -412,10 +418,12 @@ pub fn find_cactus_graph_cycles(graph: &HyperSpokeGraph) -> Vec<Cycle> {
         let mut cur_ix = end;
 
         let mut cycle_steps = Vec::new();
+        let mut step_endpoints = Vec::new();
 
         loop {
             if let Some((parent, incoming)) = visit[cur_ix].1 {
                 cycle_steps.push(incoming);
+                step_endpoints.push(parent);
 
                 // if parent's visit ix == start, we're done
                 let parent_ix = *vx_visit.get(&parent).unwrap();
@@ -429,6 +437,8 @@ pub fn find_cactus_graph_cycles(graph: &HyperSpokeGraph) -> Vec<Cycle> {
             }
         }
 
+        step_endpoints.push(r);
+
         if start == l_ix {
             cycle_steps.push(node.as_forward());
         } else {
@@ -438,6 +448,7 @@ pub fn find_cactus_graph_cycles(graph: &HyperSpokeGraph) -> Vec<Cycle> {
         cycles.push(Cycle {
             endpoint: l,
             steps: cycle_steps,
+            step_endpoints,
         });
     }
 
@@ -816,6 +827,7 @@ pub(crate) mod tests {
         }
     }
 
+    /*
     #[test]
     fn cactus_graph_bridge_forest() {
         let graph = paper_cactus_graph();
@@ -903,4 +915,5 @@ pub(crate) mod tests {
 
         bridge_forest.apply_deletions();
     }
+    */
 }

@@ -250,12 +250,73 @@ impl CactusTree {
 }
 
 impl CactusTree {
-    // returns the chain pair and their cycle index (which can be used to
-    // derive the
+    pub fn project_segment_end(&self, end: OrientedNode) -> usize {
+        let vx = self.cactus_graph.endpoint_vertex(end);
+        vx.ix()
+    }
+
+    pub fn net_vertex_endpoints(
+        &self,
+        net: VertexId,
+    ) -> impl Iterator<Item = OrientedNode> + '_ {
+        let vx = self.cactus_graph.get_vertex(net);
+        vx.hubs.iter().flat_map(|h| {
+            self.cactus_graph.spoke_graph.hub_endpoints[h.ix()]
+                .iter()
+                .copied()
+        })
+    }
+
     pub fn enumerate_chain_pairs(
         &self,
     ) -> Vec<((OrientedNode, OrientedNode), usize)> {
-        todo!();
+        // let chain_range = (self.net_edges..(self.net_edges + self.chain_edges));
+
+        let mut chain_pairs = Vec::with_capacity(self.chain_edges);
+
+        let chain_range = 0..self.chain_edges;
+
+        // for (cycle_ix, cycle) in self.cycles.iter().enumerate() {
+        //
+        // }
+
+        fn print_step(step: OrientedNode) {
+            let c = ('a' as u8 + step.node().ix() as u8) as char;
+            let o = if step.is_reverse() { "-" } else { "+" };
+            print!("{c}{o}")
+        }
+
+        for chain_ix in chain_range {
+            let edge_ix = self.net_edges + chain_ix;
+
+            let (net, cycle_ix, steps) = if let CacTreeEdge::Chain {
+                net,
+                cycle,
+                prev_step,
+                this_step,
+            } = self.graph.edge[edge_ix]
+            {
+                (net, cycle, [prev_step, this_step])
+            } else {
+                unreachable!();
+            };
+
+            let prev_vx = self.project_segment_end(steps[0].flip());
+            let this_vx = self.project_segment_end(steps[1]);
+
+            print!(" {chain_ix}:\t");
+            print_step(steps[0].flip());
+            print!("  -  ");
+            print_step(steps[1]);
+            println!("\tprev: {prev_vx} - {net:?} - {this_vx}");
+
+            // let cycle = &self.cycles[cycle_ix];
+        }
+
+        // chain_pairs.sort();
+        // chain_pairs.dedup();
+
+        chain_pairs
     }
 }
 
@@ -265,11 +326,17 @@ mod tests {
 
     use super::*;
 
+    fn print_step(step: OrientedNode) {
+        let c = ('a' as u8 + step.node().ix() as u8) as char;
+        let o = if step.is_reverse() { "-" } else { "+" };
+        print!("{c}{o}")
+    }
+
     #[test]
     fn test_cactus_tree() {
         let cactus_graph = super::super::hyper::tests::paper_cactus_graph();
 
-        let cactus_tree = CactusTree::from_cactus_graph(&cactus_graph);
+        let cactus_tree = CactusTree::from_cactus_graph(Arc::new(cactus_graph));
 
         println!("vertex_count: {}", cactus_tree.graph.vertex_count);
         println!("edge_count: {}", cactus_tree.graph.edge_count);
@@ -281,5 +348,83 @@ mod tests {
         cactus_tree.graph.print_adj();
         println!("-----------------------");
         cactus_tree.graph.print_inc();
+
+        println!("---");
+
+        println!("enumerating chain pairs!");
+        println!("---");
+        println!();
+        let out = cactus_tree.enumerate_chain_pairs();
+
+        println!("{out:?}");
+
+        println!("\n\n------------\n\n");
+
+        for (i, cycle) in cactus_tree.cycles.iter().enumerate() {
+            // println!("{i}\t{cycle:?}");
+
+            print!("cycle {i} steps\t[");
+
+            for (i, step) in cycle.steps.iter().enumerate() {
+                if i > 0 {
+                    print!(", ");
+                }
+                print_step(*step);
+            }
+            println!("]");
+
+            /////////////
+
+            print!("cycle {i} step endpoints\t[");
+
+            for (i, &net_vx) in cycle.step_endpoints.iter().enumerate() {
+                if i > 0 {
+                    print!(";  ");
+                }
+                let endpoints = cactus_tree.net_vertex_endpoints(net_vx);
+
+                for (j, s) in endpoints.into_iter().enumerate() {
+                    if j > 0 {
+                        print!(", ");
+                    }
+                    print_step(s);
+                }
+            }
+            println!("]");
+        }
+
+        println!();
+        // println!(");
+
+        for net_ix in 0..cactus_tree.net_vertices {
+            let net_vx = VertexId(net_ix as u32);
+            let endpoints = cactus_tree.net_vertex_endpoints(net_vx);
+
+            print!("net vertex {net_ix}\t[");
+
+            for s in endpoints {
+                print_step(s);
+            }
+            println!("]");
+        }
+
+        println!();
+
+        for seg in 0u32..18 {
+            let node = Node::from(seg);
+            let r = node.as_reverse();
+            let f = node.as_forward();
+
+            let pr = cactus_tree.project_segment_end(r);
+            let pf = cactus_tree.project_segment_end(f);
+
+            print!("{seg:2} - ");
+            print_step(r);
+            println!(" : Vertex {pr}");
+
+            print!("{seg:2} - ");
+            print_step(f);
+            println!(" : Vertex {pf}");
+        }
     }
 }
