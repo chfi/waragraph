@@ -1,9 +1,11 @@
 use roaring::RoaringBitmap;
 use sprs::{CsMat, CsMatBase, CsVec};
-use waragraph_core::graph::Node;
+use std::sync::Arc;
+use waragraph_core::graph::{Node, OrientedNode};
 
-use super::hyper::{HyperSpokeGraph, VertexId};
+use super::hyper::{Cycle, HyperSpokeGraph, VertexId};
 
+#[derive(Debug, Clone)]
 pub struct MatGraph<VData, EData> {
     vertex_count: usize,
     edge_count: usize,
@@ -74,12 +76,28 @@ pub enum CacTreeEdge {
     Chain {
         net: VertexId,
         cycle: usize,
+        prev_step: OrientedNode,
+        this_step: OrientedNode,
     },
 }
 
-impl MatGraph<CacTreeVx, CacTreeEdge> {
-    pub fn build_cactus_tree(cactus: &HyperSpokeGraph) -> Self {
-        let cycles = super::hyper::find_cactus_graph_cycles(cactus);
+#[derive(Debug, Clone)]
+pub struct CactusTree {
+    cactus_graph: Arc<HyperSpokeGraph>,
+    graph: MatGraph<CacTreeVx, CacTreeEdge>,
+
+    cycles: Vec<Cycle>,
+
+    net_vertices: usize,
+    net_edges: usize,
+
+    chain_vertices: usize,
+    chain_edges: usize,
+}
+
+impl CactusTree {
+    pub fn from_cactus_graph(cactus: Arc<HyperSpokeGraph>) -> Self {
+        let cycles = super::hyper::find_cactus_graph_cycles(&cactus);
 
         // we have the VertexIds from the cactus graph,
         // plus the chain vertices, one for each cycle
@@ -106,17 +124,25 @@ impl MatGraph<CacTreeVx, CacTreeEdge> {
         remaining_segments.insert_range(0..=seg_count as u32);
 
         println!("remaining segments: {}", remaining_segments.len());
-        let mut cycle_vertices: Vec<Vec<VertexId>> = Vec::new();
+        let mut cycle_vertices: Vec<Vec<([OrientedNode; 2], VertexId)>> =
+            Vec::new();
 
         for (cix, cycle) in cycles.iter().enumerate() {
             vertex.push(CacTreeVx::Chain { cycle: cix });
 
             let mut vertices = Vec::new();
-            vertices.push(cycle.endpoint);
+            // vertices.push(cycle.endpoint);
 
-            for step in cycle.steps.iter() {
+            for (step_ix, step) in cycle.steps.iter().enumerate() {
+                let prev_step = if step_ix == 0 {
+                    let i = cycle.steps.len() - 1;
+                    cycle.steps[i]
+                } else {
+                    cycle.steps[step_ix - 1]
+                };
                 remaining_segments.remove(step.node().ix() as u32);
-                vertices.push(cactus.endpoint_vertex(*step));
+                vertices
+                    .push(([prev_step, *step], cactus.endpoint_vertex(*step)));
             }
 
             println!("vertices: {vertices:?}");
@@ -153,10 +179,12 @@ impl MatGraph<CacTreeVx, CacTreeEdge> {
         println!("net edge count: {}", edges.len());
 
         for (cix, vertices) in cycle_vertices.into_iter().enumerate() {
-            for vertex in vertices {
+            for ([prev_step, this_step], vertex) in vertices {
                 edges.push(CacTreeEdge::Chain {
                     cycle: cix,
                     net: vertex,
+                    prev_step,
+                    this_step,
                 });
                 println!("pushing chain edge {cix}, {vertex:?}");
             }
@@ -185,7 +213,7 @@ impl MatGraph<CacTreeVx, CacTreeEdge> {
                     inc.add_triplet(from.ix(), i, 1);
                     inc.add_triplet(to.ix(), i, 1);
                 }
-                CacTreeEdge::Chain { net, cycle } => {
+                CacTreeEdge::Chain { net, cycle, .. } => {
                     let c_i = net_vx_count + *cycle;
                     adj.add_triplet(net.ix(), c_i, 1);
                     adj.add_triplet(c_i, net.ix(), 1);
@@ -198,14 +226,36 @@ impl MatGraph<CacTreeVx, CacTreeEdge> {
         let adj: CsMat<u8> = adj.to_csc();
         let inc: CsMat<u8> = inc.to_csc();
 
-        Self {
+        let chain_edges = edges.len() - net_edges;
+
+        let graph = MatGraph {
             vertex_count,
             edge_count: edges.len(),
             adj,
             inc,
             vertex,
             edge: edges,
+        };
+
+        Self {
+            cactus_graph: cactus,
+            graph,
+            cycles,
+            net_vertices: net_vx_count,
+            net_edges,
+            chain_vertices: chain_vx_count,
+            chain_edges,
         }
+    }
+}
+
+impl CactusTree {
+    // returns the chain pair and their cycle index (which can be used to
+    // derive the
+    pub fn enumerate_chain_pairs(
+        &self,
+    ) -> Vec<((OrientedNode, OrientedNode), usize)> {
+        todo!();
     }
 }
 
@@ -219,17 +269,17 @@ mod tests {
     fn test_cactus_tree() {
         let cactus_graph = super::super::hyper::tests::paper_cactus_graph();
 
-        let cactus_tree = MatGraph::build_cactus_tree(&cactus_graph);
+        let cactus_tree = CactusTree::from_cactus_graph(&cactus_graph);
 
-        println!("vertex_count: {}", cactus_tree.vertex_count);
-        println!("edge_count: {}", cactus_tree.edge_count);
+        println!("vertex_count: {}", cactus_tree.graph.vertex_count);
+        println!("edge_count: {}", cactus_tree.graph.edge_count);
 
-        assert_eq!(cactus_tree.vertex_count, 19);
-        assert_eq!(cactus_tree.edge_count, 18);
+        assert_eq!(cactus_tree.graph.vertex_count, 19);
+        assert_eq!(cactus_tree.graph.edge_count, 18);
 
         println!("-----------------------");
-        cactus_tree.print_adj();
+        cactus_tree.graph.print_adj();
         println!("-----------------------");
-        cactus_tree.print_inc();
+        cactus_tree.graph.print_inc();
     }
 }
