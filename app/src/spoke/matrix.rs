@@ -19,6 +19,14 @@ pub struct MatGraph<VData, EData> {
 }
 
 impl<V, E> MatGraph<V, E> {
+    pub fn print_adj(&self) {
+        sprs::visu::print_nnz_pattern(self.adj.view());
+    }
+
+    pub fn print_inc(&self) {
+        sprs::visu::print_nnz_pattern(self.inc.view());
+    }
+
     pub fn from_edges(
         // vertex_count: usize,
         // edge_count: usize,
@@ -38,6 +46,15 @@ impl<V, E> MatGraph<V, E> {
         // let mut adj
 
         todo!();
+    }
+
+    pub fn neighbors(&self, vertex: usize) -> Vec<usize> {
+        let n = self.vertex_count;
+        let v = CsVec::new(n, vec![vertex as usize], vec![1]);
+
+        let ns = &self.adj * &v;
+        let (indices, _) = ns.into_raw_storage();
+        indices
     }
 }
 
@@ -164,12 +181,14 @@ impl MatGraph<CacTreeVx, CacTreeEdge> {
             match edge {
                 CacTreeEdge::Net { from, to, .. } => {
                     adj.add_triplet(from.ix(), to.ix(), 1);
+                    adj.add_triplet(to.ix(), from.ix(), 1);
                     inc.add_triplet(from.ix(), i, 1);
                     inc.add_triplet(to.ix(), i, 1);
                 }
                 CacTreeEdge::Chain { net, cycle } => {
                     let c_i = net_vx_count + *cycle;
                     adj.add_triplet(net.ix(), c_i, 1);
+                    adj.add_triplet(c_i, net.ix(), 1);
                     inc.add_triplet(net.ix(), i, 1);
                     inc.add_triplet(c_i, i, 1);
                 }
@@ -192,6 +211,8 @@ impl MatGraph<CacTreeVx, CacTreeEdge> {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashSet;
+
     use super::*;
 
     #[test]
@@ -205,5 +226,10 @@ mod tests {
 
         assert_eq!(cactus_tree.vertex_count, 19);
         assert_eq!(cactus_tree.edge_count, 18);
+
+        println!("-----------------------");
+        cactus_tree.print_adj();
+        println!("-----------------------");
+        cactus_tree.print_inc();
     }
 }
