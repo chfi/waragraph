@@ -327,38 +327,27 @@ impl CactusTree {
                         let ns = is.node();
                         n == ns
                     })
-                    // cycle.steps.iter().any(|is| is.node()
-                    // let n = s.node();
-                    // steps.iter().any(|s| s.node() == n)
                 })
                 .collect::<Vec<_>>();
-            for (s, v) in net_spokes {
-                print!("vertex {v:?} - ");
-                print_step(s);
-                println!();
+            if net_spokes.len() == 2 {
+                let (a, _) = net_spokes[0];
+                let (b, _) = net_spokes[1];
+                if a.node() != b.node() {
+                    chain_pairs.push(((a, b), chain_ix));
+                }
             }
-            println!();
-            // println!(" --- {net_spokes:?}");
-            // println!(" steps: [{prev:?}, {this:?}]");
-            print!(" steps: [");
-            print_step(prev);
-            print!(", ");
-            print_step(this);
-            println!("]");
-
-            let prev_vx = self.project_segment_end(steps[0].flip());
-            let this_vx = self.project_segment_end(steps[1]);
-
-            print!(" {chain_ix}:\t");
-            print_step(steps[0].flip());
-            print!("  -  ");
-            print_step(steps[1]);
-            println!("\tprev: {prev_vx} - {net:?} - {this_vx}");
-            println!();
         }
 
-        // chain_pairs.sort();
-        // chain_pairs.dedup();
+        // output with chain pairs in shortest cycles first
+        chain_pairs.sort_by_cached_key(|((_, _), ci)| {
+            let edge_i = self.net_edges + *ci;
+            let edge = &self.graph.edge[edge_i];
+            if let CacTreeEdge::Chain { cycle, .. } = edge {
+                self.cycles[*cycle].steps.len()
+            } else {
+                unreachable!();
+            }
+        });
 
         chain_pairs
     }
@@ -366,8 +355,6 @@ impl CactusTree {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashSet;
-
     use super::*;
 
     fn print_step(step: OrientedNode) {
@@ -377,8 +364,52 @@ mod tests {
     }
 
     #[test]
-    fn test_cactus_tree() {
+    fn paper_fig5_cactus_tree() {
+        let cactus_graph = super::super::hyper::tests::alt_paper_cactus_graph();
+
+        println!("cactus graph vertex count: {}", cactus_graph.vertex_count());
+
+        let cactus_tree = CactusTree::from_cactus_graph(cactus_graph);
+
+        println!("vertex_count: {}", cactus_tree.graph.vertex_count);
+        println!("edge_count: {}", cactus_tree.graph.edge_count);
+
+        assert_eq!(cactus_tree.graph.vertex_count, 15);
+        assert_eq!(cactus_tree.graph.edge_count, 14);
+
+        println!("enumerating chain pairs!");
+        let mut chain_pairs = cactus_tree.enumerate_chain_pairs();
+
+        for net_ix in 0..cactus_tree.net_vertices {
+            let net_vx = VertexId(net_ix as u32);
+            let endpoints = cactus_tree.net_vertex_endpoints(net_vx);
+
+            print!("net vertex {net_ix}\t[");
+
+            for s in endpoints {
+                print_step(s);
+            }
+            println!("]");
+        }
+
+        println!();
+
+        println!("chain pair count: {}", chain_pairs.len());
+        chain_pairs.reverse();
+
+        for ((a, b), chain_ix) in chain_pairs {
+            print!("chain {chain_ix}: (");
+            print_step(a);
+            print!(", ");
+            print_step(b);
+            println!(")");
+        }
+    }
+
+    #[test]
+    fn paper_fig3_cactus_tree() {
         let cactus_graph = super::super::hyper::tests::paper_cactus_graph();
+        // let cactus_graph = super::super::hyper::tests::alt_paper_cactus_graph();
 
         let cactus_tree = CactusTree::from_cactus_graph(cactus_graph);
 
@@ -398,9 +429,9 @@ mod tests {
         println!("enumerating chain pairs!");
         println!("---");
         println!();
-        let out = cactus_tree.enumerate_chain_pairs();
+        let mut chain_pairs = cactus_tree.enumerate_chain_pairs();
 
-        println!("{out:?}");
+        println!("{chain_pairs:?}");
 
         println!("\n\n------------\n\n");
 
@@ -473,5 +504,16 @@ mod tests {
             println!(" : Vertex {pf}");
         }
         */
+
+        println!("chain pair count: {}", chain_pairs.len());
+        chain_pairs.reverse();
+
+        for ((a, b), chain_ix) in chain_pairs {
+            print!("chain {chain_ix}: (");
+            print_step(a);
+            print!(", ");
+            print_step(b);
+            println!(")");
+        }
     }
 }

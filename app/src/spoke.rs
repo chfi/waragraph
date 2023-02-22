@@ -244,6 +244,72 @@ mod tests {
         edges
     }
 
+    // corresponds to the graph in fig 5A in the paper
+    pub(crate) fn alt_paper_graph_edges() -> Vec<Edge> {
+        let oriented_node = |c: char, rev: bool| -> OrientedNode {
+            let node = (c as u32) - 'a' as u32;
+            OrientedNode::new(node, rev)
+        };
+
+        let edge = |s: &str| -> Edge {
+            let chars = s.chars().collect::<Vec<_>>();
+            let a = chars[0];
+            let a_rev = chars[1] == '-';
+            let b = chars[2];
+            let b_rev = chars[3] == '-';
+
+            Edge::new(oriented_node(a, a_rev), oriented_node(b, b_rev))
+        };
+
+        let edges = [
+            "a+n+", //
+            "a+b+", //
+            "b+c+", "b+d+", "c+e+", "d+e+", //
+            "e+f+", "e+g+", "f+h+", "g+h+", //
+            "h+m+", "h+i+", //
+            "i+j+", "i+k+", "j+l+", "k+l+", //
+            "l+m+", //
+            "m+n+",
+        ]
+        .into_iter()
+        .map(edge)
+        .collect::<Vec<_>>();
+
+        /*
+        let edges = [
+            ('a', 'b'),
+            ('a', 'c'),
+            ('b', 'd'),
+            ('c', 'd'),
+            ('d', 'e'),
+            ('d', 'f'),
+            ('e', 'g'),
+            ('f', 'g'),
+            ('f', 'h'),
+            ('g', 'k'),
+            ('g', 'l'),
+            ('h', 'i'),
+            ('h', 'j'),
+            ('i', 'j'),
+            ('j', 'l'),
+            ('k', 'l'),
+            ('l', 'm'),
+            ('m', 'n'),
+            ('m', 'o'),
+            ('n', 'p'),
+            ('o', 'p'),
+            ('p', 'm'),
+            ('p', 'q'),
+            ('p', 'r'),
+        ]
+        .into_iter()
+        .map(|(a, b)| edge(a, false, b, false))
+        .collect::<Vec<_>>();
+        */
+
+        edges
+    }
+
     #[test]
     fn spoke_graph_construction() {
         // TODO: test this more thoroughly; the current implementation

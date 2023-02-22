@@ -548,6 +548,49 @@ pub(crate) mod tests {
     use super::super::SpokeGraph;
     use super::*;
 
+    pub(crate) fn alt_paper_cactus_graph() -> HyperSpokeGraph {
+        let edges = super::super::tests::alt_paper_graph_edges();
+
+        let node_count = 14;
+        let graph = SpokeGraph::new(node_count, edges);
+
+        let inverted_comps = {
+            let seg_hubs = (0..node_count as u32)
+                .map(|i| {
+                    let node = Node::from(i);
+                    let left = graph.node_endpoint_hub(node.as_reverse());
+                    let right = graph.node_endpoint_hub(node.as_forward());
+                    (left, right)
+                })
+                .filter(|(a, b)| a != b)
+                .collect::<Vec<_>>();
+
+            let tec_graph = three_edge_connected::Graph::from_edges(
+                seg_hubs.into_iter().map(|(l, r)| (l.ix(), r.ix())),
+            );
+
+            let components =
+                three_edge_connected::find_components(&tec_graph.graph);
+
+            let inverted = tec_graph.invert_components(components);
+
+            inverted
+        };
+
+        let spoke_graph = Arc::new(graph);
+
+        let mut cactus_graph = HyperSpokeGraph::new(spoke_graph);
+
+        for comp in inverted_comps {
+            let hubs = comp.into_iter().map(|i| HubId(i as u32));
+            cactus_graph.merge_hub_partition(hubs);
+        }
+
+        cactus_graph.apply_deletions();
+
+        cactus_graph
+    }
+
     pub(crate) fn paper_cactus_graph() -> HyperSpokeGraph {
         let edges = super::super::tests::example_graph_edges();
 
