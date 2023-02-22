@@ -83,7 +83,7 @@ pub enum CacTreeEdge {
 
 #[derive(Debug, Clone)]
 pub struct CactusTree {
-    cactus_graph: Arc<HyperSpokeGraph>,
+    cactus_graph: HyperSpokeGraph,
     graph: MatGraph<CacTreeVx, CacTreeEdge>,
 
     cycles: Vec<Cycle>,
@@ -96,7 +96,7 @@ pub struct CactusTree {
 }
 
 impl CactusTree {
-    pub fn from_cactus_graph(cactus: Arc<HyperSpokeGraph>) -> Self {
+    pub fn from_cactus_graph(cactus: HyperSpokeGraph) -> Self {
         let cycles = super::hyper::find_cactus_graph_cycles(&cactus);
 
         // we have the VertexIds from the cactus graph,
@@ -301,6 +301,51 @@ impl CactusTree {
                 unreachable!();
             };
 
+            let prev = steps[0].flip();
+            let this = steps[1];
+
+            let cycle = &self.cycles[cycle_ix];
+
+            println!();
+            println!("_______________________");
+            print!("cycle!!  ");
+            for (i, step) in cycle.steps.iter().enumerate() {
+                if i > 0 {
+                    print!(", ");
+                }
+
+                print_step(*step);
+            }
+            println!();
+
+            let net_spokes = self
+                .cactus_graph
+                .vertex_spokes(net)
+                .filter(|(s, _)| {
+                    let n = s.node();
+                    cycle.steps.iter().any(|is| {
+                        let ns = is.node();
+                        n == ns
+                    })
+                    // cycle.steps.iter().any(|is| is.node()
+                    // let n = s.node();
+                    // steps.iter().any(|s| s.node() == n)
+                })
+                .collect::<Vec<_>>();
+            for (s, v) in net_spokes {
+                print!("vertex {v:?} - ");
+                print_step(s);
+                println!();
+            }
+            println!();
+            // println!(" --- {net_spokes:?}");
+            // println!(" steps: [{prev:?}, {this:?}]");
+            print!(" steps: [");
+            print_step(prev);
+            print!(", ");
+            print_step(this);
+            println!("]");
+
             let prev_vx = self.project_segment_end(steps[0].flip());
             let this_vx = self.project_segment_end(steps[1]);
 
@@ -309,8 +354,7 @@ impl CactusTree {
             print!("  -  ");
             print_step(steps[1]);
             println!("\tprev: {prev_vx} - {net:?} - {this_vx}");
-
-            // let cycle = &self.cycles[cycle_ix];
+            println!();
         }
 
         // chain_pairs.sort();
@@ -336,7 +380,7 @@ mod tests {
     fn test_cactus_tree() {
         let cactus_graph = super::super::hyper::tests::paper_cactus_graph();
 
-        let cactus_tree = CactusTree::from_cactus_graph(Arc::new(cactus_graph));
+        let cactus_tree = CactusTree::from_cactus_graph(cactus_graph);
 
         println!("vertex_count: {}", cactus_tree.graph.vertex_count);
         println!("edge_count: {}", cactus_tree.graph.edge_count);
@@ -381,6 +425,7 @@ mod tests {
                 if i > 0 {
                     print!(";  ");
                 }
+                print!("[{net_vx:?}] ");
                 let endpoints = cactus_tree.net_vertex_endpoints(net_vx);
 
                 for (j, s) in endpoints.into_iter().enumerate() {
@@ -410,6 +455,7 @@ mod tests {
 
         println!();
 
+        /*
         for seg in 0u32..18 {
             let node = Node::from(seg);
             let r = node.as_reverse();
@@ -426,5 +472,6 @@ mod tests {
             print_step(f);
             println!(" : Vertex {pf}");
         }
+        */
     }
 }

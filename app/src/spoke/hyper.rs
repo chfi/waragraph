@@ -422,7 +422,7 @@ pub fn find_cactus_graph_cycles(graph: &HyperSpokeGraph) -> Vec<Cycle> {
 
         loop {
             if let Some((parent, incoming)) = visit[cur_ix].1 {
-                cycle_steps.push(incoming);
+                cycle_steps.push(incoming.flip());
                 step_endpoints.push(parent);
 
                 // if parent's visit ix == start, we're done
@@ -440,10 +440,12 @@ pub fn find_cactus_graph_cycles(graph: &HyperSpokeGraph) -> Vec<Cycle> {
         step_endpoints.push(r);
 
         if start == l_ix {
-            cycle_steps.push(node.as_forward());
-        } else {
             cycle_steps.push(node.as_reverse());
+        } else {
+            cycle_steps.push(node.as_forward());
         }
+
+        cycle_steps.reverse();
 
         cycles.push(Cycle {
             endpoint: l,
@@ -583,6 +585,8 @@ pub(crate) mod tests {
             let hubs = comp.into_iter().map(|i| HubId(i as u32));
             cactus_graph.merge_hub_partition(hubs);
         }
+
+        cactus_graph.apply_deletions();
 
         cactus_graph
     }
