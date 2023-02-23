@@ -200,7 +200,7 @@ pub struct PathIndex {
     pub sequence_total_len: Bp,
     pub segment_id_range: (u32, u32),
 
-    edges: Vec<(OrientedNode, OrientedNode)>,
+    edges: Vec<Edge>,
 
     pub path_names: BiBTreeMap<PathId, String>,
     // pub path_names: BTreeMap<String, usize>,
@@ -449,6 +449,8 @@ impl PathIndex {
         }
         println!("parsed {} edges", edges.len());
 
+        edges.sort();
+
         let node_count = seg_lens.len();
 
         let gfa = std::fs::File::open(&gfa_path)?;
@@ -578,7 +580,7 @@ impl PathIndex {
         let from = OrientedNode::new(from_id, from_rev);
         let to = OrientedNode::new(to_id, to_rev);
 
-        Ok((from, to))
+        Ok(Edge::new(from, to))
     }
 }
 

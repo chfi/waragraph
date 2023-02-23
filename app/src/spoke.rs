@@ -55,7 +55,7 @@ impl SpokeGraph {
 
     pub fn new_from_graph(graph: &PathIndex) -> Self {
         let seg_count = graph.node_count;
-        Self::new(seg_count, graph.edges_iter().map(|&(a, b)| Edge::new(a, b)))
+        Self::new(seg_count, graph.edges_iter().copied())
     }
 
     pub fn map_edge(&self, edge: Edge) -> HubId {
