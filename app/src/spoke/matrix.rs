@@ -1,7 +1,7 @@
 use roaring::RoaringBitmap;
 use sprs::{CsMat, CsMatBase, CsVec};
 use std::sync::Arc;
-use waragraph_core::graph::{Node, OrientedNode};
+use waragraph_core::graph::{Edge, Node, OrientedNode};
 
 use super::hyper::{Cycle, HyperSpokeGraph, VertexId};
 
@@ -250,6 +250,32 @@ impl CactusTree {
 }
 
 impl CactusTree {
+    // vg_adj is an 2Nx2N adjacency matrix where N is the number of
+    // segments in the variation graph; it lacks the connectivity
+    // "within" segments (the black edges in the biedged repr.)
+    fn chain_edge_net_graph(
+        &self,
+        vg_adj: &CsMat<u8>,
+        chain_ix: usize,
+    ) -> MatGraph<(), ()> {
+        // chain pairs only have the one edge with one net vertex,
+        // so that's the only vertex we need to project from
+        let (net, cycle_ix) = if let CacTreeEdge::Chain { net, cycle, .. } =
+            self.graph.edge[self.net_edges + chain_ix]
+        {
+            (net, cycle)
+        } else {
+            unreachable!();
+        };
+
+        let endpoints = self.net_vertex_endpoints(net);
+        let cycle = &self.cycles[cycle_ix];
+
+        // find the edges between segments among the endpoints
+
+        todo!();
+    }
+
     pub fn project_segment_end(&self, end: OrientedNode) -> usize {
         let vx = self.cactus_graph.endpoint_vertex(end);
         vx.ix()

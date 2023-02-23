@@ -36,7 +36,7 @@ impl HubId {
 pub struct SpokeGraph {
     // implicitly indexed by HubId
     hub_adj: Vec<BTreeMap<HubId, Vec<OrientedNode>>>,
-    hub_endpoints: Vec<HashSet<OrientedNode>>,
+    hub_endpoints: Vec<BTreeSet<OrientedNode>>,
 
     // implicitly indexed by OrientedNode
     endpoint_hubs: Vec<HubId>,
@@ -103,8 +103,8 @@ impl SpokeGraph {
 
         let mut hub_adj: Vec<BTreeMap<HubId, Vec<OrientedNode>>> =
             vec![BTreeMap::new(); hub_count];
-        let mut hub_endpoints: Vec<HashSet<OrientedNode>> =
-            vec![HashSet::new(); hub_count];
+        let mut hub_endpoints: Vec<BTreeSet<OrientedNode>> =
+            vec![BTreeSet::new(); hub_count];
 
         let endpoints = (0..segment_count).flat_map(|seg| {
             let node = Node::from(seg);
