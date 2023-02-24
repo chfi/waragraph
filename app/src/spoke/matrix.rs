@@ -256,6 +256,7 @@ impl CactusTree {
     fn chain_edge_net_graph(
         &self,
         vg_adj: &CsMat<u8>,
+        chain_pair: (OrientedNode, OrientedNode),
         chain_ix: usize,
     ) -> CsMat<u8> {
         use sprs::TriMat;
@@ -294,14 +295,41 @@ impl CactusTree {
         // are present. iterating the flattened cycle produces
 
         // e.g. [b+, c-] => [b-, b
-        let steps = cycle
+        let mut steps = cycle
             .steps
             .iter()
-            .flat_map(|s| [s.flip(), *s])
+            .flat_map(|s| [*s, s.flip()])
+            // .flat_map(|s| [s.flip(), *s])
             .collect::<Vec<_>>();
+
+        fn print_step(step: OrientedNode) {
+            let c = ('a' as u8 + step.node().ix() as u8) as char;
+            let o = if step.is_reverse() { "-" } else { "+" };
+            print!("{c}{o}")
+        }
 
         let mut edge_start: Option<OrientedNode> = None;
         let mut black_edges: Vec<(OrientedNode, OrientedNode)> = Vec::new();
+
+        println!("----------------------");
+
+        println!("present endpoints:");
+        for &step in &endpoints {
+            print_step(step);
+            print!(", ");
+        }
+
+        println!("\n");
+
+        println!("steps:");
+        for &step in &steps {
+            print_step(step);
+            print!(", ");
+        }
+        println!("\n");
+
+        // steps.insert(0, chain_pair.0);
+        // steps.push(chain_pair.1);
 
         for (i, w) in steps.windows(2).enumerate() {
             let a_in = endpoints.contains(&w[0]);
@@ -309,9 +337,13 @@ impl CactusTree {
             if i % 2 == 0 {
                 // traversing a segment
                 if edge_start.is_none() && a_in {
+                    print!(" >> opening black edge: ");
+                    print_step(w[0]);
+                    println!();
                     edge_start = Some(w[0]);
-                } else if let Some(start) = edge_start.take() {
+                } else if let Some(start) = edge_start {
                     if b_in {
+                        edge_start = None;
                         black_edges.push((start, w[1]));
                     }
                 }
@@ -321,10 +353,15 @@ impl CactusTree {
         }
 
         for (a, b) in black_edges {
-            println!("{a:?}\t{b:?}");
+            print!("    black edge: [");
+            print_step(a);
+            print!(", ");
+            print_step(b);
+            println!("]");
+            // println!("{a:?}\t{b:?}");
         }
 
-        todo!();
+        net_adj.to_csc()
     }
 
     pub fn project_segment_end(&self, end: OrientedNode) -> usize {
@@ -599,17 +636,42 @@ mod tests {
 
     #[test]
     fn test_chain_pair_net_graph() {
-        let cactus_graph = super::super::hyper::tests::paper_cactus_graph();
-        let edges = super::super::tests::example_graph_edges();
+        // let cactus_graph = super::super::hyper::tests::paper_cactus_graph();
+        // let edges = super::super::tests::example_graph_edges();
+
+        // let cactus_tree = CactusTree::from_cactus_graph(cactus_graph);
+
+        // let vg_adj =
+        //     PathIndex::directed_adjacency_matrix(18, edges.iter().copied());
+
+        let cactus_graph = super::super::hyper::tests::alt_paper_cactus_graph();
+        let edges = super::super::tests::alt_paper_graph_edges();
 
         let cactus_tree = CactusTree::from_cactus_graph(cactus_graph);
 
         let vg_adj =
-            PathIndex::directed_adjacency_matrix(18, edges.iter().copied());
+            PathIndex::directed_adjacency_matrix(14, edges.iter().copied());
 
         sprs::visu::print_nnz_pattern(vg_adj.view());
 
         println!();
+
+        let chain_pairs = cactus_tree.enumerate_chain_pairs();
+
+        println!("---\nchain pair net graphs\n----\n");
+
+        for &((a, b), chain_ix) in chain_pairs.iter() {
+            print!("Chain pair: ");
+            print_step(a);
+            print!(", ");
+            print_step(b);
+            println!(", chain: {chain_ix}");
+            let net_graph =
+                cactus_tree.chain_edge_net_graph(&vg_adj, (a, b), chain_ix);
+
+            println!(" ~ ~ ~ ~ ~\n");
+            //
+        }
 
         /*
         for col in vg_adj.outer_iterator() {
