@@ -299,7 +299,7 @@ impl CactusTree {
         vg_adj: &CsMat<u8>,
         chain_pair: (OrientedNode, OrientedNode),
         chain_ix: usize,
-    ) -> CsMat<u8> {
+    ) -> Option<CsMat<u8>> {
         use sprs::TriMat;
 
         // chain pairs only have the one edge with one net vertex,
@@ -314,14 +314,21 @@ impl CactusTree {
             };
 
         let endpoints = self.net_vertex_endpoints(net).collect::<BTreeSet<_>>();
+        // let endpoints_vec = endpoints.iter().copied().
 
-        let n = endpoints.len();
-
-        let mut net_adj: TriMat<u8> = TriMat::new((n, n));
+        let mut net_adj: TriMat<u8> = TriMat::new(vg_adj.shape());
 
         // find the edges between segments among the endpoints
-
-        let mut gray_edges: Vec<(u32, u32)> = Vec::new();
+        for &si in endpoints.iter() {
+            if let Some(column) = vg_adj.outer_view(si.ix()) {
+                for (isj, _) in column.iter() {
+                    let sj = OrientedNode::from(isj as u32);
+                    if endpoints.contains(&sj) {
+                        net_adj.add_triplet(isj, si.ix(), 1);
+                    }
+                }
+            }
+        }
 
         // the gray edges are the subset of vg edges that connect endpoints
         // in the subgraph
@@ -333,6 +340,12 @@ impl CactusTree {
         let mut black_edges: Vec<(OrientedNode, OrientedNode)> = Vec::new();
 
         let cycles = self.vertex_cycle_map.get(&net).unwrap();
+
+        fn print_step(step: OrientedNode) {
+            let c = ('a' as u8 + step.node().ix() as u8) as char;
+            let o = if step.is_reverse() { "-" } else { "+" };
+            print!("{c}{o}")
+        }
 
         println!("----------------------");
 
@@ -423,22 +436,15 @@ impl CactusTree {
             }
         }
 
-        fn print_step(step: OrientedNode) {
-            let c = ('a' as u8 + step.node().ix() as u8) as char;
-            let o = if step.is_reverse() { "-" } else { "+" };
-            print!("{c}{o}")
+        if black_edges.is_empty() {
+            return None;
         }
 
         for (a, b) in black_edges {
-            print!("    black edge: [");
-            print_step(a);
-            print!(", ");
-            print_step(b);
-            println!("]");
-            // println!("{a:?}\t{b:?}");
+            net_adj.add_triplet(b.ix(), a.ix(), 1);
         }
 
-        net_adj.to_csc()
+        Some(net_adj.to_csc())
     }
 
     pub fn project_segment_end(&self, end: OrientedNode) -> usize {
@@ -730,23 +736,33 @@ mod tests {
         let vg_adj =
             PathIndex::directed_adjacency_matrix(14, edges.iter().copied());
 
-        sprs::visu::print_nnz_pattern(vg_adj.view());
-
         println!();
 
         let chain_pairs = cactus_tree.enumerate_chain_pairs();
 
         println!("---\nchain pair net graphs\n----\n");
 
+        let mut zero_bes = 0;
+
         for &((a, b), chain_ix) in chain_pairs.iter() {
+            println!("\n--------\n");
             print!("Chain pair: ");
             print_step(a);
             print!(", ");
             print_step(b);
             println!(", chain: {chain_ix}");
-            let net_graph =
-                cactus_tree.chain_edge_net_graph(&vg_adj, (a, b), chain_ix);
+            if let Some(net_graph) =
+                cactus_tree.chain_edge_net_graph(&vg_adj, (a, b), chain_ix)
+            {
+                sprs::visu::print_nnz_pattern(net_graph.view());
+            } else {
+                zero_bes += 1;
+            }
+
+            println!("\n--------\n");
         }
+
+        println!("number of net graphs with zero black edges: {zero_bes}");
     }
 
     #[test]
