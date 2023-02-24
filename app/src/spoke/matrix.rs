@@ -54,6 +54,11 @@ impl<V, E> MatGraph<V, E> {
     }
 
     pub fn neighbors(&self, vertex: usize) -> Vec<usize> {
+        let col = self.adj.outer_view(vertex).unwrap();
+        col.indices().to_vec()
+    }
+
+    pub fn neighbors_old(&self, vertex: usize) -> Vec<usize> {
         let n = self.vertex_count;
         let v = CsVec::new(n, vec![vertex as usize], vec![1]);
 
@@ -258,6 +263,55 @@ impl CactusTree {
 }
 
 impl CactusTree {
+    /// Returns the visit order for each rooted cactus tree
+    pub fn rooted_cactus_forest(&self) -> Vec<Vec<usize>> {
+        let mut forest = Vec::new();
+
+        let mut visited: HashSet<usize> = HashSet::new();
+
+        let mut stack = Vec::new();
+
+        // iterate through all chain vertices
+        let chain_vertex_ixs =
+            self.net_vertices..(self.net_vertices + self.chain_vertices);
+
+        for ix in chain_vertex_ixs {
+            let mut order = Vec::new();
+
+            stack.push((None, ix));
+
+            let mut expect_chain = true;
+
+            while let Some((parent, vi)) = stack.pop() {
+                if !visited.contains(&vi) {
+                    visited.insert(vi);
+                    order.push(vi);
+
+                    expect_chain = !expect_chain;
+
+                    let neighbors =
+                        self.graph.neighbors(vi).into_iter().filter(|&vj| {
+                            if expect_chain {
+                                vj >= self.net_vertices
+                            } else {
+                                vj < self.net_vertices
+                            }
+                        });
+
+                    for vj in neighbors {
+                        stack.push((Some(vi), vj));
+                    }
+                }
+            }
+
+            if !order.is_empty() {
+                forest.push(order);
+            }
+        }
+
+        forest
+    }
+
     // vg_adj is an 2Nx2N adjacency matrix where N is the number of
     // segments in the variation graph; it lacks the connectivity
     // "within" segments (the black edges in the biedged repr.)
@@ -354,9 +408,6 @@ impl CactusTree {
             }
 
             let mut edge_start: Option<OrientedNode> = None;
-
-            // steps.insert(0, chain_pair.0);
-            // steps.push(chain_pair.1);
 
             for (i, w) in steps.windows(2).enumerate() {
                 let a_in = endpoints.contains(&w[0]);
