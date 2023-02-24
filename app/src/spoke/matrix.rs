@@ -1,6 +1,9 @@
 use roaring::RoaringBitmap;
 use sprs::{CsMat, CsMatBase, CsVec};
-use std::{collections::BTreeSet, sync::Arc};
+use std::{
+    collections::{BTreeSet, HashMap, HashSet},
+    sync::Arc,
+};
 use waragraph_core::graph::{Edge, Node, OrientedNode};
 
 use super::hyper::{Cycle, HyperSpokeGraph, VertexId};
@@ -86,6 +89,7 @@ pub struct CactusTree {
     cactus_graph: HyperSpokeGraph,
     graph: MatGraph<CacTreeVx, CacTreeEdge>,
 
+    vertex_cycle_map: HashMap<VertexId, BTreeSet<usize>>,
     cycles: Vec<Cycle>,
 
     net_vertices: usize,
@@ -178,8 +182,11 @@ impl CactusTree {
         let net_edges = edges.len();
         println!("net edge count: {}", edges.len());
 
+        let mut vertex_cycle_map: HashMap<_, BTreeSet<_>> = HashMap::new();
+
         for (cix, vertices) in cycle_vertices.into_iter().enumerate() {
             for ([prev_step, this_step], vertex) in vertices {
+                vertex_cycle_map.entry(vertex).or_default().insert(cix);
                 edges.push(CacTreeEdge::Chain {
                     cycle: cix,
                     net: vertex,
@@ -241,6 +248,7 @@ impl CactusTree {
             cactus_graph: cactus,
             graph,
             cycles,
+            vertex_cycle_map,
             net_vertices: net_vx_count,
             net_edges,
             chain_vertices: chain_vx_count,
@@ -263,16 +271,16 @@ impl CactusTree {
 
         // chain pairs only have the one edge with one net vertex,
         // so that's the only vertex we need to project from
-        let (net, cycle_ix) = if let CacTreeEdge::Chain { net, cycle, .. } =
-            self.graph.edge[self.net_edges + chain_ix]
-        {
-            (net, cycle)
-        } else {
-            unreachable!();
-        };
+        let (net, _cycle_ix) =
+            if let CacTreeEdge::Chain { net, cycle, .. } =
+                self.graph.edge[self.net_edges + chain_ix]
+            {
+                (net, cycle)
+            } else {
+                unreachable!();
+            };
 
         let endpoints = self.net_vertex_endpoints(net).collect::<BTreeSet<_>>();
-        let cycle = &self.cycles[cycle_ix];
 
         let n = endpoints.len();
 
@@ -289,27 +297,9 @@ impl CactusTree {
         // endpoints are in the subgraph; since this is a chain pair,
         // there's just one contained cycle
 
-        let mut cur_start: Option<OrientedNode> = None;
-
-        // start by "flattening" the cycle, so that both segment endpoints
-        // are present. iterating the flattened cycle produces
-
-        // e.g. [b+, c-] => [b-, b
-        let mut steps = cycle
-            .steps
-            .iter()
-            .flat_map(|s| [*s, s.flip()])
-            // .flat_map(|s| [s.flip(), *s])
-            .collect::<Vec<_>>();
-
-        fn print_step(step: OrientedNode) {
-            let c = ('a' as u8 + step.node().ix() as u8) as char;
-            let o = if step.is_reverse() { "-" } else { "+" };
-            print!("{c}{o}")
-        }
-
-        let mut edge_start: Option<OrientedNode> = None;
         let mut black_edges: Vec<(OrientedNode, OrientedNode)> = Vec::new();
+
+        let cycles = self.vertex_cycle_map.get(&net).unwrap();
 
         println!("----------------------");
 
@@ -321,35 +311,75 @@ impl CactusTree {
 
         println!("\n");
 
-        println!("steps:");
-        for &step in &steps {
-            print_step(step);
-            print!(", ");
-        }
-        println!("\n");
+        for &cycle_ix in cycles {
+            println!("  ---- Cycle {cycle_ix} ----");
+            let cycle = &self.cycles[cycle_ix];
 
-        // steps.insert(0, chain_pair.0);
-        // steps.push(chain_pair.1);
+            // start by "flattening" the cycle, so that both segment endpoints
+            // are present. iterating the flattened cycle produces
 
-        for (i, w) in steps.windows(2).enumerate() {
-            let a_in = endpoints.contains(&w[0]);
-            let b_in = endpoints.contains(&w[1]);
-            if i % 2 == 0 {
-                // traversing a segment
-                if edge_start.is_none() && a_in {
-                    print!(" >> opening black edge: ");
-                    print_step(w[0]);
-                    println!();
-                    edge_start = Some(w[0]);
-                } else if let Some(start) = edge_start {
-                    if b_in {
-                        edge_start = None;
-                        black_edges.push((start, w[1]));
-                    }
+            // e.g. [b+, c-] => [b-, b
+            let mut steps = cycle
+                .steps
+                .iter()
+                .flat_map(|s| [*s, s.flip()])
+                // .flat_map(|s| [s.flip(), *s])
+                .collect::<Vec<_>>();
+
+            // if there's just two endpoints, there's just one step,
+            // meaning one edge to add, so we're done
+            if let &[a, b] = steps.as_slice() {
+                if endpoints.contains(&a) && endpoints.contains(&b) {
+                    black_edges.push((a, b));
                 }
-            } else {
-                // traversing an edge
+                continue;
             }
+
+            let mut edge_start: Option<OrientedNode> = None;
+
+            println!("steps:");
+            for &step in &steps {
+                print_step(step);
+                print!(", ");
+            }
+            println!("\n");
+
+            // steps.insert(0, chain_pair.0);
+            // steps.push(chain_pair.1);
+
+            for (i, w) in steps.windows(2).enumerate() {
+                let a_in = endpoints.contains(&w[0]);
+                let b_in = endpoints.contains(&w[1]);
+
+                print!("  on step [");
+                print_step(w[0]);
+                print!(", ");
+                print_step(w[1]);
+                println!("]");
+
+                if w[0].node() == w[1].node() {
+                    // traversing a segment
+                    if edge_start.is_none() && a_in {
+                        print!(" >> opening black edge: ");
+                        print_step(w[0]);
+                        println!();
+                        edge_start = Some(w[0]);
+                    } else if let Some(start) = edge_start {
+                        if b_in {
+                            edge_start = None;
+                            black_edges.push((start, w[1]));
+                        }
+                    }
+                } else {
+                    // traversing an edge
+                }
+            }
+        }
+
+        fn print_step(step: OrientedNode) {
+            let c = ('a' as u8 + step.node().ix() as u8) as char;
+            let o = if step.is_reverse() { "-" } else { "+" };
+            print!("{c}{o}")
         }
 
         for (a, b) in black_edges {
