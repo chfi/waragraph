@@ -115,9 +115,6 @@ impl CactusTree {
         let chain_vx_count = cycles.len();
         let vertex_count = net_vx_count + chain_vx_count;
 
-        println!("net_vx_count: {net_vx_count}");
-        println!("chain_vx_count: {chain_vx_count}");
-
         let mut vertex: Vec<CacTreeVx> = Vec::new();
 
         for (vxid, _) in cactus.vertices() {
@@ -127,12 +124,10 @@ impl CactusTree {
         let mut edges: Vec<CacTreeEdge> = Vec::new();
 
         let seg_count = cactus.spoke_graph.max_endpoint.ix() / 2;
-        println!("seg_count: {seg_count}");
 
         let mut remaining_segments = RoaringBitmap::default();
         remaining_segments.insert_range(0..=seg_count as u32);
 
-        println!("remaining segments: {}", remaining_segments.len());
         let mut cycle_vertices: Vec<Vec<([OrientedNode; 2], VertexId)>> =
             Vec::new();
 
@@ -140,7 +135,6 @@ impl CactusTree {
             vertex.push(CacTreeVx::Chain { cycle: cix });
 
             let mut vertices = Vec::new();
-            // vertices.push(cycle.endpoint);
 
             for (step_ix, step) in cycle.steps.iter().enumerate() {
                 let prev_step = if step_ix == 0 {
@@ -154,16 +148,11 @@ impl CactusTree {
                     .push(([prev_step, *step], cactus.endpoint_vertex(*step)));
             }
 
-            println!("vertices: {vertices:?}");
             cycle_vertices.push(vertices);
         }
 
-        println!("remaining segments: {}", remaining_segments.len());
-        println!("cycle vertices: {}", cycle_vertices.len());
-
         for i in remaining_segments.iter() {
             let node = Node::from(i);
-            println!("remaining: {node:?}");
 
             let from_hub =
                 cactus.spoke_graph.node_endpoint_hub(node.as_reverse());
@@ -180,12 +169,9 @@ impl CactusTree {
             });
 
             let c = ('a' as u8 + node.ix() as u8) as char;
-
-            println!("pushing net edge `{c}` {from_vx:?}, {to_vx:?}");
         }
 
         let net_edges = edges.len();
-        println!("net edge count: {}", edges.len());
 
         let mut vertex_cycle_map: HashMap<_, BTreeSet<_>> = HashMap::new();
 
@@ -198,11 +184,8 @@ impl CactusTree {
                     prev_step,
                     this_step,
                 });
-                println!("pushing chain edge {cix}, {vertex:?}");
             }
         }
-
-        println!("chain edge count: {}", edges.len() - net_edges);
 
         use sprs::TriMat;
 
@@ -213,9 +196,7 @@ impl CactusTree {
         let mut inc: TriMat<u8> = TriMat::new((v_n, e_n));
 
         edges.sort();
-        println!("edges len: {}", edges.len());
         edges.dedup();
-        println!("edges dedup len: {}", edges.len());
 
         for (i, edge) in edges.iter().enumerate() {
             match edge {
@@ -236,7 +217,7 @@ impl CactusTree {
         }
 
         let adj: CsMat<u8> = adj.to_csc();
-        let inc: CsMat<u8> = inc.to_csc();
+        let inc: CsMat<u8> = inc.to_csr();
 
         let chain_edges = edges.len() - net_edges;
 
@@ -263,7 +244,6 @@ impl CactusTree {
 }
 
 impl CactusTree {
-    /// Returns the visit order for each rooted cactus tree
     pub fn rooted_cactus_forest(&self) -> Vec<Vec<usize>> {
         let mut forest = Vec::new();
 
@@ -280,25 +260,24 @@ impl CactusTree {
 
             stack.push((None, ix));
 
-            let mut expect_chain = true;
-
             while let Some((parent, vi)) = stack.pop() {
                 if !visited.contains(&vi) {
                     visited.insert(vi);
                     order.push(vi);
 
-                    expect_chain = !expect_chain;
+                    let on_chain = vi >= self.net_vertices;
 
                     let neighbors =
                         self.graph.neighbors(vi).into_iter().filter(|&vj| {
-                            if expect_chain {
-                                vj >= self.net_vertices
-                            } else {
+                            if on_chain {
                                 vj < self.net_vertices
+                            } else {
+                                vj >= self.net_vertices
                             }
                         });
 
                     for vj in neighbors {
+                        println!("pushing ({vi} -> {vj})");
                         stack.push((Some(vi), vj));
                     }
                 }
@@ -567,6 +546,7 @@ impl CactusTree {
 
 #[cfg(test)]
 mod tests {
+    use sprs::vec::SparseIterTools;
     use waragraph_core::graph::PathIndex;
 
     use super::*;
@@ -766,24 +746,84 @@ mod tests {
             println!(", chain: {chain_ix}");
             let net_graph =
                 cactus_tree.chain_edge_net_graph(&vg_adj, (a, b), chain_ix);
+        }
+    }
 
-            println!(" ~ ~ ~ ~ ~\n");
-            //
+    #[test]
+    fn test_rooted_forest() {
+        let graph_fig3 = super::super::hyper::tests::paper_cactus_graph();
+        let tree_fig3 = CactusTree::from_cactus_graph(graph_fig3);
+        let forest_fig3 = tree_fig3.rooted_cactus_forest();
+
+        let graph_fig5 = super::super::hyper::tests::alt_paper_cactus_graph();
+        let tree_fig5 = CactusTree::from_cactus_graph(graph_fig5);
+        let forest_fig5 = tree_fig5.rooted_cactus_forest();
+
+        // TODO better tests once bridges are in
+
+        assert_eq!(forest_fig3.len(), 3);
+        assert_eq!(forest_fig3[0].len(), 8);
+        assert_eq!(forest_fig3[1].len(), 5);
+        assert_eq!(forest_fig3[2].len(), 3);
+
+        assert_eq!(forest_fig5.len(), 1);
+        assert_eq!(forest_fig5[0].len(), 13);
+
+        println!("\n");
+
+        let fig3_expected = vec![(6, 1), (3, 1), (1, 1)];
+
+        // this looks correct (chain edges only, missing edges when
+        // backtracking)
+        for (i, (tree, expected)) in
+            forest_fig3.iter().zip(fig3_expected).enumerate()
+        {
+            let inc = &tree_fig3.graph.inc;
+
+            let (edges, missing): (Vec<_>, Vec<_>) = tree
+                .windows(2)
+                .map(|ixs| {
+                    let i_row = inc.outer_view(ixs[0]).unwrap();
+                    let j_row = inc.outer_view(ixs[1]).unwrap();
+
+                    let edge = i_row
+                        .iter()
+                        .nnz_zip(j_row.iter())
+                        .map(|(i, _a, _b)| i)
+                        .next()
+                        .map(|edge_ix| tree_fig3.graph.edge[edge_ix]);
+
+                    edge
+                })
+                .partition(|edge| edge.is_some());
+
+            let (exp_edges, exp_missing) = expected;
+
+            assert_eq!(edges.len(), exp_edges);
+            assert_eq!(missing.len(), exp_missing);
         }
 
-        /*
-        for col in vg_adj.outer_iterator() {
-            for (row, val) in col.iter() {
-                //
-                let i = OrientedNode::from(row as u32);
-                let j = OrientedNode::from(col as u32);
+        println!("\n");
 
-                print_step(j);
-                print!(" -> ");
-                print_step(i);
-                println!();
-            }
-        }
-        */
+        let (edges, missing): (Vec<_>, Vec<_>) = forest_fig5[0]
+            .windows(2)
+            .map(|ixs| {
+                let inc = &tree_fig5.graph.inc;
+                let i_row = inc.outer_view(ixs[0]).unwrap();
+                let j_row = inc.outer_view(ixs[1]).unwrap();
+
+                let edge = i_row
+                    .iter()
+                    .nnz_zip(j_row.iter())
+                    .map(|(i, _a, _b)| i)
+                    .next()
+                    .map(|edge_ix| tree_fig5.graph.edge[edge_ix]);
+
+                edge
+            })
+            .partition(|edge| edge.is_some());
+
+        assert_eq!(edges.len(), 7);
+        assert_eq!(missing.len(), 5);
     }
 }
