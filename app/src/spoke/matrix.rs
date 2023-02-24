@@ -323,26 +323,37 @@ impl CactusTree {
                 .steps
                 .iter()
                 .flat_map(|s| [*s, s.flip()])
+                .filter(|s| endpoints.contains(s))
                 // .flat_map(|s| [s.flip(), *s])
                 .collect::<Vec<_>>();
+
+            println!("steps:");
+            for &step in &steps {
+                if endpoints.contains(&step) {
+                    print_step(step);
+                    print!(", ");
+                }
+            }
+            println!("\n");
 
             // if there's just two endpoints, there's just one step,
             // meaning one edge to add, so we're done
             if let &[a, b] = steps.as_slice() {
-                if endpoints.contains(&a) && endpoints.contains(&b) {
+                let (ca, cb) = chain_pair;
+                // if a.node() == b.node()
+                let a_chain = a == ca || a == cb;
+                let b_chain = b == ca || b == cb;
+                if endpoints.contains(&a)
+                    && endpoints.contains(&b)
+                    && !(a_chain || b_chain)
+                {
+                    println!("pushing segment");
                     black_edges.push((a, b));
+                    continue;
                 }
-                continue;
             }
 
             let mut edge_start: Option<OrientedNode> = None;
-
-            println!("steps:");
-            for &step in &steps {
-                print_step(step);
-                print!(", ");
-            }
-            println!("\n");
 
             // steps.insert(0, chain_pair.0);
             // steps.push(chain_pair.1);
@@ -365,7 +376,13 @@ impl CactusTree {
                         println!();
                         edge_start = Some(w[0]);
                     } else if let Some(start) = edge_start {
-                        if b_in {
+                        // the chain endpoints should have no black edges
+                        let start_chain =
+                            start == chain_pair.0 || start == chain_pair.1;
+                        let end_chain =
+                            w[1] == chain_pair.0 || w[1] == chain_pair.1;
+
+                        if b_in && !start_chain && !end_chain {
                             edge_start = None;
                             black_edges.push((start, w[1]));
                         }
