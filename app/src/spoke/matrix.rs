@@ -1,6 +1,6 @@
 use roaring::RoaringBitmap;
 use sprs::{CsMat, CsMatBase, CsVec};
-use std::sync::Arc;
+use std::{collections::BTreeSet, sync::Arc};
 use waragraph_core::graph::{Edge, Node, OrientedNode};
 
 use super::hyper::{Cycle, HyperSpokeGraph, VertexId};
@@ -257,7 +257,9 @@ impl CactusTree {
         &self,
         vg_adj: &CsMat<u8>,
         chain_ix: usize,
-    ) -> MatGraph<(), ()> {
+    ) -> CsMat<u8> {
+        use sprs::TriMat;
+
         // chain pairs only have the one edge with one net vertex,
         // so that's the only vertex we need to project from
         let (net, cycle_ix) = if let CacTreeEdge::Chain { net, cycle, .. } =
@@ -268,10 +270,59 @@ impl CactusTree {
             unreachable!();
         };
 
-        let endpoints = self.net_vertex_endpoints(net);
+        let endpoints = self.net_vertex_endpoints(net).collect::<BTreeSet<_>>();
         let cycle = &self.cycles[cycle_ix];
 
+        let n = endpoints.len();
+
+        let mut net_adj: TriMat<u8> = TriMat::new((n, n));
+
         // find the edges between segments among the endpoints
+
+        let mut gray_edges: Vec<(u32, u32)> = Vec::new();
+
+        // the gray edges are the subset of vg edges that connect endpoints
+        // in the subgraph
+
+        // the black edges are created from the cycles that the
+        // endpoints are in the subgraph; since this is a chain pair,
+        // there's just one contained cycle
+
+        let mut cur_start: Option<OrientedNode> = None;
+
+        // start by "flattening" the cycle, so that both segment endpoints
+        // are present. iterating the flattened cycle produces
+
+        // e.g. [b+, c-] => [b-, b
+        let steps = cycle
+            .steps
+            .iter()
+            .flat_map(|s| [s.flip(), *s])
+            .collect::<Vec<_>>();
+
+        let mut edge_start: Option<OrientedNode> = None;
+        let mut black_edges: Vec<(OrientedNode, OrientedNode)> = Vec::new();
+
+        for (i, w) in steps.windows(2).enumerate() {
+            let a_in = endpoints.contains(&w[0]);
+            let b_in = endpoints.contains(&w[1]);
+            if i % 2 == 0 {
+                // traversing a segment
+                if edge_start.is_none() && a_in {
+                    edge_start = Some(w[0]);
+                } else if let Some(start) = edge_start.take() {
+                    if b_in {
+                        black_edges.push((start, w[1]));
+                    }
+                }
+            } else {
+                // traversing an edge
+            }
+        }
+
+        for (a, b) in black_edges {
+            println!("{a:?}\t{b:?}");
+        }
 
         todo!();
     }
@@ -381,6 +432,8 @@ impl CactusTree {
 
 #[cfg(test)]
 mod tests {
+    use waragraph_core::graph::PathIndex;
+
     use super::*;
 
     fn print_step(step: OrientedNode) {
@@ -390,52 +443,9 @@ mod tests {
     }
 
     #[test]
-    fn paper_fig5_cactus_tree() {
-        let cactus_graph = super::super::hyper::tests::alt_paper_cactus_graph();
-
-        println!("cactus graph vertex count: {}", cactus_graph.vertex_count());
-
-        let cactus_tree = CactusTree::from_cactus_graph(cactus_graph);
-
-        println!("vertex_count: {}", cactus_tree.graph.vertex_count);
-        println!("edge_count: {}", cactus_tree.graph.edge_count);
-
-        assert_eq!(cactus_tree.graph.vertex_count, 15);
-        assert_eq!(cactus_tree.graph.edge_count, 14);
-
-        println!("enumerating chain pairs!");
-        let mut chain_pairs = cactus_tree.enumerate_chain_pairs();
-
-        for net_ix in 0..cactus_tree.net_vertices {
-            let net_vx = VertexId(net_ix as u32);
-            let endpoints = cactus_tree.net_vertex_endpoints(net_vx);
-
-            print!("net vertex {net_ix}\t[");
-
-            for s in endpoints {
-                print_step(s);
-            }
-            println!("]");
-        }
-
-        println!();
-
-        println!("chain pair count: {}", chain_pairs.len());
-        chain_pairs.reverse();
-
-        for ((a, b), chain_ix) in chain_pairs {
-            print!("chain {chain_ix}: (");
-            print_step(a);
-            print!(", ");
-            print_step(b);
-            println!(")");
-        }
-    }
-
-    #[test]
     fn paper_fig3_cactus_tree() {
         let cactus_graph = super::super::hyper::tests::paper_cactus_graph();
-        // let cactus_graph = super::super::hyper::tests::alt_paper_cactus_graph();
+        let edges = super::super::tests::example_graph_edges();
 
         let cactus_tree = CactusTree::from_cactus_graph(cactus_graph);
 
@@ -541,5 +551,79 @@ mod tests {
             print_step(b);
             println!(")");
         }
+    }
+
+    #[test]
+    fn paper_fig5_cactus_tree() {
+        let cactus_graph = super::super::hyper::tests::alt_paper_cactus_graph();
+        let edges = super::super::tests::alt_paper_graph_edges();
+
+        println!("cactus graph vertex count: {}", cactus_graph.vertex_count());
+
+        let cactus_tree = CactusTree::from_cactus_graph(cactus_graph);
+
+        println!("vertex_count: {}", cactus_tree.graph.vertex_count);
+        println!("edge_count: {}", cactus_tree.graph.edge_count);
+
+        assert_eq!(cactus_tree.graph.vertex_count, 15);
+        assert_eq!(cactus_tree.graph.edge_count, 14);
+
+        println!("enumerating chain pairs!");
+        let mut chain_pairs = cactus_tree.enumerate_chain_pairs();
+
+        for net_ix in 0..cactus_tree.net_vertices {
+            let net_vx = VertexId(net_ix as u32);
+            let endpoints = cactus_tree.net_vertex_endpoints(net_vx);
+
+            print!("net vertex {net_ix}\t[");
+
+            for s in endpoints {
+                print_step(s);
+            }
+            println!("]");
+        }
+
+        println!();
+
+        println!("chain pair count: {}", chain_pairs.len());
+        chain_pairs.reverse();
+
+        for ((a, b), chain_ix) in chain_pairs {
+            print!("chain {chain_ix}: (");
+            print_step(a);
+            print!(", ");
+            print_step(b);
+            println!(")");
+        }
+    }
+
+    #[test]
+    fn test_chain_pair_net_graph() {
+        let cactus_graph = super::super::hyper::tests::paper_cactus_graph();
+        let edges = super::super::tests::example_graph_edges();
+
+        let cactus_tree = CactusTree::from_cactus_graph(cactus_graph);
+
+        let vg_adj =
+            PathIndex::directed_adjacency_matrix(18, edges.iter().copied());
+
+        sprs::visu::print_nnz_pattern(vg_adj.view());
+
+        println!();
+
+        /*
+        for col in vg_adj.outer_iterator() {
+            for (row, val) in col.iter() {
+                //
+                let i = OrientedNode::from(row as u32);
+                let j = OrientedNode::from(col as u32);
+
+                print_step(j);
+                print!(" -> ");
+                print_step(i);
+                println!();
+            }
+        }
+        */
     }
 }

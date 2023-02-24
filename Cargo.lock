@@ -2952,6 +2952,7 @@ dependencies = [
  "bytemuck",
  "log",
  "roaring",
+ "sprs",
 ]
 
 [[package]]

@@ -229,9 +229,32 @@ impl<'a> Iterator for PathStepRangeIter<'a> {
 }
 
 impl PathIndex {
-    pub fn edges_iter<'a>(
-        &'a self,
-    ) -> impl Iterator<Item = &'a (OrientedNode, OrientedNode)> {
+    pub fn directed_adjacency_matrix(
+        node_count: usize,
+        edges: impl Iterator<Item = Edge>,
+    ) -> sprs::CsMat<u8> {
+        use sprs::TriMat;
+
+        // TODO build the compressed matrix directly
+
+        // node endpoint space
+        let n = node_count * 2;
+
+        let mut mat: TriMat<u8> = TriMat::new((n, n));
+
+        for edge in edges {
+            let (from, to) = edge.endpoints();
+            let fi = from.ix();
+            let ti = to.ix();
+
+            // entry in row i, col j is 1 when there's an edge j->i
+            mat.add_triplet(ti, fi, 1);
+        }
+
+        mat.to_csc()
+    }
+
+    pub fn edges_iter<'a>(&'a self) -> impl Iterator<Item = &'a Edge> {
         self.edges.iter()
     }
 
@@ -544,7 +567,7 @@ impl PathIndex {
     fn parse_gfa_link<'a>(
         min_id: u32,
         mut fields: impl Iterator<Item = &'a [u8]>,
-    ) -> std::io::Result<(OrientedNode, OrientedNode)> {
+    ) -> std::io::Result<Edge> {
         let fields_missing =
             || std::io::Error::new(std::io::ErrorKind::Other, "Fields missing");
 

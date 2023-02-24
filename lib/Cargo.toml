@@ -11,3 +11,5 @@ roaring = "0.10"
 btoi = "0.4.2"
 bytemuck = "1.12"
 bimap = "0.6"
+
+sprs = "0.11"
