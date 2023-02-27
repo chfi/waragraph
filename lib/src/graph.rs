@@ -10,6 +10,10 @@ use self::iter::PangenomePathDataPosRangeIter;
 pub mod iter;
 pub mod sampling;
 
+pub mod spoke;
+
+pub mod matrix;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(C)]
 pub struct Node(u32);

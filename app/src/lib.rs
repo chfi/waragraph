@@ -6,8 +6,6 @@ use ultraviolet::Vec2;
 pub mod viewer_1d;
 pub mod viewer_2d;
 
-pub mod spoke;
-
 pub mod app;
 
 pub mod annotations;

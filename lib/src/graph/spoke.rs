@@ -3,13 +3,11 @@ use std::{
     sync::Arc,
 };
 
+use crate::graph::{Edge, Node, OrientedNode, PathIndex};
 use reunion::{UnionFind, UnionFindTrait};
-use waragraph_core::graph::{Edge, Node, OrientedNode, PathIndex};
-
-pub mod app;
 
 pub mod hyper;
-pub mod matrix;
+// pub mod matrix;
 
 #[derive(
     Debug,
@@ -174,22 +172,6 @@ impl Hub {
         self.edges.iter().copied()
     }
 }
-
-// pub struct SpokeLayout {
-//     graph: SpokeGraph,
-//     geometry: HubSpokeGeometry,
-// }
-
-// type HubSpokeGeometry = HubSpokeData<f32, f32>;
-
-// struct HubSpokeData<Node, Edge> {
-//     // implicitly indexed by NodeId
-//     node_data: Vec<Node>,
-
-//     // outer Vec implicitly indexed by HubId,
-//     // inner Vec corresponds to `Hub`s `spokes` field
-//     hub_spoke_data: Vec<Vec<Edge>>,
-// }
 
 #[cfg(test)]
 mod tests {

@@ -3,8 +3,8 @@ use std::{
     sync::Arc,
 };
 
+use crate::graph::{Edge, Node, OrientedNode};
 use roaring::RoaringBitmap;
-use waragraph_core::graph::{Edge, Node, OrientedNode};
 
 use super::{HubId, SpokeGraph};
 

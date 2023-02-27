@@ -2951,6 +2951,7 @@ dependencies = [
  "btoi",
  "bytemuck",
  "log",
+ "reunion",
  "roaring",
  "sprs",
 ]
