@@ -10,17 +10,17 @@ use std::{
 
 #[derive(Debug, Clone)]
 pub struct MatGraph<VData, EData> {
-    vertex_count: usize,
-    edge_count: usize,
+    pub vertex_count: usize,
+    pub edge_count: usize,
 
     // |V|x|V|
-    adj: CsMat<u8>,
+    pub adj: CsMat<u8>,
 
     // |V|x|E|
-    inc: CsMat<u8>,
+    pub inc: CsMat<u8>,
 
-    vertex: Vec<VData>,
-    edge: Vec<EData>,
+    pub vertex: Vec<VData>,
+    pub edge: Vec<EData>,
 }
 
 impl<V, E> MatGraph<V, E> {

@@ -14,3 +14,4 @@ bimap = "0.6"
 
 reunion = "0.1"
 sprs = "0.11"
+three-edge-connected = "0.2"

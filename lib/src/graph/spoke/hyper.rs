@@ -21,7 +21,7 @@ use super::{HubId, SpokeGraph};
     bytemuck::Zeroable,
 )]
 #[repr(transparent)]
-pub struct VertexId(pub(crate) u32);
+pub struct VertexId(pub u32);
 
 impl VertexId {
     #[inline]
@@ -264,7 +264,6 @@ impl HyperSpokeGraph {
             .collect();
 
         for (hub_ix, vx_id) in self.hub_vertex_map.iter_mut().enumerate() {
-            println!("hub ix: {hub_ix}\tvertex: {vx_id:?}");
             *vx_id = new_ids[&vx_id];
         }
     }
@@ -309,7 +308,6 @@ impl HyperSpokeGraph {
         &mut self,
         set: impl IntoIterator<Item = HubId>,
     ) {
-        println!("vertex count before merge: {}", self.vertex_count());
         let hubs = set.into_iter().collect::<Vec<_>>();
         if hubs.len() < 2 {
             return;
@@ -337,19 +335,6 @@ impl HyperSpokeGraph {
             }
         }
 
-        println!("--------------------");
-        println!("to delete count: {}", self.to_delete.len());
-
-        println!("vertex count after merge: {}", self.vertex_count());
-
-        /*
-        for (hub_ix, vx_id) in self.hub_vertex_map.iter_mut().enumerate() {
-            if self.to_delete.contains(&vx_id) {
-                *vx_id = hub_vx_map
-            }
-        }
-        */
-
         #[cfg(feature = "debug")]
         for (hub_ix, vx_id) in self.hub_vertex_map.iter().enumerate() {
             assert!(!self.to_delete.contains(vx_id));
@@ -357,193 +342,9 @@ impl HyperSpokeGraph {
     }
 }
 
-/// Returns the cycles in a cactus graph as a sequence of segment
-/// traversals. The graph must be a cactus graph.
-pub fn find_cactus_graph_cycles(graph: &HyperSpokeGraph) -> Vec<Cycle> {
-    let mut visit = Vec::new();
-    let mut visited_segments: HashSet<Node> = HashSet::default();
-    let mut vx_visit: HashMap<VertexId, usize> = HashMap::default();
-    let mut remaining_segments = RoaringBitmap::default();
-
-    let max_ix = (graph.spoke_graph.max_endpoint.ix() / 2) - 1;
-    remaining_segments.insert_range(0..max_ix as u32);
-    println!("max_ix!!! {max_ix}");
-    println!("remaining segments: {}", remaining_segments.len());
-    dbg!(remaining_segments.max());
-    dbg!(remaining_segments.len());
-
-    graph.dfs_preorder(None, |i, step, vertex| {
-        vx_visit.insert(vertex, i);
-        visit.push((i, step, vertex));
-
-        if let Some((_parent, step)) = step {
-            dbg!(step);
-            let seg = step.node();
-            visited_segments.insert(seg);
-            remaining_segments.remove(seg.ix() as u32);
-        }
-    });
-
-    dbg!(remaining_segments.max());
-    dbg!(remaining_segments.len());
-
-    // the DFS produces a spanning tree; from this, we can start from any
-    // of the remaining segments and use the tree to reconstruct the cycle
-    // it's part of
-
-    let mut cycles: Vec<Cycle> = Vec::new();
-
-    for seg_ix in remaining_segments {
-        println!("seg_ix: {seg_ix}");
-        let node = Node::from(seg_ix);
-
-        let l = graph.endpoint_vertex(node.as_reverse());
-        let r = graph.endpoint_vertex(node.as_forward());
-
-        let l_ix = *vx_visit.get(&l).unwrap();
-        let r_ix = *vx_visit.get(&r).unwrap();
-
-        if l_ix == r_ix {
-            cycles.push(Cycle {
-                endpoint: l,
-                steps: vec![node.as_forward()],
-                step_endpoints: vec![r],
-            });
-            continue;
-        }
-
-        let start = l_ix.min(r_ix);
-        let end = l_ix.max(r_ix);
-
-        let mut cur_ix = end;
-
-        let mut cycle_steps = Vec::new();
-        let mut step_endpoints = Vec::new();
-
-        loop {
-            if let Some((parent, incoming)) = visit[cur_ix].1 {
-                cycle_steps.push(incoming.flip());
-                step_endpoints.push(parent);
-
-                // if parent's visit ix == start, we're done
-                let parent_ix = *vx_visit.get(&parent).unwrap();
-                cur_ix = parent_ix;
-
-                if parent_ix == start {
-                    break;
-                }
-            } else {
-                break;
-            }
-        }
-
-        step_endpoints.push(r);
-
-        if start == l_ix {
-            cycle_steps.push(node.as_reverse());
-        } else {
-            cycle_steps.push(node.as_forward());
-        }
-
-        cycle_steps.reverse();
-
-        cycles.push(Cycle {
-            endpoint: l,
-            steps: cycle_steps,
-            step_endpoints,
-        });
-    }
-
-    cycles.sort_by_key(|c| c.steps.len());
-
-    cycles
-}
-
-pub fn enumerate_chain_pairs(
-    graph: &HyperSpokeGraph,
-) -> Vec<(OrientedNode, OrientedNode)> {
-    let cycles = find_cactus_graph_cycles(&graph);
-
-    // a chain pair is a pair of segment endpoints that project
-    // to the same vertex in the cactus graph, and their corresponding
-    // segments map to the same cycle.
-
-    let mut chain_pairs = Vec::new();
-
-    // each segment is only in one cycle, by construction
-    for (cycle_ix, cycle) in cycles.iter().enumerate() {
-        /*
-
-        */
-
-        for chunk in cycle.steps.windows(2) {
-            if let [prev, here] = chunk {
-                //
-            }
-        }
-
-        /*
-        for step in cycle.steps.iter() {
-            let node = step.node();
-
-            let left = graph.spoke_graph.node_endpoint_hub(node.as_reverse());
-            let right = graph.spoke_graph.node_endpoint_hub(node.as_forward());
-
-            if step.is_reverse() {
-                chain_pairs.push
-            } else {
-            }
-            // chain_pairs.push(
-
-        }
-        */
-    }
-
-    chain_pairs
-}
-
-pub enum CactusVertex {
-    Net { vertex: () },
-    Chain { vertex: (), cycle_id: usize },
-}
-
-// pub enum CactusVxId {
-//     Net(usize),
-//     Chain(usize),
-// }
-
-pub struct Saboten {
-    cactus_graph: HyperSpokeGraph,
-    cycles: Vec<Cycle>,
-
-    cactus_tree: (),
-    bridge_forest: (),
-}
-
-impl Saboten {
-    pub fn from_cactus_graph(cactus: HyperSpokeGraph) -> Self {
-        let cycles = find_cactus_graph_cycles(&cactus);
-
-        // each cycle is mapped to a new chain vertex in the cactus tree,
-        // with the edges (segments) in the cycle deleted, and *new* edges
-        // added between the chain vertex and each existing vertex that was
-        // adjacent to the cycle
-        //
-        // these new edges do not correspond directly to segments!
-
-        // for each cycle, find the neighboring vertices not in the cycle...
-        // ... but what if they're in another cycle??
-        for (cix, cycle) in cycles.iter().enumerate() {
-            //
-        }
-
-        todo!();
-    }
-}
-
 #[cfg(test)]
 pub(crate) mod tests {
-    use waragraph_core::graph::Node;
+    use crate::graph::Node;
 
     use super::super::SpokeGraph;
     use super::*;
@@ -716,77 +517,6 @@ pub(crate) mod tests {
     }
 
     #[test]
-    fn cactus_graph_find_cycles() {
-        let graph = paper_cactus_graph();
-
-        let cycles = find_cactus_graph_cycles(&graph);
-
-        // println!("{cycles:#?}");
-
-        let mut bridge_cands = RoaringBitmap::default();
-
-        let max_ix = (graph.spoke_graph.max_endpoint.ix() / 2);
-        bridge_cands.insert_range(0..=max_ix as u32);
-        println!("max_ix: {max_ix}, {:?}", ('a'..'z').nth(max_ix));
-
-        let mut len_count_map: HashMap<usize, usize> = HashMap::default();
-
-        for cycle in cycles {
-            print!("Cycle endpoint: {:?}\t", cycle.endpoint);
-
-            *len_count_map.entry(cycle.len()).or_default() += 1;
-
-            for step in &cycle.steps {
-                bridge_cands.remove(step.node().ix() as u32);
-                let c = ('a' as u8 + step.node().ix() as u8) as char;
-                let o = if step.is_reverse() { "-" } else { "+" };
-                print!("{c}{o}, ");
-            }
-            println!();
-        }
-
-        for (len, count) in &len_count_map {
-            println!("{len}\t{count}");
-        }
-
-        assert_eq!(len_count_map.get(&1), Some(&4));
-        assert_eq!(len_count_map.get(&2), Some(&3));
-        assert_eq!(len_count_map.get(&3), Some(&1));
-
-        let mut bridges = Vec::new();
-
-        println!("bridge candidate count: {}", bridge_cands.len());
-
-        for b_ix in bridge_cands {
-            let node = Node::from(b_ix);
-
-            let l = graph.endpoint_vertex(node.as_reverse()).0 as usize;
-            let r = graph.endpoint_vertex(node.as_forward()).0 as usize;
-
-            /*
-            let l_degree = graph.vertices[l].degree;
-            let r_degree = graph.vertices[r].degree;
-
-            // don't count tips as bridges
-            if l_degree == 1 || r_degree == 1 {
-                continue;
-            }
-            */
-
-            bridges.push(node);
-        }
-
-        println!("bridges");
-        for bridge in &bridges {
-            let c = ('a' as u8 + bridge.ix() as u8) as char;
-            print!("{c}, ");
-        }
-        println!();
-
-        assert_eq!(bridges.len(), 5);
-    }
-
-    #[test]
     fn cactus_graph_dfs() {
         let graph = paper_cactus_graph();
 
@@ -873,94 +603,4 @@ pub(crate) mod tests {
             println!("  {c}");
         }
     }
-
-    /*
-    #[test]
-    fn cactus_graph_bridge_forest() {
-        let graph = paper_cactus_graph();
-        let cycles = find_cactus_graph_cycles(&graph);
-
-        let mut bridge_forest = graph.clone();
-
-        let mut contracted_segments = RoaringBitmap::new();
-
-        for cycle in &cycles {
-            let va = cycle.endpoint;
-
-            for step in &cycle.steps {
-                contracted_segments.insert(step.ix() as u32);
-                let hub_b = bridge_forest.spoke_graph.endpoint_hubs[step.ix()];
-                let vb = bridge_forest.hub_vertex_map[hub_b.ix()];
-                bridge_forest.contract_edge(va, vb);
-            }
-        }
-
-        println!("contracted segment count: {}", contracted_segments.len());
-
-        /*
-        for cycle in &cycles {
-            let hubs = cycle
-                .steps
-                .iter()
-                .map(|s| graph.spoke_graph.endpoint_hubs[s.ix()]);
-            let hubs = hubs.collect::<Vec<_>>();
-            println!("hubs: {hubs:?}");
-            bridge_forest.merge_hub_partition(hubs);
-
-            print!("Cycle endpoint: {:?}\t", cycle.endpoint);
-            for step in &cycle.steps {
-                let c = ('a' as u8 + step.node().ix() as u8) as char;
-                let o = if step.is_reverse() { "-" } else { "+" };
-                print!("{c}{o}, ");
-            }
-            println!();
-        }
-        */
-
-        let mut vx_hub_count = HashMap::new();
-
-        println!();
-
-        println!("node -> (hub, hub) map");
-        for node_ix in 0..18 {
-            let node = Node::from(node_ix as u32);
-
-            let c = ('a' as u8 + node_ix as u8) as char;
-
-            let left = bridge_forest
-                .spoke_graph
-                .node_endpoint_hub(node.as_reverse());
-            let right = bridge_forest
-                .spoke_graph
-                .node_endpoint_hub(node.as_forward());
-
-            println!("{c} => {left:?}\t{right:?}");
-        }
-        println!();
-
-        println!("bridge forest");
-        for (vx_id, vertex) in bridge_forest.vertices() {
-            *vx_hub_count.entry(vertex.hubs.len()).or_insert(0usize) += 1;
-            let vi = vx_id.0;
-            println!("{vi:2} - {vertex:?}");
-        }
-
-        // from the paper, each of the following sets of endpoints
-        // should map to its own vertex in the bridge forest
-
-        // a+, b, c, d-
-        // d+, e, f, g, h, i, j, k, l-
-        // l+, m, n, o, p
-
-        // but i'm lazy so let's just check cardinality one level
-        // deep (still matches the paper)
-
-        assert_eq!(vx_hub_count.get(&1), Some(&3));
-        assert_eq!(vx_hub_count.get(&2), Some(&1));
-        assert_eq!(vx_hub_count.get(&3), Some(&1));
-        assert_eq!(vx_hub_count.get(&4), Some(&1));
-
-        bridge_forest.apply_deletions();
-    }
-    */
 }

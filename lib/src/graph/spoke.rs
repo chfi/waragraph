@@ -22,7 +22,7 @@ pub mod hyper;
     bytemuck::Zeroable,
 )]
 #[repr(transparent)]
-pub struct HubId(u32);
+pub struct HubId(pub u32);
 
 impl HubId {
     pub fn ix(&self) -> usize {
@@ -33,13 +33,13 @@ impl HubId {
 #[derive(Debug)]
 pub struct SpokeGraph {
     // implicitly indexed by HubId
-    hub_adj: Vec<BTreeMap<HubId, Vec<OrientedNode>>>,
-    hub_endpoints: Vec<BTreeSet<OrientedNode>>,
+    pub hub_adj: Vec<BTreeMap<HubId, Vec<OrientedNode>>>,
+    pub hub_endpoints: Vec<BTreeSet<OrientedNode>>,
 
     // implicitly indexed by OrientedNode
-    endpoint_hubs: Vec<HubId>,
+    pub endpoint_hubs: Vec<HubId>,
 
-    max_endpoint: OrientedNode,
+    pub max_endpoint: OrientedNode,
 }
 
 impl SpokeGraph {
@@ -178,7 +178,7 @@ mod tests {
 
     use super::*;
 
-    use waragraph_core::graph::Edge;
+    use crate::graph::Edge;
 
     // corresponds to the graph in fig 3A in the paper
     pub(crate) fn example_graph_edges() -> Vec<Edge> {
@@ -302,7 +302,6 @@ mod tests {
         let node_count = 18;
         let graph = SpokeGraph::new(node_count, edges);
 
-        println!("hub adj");
         for (hub_ix, hub) in graph.hub_adj.iter().enumerate() {
             println!("{hub_ix}");
             for (o_id, nodes) in hub {
