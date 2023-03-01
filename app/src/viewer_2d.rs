@@ -357,6 +357,18 @@ impl AppWindow for Viewer2D {
                 .movable(false)
                 .constrain(true);
 
+            let mut multi_touch_active = false;
+
+            if let Some(touch) = egui_ctx.ctx().multi_touch() {
+                multi_touch_active = true;
+                let t = touch.translation_delta;
+                let z = 2.0 - touch.zoom_delta;
+                let t = ultraviolet::Vec2::new(-t.x / dims.x, t.y / dims.y);
+
+                self.view.translate_size_rel(t);
+                self.view.size *= z;
+            }
+
             main_area.show(ctx, |ui| {
                 ui.set_width(screen_rect.width());
                 ui.set_height(screen_rect.height());
@@ -364,7 +376,9 @@ impl AppWindow for Viewer2D {
                 let area_rect = ui
                     .allocate_rect(screen_rect, egui::Sense::click_and_drag());
 
-                if area_rect.dragged_by(egui::PointerButton::Primary) {
+                if area_rect.dragged_by(egui::PointerButton::Primary)
+                    && !multi_touch_active
+                {
                     let delta =
                         Vec2::from(mint::Vector2::from(area_rect.drag_delta()));
                     let mut norm_delta = -1.0 * (delta / dims);
@@ -398,15 +412,6 @@ impl AppWindow for Viewer2D {
                     norm.y = 1.0 - norm.y;
                     self.view.zoom_with_focus(norm, dz);
                 }
-            }
-
-            if let Some(touch) = egui_ctx.ctx().multi_touch() {
-                let t = touch.translation_delta;
-                let z = 2.0 - touch.zoom_delta;
-                let t = ultraviolet::Vec2::new(-t.x / dims.x, t.y / dims.y);
-
-                self.view.translate_size_rel(t);
-                self.view.size *= z;
             }
         }
 
