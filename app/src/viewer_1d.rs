@@ -35,6 +35,7 @@ use self::widgets::VisualizationModesWidget;
 pub mod gui;
 pub mod widgets;
 
+pub mod cache;
 pub mod render;
 
 pub mod util;
