@@ -310,6 +310,8 @@ impl AppWindow for Viewer2D {
         let [width, height]: [u32; 2] = window.window.inner_size().into();
         let dims = ultraviolet::Vec2::new(width as f32, height as f32);
 
+        let scale_dims = dims * egui_ctx.ctx().pixels_per_point();
+
         let screen_rect = egui::Rect::from_min_max(
             egui::pos2(0.0, 0.0),
             egui::pos2(dims.x, dims.y),
@@ -363,9 +365,9 @@ impl AppWindow for Viewer2D {
                 multi_touch_active = true;
                 let t = touch.translation_delta;
                 let z = 2.0 - touch.zoom_delta;
-                let t = ultraviolet::Vec2::new(-t.x / dims.x, t.y / dims.y);
+                let t_ = ultraviolet::Vec2::new(-t.x / dims.x, t.y / dims.y);
 
-                self.view.translate_size_rel(t);
+                self.view.translate_size_rel(t_);
                 self.view.size *= z;
             }
 
@@ -408,7 +410,7 @@ impl AppWindow for Viewer2D {
                 if scroll.y.abs() > min_scroll {
                     let dz = 1.0 - scroll.y * factor;
                     let uvp = Vec2::new(pos.x, pos.y);
-                    let mut norm = uvp / dims;
+                    let mut norm = uvp / scale_dims;
                     norm.y = 1.0 - norm.y;
                     self.view.zoom_with_focus(norm, dz);
                 }
