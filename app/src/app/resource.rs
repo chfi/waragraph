@@ -53,9 +53,10 @@ pub struct GraphData<T, Stats> {
 }
 
 pub struct GraphPathData<T, Stats> {
-    pub path_data: Vec<Vec<T>>,
+    pub path: PathId,
+    pub path_data: Vec<T>,
     pub path_stats: Vec<Stats>,
-    pub global_stats: Stats,
+    // pub global_stats: Stats,
 }
 
 #[derive(Clone, Copy, PartialEq)]
@@ -94,11 +95,11 @@ impl FStats {
     }
 }
 
-impl<T, S> PathData<T> for GraphPathData<T, S> {
-    fn get_path(&self, path_id: PathId) -> &[T] {
-        &self.path_data[path_id.ix()]
-    }
-}
+// impl<T, S> PathData<T> for GraphPathData<T, S> {
+//     fn get_path(&self, path_id: PathId) -> &[T] {
+//         &self.path_data[path_id.ix()]
+//     }
+// }
 
 // pub type DataSourceFn<A, T> = Arc<dyn Fn(A) -> anyhow::Result<Vec<T>>>;
 
@@ -264,10 +265,32 @@ impl GraphDataCache {
         Some(data)
     }
 
-    pub fn fetch_path_data_blocking(
+    pub async fn fetch_path_data(
         &self,
         key: &str,
+    ) -> anyhow::Result<Arc<GraphPathData<f32, FStats>>> {
+        {
+            let path_data = self.path_f32.read().await;
+            if let Some(data) = path_data.get(key) {
+                return Ok(data.clone());
+            }
+        }
+
+        let source = self.sources.path_f32.get(key).ok_or_else(|| {
+            anyhow::anyhow!("Path data source `{key}` not found")
+        })?;
+
+        todo!();
+    }
+
+    pub fn fetch_path_data_blocking(
+        &self,
+        data_key: &str,
+        path: PathId,
     ) -> Option<Arc<GraphPathData<f32, FStats>>> {
+        todo!();
+
+        /*
         if let Some(data) = self.path_f32.blocking_read().get(key) {
             return Some(data.clone());
         }
@@ -300,7 +323,7 @@ impl GraphDataCache {
         let data = Arc::new(GraphPathData {
             path_data: data,
             path_stats,
-            global_stats,
+            // global_stats,
         });
 
         self.path_f32
@@ -308,5 +331,6 @@ impl GraphDataCache {
             .insert(key.to_string(), data.clone());
 
         Some(data)
+        */
     }
 }

@@ -76,11 +76,10 @@ impl SlotCache {
         key: SlotKey,
         view: [Bp; 2],
     ) -> Result<([Bp; 2], Vec<u8>)> {
-        // let data_cache = self.data_cache.clone();
+        let (path, data_key) = key;
 
-        // load data source into cache
-
-        // get data from cache
+        // load data source into cache & get data
+        let data = data_cache.fetch_path_data(&data_key).await?;
 
         // sample data into vector
         let sample_vec = tokio::task::spawn_blocking(move || {
