@@ -102,12 +102,14 @@ impl<T, S> PathData<T> for GraphPathData<T, S> {
 
 // pub type DataSourceFn<A, T> = Arc<dyn Fn(A) -> anyhow::Result<Vec<T>>>;
 
-pub type GraphDataSourceFn<T> = Arc<dyn Fn() -> anyhow::Result<Vec<T>>>;
-pub type PathDataSourceFn<T> = Arc<dyn Fn(PathId) -> anyhow::Result<Vec<T>>>;
+pub type GraphDataSourceFn<T> =
+    Arc<dyn Fn() -> anyhow::Result<Vec<T>> + Send + Sync + 'static>;
+pub type PathDataSourceFn<T> =
+    Arc<dyn Fn(PathId) -> anyhow::Result<Vec<T>> + Send + Sync + 'static>;
 
 pub struct GraphDataSources {
-    graph_f32: HashMap<String, Arc<dyn Fn() -> anyhow::Result<Vec<f32>>>>,
-    path_f32: HashMap<String, Arc<dyn Fn(PathId) -> anyhow::Result<Vec<f32>>>>,
+    graph_f32: HashMap<String, GraphDataSourceFn<f32>>,
+    path_f32: HashMap<String, PathDataSourceFn<f32>>,
 }
 
 impl GraphDataSources {
