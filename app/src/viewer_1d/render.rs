@@ -2,7 +2,7 @@ use crate::app::resource::GraphPathData;
 use crate::app::settings_menu::SettingsWindow;
 use crate::app::{AppWindow, SharedState, VizInteractions};
 use crate::color::widget::{ColorMapWidget, ColorMapWidgetShared};
-use crate::color::ColorMap;
+use crate::color::{ColorMap, ColorSchemeId};
 use crate::gui::list::DynamicListLayout;
 use crate::gui::FlexLayout;
 use crate::list::ListView;
@@ -32,6 +32,16 @@ pub struct Renderer {
     render_graph: Graph,
     draw_path_slot: NodeId,
     //
+}
+
+// contains all the config/info needed to render a data buffer
+// sampled from the data source corresponding to `data_key`
+#[derive(Clone)]
+pub struct VizModeConfig {
+    pub name: String,
+    pub data_key: String,
+    pub color_scheme: ColorSchemeId,
+    pub default_color_map: ColorMap,
 }
 
 pub struct RendererState {

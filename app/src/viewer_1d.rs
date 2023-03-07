@@ -28,6 +28,7 @@ use anyhow::Result;
 
 use waragraph_core::graph::PathIndex;
 
+use self::render::VizModeConfig;
 use self::util::path_sampled_data_viz_buffer;
 use self::view::View1D;
 use self::widgets::VisualizationModesWidget;
@@ -78,7 +79,10 @@ pub struct Viewer1D {
 
     // color_mapping: crate::util::Uniform<ColorMap, 16>,
     color_mapping: crate::util::Uniform<Arc<AtomicCell<ColorMap>>, 16>,
-    color_map_widget: Arc<RwLock<ColorMapWidgetShared>>,
+    // color_map_widget: Arc<RwLock<ColorMapWidgetShared>>,
+
+    // NB: very temporary, hopefully
+    viz_mode_config: HashMap<String, VizModeConfig>,
 }
 
 impl Viewer1D {
@@ -186,6 +190,10 @@ impl Viewer1D {
         // let active_viz_data_key = "strand".to_string();
         let active_viz_data_key = "depth".to_string();
 
+        let viz_data_buffer = todo!(); // NB: this will be provided by the new cache
+
+        //
+        /*
         let viz_data_buffer = {
             let paths =
                 path_list_view.visible_iter().copied().collect::<Vec<_>>();
@@ -206,6 +214,7 @@ impl Viewer1D {
                 1024,
             )?
         };
+        */
 
         let mut gpu_buffers = HashMap::default();
 
@@ -294,6 +303,7 @@ impl Viewer1D {
             },
         )?;
 
+        /*
         let color_map_widget = {
             let scheme_id =
                 shared.data_color_schemes.get(&active_viz_data_key).unwrap();
@@ -328,6 +338,7 @@ impl Viewer1D {
 
             widget
         };
+        */
 
         let active_viz_data_key = Arc::new(RwLock::new(active_viz_data_key));
 
@@ -343,6 +354,38 @@ impl Viewer1D {
                 Arc::new(RwLock::new(viz_mode_widget)),
             );
         }
+
+        let viz_mode_config = {
+            let colors = shared.colors.blocking_read();
+
+            let mut cfg: HashMap<String, VizModeConfig> = HashMap::new();
+
+            let depth = VizModeConfig {
+                name: "depth".to_string(),
+                data_key: "depth".to_string(),
+                color_scheme: colors.get_color_scheme_id("depth").unwrap(),
+                default_color_map: ColorMap {
+                    value_range: [1.0, 12.0],
+                    color_range: [0.0, 1.0],
+                },
+            };
+
+            let strand = VizModeConfig {
+                name: "strand".to_string(),
+                data_key: "strand".to_string(),
+                color_scheme: colors.get_color_scheme_id("strand").unwrap(),
+                default_color_map: ColorMap {
+                    value_range: [0.0, 1.0],
+                    color_range: [0.0, 1.0],
+                },
+            };
+
+            for c in [depth, strand] {
+                cfg.insert(c.name.clone(), c);
+            }
+
+            cfg
+        };
 
         log::error!("Initialized in {} seconds", t0.elapsed().as_secs_f32());
 
@@ -373,7 +416,8 @@ impl Viewer1D {
             active_viz_data_key,
 
             color_mapping,
-            color_map_widget,
+            // color_map_widget,
+            viz_mode_config,
         })
     }
 
@@ -495,6 +539,8 @@ impl AppWindow for Viewer1D {
         egui_ctx: &mut EguiCtx,
         dt: f32,
     ) {
+        // NB: disabling the color map widget for the time being
+        /*
         {
             let mut color_map_widget = self.color_map_widget.blocking_write();
 
@@ -520,6 +566,7 @@ impl AppWindow for Viewer1D {
 
             self.color_mapping.write_buffer(state);
         }
+        */
 
         let other_interactions = self
             .connected_viz_interact
