@@ -22,7 +22,6 @@ type SlotTaskHandle = JoinHandle<Result<([Bp; 2], Vec<u8>)>>;
 struct SlotState {
     last_updated_view: Option<[Bp; 2]>,
     task_handle: Option<SlotTaskHandle>,
-    row_index: Option<usize>,
 }
 
 impl SlotState {
@@ -65,7 +64,8 @@ pub struct SlotCache {
 
     bin_count: usize,
 
-    vertex_buffer: BufferDesc,
+    vertex_buffer: Option<BufferDesc>,
+    vertex_count: usize,
 
     path_index: Arc<PathIndex>,
     data_cache: Arc<GraphDataCache>,
@@ -73,56 +73,36 @@ pub struct SlotCache {
 
 impl SlotCache {
     pub fn new(
+        state: &raving_wgpu::State,
         path_index: Arc<PathIndex>,
         data_cache: Arc<GraphDataCache>,
         row_count: usize,
         bin_count: usize,
     ) -> Result<Self> {
-        todo!();
-    }
+        let data_buffer =
+            Self::allocate_data_buffer(state, row_count, bin_count)?;
 
-    async fn slot_task(
-        path_index: Arc<PathIndex>,
-        data_cache: Arc<GraphDataCache>,
-        bin_count: usize,
-        key: SlotKey,
-        view: [Bp; 2],
-    ) -> Result<([Bp; 2], Vec<u8>)> {
-        use waragraph_core::graph::sampling;
+        let slot_id_cache = vec![None; row_count];
+        let slot_id_map = HashMap::default();
 
-        let (path, data_key) = key;
+        Ok(Self {
+            last_dispatched_view: None,
 
-        // load data source into cache & get data
-        let data = data_cache.fetch_path_data(&data_key, path).await?;
+            slot_state: HashMap::default(),
+            slot_id_cache,
+            slot_id_map,
+            slot_id_generation: 0,
 
-        // sample data into vector
-        let sample_vec = tokio::task::spawn_blocking(move || {
-            let mut buf = vec![0u8; bin_count * 4];
+            data_buffer,
+            rows: row_count,
 
-            let l = view[0].0;
-            let r = view[1].0;
+            bin_count,
 
-            sampling::sample_data_into_buffer(
-                &path_index,
-                path,
-                &data.path_data,
-                l..r,
-                bytemuck::cast_slice_mut(&mut buf),
-            );
-
-            buf
+            vertex_buffer: None,
+            vertex_count: 0,
+            path_index,
+            data_cache,
         })
-        .await?;
-
-        Ok((view, sample_vec))
-    }
-
-    fn allocate_data_buffer(
-        state: &raving_wgpu::State,
-        rows: usize,
-        bin_count: usize,
-    ) -> Result<BufferDesc> {
-        todo!();
     }
 
     // returns the view transform, based on the last dispatched view
@@ -133,6 +113,7 @@ impl SlotCache {
 
     pub fn sample_and_update<I>(
         &mut self,
+        state: &raving_wgpu::State,
         rt: &tokio::runtime::Handle,
         view: &View1D,
         layout: I,
@@ -144,6 +125,9 @@ impl SlotCache {
         let cview = [Bp(vl), Bp(vr)];
 
         let layout = layout.into_iter().collect::<HashMap<_, _>>();
+
+        // TODO: reallocate data buffer if `layout` contains more
+        // rows than are available
 
         {
             let active_count = layout.len() + self.rows / 8;
@@ -201,9 +185,12 @@ impl SlotCache {
 
                     // find the first available slot
                     let (slot_id, cache_entry) = cache_iter.next().unwrap();
+
                     // update the slot key -> slot ID map in the cache
                     *cache_entry = (key.clone(), new_gen);
                     self.slot_id_map.insert(key.clone(), slot_id);
+                    // make sure the old slot key is unassigned in the map
+                    self.slot_id_map.remove(&cache_entry.0);
                 }
 
                 if state.task_handle.is_some() {
@@ -232,24 +219,41 @@ impl SlotCache {
         // has is not mapped to a slot key that has been used for a while
         // (or use the slot ID if already in the cache)
 
-        let mut slot_index = 0usize;
-        for (key, state) in self.slot_state.iter_mut() {
-            if let Some((task_view, data)) = state.task_results(rt) {
-                if Some(task_view) != self.last_dispatched_view {
-                    // discarding
-                    continue;
+        {
+            let mut slot_index = 0usize;
+            for (key, slot_state) in self.slot_state.iter_mut() {
+                if let Some((task_view, data)) = slot_state.task_results(rt) {
+                    if Some(task_view) != self.last_dispatched_view {
+                        // out of date, discarding
+                        continue;
+                    }
+
+                    // get the slot ID, which is assigned on task dispatch above
+                    let slot_id = if let Some(id) = self.slot_id_map.get(key) {
+                        *id
+                    } else {
+                        unreachable!();
+                    };
+
+                    // the slot_id can be used to derive the slice in the buffer
+                    // that this slot key is bound to
+                    let prefix_size = std::mem::size_of::<[u32; 4]>();
+                    let offset = prefix_size + slot_id * self.bin_count;
+
+                    let size =
+                        std::num::NonZeroU64::new(4 * self.bin_count as u64)
+                            .unwrap();
+                    let write_view = state.queue.write_buffer_with(
+                        &self.data_buffer.buffer,
+                        offset as u64,
+                        size,
+                    );
+
+                    slot_state.last_updated_view = Some(task_view);
+
+                    // schedule an update to the corresponding row
+                    write_view.copy_from_slice(&data);
                 }
-
-                // store slot ID for slot key
-                let slot_id = if let Some(id) = self.slot_id_map.get(key) {
-                    *id
-                } else {
-                    unreachable!();
-                    // todo!();
-                };
-
-                // update slot in buffer
-                todo!();
             }
         }
 
@@ -259,22 +263,103 @@ impl SlotCache {
         // row in the data buffer
         for (key, rect) in layout {
             if let Some(state) = self.slot_state.get(&key) {
-                // let
-
                 let last_dispatch = self.last_dispatched_view;
                 let last_update = state.last_updated_view;
 
                 if last_update == last_dispatch && last_dispatch.is_some() {
-                    //
-                    todo!();
+                    let vx_rect =
+                        [rect.left(), rect.top(), rect.width(), rect.height()];
+                    let slot_id = *self
+                        .slot_id_map
+                        .get(&key)
+                        .expect("Slot was ready but unbound!");
+
+                    vertices.push((vx_rect, slot_id as u32));
                 }
             }
         }
 
+        // update the vertex buffer, reallocating if needed
+        // update vertex count
         todo!();
+
+        //
     }
 
     pub fn render_slots(&mut self) -> (std::ops::Range<u32>, Vec<egui::Shape>) {
         todo!();
+    }
+}
+
+impl SlotCache {
+    fn total_data_buffer_size(&self) -> usize {
+        let prefix_size = std::mem::size_of::<[u32; 4]>();
+        prefix_size + self.rows * self.bin_count
+    }
+
+    fn allocate_data_buffer(
+        state: &raving_wgpu::State,
+        row_count: usize,
+        bin_count: usize,
+    ) -> Result<BufferDesc> {
+        let rows = row_count as u32;
+        let cols = bin_count as u32;
+        let prefix = [rows * cols, cols, !0u32, !0u32];
+
+        let prefix_size = std::mem::size_of::<[u32; 4]>();
+        let size = prefix_size + row_count * bin_count;
+
+        let usage = wgpu::BufferUsages::COPY_DST
+            | wgpu::BufferUsages::COPY_SRC
+            | wgpu::BufferUsages::STORAGE;
+
+        let buffer = state.device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("Viewer 1D Data Buffer"),
+            size: size as u64,
+            usage,
+            mapped_at_creation: false,
+        });
+
+        state
+            .queue
+            .write_buffer(&buffer, 0, bytemuck::cast_slice(&prefix));
+
+        Ok(BufferDesc { buffer, size })
+    }
+
+    async fn slot_task(
+        path_index: Arc<PathIndex>,
+        data_cache: Arc<GraphDataCache>,
+        bin_count: usize,
+        key: SlotKey,
+        view: [Bp; 2],
+    ) -> Result<([Bp; 2], Vec<u8>)> {
+        use waragraph_core::graph::sampling;
+
+        let (path, data_key) = key;
+
+        // load data source into cache & get data
+        let data = data_cache.fetch_path_data(&data_key, path).await?;
+
+        // sample data into vector
+        let sample_vec = tokio::task::spawn_blocking(move || {
+            let mut buf = vec![0u8; bin_count * 4];
+
+            let l = view[0].0;
+            let r = view[1].0;
+
+            sampling::sample_data_into_buffer(
+                &path_index,
+                path,
+                &data.path_data,
+                l..r,
+                bytemuck::cast_slice_mut(&mut buf),
+            );
+
+            buf
+        })
+        .await?;
+
+        Ok((view, sample_vec))
     }
 }
