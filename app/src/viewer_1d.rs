@@ -675,12 +675,15 @@ impl AppWindow for Viewer1D {
 
             let data_id = self.active_viz_data_key.blocking_read().clone();
 
-            let data = self
-                .shared
-                .graph_data_cache
-                .fetch_path_data_blocking(&data_id)
-                .unwrap();
+            let data_cache = self.shared.graph_data_cache.clone();
 
+            // let data = self
+            //     .shared
+            //     .graph_data_cache
+            //     .fetch_path_data_blocking(&data_id)
+            //     .unwrap();
+
+            /*
             let join = tokio_rt.spawn_blocking(move || {
                 let mut buf: Vec<u8> = Vec::new();
 
@@ -697,6 +700,8 @@ impl AppWindow for Viewer1D {
             });
 
             self.sample_handle = Some(join);
+            */
+            self.sample_handle = todo!();
         }
 
         if let Some(true) = self.sample_handle.as_ref().map(|j| j.is_finished())

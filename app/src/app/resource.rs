@@ -282,7 +282,9 @@ impl GraphDataCache {
             anyhow::anyhow!("Path data source `{data_key}` not found")
         })?;
 
-        let path_data = source(path)?;
+        let source = source.clone();
+        let path_data =
+            tokio::task::spawn_blocking(move || source(path)).await??;
 
         let path_stats = FStats::from_items(path_data.iter().copied());
 

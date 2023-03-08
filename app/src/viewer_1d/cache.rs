@@ -11,7 +11,7 @@ use std::{
 };
 
 use tokio::task::JoinHandle;
-use waragraph_core::graph::{Bp, PathId};
+use waragraph_core::graph::{Bp, PathId, PathIndex};
 
 use anyhow::Result;
 
@@ -67,24 +67,41 @@ pub struct SlotCache {
 
     vertex_buffer: BufferDesc,
 
+    path_index: Arc<PathIndex>,
     data_cache: Arc<GraphDataCache>,
 }
 
 impl SlotCache {
     async fn slot_task(
+        path_index: Arc<PathIndex>,
         data_cache: Arc<GraphDataCache>,
+        bin_count: usize,
         key: SlotKey,
         view: [Bp; 2],
     ) -> Result<([Bp; 2], Vec<u8>)> {
+        use waragraph_core::graph::sampling;
+
         let (path, data_key) = key;
 
         // load data source into cache & get data
-        let data = data_cache.fetch_path_data(&data_key).await?;
+        let data = data_cache.fetch_path_data(&data_key, path).await?;
 
         // sample data into vector
         let sample_vec = tokio::task::spawn_blocking(move || {
-            //
-            todo!();
+            let mut buf = vec![0u8; bin_count * 4];
+
+            let l = view[0].0;
+            let r = view[1].0;
+
+            sampling::sample_data_into_buffer(
+                &path_index,
+                path,
+                &data.path_data,
+                l..r,
+                bytemuck::cast_slice_mut(&mut buf),
+            );
+
+            buf
         })
         .await?;
 
@@ -114,12 +131,14 @@ impl SlotCache {
             if state.last_updated_view != Some(cview) {
                 // spawn task
                 let data_cache = self.data_cache.clone();
-                let task = rt.spawn(Self::slot_task(data_cache, key, cview));
+                let bin_count = self.bin_count;
+                let path_index = self.path_index.clone();
+
+                let task = rt.spawn(Self::slot_task(
+                    path_index, data_cache, bin_count, key, cview,
+                ));
                 state.task_handle = Some(task);
             }
-
-            // if let Some(state) =
-            //
         }
 
         for (key, state) in self.slot_state.iter_mut() {
