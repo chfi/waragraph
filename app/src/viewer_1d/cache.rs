@@ -9,9 +9,7 @@ use waragraph_core::graph::{Bp, PathId, PathIndex};
 
 use anyhow::Result;
 
-use crate::{
-    app::resource::GraphDataCache, util::BufferDesc, viewer_1d::Viewer1D,
-};
+use crate::{app::resource::GraphDataCache, util::BufferDesc};
 
 use super::view::View1D;
 
@@ -186,29 +184,6 @@ impl SlotCache {
                 .collect::<Vec<_>>();
 
             let mut next_slot_id = available_slot_ids.into_iter();
-
-            /*
-            let mut slot_ids_by_gen = self
-                .slot_id_cache
-                .iter_mut()
-                .filter(|entry| {
-                    if let Some(entr
-                    if entry.is_none() {
-                        Some(entry)
-                    } else {
-                    let entry = entry.as_mut()?;
-                    let is_active = layout.contains_key(&entry.0);
-                    let is_old = entry.1 < oldest_gen;
-
-                    (!is_active && is_old).then_some(entry)
-                    }
-                })
-                .enumerate()
-                .collect::<Vec<_>>();
-
-            slot_ids_by_gen.sort_by_key(|(_, (_, gen))| *gen);
-            */
-            // log::error!("slot_ids_by_gen: {slot_ids_by_gen:?}");
 
             // iterates over cache entries that are not used by the input layout
             // and are old enough to be cleared
