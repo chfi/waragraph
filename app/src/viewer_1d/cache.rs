@@ -16,6 +16,23 @@ use super::view::View1D;
 // TODO: still using string-typed keys for data sources and viz. modes! bad!
 pub type SlotKey = (PathId, String);
 
+#[derive(
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    bytemuck::Zeroable,
+    bytemuck::Pod,
+)]
+#[repr(C)]
+pub struct SlotVertex {
+    position: [f32; 2],
+    size: [f32; 2],
+    slot_id: u32,
+}
+
 type SlotTaskHandle = JoinHandle<Result<([Bp; 2], Vec<u8>)>>;
 
 #[derive(Default)]
@@ -117,7 +134,8 @@ impl SlotCache {
         rt: &tokio::runtime::Handle,
         view: &View1D,
         layout: I,
-    ) where
+    ) -> Result<()>
+    where
         I: IntoIterator<Item = (SlotKey, egui::Rect)>,
     {
         let vl = view.range().start;
@@ -257,7 +275,7 @@ impl SlotCache {
             }
         }
 
-        let mut vertices: Vec<([f32; 4], u32)> = Vec::new();
+        let mut vertices: Vec<SlotVertex> = Vec::new();
 
         // add a vertex for each slot in the layout that has an up to date
         // row in the data buffer
@@ -267,23 +285,29 @@ impl SlotCache {
                 let last_update = state.last_updated_view;
 
                 if last_update == last_dispatch && last_dispatch.is_some() {
-                    let vx_rect =
-                        [rect.left(), rect.top(), rect.width(), rect.height()];
                     let slot_id = *self
                         .slot_id_map
                         .get(&key)
                         .expect("Slot was ready but unbound!");
 
-                    vertices.push((vx_rect, slot_id as u32));
+                    let vx = SlotVertex {
+                        position: [rect.left(), rect.top()],
+                        size: [rect.width(), rect.height()],
+                        slot_id: slot_id as u32,
+                    };
+
+                    vertices.push(vx);
                 }
             }
         }
 
         // update the vertex buffer, reallocating if needed
-        // update vertex count
-        todo!();
+        self.prepare_vertex_buffer(state, &vertices)?;
+        self.vertex_count = vertices.len();
 
         //
+
+        Ok(())
     }
 
     pub fn render_slots(&mut self) -> (std::ops::Range<u32>, Vec<egui::Shape>) {
@@ -292,6 +316,54 @@ impl SlotCache {
 }
 
 impl SlotCache {
+    fn prepare_vertex_buffer(
+        &mut self,
+        state: &raving_wgpu::State,
+        vertices: &[SlotVertex],
+    ) -> Result<()> {
+        // reallocate vertex buffer if needed
+        let vx_count = vertices.len();
+        let vx_stride = std::mem::size_of::<SlotVertex>();
+
+        let need_realloc = if let Some(buf) = self.vertex_buffer.as_ref() {
+            buf.size < vertices.len() * vx_stride
+        } else {
+            true
+        };
+
+        if need_realloc {
+            let usage =
+                wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST;
+
+            let buf_size = vx_stride * vertices.len().next_power_of_two();
+
+            let buffer = state.device.create_buffer(&wgpu::BufferDescriptor {
+                label: Some("Slot Cache Vertex Buffer"),
+                usage,
+                size: buf_size as u64,
+                mapped_at_creation: false,
+            });
+
+            self.vertex_buffer = Some(BufferDesc {
+                buffer,
+                size: buf_size,
+            });
+        }
+
+        // fill the vertex buffer
+        if let Some(buf) = self.vertex_buffer.as_ref() {
+            state.queue.write_buffer(
+                &buf.buffer,
+                0,
+                bytemuck::cast_slice(vertices),
+            );
+        } else {
+            unreachable!();
+        }
+
+        Ok(())
+    }
+
     fn total_data_buffer_size(&self) -> usize {
         let prefix_size = std::mem::size_of::<[u32; 4]>();
         prefix_size + self.rows * self.bin_count
