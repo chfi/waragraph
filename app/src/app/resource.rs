@@ -306,7 +306,8 @@ impl GraphDataCache {
         path: PathId,
     ) -> Option<Arc<GraphPathData<f32, FStats>>> {
         let data_key = data_key.to_string();
-        if let Some(data) = self.path_f32.blocking_read().get(&(data_key, path))
+        if let Some(data) =
+            self.path_f32.blocking_read().get(&(data_key.clone(), path))
         {
             return Some(data.clone());
         }

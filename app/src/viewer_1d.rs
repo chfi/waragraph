@@ -30,7 +30,7 @@ use waragraph_core::graph::PathIndex;
 
 use self::cache::SlotCache;
 use self::render::VizModeConfig;
-use self::util::path_sampled_data_viz_buffer;
+// use self::util::path_sampled_data_viz_buffer;
 use self::view::View1D;
 use self::widgets::VisualizationModesWidget;
 
@@ -192,7 +192,8 @@ impl Viewer1D {
         // let active_viz_data_key = "strand".to_string();
         let active_viz_data_key = "depth".to_string();
 
-        let viz_data_buffer = todo!(); // NB: this will be provided by the new cache
+        // let viz_data_buffer = todo!();
+        // NB: this will be provided by the new cache
 
         //
         /*
@@ -220,7 +221,7 @@ impl Viewer1D {
 
         let mut gpu_buffers = HashMap::default();
 
-        gpu_buffers.insert("viz_data_buffer".to_string(), viz_data_buffer);
+        // gpu_buffers.insert("viz_data_buffer".to_string(), viz_data_buffer);
 
         let dyn_slot_layout = {
             let width = |p: f32| taffy::style::Dimension::Percent(p);
@@ -521,8 +522,8 @@ impl Viewer1D {
             if let gui::SlotElem::PathData { slot_id, data_id } = elem {
                 if let Some(path_id) = path_list_view.get_in_view(*slot_id) {
                     let rrect = crate::gui::layout_egui_rect(&layout);
-                    let v_pos = rect.left_bottom().to_vec2();
-                    let v_size = rect.size();
+                    let v_pos = rrect.left_bottom().to_vec2();
+                    let v_size = rrect.size();
 
                     data_buf.extend(bytemuck::cast_slice(&[v_pos, v_size]));
                     data_buf.extend(bytemuck::cast_slice(&[*slot_id as u32]));
@@ -686,7 +687,7 @@ impl AppWindow for Viewer1D {
                 self.draw_path_slot,
                 move |_ctx, op_state| {
                     op_state.vertices = Some(0..6);
-                    op_state.instances = Some(insts);
+                    op_state.instances = Some(insts.clone());
                 },
             );
 
@@ -761,10 +762,11 @@ impl AppWindow for Viewer1D {
 
         // update uniform
         {
-            let data = Self::sample_index_transform(
-                &self.rendered_view,
-                self.view.range(),
-            );
+            let data = self.slot_cache.get_view_transform(&self.view);
+            // let data = Self::sample_index_transform(
+            //     &self.rendered_view,
+            //     self.view.range(),
+            // );
 
             state.queue.write_buffer(
                 &self.frag_uniform,
@@ -1054,6 +1056,12 @@ impl AppWindow for Viewer1D {
     ) -> anyhow::Result<()> {
         self.color_mapping.write_buffer(&state);
 
+        let has_vertices = self.slot_cache.vertex_buffer.is_some();
+
+        if !has_vertices {
+            return Ok(());
+        }
+
         let size: [u32; 2] = window.window.inner_size().into();
 
         let mut transient_res: HashMap<String, InputResource<'_>> =
@@ -1073,14 +1081,41 @@ impl AppWindow for Viewer1D {
         );
 
         let v_stride = std::mem::size_of::<[f32; 5]>();
+        /*
+        for name in ["viz_data_buffer"] {
+            if let Some(desc) = self.gpu_buffers.get(name) {
+                transient_res.insert(
+                    name.into(),
+                    InputResource::Buffer {
+                        size: desc.size,
+                        stride: None,
+                        buffer: &desc.buffer,
+                    },
+                );
+            }
+        }
+        */
+
+        let data_buffer = &self.slot_cache.data_buffer;
         transient_res.insert(
-            "vertices".into(),
+            "viz_data_buffer".into(),
             InputResource::Buffer {
-                size: self.vertices.size,
-                stride: Some(v_stride),
-                buffer: &self.vertices.buffer,
+                size: data_buffer.size,
+                stride: None,
+                buffer: &data_buffer.buffer,
             },
         );
+
+        if let Some(vertices) = self.slot_cache.vertex_buffer.as_ref() {
+            transient_res.insert(
+                "vertices".into(),
+                InputResource::Buffer {
+                    size: vertices.size,
+                    stride: Some(v_stride),
+                    buffer: &vertices.buffer,
+                },
+            );
+        }
 
         transient_res.insert(
             "vert_cfg".into(),
@@ -1139,19 +1174,6 @@ impl AppWindow for Viewer1D {
                 buffer: self.color_mapping.buffer(),
             },
         );
-
-        for name in ["viz_data_buffer"] {
-            if let Some(desc) = self.gpu_buffers.get(name) {
-                transient_res.insert(
-                    name.into(),
-                    InputResource::Buffer {
-                        size: desc.size,
-                        stride: None,
-                        buffer: &desc.buffer,
-                    },
-                );
-            }
-        }
 
         transient_res.insert(
             "transform".into(),

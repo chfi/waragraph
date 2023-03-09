@@ -10,6 +10,9 @@ use crate::app::resource::{FStats, GraphPathData};
 
 use super::BufferDesc;
 
+// pub(crate) fn sample
+
+/*
 pub(super) fn path_sampled_data_viz_buffer<S>(
     device: &wgpu::Device,
     index: &PathIndex,
@@ -40,3 +43,4 @@ pub(super) fn path_sampled_data_viz_buffer<S>(
 
     Ok(BufferDesc::new(buffer, buf.len()))
 }
+*/

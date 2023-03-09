@@ -19,14 +19,7 @@ use super::view::View1D;
 pub type SlotKey = (PathId, String);
 
 #[derive(
-    Clone,
-    Copy,
-    PartialEq,
-    Eq,
-    PartialOrd,
-    Ord,
-    bytemuck::Zeroable,
-    bytemuck::Pod,
+    Clone, Copy, PartialEq, PartialOrd, bytemuck::Zeroable, bytemuck::Pod,
 )]
 #[repr(C)]
 pub struct SlotVertex {
@@ -78,12 +71,12 @@ pub struct SlotCache {
     slot_id_map: HashMap<SlotKey, usize>,
     slot_id_generation: u64,
 
-    data_buffer: BufferDesc,
+    pub data_buffer: BufferDesc,
     rows: usize,
 
     bin_count: usize,
 
-    vertex_buffer: Option<BufferDesc>,
+    pub vertex_buffer: Option<BufferDesc>,
     pub vertex_count: usize,
 
     path_index: Arc<PathIndex>,
@@ -175,7 +168,7 @@ impl SlotCache {
                 .enumerate()
                 .collect::<Vec<_>>();
 
-            slot_ids_by_gen.sort_by_key(|(_, (_, gen))| gen);
+            slot_ids_by_gen.sort_by_key(|(_, (_, gen))| *gen);
 
             // iterates over cache entries that are not used by the input layout
             // and are old enough to be cleared
@@ -191,21 +184,22 @@ impl SlotCache {
 
                 // assign slot ID
                 if let Some(slot_id) = self.slot_id_map.get(key) {
+                    // todo!();
                     // this should never happen, but
-                    if self.slot_id_cache[*slot_id].is_none() {
-                        let new_gen = self.slot_id_generation;
-                        self.slot_id_generation += 1;
-                        self.slot_id_cache[*slot_id] =
-                            Some((key.clone(), new_gen));
-                    }
+                    // if self.slot_id_cache[*slot_id].is_none() {
+                    //     let new_gen = self.slot_id_generation;
+                    //     self.slot_id_generation += 1;
+                    //     self.slot_id_cache[*slot_id] =
+                    //         Some((key.clone(), new_gen));
+                    // }
                     // ensure the cache actually is assigned to the correct slot key
-                    debug_assert_eq!(
-                        self.slot_id_cache.get(*slot_id).and_then(|k| {
-                            let (key, _gen) = k.as_ref()?;
-                            Some(key)
-                        }),
-                        Some(key)
-                    );
+                    // debug_assert_eq!(
+                    //     self.slot_id_cache.get(*slot_id).and_then(|k| {
+                    //         let (key, _gen) = k.as_ref()?;
+                    //         Some(key)
+                    //     }),
+                    //     Some(key)
+                    // );
                 } else {
                     let new_gen = self.slot_id_generation;
                     self.slot_id_generation += 1;
@@ -270,7 +264,7 @@ impl SlotCache {
                     let size =
                         std::num::NonZeroU64::new(4 * self.bin_count as u64)
                             .unwrap();
-                    let write_view = state.queue.write_buffer_with(
+                    let mut write_view = state.queue.write_buffer_with(
                         &self.data_buffer.buffer,
                         offset as u64,
                         size,
@@ -315,6 +309,11 @@ impl SlotCache {
         self.vertex_count = vertices.len();
 
         Ok(())
+    }
+
+    pub fn total_data_buffer_size(&self) -> usize {
+        let prefix_size = std::mem::size_of::<[u32; 4]>();
+        prefix_size + self.rows * self.bin_count
     }
 
     // pub fn render_slots(&mut self) -> (std::ops::Range<u32>, Vec<egui::Shape>) {
@@ -369,11 +368,6 @@ impl SlotCache {
         }
 
         Ok(())
-    }
-
-    fn total_data_buffer_size(&self) -> usize {
-        let prefix_size = std::mem::size_of::<[u32; 4]>();
-        prefix_size + self.rows * self.bin_count
     }
 
     fn allocate_data_buffer(
