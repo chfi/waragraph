@@ -366,7 +366,7 @@ impl Viewer1D {
             let depth = VizModeConfig {
                 name: "depth".to_string(),
                 data_key: "depth".to_string(),
-                color_scheme: colors.get_color_scheme_id("depth").unwrap(),
+                color_scheme: colors.get_color_scheme_id("spectral").unwrap(),
                 default_color_map: ColorMap {
                     value_range: [1.0, 12.0],
                     color_range: [0.0, 1.0],
@@ -376,7 +376,7 @@ impl Viewer1D {
             let strand = VizModeConfig {
                 name: "strand".to_string(),
                 data_key: "strand".to_string(),
-                color_scheme: colors.get_color_scheme_id("strand").unwrap(),
+                color_scheme: colors.get_color_scheme_id("black_red").unwrap(),
                 default_color_map: ColorMap {
                     value_range: [0.0, 1.0],
                     color_range: [0.0, 1.0],
@@ -661,17 +661,18 @@ impl AppWindow for Viewer1D {
 
             let mut laid_out_slots = Vec::new();
             let data_key = self.active_viz_data_key.blocking_read().to_string();
-            self.dyn_slot_layout.layout().visit_layout(|layout, elem| {
-                if let gui::SlotElem::PathData { slot_id, data_id } = elem {
-                    if let Some(path_id) =
-                        self.path_list_view.get_in_view(*slot_id)
-                    {
-                        let slot_key = (*path_id, data_key.clone());
-                        let rect = crate::gui::layout_egui_rect(&layout);
-                        laid_out_slots.push((slot_key, rect));
+            let layout_result =
+                self.dyn_slot_layout.layout().visit_layout(|layout, elem| {
+                    if let gui::SlotElem::PathData { slot_id, data_id } = elem {
+                        if let Some(path_id) =
+                            self.path_list_view.get_in_view(*slot_id)
+                        {
+                            let slot_key = (*path_id, data_key.clone());
+                            let rect = crate::gui::layout_egui_rect(&layout);
+                            laid_out_slots.push((slot_key, rect));
+                        }
                     }
-                }
-            });
+                });
 
             // let layout = self.dyn_slot_layout.layout().visit_layout
 
@@ -681,6 +682,10 @@ impl AppWindow for Viewer1D {
                 &self.view,
                 laid_out_slots,
             );
+
+            if let Err(e) = update_result {
+                log::error!("Slot cache update error: {e:?}");
+            }
 
             let insts = 0u32..self.slot_cache.vertex_count as u32;
             self.render_graph.set_node_preprocess_fn(

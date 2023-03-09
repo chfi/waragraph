@@ -146,6 +146,17 @@ impl SlotCache {
 
         let layout = layout.into_iter().collect::<HashMap<_, _>>();
 
+        {
+            let mut active = 0;
+            for state in self.slot_state.values() {
+                if state.task_handle.is_some() {
+                    active += 1;
+                }
+            }
+            log::warn!("# of active tasks before update: {active}");
+            // log::warn!("
+        }
+
         // TODO: reallocate data buffer if `layout` contains more
         // rows than are available
 
@@ -155,24 +166,51 @@ impl SlotCache {
                 .slot_id_generation
                 .checked_sub(active_count as u64)
                 .unwrap_or(0);
+
+            let mut available_slot_ids = self
+                .slot_id_cache
+                .iter()
+                .enumerate()
+                .filter_map(|(ix, entry)| {
+                    if let Some(entry) = entry {
+                        let is_active = layout.contains_key(&entry.0);
+                        let is_old = entry.1 < oldest_gen;
+
+                        (!is_active && is_old).then_some(ix)
+                    } else {
+                        Some(ix)
+                    }
+                })
+                .collect::<Vec<_>>();
+
+            let mut next_slot_id = available_slot_ids.into_iter();
+
+            /*
             let mut slot_ids_by_gen = self
                 .slot_id_cache
                 .iter_mut()
-                .filter_map(|entry| {
+                .filter(|entry| {
+                    if let Some(entr
+                    if entry.is_none() {
+                        Some(entry)
+                    } else {
                     let entry = entry.as_mut()?;
                     let is_active = layout.contains_key(&entry.0);
                     let is_old = entry.1 < oldest_gen;
 
                     (!is_active && is_old).then_some(entry)
+                    }
                 })
                 .enumerate()
                 .collect::<Vec<_>>();
 
             slot_ids_by_gen.sort_by_key(|(_, (_, gen))| *gen);
+            */
+            // log::error!("slot_ids_by_gen: {slot_ids_by_gen:?}");
 
             // iterates over cache entries that are not used by the input layout
             // and are old enough to be cleared
-            let mut cache_iter = slot_ids_by_gen.into_iter();
+            // let mut cache_iter = slot_ids_by_gen.into_iter();
 
             // the slots in the layout are the ones we really care about,
             // but we can't just throw away what we have in case the user
@@ -185,33 +223,51 @@ impl SlotCache {
                 // assign slot ID
                 if let Some(slot_id) = self.slot_id_map.get(key) {
                     // todo!();
-                    // this should never happen, but
+                    let entry = self
+                        .slot_id_cache
+                        .get_mut(*slot_id)
+                        .and_then(|e| e.as_mut());
+                    if let Some(entry) = entry {
+                        let new_gen = self.slot_id_generation;
+                        self.slot_id_generation += 1;
+                        entry.1 = new_gen;
+                    } else {
+                        // this should never happen, but
+                        let new_gen = self.slot_id_generation;
+                        self.slot_id_generation += 1;
+                        self.slot_id_cache[*slot_id] =
+                            Some((key.clone(), new_gen));
+                    }
+
                     // if self.slot_id_cache[*slot_id].is_none() {
-                    //     let new_gen = self.slot_id_generation;
-                    //     self.slot_id_generation += 1;
-                    //     self.slot_id_cache[*slot_id] =
-                    //         Some((key.clone(), new_gen));
                     // }
                     // ensure the cache actually is assigned to the correct slot key
-                    // debug_assert_eq!(
-                    //     self.slot_id_cache.get(*slot_id).and_then(|k| {
-                    //         let (key, _gen) = k.as_ref()?;
-                    //         Some(key)
-                    //     }),
-                    //     Some(key)
-                    // );
+                    debug_assert_eq!(
+                        self.slot_id_cache.get(*slot_id).and_then(|k| {
+                            let (key, _gen) = k.as_ref()?;
+                            Some(key)
+                        }),
+                        Some(key)
+                    );
                 } else {
                     let new_gen = self.slot_id_generation;
                     self.slot_id_generation += 1;
 
                     // find the first available slot
-                    let (slot_id, cache_entry) = cache_iter.next().unwrap();
+                    let slot_id = next_slot_id.next().unwrap();
+                    // let (slot_id, cache_entry) = cache_iter.next().unwrap();
+
+                    if let Some((old_key, _old_gen)) =
+                        self.slot_id_cache.get(slot_id).and_then(|e| e.as_ref())
+                    {
+                        // make sure the old slot key is unassigned in the map
+                        self.slot_id_map.remove(old_key);
+                    }
 
                     // update the slot key -> slot ID map in the cache
-                    *cache_entry = (key.clone(), new_gen);
+                    self.slot_id_cache[slot_id] = Some((key.clone(), new_gen));
                     self.slot_id_map.insert(key.clone(), slot_id);
-                    // make sure the old slot key is unassigned in the map
-                    self.slot_id_map.remove(&cache_entry.0);
+                    // self.slot_id_map.remove(&cache_entry.0);
                 }
 
                 if state.task_handle.is_some() {
@@ -302,6 +358,16 @@ impl SlotCache {
                     vertices.push(vx);
                 }
             }
+        }
+
+        {
+            let mut active = 0;
+            for state in self.slot_state.values() {
+                if state.task_handle.is_some() {
+                    active += 1;
+                }
+            }
+            log::warn!("# of active tasks after update: {active}");
         }
 
         // update the vertex buffer, reallocating if needed
