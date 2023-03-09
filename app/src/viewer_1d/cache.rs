@@ -63,6 +63,7 @@ impl SlotState {
 // pub struct SlotCache<K: Ord> {
 pub struct SlotCache {
     last_dispatched_view: Option<[Bp; 2]>,
+    last_received_update_view: Option<[Bp; 2]>,
     slot_state: HashMap<SlotKey, SlotState>,
 
     // indexed by SlotId
@@ -99,6 +100,7 @@ impl SlotCache {
 
         Ok(Self {
             last_dispatched_view: None,
+            last_received_update_view: None,
 
             slot_state: HashMap::default(),
             slot_id_cache,
@@ -154,7 +156,7 @@ impl SlotCache {
                 }
             }
             log::warn!("# of active tasks before update: {active}");
-            // log::warn!("
+            log::warn!("last dispatched view: {:?}", self.last_dispatched_view);
         }
 
         // TODO: reallocate data buffer if `layout` contains more
@@ -290,6 +292,8 @@ impl SlotCache {
                 }
             }
         }
+
+        self.last_dispatched_view = Some(cview);
 
         // for each slot with a finished task, if the task contains data
         // for the correct view, find the first row in the data buffer that

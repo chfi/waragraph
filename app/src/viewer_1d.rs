@@ -555,6 +555,29 @@ impl AppWindow for Viewer1D {
         egui_ctx: &mut EguiCtx,
         dt: f32,
     ) {
+        let mut laid_out_slots = Vec::new();
+        let layout_result =
+            self.dyn_slot_layout.layout().visit_layout(|layout, elem| {
+                if let gui::SlotElem::PathData { slot_id, data_id } = elem {
+                    if let Some(path_id) =
+                        self.path_list_view.get_in_view(*slot_id)
+                    {
+                        let slot_key = (*path_id, data_id.clone());
+                        let rect = crate::gui::layout_egui_rect(&layout);
+                        laid_out_slots.push((slot_key, rect));
+                    }
+                }
+            });
+
+        // let layout = self.dyn_slot_layout.layout().visit_layout
+
+        let update_result = self.slot_cache.sample_and_update(
+            state,
+            tokio_rt,
+            &self.view,
+            laid_out_slots,
+        );
+
         // NB: disabling the color map widget for the time being
         /*
         {
@@ -658,30 +681,6 @@ impl AppWindow for Viewer1D {
                 (buffer, vxs, insts)
             };
             */
-
-            let mut laid_out_slots = Vec::new();
-            let data_key = self.active_viz_data_key.blocking_read().to_string();
-            let layout_result =
-                self.dyn_slot_layout.layout().visit_layout(|layout, elem| {
-                    if let gui::SlotElem::PathData { slot_id, data_id } = elem {
-                        if let Some(path_id) =
-                            self.path_list_view.get_in_view(*slot_id)
-                        {
-                            let slot_key = (*path_id, data_key.clone());
-                            let rect = crate::gui::layout_egui_rect(&layout);
-                            laid_out_slots.push((slot_key, rect));
-                        }
-                    }
-                });
-
-            // let layout = self.dyn_slot_layout.layout().visit_layout
-
-            let update_result = self.slot_cache.sample_and_update(
-                state,
-                tokio_rt,
-                &self.view,
-                laid_out_slots,
-            );
 
             if let Err(e) = update_result {
                 log::error!("Slot cache update error: {e:?}");
