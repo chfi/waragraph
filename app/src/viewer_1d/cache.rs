@@ -288,7 +288,8 @@ impl SlotCache {
                     let slot_id = if let Some(id) = self.slot_id_map.get(key) {
                         *id
                     } else {
-                        unreachable!();
+                        // just discard if the slot has been unmapped (e.g. the user scrolled)
+                        continue;
                     };
 
                     // the slot_id can be used to derive the slice in the buffer
