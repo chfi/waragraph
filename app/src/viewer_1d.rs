@@ -28,6 +28,7 @@ use anyhow::Result;
 
 use waragraph_core::graph::PathIndex;
 
+use self::cache::SlotCache;
 use self::render::VizModeConfig;
 use self::util::path_sampled_data_viz_buffer;
 use self::view::View1D;
@@ -56,7 +57,9 @@ pub struct Viewer1D {
 
     force_resample: bool,
 
-    vertices: BufferDesc,
+    slot_cache: SlotCache,
+
+    // vertices: BufferDesc,
     vert_uniform: wgpu::Buffer,
     frag_uniform: wgpu::Buffer,
 
@@ -66,9 +69,8 @@ pub struct Viewer1D {
 
     path_list_view: ListView<PathId>,
 
-    sample_handle:
-        Option<tokio::task::JoinHandle<(std::ops::Range<u64>, Vec<u8>)>>,
-
+    // sample_handle:
+    //     Option<tokio::task::JoinHandle<(std::ops::Range<u64>, Vec<u8>)>>,
     pub self_viz_interact: Arc<AtomicCell<VizInteractions>>,
     pub connected_viz_interact: Option<Arc<AtomicCell<VizInteractions>>>,
 
@@ -389,6 +391,16 @@ impl Viewer1D {
 
         log::error!("Initialized in {} seconds", t0.elapsed().as_secs_f32());
 
+        let row_count = 128;
+        let bin_count = 1024;
+        let slot_cache = SlotCache::new(
+            state,
+            path_index.clone(),
+            shared.graph_data_cache.clone(),
+            row_count,
+            bin_count,
+        )?;
+
         Ok(Viewer1D {
             render_graph: graph,
             draw_path_slot: draw_node,
@@ -397,7 +409,9 @@ impl Viewer1D {
             rendered_view: view.range().clone(),
             force_resample: false,
 
-            vertices,
+            slot_cache,
+
+            // vertices,
             vert_uniform,
             frag_uniform,
 
@@ -406,8 +420,7 @@ impl Viewer1D {
             dyn_slot_layout,
             path_list_view,
 
-            sample_handle: None,
-
+            // sample_handle: None,
             self_viz_interact,
             connected_viz_interact,
 
@@ -454,6 +467,7 @@ impl Viewer1D {
         size
     }
 
+    /*
     fn sample_into_vec<S>(
         index: &PathIndex,
         data: &GraphPathData<f32, S>,
@@ -490,6 +504,7 @@ impl Viewer1D {
 
         Ok(())
     }
+    */
 
     // TODO there's no need to reallocate the buffer every time the list is scrolled...
     fn slot_vertex_buffer(
@@ -505,7 +520,7 @@ impl Viewer1D {
         layout.visit_layout(|layout, elem| {
             if let gui::SlotElem::PathData { slot_id, data_id } = elem {
                 if let Some(path_id) = path_list_view.get_in_view(*slot_id) {
-                    let rect = crate::gui::layout_egui_rect(&layout);
+                    let rrect = crate::gui::layout_egui_rect(&layout);
                     let v_pos = rect.left_bottom().to_vec2();
                     let v_size = rect.size();
 
@@ -627,6 +642,7 @@ impl AppWindow for Viewer1D {
                 }
             }
 
+            /*
             let (vertices, vxs, insts) = {
                 let (buffer, insts) = Self::slot_vertex_buffer(
                     &state.device,
@@ -640,16 +656,39 @@ impl AppWindow for Viewer1D {
 
                 (buffer, vxs, insts)
             };
+            */
 
+            let mut laid_out_slots = Vec::new();
+            let data_key = self.active_viz_data_key.blocking_read().to_string();
+            self.dyn_slot_layout.layout().visit_layout(|layout, elem| {
+                if let gui::SlotElem::PathData { slot_id, data_id } = elem {
+                    if let Some(path_id) =
+                        self.path_list_view.get_in_view(*slot_id)
+                    {
+                        let slot_key = (*path_id, data_key.clone());
+                        let rect = crate::gui::layout_egui_rect(&layout);
+                        laid_out_slots.push((slot_key, rect));
+                    }
+                }
+            });
+
+            // let layout = self.dyn_slot_layout.layout().visit_layout
+
+            let update_result = self.slot_cache.sample_and_update(
+                state,
+                tokio_rt,
+                &self.view,
+                laid_out_slots,
+            );
+
+            let insts = 0u32..self.slot_cache.vertex_count as u32;
             self.render_graph.set_node_preprocess_fn(
                 self.draw_path_slot,
                 move |_ctx, op_state| {
-                    op_state.vertices = Some(vxs.clone());
-                    op_state.instances = Some(insts.clone());
+                    op_state.vertices = Some(0..6);
+                    op_state.instances = Some(insts);
                 },
             );
-
-            self.vertices = vertices;
 
             let uniform_data = [dims.x, dims.y];
 
@@ -660,6 +699,7 @@ impl AppWindow for Viewer1D {
             );
         }
 
+        /*
         if self.sample_handle.is_none()
             && (&self.rendered_view != self.view.range() || self.force_resample)
         {
@@ -683,7 +723,6 @@ impl AppWindow for Viewer1D {
             //     .fetch_path_data_blocking(&data_id)
             //     .unwrap();
 
-            /*
             let join = tokio_rt.spawn_blocking(move || {
                 let mut buf: Vec<u8> = Vec::new();
 
@@ -700,10 +739,11 @@ impl AppWindow for Viewer1D {
             });
 
             self.sample_handle = Some(join);
-            */
             self.sample_handle = todo!();
         }
+        */
 
+        /*
         if let Some(true) = self.sample_handle.as_ref().map(|j| j.is_finished())
         {
             let handle = self.sample_handle.take().unwrap();
@@ -717,6 +757,7 @@ impl AppWindow for Viewer1D {
                 self.force_resample = false;
             }
         }
+        */
 
         // update uniform
         {

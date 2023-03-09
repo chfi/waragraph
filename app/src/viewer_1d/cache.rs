@@ -9,7 +9,9 @@ use waragraph_core::graph::{Bp, PathId, PathIndex};
 
 use anyhow::Result;
 
-use crate::{app::resource::GraphDataCache, util::BufferDesc};
+use crate::{
+    app::resource::GraphDataCache, util::BufferDesc, viewer_1d::Viewer1D,
+};
 
 use super::view::View1D;
 
@@ -82,7 +84,7 @@ pub struct SlotCache {
     bin_count: usize,
 
     vertex_buffer: Option<BufferDesc>,
-    vertex_count: usize,
+    pub vertex_count: usize,
 
     path_index: Arc<PathIndex>,
     data_cache: Arc<GraphDataCache>,
@@ -124,8 +126,15 @@ impl SlotCache {
 
     // returns the view transform, based on the last dispatched view
     // and the current view, for use in a fragment uniform buffer
-    pub fn get_view_transform(&self, view: &View1D) -> [f32; 2] {
-        todo!();
+    pub fn get_view_transform(&self, current_view: &View1D) -> [f32; 2] {
+        if let Some(last_view) = self.last_dispatched_view {
+            let [l0, r0] = last_view;
+            let view0 = (l0.0)..(r0.0);
+            let view1 = current_view.range();
+            super::Viewer1D::sample_index_transform(&view0, view1)
+        } else {
+            [1.0, 0.0]
+        }
     }
 
     pub fn sample_and_update<I>(
@@ -291,7 +300,7 @@ impl SlotCache {
                         .expect("Slot was ready but unbound!");
 
                     let vx = SlotVertex {
-                        position: [rect.left(), rect.top()],
+                        position: [rect.left(), rect.bottom()],
                         size: [rect.width(), rect.height()],
                         slot_id: slot_id as u32,
                     };
@@ -305,14 +314,12 @@ impl SlotCache {
         self.prepare_vertex_buffer(state, &vertices)?;
         self.vertex_count = vertices.len();
 
-        //
-
         Ok(())
     }
 
-    pub fn render_slots(&mut self) -> (std::ops::Range<u32>, Vec<egui::Shape>) {
-        todo!();
-    }
+    // pub fn render_slots(&mut self) -> (std::ops::Range<u32>, Vec<egui::Shape>) {
+    //     todo!();
+    // }
 }
 
 impl SlotCache {
