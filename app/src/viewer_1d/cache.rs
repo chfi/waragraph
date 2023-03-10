@@ -77,6 +77,7 @@ pub struct SlotCache {
 
     pub vertex_buffer: Option<BufferDesc>,
     pub vertex_count: usize,
+    pub transform_buffer: Option<BufferDesc>,
 
     path_index: Arc<PathIndex>,
     data_cache: Arc<GraphDataCache>,
@@ -112,6 +113,8 @@ impl SlotCache {
 
             vertex_buffer: None,
             vertex_count: 0,
+            transform_buffer: None,
+
             path_index,
             data_cache,
         })
@@ -121,6 +124,20 @@ impl SlotCache {
     // and the current view, for use in a fragment uniform buffer
     pub fn get_view_transform(&self, current_view: &View1D) -> [f32; 2] {
         if let Some(last_view) = self.last_dispatched_view {
+            let [l0, r0] = last_view;
+            let view0 = (l0.0)..(r0.0);
+            let view1 = current_view.range();
+            super::Viewer1D::sample_index_transform(&view0, view1)
+        } else {
+            [1.0, 0.0]
+        }
+    }
+
+    fn view_transform(
+        last_view: Option<[Bp; 2]>,
+        current_view: &View1D,
+    ) -> [f32; 2] {
+        if let Some(last_view) = last_view {
             let [l0, r0] = last_view;
             let view0 = (l0.0)..(r0.0);
             let view1 = current_view.range();
@@ -361,13 +378,76 @@ impl SlotCache {
         let prefix_size = std::mem::size_of::<[u32; 4]>();
         prefix_size + self.rows * self.bin_count
     }
-
-    // pub fn render_slots(&mut self) -> (std::ops::Range<u32>, Vec<egui::Shape>) {
-    //     todo!();
-    // }
 }
 
 impl SlotCache {
+    fn prepare_transform_buffer(
+        &mut self,
+        state: &raving_wgpu::State,
+        vertices: &[SlotVertex],
+        current_view: &View1D,
+    ) -> Result<()> {
+        // reallocate if needed
+        let t_stride = std::mem::size_of::<[f32; 2]>();
+
+        let need_realloc = if let Some(buf) = self.transform_buffer.as_ref() {
+            buf.size < vertices.len() * t_stride
+        } else {
+            true
+        };
+
+        if need_realloc {
+            let usage =
+                wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST;
+
+            let buf_size = t_stride * vertices.len().next_power_of_two();
+
+            let buffer = state.device.create_buffer(&wgpu::BufferDescriptor {
+                label: Some("Slot Cache Fragment Transform Buffer"),
+                usage,
+                size: buf_size as u64,
+                mapped_at_creation: false,
+            });
+
+            self.vertex_buffer = Some(BufferDesc {
+                buffer,
+                size: buf_size,
+            });
+        }
+
+        //
+        if let Some(buf) = self.transform_buffer.as_ref() {
+            let data = vertices
+                .iter()
+                .filter_map(|vx| {
+                    let slot = vx.slot_id;
+                    let (key, _) = self
+                        .slot_id_cache
+                        .get(slot as usize)
+                        .and_then(|s| s.as_ref())?;
+
+                    let last_update =
+                        self.slot_state.get(key)?.last_updated_view;
+
+                    let transform =
+                        Self::view_transform(last_update, current_view);
+                    Some(transform)
+                })
+                .collect::<Vec<_>>();
+
+            state.queue.write_buffer(
+                &buf.buffer,
+                0,
+                bytemuck::cast_slice(&data),
+            );
+
+            debug_assert_eq!(data.len(), vertices.len());
+            Ok(())
+        } else {
+            unreachable!();
+        }
+    }
+
     fn prepare_vertex_buffer(
         &mut self,
         state: &raving_wgpu::State,
