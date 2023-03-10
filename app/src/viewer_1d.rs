@@ -63,8 +63,6 @@ pub struct Viewer1D {
     vert_uniform: wgpu::Buffer,
     frag_uniform: wgpu::Buffer,
 
-    gpu_buffers: HashMap<String, BufferDesc>,
-
     dyn_slot_layout: DynamicListLayout<Vec<gui::SlotElem>, gui::SlotElem>,
 
     path_list_view: ListView<PathId>,
@@ -191,37 +189,6 @@ impl Viewer1D {
 
         // let active_viz_data_key = "strand".to_string();
         let active_viz_data_key = "depth".to_string();
-
-        // let viz_data_buffer = todo!();
-        // NB: this will be provided by the new cache
-
-        //
-        /*
-        let viz_data_buffer = {
-            let paths =
-                path_list_view.visible_iter().copied().collect::<Vec<_>>();
-
-            let view_range = view.range().clone();
-
-            let path_index = path_index.clone();
-            let data = graph_data_cache
-                .fetch_path_data_blocking(&active_viz_data_key)
-                .unwrap();
-
-            path_sampled_data_viz_buffer(
-                &state.device,
-                &path_index,
-                &data,
-                paths,
-                view.range().clone(),
-                1024,
-            )?
-        };
-        */
-
-        let mut gpu_buffers = HashMap::default();
-
-        // gpu_buffers.insert("viz_data_buffer".to_string(), viz_data_buffer);
 
         let dyn_slot_layout = {
             let width = |p: f32| taffy::style::Dimension::Percent(p);
@@ -416,8 +383,6 @@ impl Viewer1D {
             vert_uniform,
             frag_uniform,
 
-            gpu_buffers,
-
             dyn_slot_layout,
             path_list_view,
 
@@ -460,52 +425,6 @@ impl Viewer1D {
 
         [a, b]
     }
-
-    fn sample_buffer_size(bins: usize, rows: usize) -> usize {
-        let prefix_size = std::mem::size_of::<u32>() * 4;
-        let elem_size = std::mem::size_of::<f32>();
-        let size = prefix_size + elem_size * bins * rows;
-        size
-    }
-
-    /*
-    fn sample_into_vec<S>(
-        index: &PathIndex,
-        data: &GraphPathData<f32, S>,
-        paths: &[PathId],
-        view_range: std::ops::Range<u64>,
-        buffer: &mut Vec<u8>,
-    ) -> Result<()> {
-        let bins = 1024;
-        let size = Self::sample_buffer_size(bins, paths.len());
-        buffer.resize(size, 0u8);
-        Self::sample_into_data_buffer(index, data, paths, view_range, buffer)
-    }
-
-    fn sample_into_data_buffer<S>(
-        index: &PathIndex,
-        data: &GraphPathData<f32, S>,
-        paths: &[PathId],
-        view_range: std::ops::Range<u64>,
-        buffer: &mut [u8],
-    ) -> Result<()> {
-        let bins = 1024;
-        let size = Self::sample_buffer_size(bins, paths.len());
-
-        assert!(buffer.len() >= size);
-
-        waragraph_core::graph::sampling::sample_path_data_into_buffer(
-            index,
-            data,
-            paths.into_iter().copied(),
-            bins,
-            view_range,
-            buffer,
-        );
-
-        Ok(())
-    }
-    */
 
     // TODO there's no need to reallocate the buffer every time the list is scrolled...
     fn slot_vertex_buffer(
@@ -666,22 +585,6 @@ impl AppWindow for Viewer1D {
                 }
             }
 
-            /*
-            let (vertices, vxs, insts) = {
-                let (buffer, insts) = Self::slot_vertex_buffer(
-                    &state.device,
-                    dims,
-                    self.dyn_slot_layout.layout(),
-                    &self.path_list_view,
-                )
-                .expect("Unrecoverable error when creating slot vertex buffer");
-                let vxs = 0..6;
-                let insts = 0..insts;
-
-                (buffer, vxs, insts)
-            };
-            */
-
             if let Err(e) = update_result {
                 log::error!("Slot cache update error: {e:?}");
             }
@@ -704,73 +607,9 @@ impl AppWindow for Viewer1D {
             );
         }
 
-        /*
-        if self.sample_handle.is_none()
-            && (&self.rendered_view != self.view.range() || self.force_resample)
-        {
-            let paths = self
-                .path_list_view
-                .visible_iter()
-                .copied()
-                .collect::<Vec<_>>();
-
-            let view_range = self.view.range().clone();
-
-            let path_index = self.shared.graph.clone();
-
-            let data_id = self.active_viz_data_key.blocking_read().clone();
-
-            let data_cache = self.shared.graph_data_cache.clone();
-
-            // let data = self
-            //     .shared
-            //     .graph_data_cache
-            //     .fetch_path_data_blocking(&data_id)
-            //     .unwrap();
-
-            let join = tokio_rt.spawn_blocking(move || {
-                let mut buf: Vec<u8> = Vec::new();
-
-                Self::sample_into_vec(
-                    &path_index,
-                    &data,
-                    &paths,
-                    view_range.clone(),
-                    &mut buf,
-                )
-                .unwrap();
-
-                (view_range, buf)
-            });
-
-            self.sample_handle = Some(join);
-            self.sample_handle = todo!();
-        }
-        */
-
-        /*
-        if let Some(true) = self.sample_handle.as_ref().map(|j| j.is_finished())
-        {
-            let handle = self.sample_handle.take().unwrap();
-
-            if let Ok((view_range, data)) = tokio_rt.block_on(handle) {
-                let gpu_buffer =
-                    self.gpu_buffers.get("viz_data_buffer").unwrap();
-                state.queue.write_buffer(&gpu_buffer.buffer, 0, &data);
-
-                self.rendered_view = view_range;
-                self.force_resample = false;
-            }
-        }
-        */
-
         // update uniform
         {
             let data = self.slot_cache.get_view_transform(&self.view);
-            // let data = Self::sample_index_transform(
-            //     &self.rendered_view,
-            //     self.view.range(),
-            // );
 
             state.queue.write_buffer(
                 &self.frag_uniform,
@@ -1084,22 +923,6 @@ impl AppWindow for Viewer1D {
             },
         );
 
-        let v_stride = std::mem::size_of::<[f32; 5]>();
-        /*
-        for name in ["viz_data_buffer"] {
-            if let Some(desc) = self.gpu_buffers.get(name) {
-                transient_res.insert(
-                    name.into(),
-                    InputResource::Buffer {
-                        size: desc.size,
-                        stride: None,
-                        buffer: &desc.buffer,
-                    },
-                );
-            }
-        }
-        */
-
         let data_buffer = &self.slot_cache.data_buffer;
         transient_res.insert(
             "viz_data_buffer".into(),
@@ -1111,6 +934,7 @@ impl AppWindow for Viewer1D {
         );
 
         if let Some(vertices) = self.slot_cache.vertex_buffer.as_ref() {
+            let v_stride = std::mem::size_of::<[f32; 5]>();
             transient_res.insert(
                 "vertices".into(),
                 InputResource::Buffer {
@@ -1196,7 +1020,7 @@ impl AppWindow for Viewer1D {
             .unwrap();
 
         if !valid {
-            log::error!("graph validation error");
+            log::error!("Render graph validation error");
         }
 
         self.render_graph

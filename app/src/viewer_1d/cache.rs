@@ -191,9 +191,8 @@ impl SlotCache {
                 .filter_map(|(ix, entry)| {
                     if let Some(entry) = entry {
                         let is_active = layout.contains_key(&entry.0);
-                        let is_old = entry.1 < oldest_gen;
-
-                        (!is_active && is_old).then_some(ix)
+                        // let is_old = entry.1 < oldest_gen;
+                        (!is_active).then_some(ix)
                     } else {
                         Some(ix)
                     }
