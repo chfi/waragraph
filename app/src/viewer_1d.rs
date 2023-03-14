@@ -28,7 +28,7 @@ use anyhow::Result;
 
 use waragraph_core::graph::PathIndex;
 
-use self::cache::SlotCache;
+use self::cache::{SlotCache, SlotState};
 use self::render::VizModeConfig;
 // use self::util::path_sampled_data_viz_buffer;
 use self::view::View1D;
@@ -622,17 +622,21 @@ impl AppWindow for Viewer1D {
 
         {
             let fonts = egui_ctx.ctx().fonts();
-            let show_state = |msg: &String, rect: egui::Rect| {
+            let show_state = |state: &SlotState| {
+                let msg = state.last_msg.as_ref()?;
+                let rect = state.last_rect?;
+                let _ = state.last_updated_view.is_none().then_some(())?;
+
                 let pos = rect.left_center();
                 let anchor = egui::Align2::LEFT_CENTER;
-                egui::Shape::text(
+                Some(egui::Shape::text(
                     &fonts,
                     pos,
                     anchor,
                     msg,
                     egui::FontId::monospace(16.0),
                     egui::Color32::WHITE,
-                )
+                ))
             };
             self.slot_cache.update_displayed_messages(show_state);
         }

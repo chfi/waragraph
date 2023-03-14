@@ -86,6 +86,7 @@ impl App {
     pub fn init(state: &raving_wgpu::State, args: Args) -> Result<Self> {
         let runtime = tokio::runtime::Builder::new_multi_thread()
             .worker_threads(4)
+            .enable_all()
             .thread_name("waragraph-tokio")
             .build()?;
 

@@ -31,11 +31,11 @@ type SlotTaskHandle = JoinHandle<Result<([Bp; 2], Vec<u8>)>>;
 pub type SlotMsg = String;
 
 #[derive(Default)]
-struct SlotState {
-    last_updated_view: Option<[Bp; 2]>,
+pub struct SlotState {
+    pub last_updated_view: Option<[Bp; 2]>,
     task_handle: Option<SlotTaskHandle>,
-    last_msg: Option<SlotMsg>,
-    last_rect: Option<egui::Rect>,
+    pub last_msg: Option<SlotMsg>,
+    pub last_rect: Option<egui::Rect>,
 }
 
 impl SlotState {
@@ -227,9 +227,6 @@ impl SlotCache {
             //
             // this is also where we assign the slot IDs for each slot in the layout
             for (key, rect) in layout.iter() {
-                let state = self.slot_state.entry(key.clone()).or_default();
-                state.last_rect = Some(*rect);
-
                 // assign slot ID
                 if let Some(slot_id) = self.slot_id_map.get(key) {
                     // todo!();
@@ -272,13 +269,16 @@ impl SlotCache {
                     {
                         // make sure the old slot key is unassigned in the map
                         self.slot_id_map.remove(old_key);
+                        self.slot_state.remove(old_key);
                     }
 
                     // update the slot key -> slot ID map in the cache
                     self.slot_id_cache[slot_id] = Some((key.clone(), new_gen));
                     self.slot_id_map.insert(key.clone(), slot_id);
-                    // self.slot_id_map.remove(&cache_entry.0);
                 }
+
+                let state = self.slot_state.entry(key.clone()).or_default();
+                state.last_rect = Some(*rect);
 
                 if state.task_handle.is_some() {
                     continue;
@@ -400,22 +400,14 @@ impl SlotCache {
 
     pub fn update_displayed_messages(
         &mut self,
-        show_state: impl Fn(&SlotMsg, egui::Rect) -> egui::Shape,
+        show_state: impl Fn(&SlotState) -> Option<egui::Shape>,
     ) {
         self.msg_shapes.clear();
 
         self.slot_state
             .values()
-            .filter_map(|state| {
-                let msg = state.last_msg.as_ref()?;
-                let rect = state.last_rect?;
-                state.last_updated_view.is_none().then_some((msg, rect))
-                // let _view = state.last_updated_view?;
-                // Some((msg, rect))
-            })
-            .for_each(|(msg, rect)| {
-                self.msg_shapes.push(show_state(msg, rect));
-            });
+            .filter_map(|state| Some((state, show_state(state)?)))
+            .for_each(|(state, shape)| self.msg_shapes.push(shape));
     }
 
     pub fn total_data_buffer_size(&self) -> usize {
@@ -584,6 +576,19 @@ impl SlotCache {
 
         let msg = format!("Fetching data ({}{})", path.ix(), &data_key);
         let _ = msg_tx.try_send((key.clone(), msg));
+
+        // let seconds = 10;
+
+        // for sec in (0..seconds).rev() {
+        //     let msg = format!(
+        //         "Sleeping for {sec} - (path {}, {})",
+        //         path.ix(),
+        //         &data_key,
+        //     );
+        //     let _ = msg_tx.try_send((key.clone(), msg));
+
+        //     tokio::time::sleep(std::time::Duration::from_millis(1000)).await;
+        // }
 
         // load data source into cache & get data
         let data = data_cache.fetch_path_data(&data_key, path).await?;
