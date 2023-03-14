@@ -136,6 +136,23 @@ impl SlotCache {
         })
     }
 
+    pub(super) fn debug_window(&self, egui_ctx: &egui::Context) {
+        egui::Window::new("Slot Cache Debug").show(egui_ctx, |ui| {
+            ui.vertical(|ui| {
+                for (ix, entry) in self.slot_id_cache.iter().enumerate() {
+                    let key = if let Some(((path, data), gen)) = entry.as_ref()
+                    {
+                        format!("{}, {} [{gen}]", path.ix(), data)
+                    } else {
+                        "None".to_string()
+                    };
+                    ui.label(&format!("slot {ix} - {key}"));
+                    ui.separator();
+                }
+            });
+        });
+    }
+
     // returns the view transform, based on the last dispatched view
     // and the current view, for use in a fragment uniform buffer
     pub fn get_view_transform(&self, current_view: &View1D) -> [f32; 2] {
