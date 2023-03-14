@@ -28,10 +28,13 @@ pub struct SlotVertex {
 
 type SlotTaskHandle = JoinHandle<Result<([Bp; 2], Vec<u8>)>>;
 
+type SlotMsg = String;
+
 #[derive(Default)]
 struct SlotState {
     last_updated_view: Option<[Bp; 2]>,
     task_handle: Option<SlotTaskHandle>,
+    last_msg: Option<SlotMsg>,
 }
 
 impl SlotState {
@@ -81,6 +84,9 @@ pub struct SlotCache {
 
     path_index: Arc<PathIndex>,
     data_cache: Arc<GraphDataCache>,
+
+    slot_msg_rx: crossbeam::channel::Receiver<(SlotKey, SlotMsg)>,
+    slot_msg_tx: crossbeam::channel::Sender<(SlotKey, SlotMsg)>,
 }
 
 impl SlotCache {
@@ -96,6 +102,8 @@ impl SlotCache {
 
         let slot_id_cache = vec![None; row_count];
         let slot_id_map = HashMap::default();
+
+        let (slot_msg_tx, slot_msg_rx) = crossbeam::channel::unbounded();
 
         Ok(Self {
             last_dispatched_view: None,
@@ -117,6 +125,9 @@ impl SlotCache {
 
             path_index,
             data_cache,
+
+            slot_msg_tx,
+            slot_msg_rx,
         })
     }
 
@@ -273,6 +284,7 @@ impl SlotCache {
                     let path_index = self.path_index.clone();
 
                     let task = rt.spawn(Self::slot_task(
+                        self.slot_msg_tx.clone(),
                         path_index,
                         data_cache,
                         bin_count,
@@ -285,6 +297,13 @@ impl SlotCache {
         }
 
         self.last_dispatched_view = Some(cview);
+
+        // update messages on slots
+        while let Ok((key, msg)) = self.slot_msg_rx.try_recv() {
+            if let Some(state) = self.slot_state.get_mut(&key) {
+                state.last_msg = Some(msg);
+            }
+        }
 
         // for each slot with a finished task, if the task contains data
         // for the correct view, find the first row in the data buffer that
@@ -526,6 +545,7 @@ impl SlotCache {
     }
 
     async fn slot_task(
+        msg_tx: crossbeam::channel::Sender<(SlotKey, SlotMsg)>,
         path_index: Arc<PathIndex>,
         data_cache: Arc<GraphDataCache>,
         bin_count: usize,
@@ -534,10 +554,22 @@ impl SlotCache {
     ) -> Result<([Bp; 2], Vec<u8>)> {
         use waragraph_core::graph::sampling;
 
-        let (path, data_key) = key;
+        let (path, data_key) = key.clone();
+
+        let msg = format!("Fetching data ({}{})", path.ix(), &data_key);
+        let _ = msg_tx.try_send((key.clone(), msg));
 
         // load data source into cache & get data
         let data = data_cache.fetch_path_data(&data_key, path).await?;
+
+        let msg = format!(
+            "Sampling ({}{}), [{}, {}]",
+            path.ix(),
+            &data_key,
+            view[0].0,
+            view[1].0
+        );
+        let _ = msg_tx.try_send((key.clone(), msg));
 
         // sample data into vector
         let sample_vec = tokio::task::spawn_blocking(move || {
