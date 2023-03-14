@@ -190,6 +190,10 @@ impl SlotCache {
             log::warn!("last dispatched view: {:?}", self.last_dispatched_view);
         }
 
+        for state in self.slot_state.values_mut() {
+            state.last_rect = None;
+        }
+
         // TODO: reallocate data buffer if `layout` contains more
         // rows than are available
 
@@ -329,7 +333,8 @@ impl SlotCache {
                     let slot_id = if let Some(id) = self.slot_id_map.get(key) {
                         *id
                     } else {
-                        // just discard if the slot has been unmapped (e.g. the user scrolled)
+                        // just discard if the slot has been unmapped
+                        // (e.g. the user scrolled far enough)
                         continue;
                     };
 
@@ -574,21 +579,29 @@ impl SlotCache {
 
         let (path, data_key) = key.clone();
 
-        let msg = format!("Fetching data ({}{})", path.ix(), &data_key);
+        let msg = format!(
+            "Fetching data ({}{}), [{}, {}]",
+            path.ix(),
+            &data_key,
+            view[0].0,
+            view[1].0
+        );
         let _ = msg_tx.try_send((key.clone(), msg));
 
-        // let seconds = 10;
+        let seconds = 3;
 
-        // for sec in (0..seconds).rev() {
-        //     let msg = format!(
-        //         "Sleeping for {sec} - (path {}, {})",
-        //         path.ix(),
-        //         &data_key,
-        //     );
-        //     let _ = msg_tx.try_send((key.clone(), msg));
+        for sec in (0..seconds).rev() {
+            let msg = format!(
+                "Sleeping for {sec} - (path {}, {}), [{}, {}]",
+                path.ix(),
+                &data_key,
+                view[0].0,
+                view[1].0
+            );
+            let _ = msg_tx.try_send((key.clone(), msg));
 
-        //     tokio::time::sleep(std::time::Duration::from_millis(1000)).await;
-        // }
+            tokio::time::sleep(std::time::Duration::from_millis(1000)).await;
+        }
 
         // load data source into cache & get data
         let data = data_cache.fetch_path_data(&data_key, path).await?;

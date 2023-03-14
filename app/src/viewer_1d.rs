@@ -625,7 +625,7 @@ impl AppWindow for Viewer1D {
             let show_state = |state: &SlotState| {
                 let msg = state.last_msg.as_ref()?;
                 let rect = state.last_rect?;
-                let _ = state.last_updated_view.is_none().then_some(())?;
+                // let _ = state.last_updated_view.is_none().then_some(())?;
 
                 let pos = rect.left_center();
                 let anchor = egui::Align2::LEFT_CENTER;
@@ -635,7 +635,7 @@ impl AppWindow for Viewer1D {
                     anchor,
                     msg,
                     egui::FontId::monospace(16.0),
-                    egui::Color32::WHITE,
+                    egui::Color32::RED,
                 ))
             };
             self.slot_cache.update_displayed_messages(show_state);
