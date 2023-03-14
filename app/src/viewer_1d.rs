@@ -625,7 +625,7 @@ impl AppWindow for Viewer1D {
             let show_state = |state: &SlotState| {
                 let msg = state.last_msg.as_ref()?;
                 let rect = state.last_rect?;
-                // let _ = state.last_updated_view.is_none().then_some(())?;
+                let _ = state.last_updated_view.is_none().then_some(())?;
 
                 let pos = rect.left_center();
                 let anchor = egui::Align2::LEFT_CENTER;
@@ -1028,14 +1028,16 @@ impl AppWindow for Viewer1D {
             },
         );
 
-        transient_res.insert(
-            "transform".into(),
-            InputResource::Buffer {
-                size: 2 * 4,
-                stride: None,
-                buffer: &self.frag_uniform,
-            },
-        );
+        if let Some(transforms) = self.slot_cache.transform_buffer.as_ref() {
+            transient_res.insert(
+                "transform".into(),
+                InputResource::Buffer {
+                    size: 2 * 4,
+                    stride: None,
+                    buffer: &transforms.buffer,
+                },
+            );
+        }
 
         self.render_graph.update_transient_cache(&transient_res);
 

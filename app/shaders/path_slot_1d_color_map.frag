@@ -21,19 +21,17 @@ layout (set = 1, binding = 3) uniform ColorMap {
   float max_color;
 } u_color_map;
 
-layout (set = 1, binding = 4) uniform Transform {
-  float a;
-  float b;
-} u_transform;
-
-
+layout (set = 1, binding = 4) readonly buffer Transform {
+  vec2 ab[];
+} u_transforms;
 
 void main() {
   uint row_offset = i_slot_id * u_data.row_size;
 
   float t = i_uv.x;
 
-  t = u_transform.a * t + u_transform.b;
+  vec2 ab = u_transforms.ab[i_slot_id];
+  t = ab.x * t + ab.y;
 
   float c_t = clamp(t, 0.0, 1.0);
 
@@ -52,47 +50,3 @@ void main() {
   f_color = color;
 
 }
-
-  /*
-void main() {
-
-  uint row_offset = i_slot_id * data.row_size;
-
-  float t = i_uv.x;
-
-  t = transform.a * t + transform.b;
-
-  float c_t = clamp(t, 0.0, 1.0);
-
-  uint data_ix = uint(round(c_t * float(data.row_size - 1)));
-
-  float val = data.values[row_offset + data_ix];
-
-  // apply color mapping
-
-  uint c_range_len = color_map.max_color_ix - color_map.min_color_ix;
-  float val_range = color_map.max_val - color_map.min_val;
-
-  uint ix = min(uint(round(val)), c_range_len - 1) + 1;
-
-  if (val < color_map.min_val) {
-      ix = color_map.extreme_min_color_ix;
-  } else if (val > color_map.max_val) {
-      ix = color_map.extreme_max_color_ix;
-  } else {
-      ix = ix + color_map.min_color_ix;
-  }
-
-  // infinity is used to signal a bin that doesn't contain any nodes in the path
-  if (isinf(val)) {
-    f_color = vec4(1.0);
-  } else {
-
-    vec4 color = ((t >= 0.0) && (t <= 1.0))
-      ? colors.colors[ix]
-      : vec4(1.0, 0.0, 0.0, 1.0);
-
-    f_color = color;
-  }
-}
-  */

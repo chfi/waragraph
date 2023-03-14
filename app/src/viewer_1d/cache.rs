@@ -366,10 +366,11 @@ impl SlotCache {
         // row in the data buffer
         for (key, rect) in layout {
             if let Some(state) = self.slot_state.get(&key) {
-                let last_dispatch = self.last_dispatched_view;
+                // let last_dispatch = self.last_dispatched_view;
                 let last_update = state.last_updated_view;
 
-                if last_update == last_dispatch && last_dispatch.is_some() {
+                // if last_update == last_dispatch && last_dispatch.is_some() {
+                if last_update.is_some() {
                     let slot_id = *self
                         .slot_id_map
                         .get(&key)
@@ -398,6 +399,7 @@ impl SlotCache {
 
         // update the vertex buffer, reallocating if needed
         self.prepare_vertex_buffer(state, &vertices)?;
+        self.prepare_transform_buffer(state, &vertices, view)?;
         self.vertex_count = vertices.len();
 
         Ok(())
@@ -439,7 +441,7 @@ impl SlotCache {
 
         if need_realloc {
             let usage =
-                wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST;
+                wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST;
 
             let buf_size = t_stride * vertices.len().next_power_of_two();
 
@@ -450,7 +452,7 @@ impl SlotCache {
                 mapped_at_creation: false,
             });
 
-            self.vertex_buffer = Some(BufferDesc {
+            self.transform_buffer = Some(BufferDesc {
                 buffer,
                 size: buf_size,
             });
@@ -588,20 +590,20 @@ impl SlotCache {
         );
         let _ = msg_tx.try_send((key.clone(), msg));
 
-        let seconds = 3;
+        // let seconds = 3;
 
-        for sec in (0..seconds).rev() {
-            let msg = format!(
-                "Sleeping for {sec} - (path {}, {}), [{}, {}]",
-                path.ix(),
-                &data_key,
-                view[0].0,
-                view[1].0
-            );
-            let _ = msg_tx.try_send((key.clone(), msg));
+        // for sec in (0..seconds).rev() {
+        //     let msg = format!(
+        //         "Sleeping for {sec} - (path {}, {}), [{}, {}]",
+        //         path.ix(),
+        //         &data_key,
+        //         view[0].0,
+        //         view[1].0
+        //     );
+        //     let _ = msg_tx.try_send((key.clone(), msg));
 
-            tokio::time::sleep(std::time::Duration::from_millis(1000)).await;
-        }
+        //     tokio::time::sleep(std::time::Duration::from_millis(1000)).await;
+        // }
 
         // load data source into cache & get data
         let data = data_cache.fetch_path_data(&data_key, path).await?;
