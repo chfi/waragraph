@@ -488,14 +488,27 @@ impl AppWindow for Viewer1D {
                 }
             });
 
-        // let layout = self.dyn_slot_layout.layout().visit_layout
-
-        let update_result = self.slot_cache.sample_and_update(
-            state,
-            tokio_rt,
-            &self.view,
-            laid_out_slots,
-        );
+        let update_result = {
+            let fonts = egui_ctx.ctx().fonts();
+            self.slot_cache.sample_and_update(
+                state,
+                tokio_rt,
+                &self.view,
+                laid_out_slots,
+                |msg, rect| {
+                    let pos = rect.left_center();
+                    let anchor = egui::Align2::LEFT_CENTER;
+                    egui::Shape::text(
+                        &fonts,
+                        pos,
+                        anchor,
+                        msg,
+                        egui::FontId::monospace(16.0),
+                        egui::Color32::WHITE,
+                    )
+                },
+            )
+        };
 
         // NB: disabling the color map widget for the time being
         /*
@@ -835,6 +848,8 @@ impl AppWindow for Viewer1D {
                 "main_area_fg".into(),
             ));
             painter.extend(fg_shapes);
+
+            painter.extend(self.slot_cache.msg_shapes.drain(..));
         }
 
         egui_ctx.end_frame(&window.window);

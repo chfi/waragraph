@@ -28,7 +28,7 @@ pub struct SlotVertex {
 
 type SlotTaskHandle = JoinHandle<Result<([Bp; 2], Vec<u8>)>>;
 
-type SlotMsg = String;
+pub type SlotMsg = String;
 
 #[derive(Default)]
 struct SlotState {
@@ -87,6 +87,8 @@ pub struct SlotCache {
 
     slot_msg_rx: crossbeam::channel::Receiver<(SlotKey, SlotMsg)>,
     slot_msg_tx: crossbeam::channel::Sender<(SlotKey, SlotMsg)>,
+
+    pub(super) msg_shapes: Vec<egui::Shape>,
 }
 
 impl SlotCache {
@@ -128,6 +130,8 @@ impl SlotCache {
 
             slot_msg_tx,
             slot_msg_rx,
+
+            msg_shapes: Vec::new(),
         })
     }
 
@@ -164,6 +168,7 @@ impl SlotCache {
         rt: &tokio::runtime::Handle,
         view: &View1D,
         layout: I,
+        show_state: impl Fn(&SlotMsg, egui::Rect) -> egui::Shape,
     ) -> Result<()>
     where
         I: IntoIterator<Item = (SlotKey, egui::Rect)>,
@@ -350,6 +355,7 @@ impl SlotCache {
         }
 
         let mut vertices: Vec<SlotVertex> = Vec::new();
+        self.msg_shapes.clear();
 
         // add a vertex for each slot in the layout that has an up to date
         // row in the data buffer
@@ -371,6 +377,9 @@ impl SlotCache {
                     };
 
                     vertices.push(vx);
+                } else if let Some(msg) = state.last_msg.as_ref() {
+                    // use rect to map message to shape & store
+                    self.msg_shapes.push(show_state(msg, rect));
                 }
             }
         }
