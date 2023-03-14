@@ -489,24 +489,11 @@ impl AppWindow for Viewer1D {
             });
 
         let update_result = {
-            let fonts = egui_ctx.ctx().fonts();
             self.slot_cache.sample_and_update(
                 state,
                 tokio_rt,
                 &self.view,
                 laid_out_slots,
-                |msg, rect| {
-                    let pos = rect.left_center();
-                    let anchor = egui::Align2::LEFT_CENTER;
-                    egui::Shape::text(
-                        &fonts,
-                        pos,
-                        anchor,
-                        msg,
-                        egui::FontId::monospace(16.0),
-                        egui::Color32::WHITE,
-                    )
-                },
             )
         };
 
@@ -633,10 +620,29 @@ impl AppWindow for Viewer1D {
 
         egui_ctx.begin_frame(&window.window);
 
+        {
+            let fonts = egui_ctx.ctx().fonts();
+            let show_state = |msg: &String, rect: egui::Rect| {
+                let pos = rect.left_center();
+                let anchor = egui::Align2::LEFT_CENTER;
+                egui::Shape::text(
+                    &fonts,
+                    pos,
+                    anchor,
+                    msg,
+                    egui::FontId::monospace(16.0),
+                    egui::Color32::WHITE,
+                )
+            };
+            self.slot_cache.update_displayed_messages(show_state);
+        }
+
         let mut path_name_region = egui::Rect::NOTHING;
         let mut path_slot_region = egui::Rect::NOTHING;
 
         let mut shapes = Vec::new();
+
+        shapes.extend(self.slot_cache.msg_shapes.drain(..));
 
         let mut view_range_rect = None;
 

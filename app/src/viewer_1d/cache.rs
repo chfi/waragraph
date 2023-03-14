@@ -35,6 +35,7 @@ struct SlotState {
     last_updated_view: Option<[Bp; 2]>,
     task_handle: Option<SlotTaskHandle>,
     last_msg: Option<SlotMsg>,
+    last_rect: Option<egui::Rect>,
 }
 
 impl SlotState {
@@ -168,7 +169,6 @@ impl SlotCache {
         rt: &tokio::runtime::Handle,
         view: &View1D,
         layout: I,
-        show_state: impl Fn(&SlotMsg, egui::Rect) -> egui::Shape,
     ) -> Result<()>
     where
         I: IntoIterator<Item = (SlotKey, egui::Rect)>,
@@ -228,6 +228,7 @@ impl SlotCache {
             // this is also where we assign the slot IDs for each slot in the layout
             for (key, rect) in layout.iter() {
                 let state = self.slot_state.entry(key.clone()).or_default();
+                state.last_rect = Some(*rect);
 
                 // assign slot ID
                 if let Some(slot_id) = self.slot_id_map.get(key) {
@@ -355,7 +356,6 @@ impl SlotCache {
         }
 
         let mut vertices: Vec<SlotVertex> = Vec::new();
-        self.msg_shapes.clear();
 
         // add a vertex for each slot in the layout that has an up to date
         // row in the data buffer
@@ -377,9 +377,6 @@ impl SlotCache {
                     };
 
                     vertices.push(vx);
-                } else if let Some(msg) = state.last_msg.as_ref() {
-                    // use rect to map message to shape & store
-                    self.msg_shapes.push(show_state(msg, rect));
                 }
             }
         }
@@ -399,6 +396,26 @@ impl SlotCache {
         self.vertex_count = vertices.len();
 
         Ok(())
+    }
+
+    pub fn update_displayed_messages(
+        &mut self,
+        show_state: impl Fn(&SlotMsg, egui::Rect) -> egui::Shape,
+    ) {
+        self.msg_shapes.clear();
+
+        self.slot_state
+            .values()
+            .filter_map(|state| {
+                let msg = state.last_msg.as_ref()?;
+                let rect = state.last_rect?;
+                state.last_updated_view.is_none().then_some((msg, rect))
+                // let _view = state.last_updated_view?;
+                // Some((msg, rect))
+            })
+            .for_each(|(msg, rect)| {
+                self.msg_shapes.push(show_state(msg, rect));
+            });
     }
 
     pub fn total_data_buffer_size(&self) -> usize {
@@ -572,7 +589,7 @@ impl SlotCache {
         let data = data_cache.fetch_path_data(&data_key, path).await?;
 
         let msg = format!(
-            "Sampling ({}{}), [{}, {}]",
+            "Sampling (path {}, {}), [{}, {}]",
             path.ix(),
             &data_key,
             view[0].0,
