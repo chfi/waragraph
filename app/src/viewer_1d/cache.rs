@@ -283,6 +283,7 @@ impl SlotCache {
 
                     // find the first available slot
                     let slot_id = next_slot_id.next().unwrap();
+                    log::error!("allocating new slot!!! id: {slot_id}");
                     // let (slot_id, cache_entry) = cache_iter.next().unwrap();
 
                     if let Some((old_key, _old_gen)) =
@@ -341,10 +342,10 @@ impl SlotCache {
             let mut slot_index = 0usize;
             for (key, slot_state) in self.slot_state.iter_mut() {
                 if let Some((task_view, data)) = slot_state.task_results(rt) {
-                    if Some(task_view) != self.last_dispatched_view {
-                        // out of date, discarding
-                        continue;
-                    }
+                    // if Some(task_view) != self.last_dispatched_view {
+                    // out of date, discarding
+                    //     continue;
+                    // }
 
                     // get the slot ID, which is assigned on task dispatch above
                     let slot_id = if let Some(id) = self.slot_id_map.get(key) {
@@ -357,12 +358,15 @@ impl SlotCache {
 
                     // the slot_id can be used to derive the slice in the buffer
                     // that this slot key is bound to
-                    let prefix_size = std::mem::size_of::<[u32; 4]>();
-                    let offset = prefix_size + slot_id * self.bin_count;
+                    let prefix_size = std::mem::size_of::<[u32; 2]>();
+                    let elem_size = std::mem::size_of::<f32>();
+                    let offset =
+                        prefix_size + slot_id * self.bin_count * elem_size;
 
-                    let size =
-                        std::num::NonZeroU64::new(4 * self.bin_count as u64)
-                            .unwrap();
+                    let size = std::num::NonZeroU64::new(
+                        (elem_size * self.bin_count) as u64,
+                    )
+                    .unwrap();
                     let mut write_view = state.queue.write_buffer_with(
                         &self.data_buffer.buffer,
                         offset as u64,
@@ -563,10 +567,12 @@ impl SlotCache {
     ) -> Result<BufferDesc> {
         let rows = row_count as u32;
         let cols = bin_count as u32;
-        let prefix = [rows * cols, cols, !0u32, !0u32];
+        // let prefix = [rows * cols, cols, !0u32, !0u32];
+        let prefix = [rows * cols, cols];
 
-        let prefix_size = std::mem::size_of::<[u32; 4]>();
-        let size = prefix_size + row_count * bin_count;
+        let prefix_size = std::mem::size_of::<[u32; 2]>();
+        let elem_size = std::mem::size_of::<f32>();
+        let size = prefix_size + row_count * bin_count * elem_size;
 
         let usage = wgpu::BufferUsages::COPY_DST
             | wgpu::BufferUsages::COPY_SRC
@@ -636,7 +642,7 @@ impl SlotCache {
 
         // sample data into vector
         let sample_vec = tokio::task::spawn_blocking(move || {
-            let mut buf = vec![0u8; bin_count * 4];
+            let mut buf = vec![0u8; 4 * bin_count];
 
             let l = view[0].0;
             let r = view[1].0;
