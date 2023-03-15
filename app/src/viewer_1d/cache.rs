@@ -1,5 +1,5 @@
 use std::{
-    collections::{BTreeMap, HashMap},
+    collections::{BTreeMap, HashMap, HashSet},
     ops::RangeInclusive,
     sync::Arc,
 };
@@ -143,15 +143,31 @@ impl SlotCache {
     }
 
     pub(super) fn debug_window(&self, egui_ctx: &egui::Context) {
+        let entry_uis = |ui: &mut egui::Ui, slot: usize, key: &SlotKey| {
+            if let Some(state) = self.slot_state.get(key) {
+                let (path, data) = key;
+
+                let running = if state.task_handle.is_some() {
+                    "Running"
+                } else {
+                    "N/A"
+                };
+
+                let key = format!("{}, {} [{running}]", path.ix(), data);
+                ui.label(&format!("slot {slot} - {key}"));
+                ui.separator();
+            }
+        };
+
         egui::Window::new("Slot Cache Debug").show(egui_ctx, |ui| {
-            ui.vertical(|ui| {
-                for (ix, entry) in self.slot_id_cache.iter().enumerate() {
-                    if let Some(((path, data), gen)) = entry.as_ref() {
-                        let key = format!("{}, {} [{gen}]", path.ix(), data);
-                        ui.label(&format!("slot {ix} - {key}"));
-                        ui.separator();
+            egui::ScrollArea::vertical().show(ui, |ui| {
+                ui.vertical(|ui| {
+                    for (ix, entry) in self.slot_id_cache.iter().enumerate() {
+                        if let Some((key, gen)) = entry.as_ref() {
+                            entry_uis(ui, ix, key);
+                        }
                     }
-                }
+                });
             });
         });
     }
@@ -199,9 +215,33 @@ impl SlotCache {
 
         let layout = layout.into_iter().collect::<HashMap<_, _>>();
 
+        if self.any_slot_id_collisions() {
+            log::error!("oh no!");
+        }
+
         let time = self.last_update.elapsed().as_micros();
         log::debug!("Time since last slot update: {time} us");
         self.last_update = std::time::Instant::now();
+
+        {
+            // O(n^2) layout collision check
+            let mut count = 0;
+
+            for (k0, r0) in layout.iter() {
+                for (k1, r1) in layout.iter() {
+                    if k0 != k1 {
+                        if r0.intersects(*r1) {
+                            log::error!("collision!!!");
+                            count += 1;
+                        }
+                    }
+                }
+            }
+
+            if count > 0 {
+                log::error!(" detected {count} collisions!!!!");
+            }
+        }
 
         {
             let mut active = 0;
@@ -215,6 +255,10 @@ impl SlotCache {
         }
 
         let mut vertices: Vec<SlotVertex> = Vec::new();
+
+        let mut slot_id_count: HashMap<usize, usize> = HashMap::new();
+
+        // let mut unused_slots = HashSet<
 
         // add a vertex for each slot in the layout that has an up to date
         // row in the data buffer
@@ -236,9 +280,18 @@ impl SlotCache {
                         slot_id: slot_id as u32,
                     };
 
+                    *slot_id_count.entry(slot_id).or_default() += 1;
+
                     vertices.push(vx);
                 }
             }
+        }
+
+        let mut slot_id_count = slot_id_count.into_iter().collect::<Vec<_>>();
+        slot_id_count.sort_by_key(|(k, _)| *k);
+
+        for (id, count) in slot_id_count {
+            println!(" slot id: {id}\t count: {count}");
         }
 
         {
@@ -456,6 +509,10 @@ impl SlotCache {
             }
         }
 
+        if self.any_slot_id_collisions() {
+            log::error!("oh no!!!!");
+        }
+
         self.generation += 1;
 
         Ok(())
@@ -533,6 +590,9 @@ impl SlotCache {
                     Some(transform)
                 })
                 .collect::<Vec<_>>();
+
+            log::warn!("vertex input len: {}", vertices.len());
+            log::warn!("transform data len: {}", data.len());
 
             state.queue.write_buffer(
                 &buf.buffer,
@@ -696,5 +756,41 @@ impl SlotCache {
         .await?;
 
         Ok((view, sample_vec, generation))
+    }
+
+    fn any_slot_id_collisions(&self) -> bool {
+        let mut id_count: HashMap<usize, usize> = HashMap::new();
+
+        for (key, slot_id) in &self.slot_id_map {
+            *id_count.entry(*slot_id).or_default() += 1;
+        }
+
+        let mut collision = false;
+
+        for (slot_id, count) in id_count {
+            if count > 1 {
+                collision = true;
+                log::error!("Slot ID collision: {slot_id}");
+            }
+        }
+
+        let mut key_count: HashMap<&SlotKey, usize> = HashMap::new();
+
+        self.slot_id_cache
+            .iter()
+            .enumerate()
+            .filter_map(|(slot_id, entry)| Some((slot_id, entry.as_ref()?)))
+            .for_each(|(_slot_id, (key, gen))| {
+                *key_count.entry(key).or_default() += 1;
+            });
+
+        for ((path, data), count) in key_count {
+            if count > 1 {
+                collision = true;
+                log::error!("Key collision: [{}-{data}]", path.ix());
+            }
+        }
+
+        collision
     }
 }
