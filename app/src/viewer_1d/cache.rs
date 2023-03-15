@@ -26,12 +26,13 @@ pub struct SlotVertex {
     slot_id: u32,
 }
 
-type SlotTaskHandle = JoinHandle<Result<([Bp; 2], Vec<u8>)>>;
+type SlotTaskHandle = JoinHandle<Result<([Bp; 2], Vec<u8>, u64)>>;
 
 pub type SlotMsg = String;
 
 #[derive(Default)]
 pub struct SlotState {
+    pub data_generation: Option<u64>,
     pub last_updated_view: Option<[Bp; 2]>,
     task_handle: Option<SlotTaskHandle>,
     pub last_msg: Option<SlotMsg>,
@@ -50,7 +51,7 @@ impl SlotState {
     fn task_results(
         &mut self,
         rt: &tokio::runtime::Handle,
-    ) -> Option<([Bp; 2], Vec<u8>)> {
+    ) -> Option<([Bp; 2], Vec<u8>, u64)> {
         let handle = self.task_handle.take()?;
         if !handle.is_finished() {
             self.task_handle = Some(handle);
@@ -145,14 +146,11 @@ impl SlotCache {
         egui::Window::new("Slot Cache Debug").show(egui_ctx, |ui| {
             ui.vertical(|ui| {
                 for (ix, entry) in self.slot_id_cache.iter().enumerate() {
-                    let key = if let Some(((path, data), gen)) = entry.as_ref()
-                    {
-                        format!("{}, {} [{gen}]", path.ix(), data)
-                    } else {
-                        "None".to_string()
-                    };
-                    ui.label(&format!("slot {ix} - {key}"));
-                    ui.separator();
+                    if let Some(((path, data), gen)) = entry.as_ref() {
+                        let key = format!("{}, {} [{gen}]", path.ix(), data);
+                        ui.label(&format!("slot {ix} - {key}"));
+                        ui.separator();
+                    }
                 }
             });
         });
@@ -357,6 +355,17 @@ impl SlotCache {
                     continue;
                 }
 
+                if state
+                    .data_generation
+                    .map(|prev_gen| {
+                        self.generation.abs_diff(prev_gen) > 4
+                        // self.generation.checked_sub(
+                    })
+                    .unwrap_or(false)
+                {
+                    continue;
+                }
+
                 if state.last_updated_view != Some(cview) {
                     let data_cache = self.data_cache.clone();
                     let bin_count = self.bin_count;
@@ -364,6 +373,7 @@ impl SlotCache {
 
                     let task = rt.spawn(Self::slot_task(
                         self.slot_msg_tx.clone(),
+                        self.generation,
                         path_index,
                         data_cache,
                         bin_count,
@@ -392,7 +402,20 @@ impl SlotCache {
         {
             let mut slot_index = 0usize;
             for (key, slot_state) in self.slot_state.iter_mut() {
-                if let Some((task_view, data)) = slot_state.task_results(rt) {
+                if let Some((task_view, data, data_gen)) =
+                    slot_state.task_results(rt)
+                {
+                    if slot_state
+                        .data_generation
+                        .map(|prev_gen| prev_gen > data_gen)
+                        .unwrap_or(false)
+                    {
+                        continue;
+                    }
+                    // if Some(data_gen) = slot_state.data_generation
+                    // if data_gen < self.generation {
+                    //     continue;
+                    // }
                     // if Some(task_view) != self.last_dispatched_view {
                     // out of date, discarding
                     //     continue;
@@ -425,6 +448,7 @@ impl SlotCache {
                     );
 
                     slot_state.last_updated_view = Some(task_view);
+                    slot_state.data_generation = Some(data_gen);
 
                     // schedule an update to the corresponding row
                     write_view.copy_from_slice(&data);
@@ -605,12 +629,13 @@ impl SlotCache {
 
     async fn slot_task(
         msg_tx: crossbeam::channel::Sender<(SlotKey, SlotMsg)>,
+        generation: u64,
         path_index: Arc<PathIndex>,
         data_cache: Arc<GraphDataCache>,
         bin_count: usize,
         key: SlotKey,
         view: [Bp; 2],
-    ) -> Result<([Bp; 2], Vec<u8>)> {
+    ) -> Result<([Bp; 2], Vec<u8>, u64)> {
         use waragraph_core::graph::sampling;
 
         let (path, data_key) = key.clone();
@@ -670,6 +695,6 @@ impl SlotCache {
         })
         .await?;
 
-        Ok((view, sample_vec))
+        Ok((view, sample_vec, generation))
     }
 }
