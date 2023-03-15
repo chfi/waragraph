@@ -90,6 +90,9 @@ pub struct SlotCache {
     slot_msg_tx: crossbeam::channel::Sender<(SlotKey, SlotMsg)>,
 
     pub(super) msg_shapes: Vec<egui::Shape>,
+
+    pub(super) last_update: std::time::Instant,
+    generation: u64,
 }
 
 impl SlotCache {
@@ -133,6 +136,8 @@ impl SlotCache {
             slot_msg_rx,
 
             msg_shapes: Vec::new(),
+            last_update: std::time::Instant::now(),
+            generation: 0,
         })
     }
 
@@ -196,6 +201,10 @@ impl SlotCache {
 
         let layout = layout.into_iter().collect::<HashMap<_, _>>();
 
+        let time = self.last_update.elapsed().as_micros();
+        log::debug!("Time since last slot update: {time} us");
+        self.last_update = std::time::Instant::now();
+
         {
             let mut active = 0;
             for state in self.slot_state.values() {
@@ -206,6 +215,48 @@ impl SlotCache {
             log::warn!("# of active tasks before update: {active}");
             log::warn!("last dispatched view: {:?}", self.last_dispatched_view);
         }
+
+        let mut vertices: Vec<SlotVertex> = Vec::new();
+
+        // add a vertex for each slot in the layout that has an up to date
+        // row in the data buffer
+        for (key, rect) in layout.iter().clone() {
+            if let Some(state) = self.slot_state.get(&key) {
+                // let last_dispatch = self.last_dispatched_view;
+                let last_update = state.last_updated_view;
+
+                // if last_update == last_dispatch && last_dispatch.is_some() {
+                if last_update.is_some() {
+                    let slot_id = *self
+                        .slot_id_map
+                        .get(&key)
+                        .expect("Slot was ready but unbound!");
+
+                    let vx = SlotVertex {
+                        position: [rect.left(), rect.bottom()],
+                        size: [rect.width(), rect.height()],
+                        slot_id: slot_id as u32,
+                    };
+
+                    vertices.push(vx);
+                }
+            }
+        }
+
+        {
+            let mut active = 0;
+            for state in self.slot_state.values() {
+                if state.task_handle.is_some() {
+                    active += 1;
+                }
+            }
+            log::warn!("# of active tasks after update: {active}");
+        }
+
+        // update the vertex buffer, reallocating if needed
+        self.prepare_vertex_buffer(state, &vertices)?;
+        self.prepare_transform_buffer(state, &vertices, view)?;
+        self.vertex_count = vertices.len();
 
         for state in self.slot_state.values_mut() {
             state.last_rect = None;
@@ -381,47 +432,7 @@ impl SlotCache {
             }
         }
 
-        let mut vertices: Vec<SlotVertex> = Vec::new();
-
-        // add a vertex for each slot in the layout that has an up to date
-        // row in the data buffer
-        for (key, rect) in layout {
-            if let Some(state) = self.slot_state.get(&key) {
-                // let last_dispatch = self.last_dispatched_view;
-                let last_update = state.last_updated_view;
-
-                // if last_update == last_dispatch && last_dispatch.is_some() {
-                if last_update.is_some() {
-                    let slot_id = *self
-                        .slot_id_map
-                        .get(&key)
-                        .expect("Slot was ready but unbound!");
-
-                    let vx = SlotVertex {
-                        position: [rect.left(), rect.bottom()],
-                        size: [rect.width(), rect.height()],
-                        slot_id: slot_id as u32,
-                    };
-
-                    vertices.push(vx);
-                }
-            }
-        }
-
-        {
-            let mut active = 0;
-            for state in self.slot_state.values() {
-                if state.task_handle.is_some() {
-                    active += 1;
-                }
-            }
-            log::warn!("# of active tasks after update: {active}");
-        }
-
-        // update the vertex buffer, reallocating if needed
-        self.prepare_vertex_buffer(state, &vertices)?;
-        self.prepare_transform_buffer(state, &vertices, view)?;
-        self.vertex_count = vertices.len();
+        self.generation += 1;
 
         Ok(())
     }
