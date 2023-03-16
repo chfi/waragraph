@@ -82,6 +82,12 @@ impl From<u32> for Node {
     }
 }
 
+impl From<Node> for u32 {
+    fn from(n: Node) -> u32 {
+        n.0
+    }
+}
+
 impl From<usize> for Node {
     fn from(u: usize) -> Node {
         Node(u as u32)
