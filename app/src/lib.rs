@@ -3,6 +3,7 @@ use std::io::prelude::*;
 use std::io::BufReader;
 use ultraviolet::Vec2;
 
+pub mod simple_2d;
 pub mod viewer_1d;
 pub mod viewer_2d;
 
