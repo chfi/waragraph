@@ -2,6 +2,8 @@
 A simpler 2D graph viewer, designed for viewing subgraphs
 */
 
+use std::collections::HashSet;
+
 use bimap::{BiBTreeMap, BiHashMap};
 use raving_wgpu::{gui::EguiCtx, WindowState};
 use sprs::{TriMat, TriMatI};
@@ -17,10 +19,31 @@ use crate::{
 
 pub struct SimpleLayout {
     positions: Vec<Vec2>,
-    incoming_angles: Vec<Vec<f32>>,
-    outgoing_angles: Vec<Vec<f32>>,
+
+    aabb: (Vec2, Vec2),
+    // incoming_angles: Vec<Vec<f32>>,
+    // outgoing_angles: Vec<Vec<f32>>,
     // seg_vx_map: BTreeM
     // M
+}
+
+impl SimpleLayout {
+    fn place_outgoing(
+        p0: Vec2,
+        existing: &[(Vec2, f32)],
+        to_place: &[(usize, f32)],
+    ) -> Vec<f32> {
+        let mut placed = Vec::with_capacity(to_place.len());
+
+        /*
+         */
+
+        for (i, &(vx, vx_d)) in to_place.iter().enumerate() {
+            //
+        }
+
+        placed
+    }
 }
 
 struct Vertex {
@@ -42,6 +65,121 @@ pub struct SimpleGraph {
 }
 
 impl SimpleGraph {
+    pub fn initialize_layout(&self) -> SimpleLayout {
+        // lay the nodes out according to a path-weighted DFS
+
+        // let mut positions = Vec::with_capacity(self.graph.vertex_count);
+        let mut positions: Vec<Option<Vec2>> =
+            vec![None; self.graph.vertex_count];
+
+        let mut init_nodes = self
+            .graph
+            .vertex
+            .iter()
+            .filter(|v| v.incoming.is_empty())
+            .map(|v| v.vx_id)
+            .collect::<Vec<_>>();
+
+        let base_dist = 100f32;
+
+        let mut aabb_min = Vec2::broadcast(f32::MAX);
+        let mut aabb_max = Vec2::broadcast(f32::MIN);
+
+        let mut update_aabb = |p: Vec2| {
+            aabb_min = aabb_min.min_by_component(p);
+            aabb_max = aabb_max.max_by_component(p);
+        };
+
+        // place the initial nodes first
+        for (row, &vxi) in init_nodes.iter().enumerate() {
+            let x = 0f32;
+            let y = (row as f32) * base_dist;
+            let p = Vec2::new(x, y);
+            update_aabb(p);
+            positions[vxi] = Some(p);
+        }
+
+        // let mut vx_by_depth = self
+        //     .graph
+        //     .vertex
+        //     .iter()
+        //     .map(|v| v.depth)
+        //     .enumerate()
+        //     .collect::<Vec<_>>();
+        // vx_by_depth.sort_by(|(_, di), (_, dj)| di.partial_cmp(dj).unwrap());
+
+        let mut stack: Vec<usize> = Vec::new();
+        let mut visited: HashSet<usize> = HashSet::default();
+
+        for vxi in init_nodes {
+            stack.push(vxi);
+
+            while let Some(vx) = stack.pop() {
+                if !visited.contains(&vx) {
+                    visited.insert(vx);
+
+                    // let vx_pos
+                    let vx_pos = if let Some(p) = positions[vx] {
+                        p
+                    } else {
+                        unreachable!();
+                    };
+
+                    let neighbors = self
+                        .graph
+                        .neighbors(vx)
+                        .into_iter()
+                        .filter(|n| !visited.contains(n));
+
+                    let mut to_add: Vec<(usize, f32)> = Vec::new();
+                    let mut to_follow: Vec<(usize, f32)> = Vec::new();
+
+                    let mut placed_neighbors: Vec<(Vec2, f32)> = Vec::new();
+
+                    for next in neighbors {
+                        let depth = self.graph.vertex[next].depth;
+                        // place the neighbors (if not placed)
+                        if let Some(p) = positions[next] {
+                            placed_neighbors.push((p, depth));
+                        } else {
+                            to_add.push((next, depth));
+                        }
+                        // & recurse (if not visited)
+                        if !visited.contains(&next) {
+                            to_follow.push((next, depth));
+                        }
+                    }
+
+                    to_follow.sort_by(|(_, di), (_, dj)| {
+                        di.partial_cmp(dj).unwrap()
+                    });
+
+                    //
+                }
+                //
+            }
+        }
+
+        /*
+        for (vx_id, vertex) in self.graph.vertex.iter().enumerate() {
+        }
+        */
+
+        let pos_len = positions.len();
+
+        let positions =
+            positions.into_iter().filter_map(|p| p).collect::<Vec<_>>();
+        assert_eq!(positions.len(), pos_len);
+
+        let _ = update_aabb;
+
+        let aabb = (aabb_min, aabb_max);
+
+        let layout = SimpleLayout { positions, aabb };
+
+        layout
+    }
+
     pub fn from_subgraph<N: Into<Node>>(
         index: &PathIndex,
         nodes: impl IntoIterator<Item = N>,
@@ -141,7 +279,7 @@ impl Simple2D {
         window: &WindowState,
         shared: &SharedState,
     ) -> Result<Self> {
-        let graph = shared.graph;
+        let graph = &shared.graph;
         let shared = shared.clone();
 
         todo!();
