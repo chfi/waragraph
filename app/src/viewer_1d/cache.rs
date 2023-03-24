@@ -317,6 +317,114 @@ impl SlotCache {
         // rows than are available
 
         {
+            // simplifying so that slots are assigned to only the slot
+            // keys used in the layout, rather than try to cache slots
+            // when scrolling the list
+
+            // or just store the last frame's set as well? does it matter
+
+            let used_keys =
+                layout.iter().map(|(k, _)| k).collect::<HashSet<_>>();
+
+            let mut to_remove = Vec::new();
+
+            for (key, slot_id) in self.slot_id_map.iter() {
+                if used_keys.contains(key) {
+                    continue;
+                }
+
+                to_remove.push((key.clone(), *slot_id));
+            }
+
+            for (key, slot_id) in to_remove {
+                self.slot_id_map.remove(&key);
+                self.slot_id_cache[slot_id] = None;
+
+                self.slot_state.remove(&key);
+            }
+
+            let mut available_slot_ids = self
+                .slot_id_cache
+                .iter()
+                .enumerate()
+                .filter_map(|(ix, entry)| {
+                    if let Some(entry) = entry {
+                        let is_active = layout.contains_key(&entry.0);
+                        (!is_active).then_some(ix)
+                    } else {
+                        Some(ix)
+                    }
+                })
+                .collect::<Vec<_>>();
+
+            let mut next_slot_id = available_slot_ids.into_iter();
+
+            for (key, rect) in layout.iter() {
+                if let Some(slot_id) = self.slot_id_map.get(key) {
+                    // if already assigned to a slot, don't need to do anything
+                } else {
+                    // we need to assign the slot,
+                    // assume we can, though; no realloc yet/here
+
+                    let slot_id = next_slot_id.next().unwrap();
+                    // log::error!("allocating new slot!!! id: {slot_id}");
+                    // let (slot_id, cache_entry) = cache_iter.next().unwrap();
+
+                    if let Some((old_key, _old_gen)) =
+                        self.slot_id_cache.get(slot_id).and_then(|e| e.as_ref())
+                    {
+                        // make sure the old slot key is unassigned in the map
+                        self.slot_id_map.remove(old_key);
+                        self.slot_state.remove(old_key);
+                    }
+
+                    let new_gen = self.slot_id_generation;
+                    self.slot_id_generation += 1;
+
+                    // update the slot key -> slot ID map in the cache
+                    self.slot_id_cache[slot_id] = Some((key.clone(), new_gen));
+                    self.slot_id_map.insert(key.clone(), slot_id);
+                }
+
+                let state = self.slot_state.entry(key.clone()).or_default();
+                state.last_rect = Some(*rect);
+
+                if state.task_handle.is_some() {
+                    continue;
+                }
+
+                if state
+                    .data_generation
+                    .map(|prev_gen| {
+                        self.generation.abs_diff(prev_gen) > 4
+                        // self.generation.checked_sub(
+                    })
+                    .unwrap_or(false)
+                {
+                    continue;
+                }
+
+                if state.last_updated_view != Some(cview) {
+                    let data_cache = self.data_cache.clone();
+                    let bin_count = self.bin_count;
+                    let path_index = self.path_index.clone();
+
+                    let task = rt.spawn(Self::slot_task(
+                        self.slot_msg_tx.clone(),
+                        self.generation,
+                        path_index,
+                        data_cache,
+                        bin_count,
+                        key.clone(),
+                        cview,
+                    ));
+                    state.task_handle = Some(task);
+                }
+            }
+        }
+
+        /*
+        {
             let active_count = layout.len() + self.rows / 8;
             let oldest_gen = self
                 .slot_id_generation
@@ -437,6 +545,7 @@ impl SlotCache {
                 }
             }
         }
+        */
 
         self.last_dispatched_view = Some(cview);
 
