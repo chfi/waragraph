@@ -147,13 +147,16 @@ impl SlotCache {
             if let Some(state) = self.slot_state.get(key) {
                 let (path, data) = key;
 
+                let path_name =
+                    self.path_index.path_names.get_by_left(&path).unwrap();
+
                 let running = if state.task_handle.is_some() {
                     "Running"
                 } else {
                     "N/A"
                 };
 
-                let key = format!("{}, {} [{running}]", path.ix(), data);
+                let key = format!("{path_name} - [{running}]");
                 ui.label(&format!("slot {slot} - {key}"));
                 ui.separator();
             }
@@ -298,8 +301,6 @@ impl SlotCache {
         }
 
         // update the vertex buffer, reallocating if needed
-        self.prepare_vertex_buffer(state, &vertices)?;
-        self.prepare_transform_buffer(state, &vertices, view)?;
         self.vertex_count = vertices.len();
 
         for state in self.slot_state.values_mut() {
@@ -383,163 +384,38 @@ impl SlotCache {
                 state.last_rect = Some(*rect);
 
                 if state.task_handle.is_some() {
-                    // log::warn!("task already active for slot");
                     continue;
                 }
 
-                // if state
-                //     .data_generation
-                //     .map(|prev_gen| {
-                //         self.generation.abs_diff(prev_gen) > 4
-                //         // self.generation.checked_sub(
-                //     })
-                //     .unwrap_or(false)
-                // {
-                //     continue;
-                // }
-
-                if state.last_updated_view != Some(cview) {
-                    let data_cache = self.data_cache.clone();
-                    let bin_count = self.bin_count;
-                    let path_index = self.path_index.clone();
-
-                    let task = rt.spawn(Self::slot_task(
-                        self.slot_msg_tx.clone(),
-                        self.generation,
-                        path_index,
-                        data_cache,
-                        bin_count,
-                        key.clone(),
-                        cview,
-                    ));
-                    state.task_handle = Some(task);
-                }
-            }
-        }
-
-        /*
-        {
-            let active_count = layout.len() + self.rows / 8;
-            let oldest_gen = self
-                .slot_id_generation
-                .checked_sub(active_count as u64)
-                .unwrap_or(0);
-
-            let mut available_slot_ids = self
-                .slot_id_cache
-                .iter()
-                .enumerate()
-                .filter_map(|(ix, entry)| {
-                    if let Some(entry) = entry {
-                        let is_active = layout.contains_key(&entry.0);
-                        // let is_old = entry.1 < oldest_gen;
-                        (!is_active).then_some(ix)
-                    } else {
-                        Some(ix)
-                    }
-                })
-                .collect::<Vec<_>>();
-
-            let mut next_slot_id = available_slot_ids.into_iter();
-
-            // iterates over cache entries that are not used by the input layout
-            // and are old enough to be cleared
-            // let mut cache_iter = slot_ids_by_gen.into_iter();
-
-            // the slots in the layout are the ones we really care about,
-            // but we can't just throw away what we have in case the user
-            // scrolls down and back up, for example
-            //
-            // this is also where we assign the slot IDs for each slot in the layout
-            for (key, rect) in layout.iter() {
-                // assign slot ID
-                if let Some(slot_id) = self.slot_id_map.get(key) {
-                    // todo!();
-                    let entry = self
-                        .slot_id_cache
-                        .get_mut(*slot_id)
-                        .and_then(|e| e.as_mut());
-                    if let Some(entry) = entry {
-                        let new_gen = self.slot_id_generation;
-                        self.slot_id_generation += 1;
-                        entry.1 = new_gen;
-                    } else {
-                        // this should never happen, but
-                        let new_gen = self.slot_id_generation;
-                        self.slot_id_generation += 1;
-                        self.slot_id_cache[*slot_id] =
-                            Some((key.clone(), new_gen));
-                    }
-
-                    // if self.slot_id_cache[*slot_id].is_none() {
-                    // }
-                    // ensure the cache actually is assigned to the correct slot key
-                    debug_assert_eq!(
-                        self.slot_id_cache.get(*slot_id).and_then(|k| {
-                            let (key, _gen) = k.as_ref()?;
-                            Some(key)
-                        }),
-                        Some(key)
-                    );
-                } else {
-                    let new_gen = self.slot_id_generation;
-                    self.slot_id_generation += 1;
-
-                    // find the first available slot
-                    let slot_id = next_slot_id.next().unwrap();
-                    log::error!("allocating new slot!!! id: {slot_id}");
-                    // let (slot_id, cache_entry) = cache_iter.next().unwrap();
-
-                    if let Some((old_key, _old_gen)) =
-                        self.slot_id_cache.get(slot_id).and_then(|e| e.as_ref())
-                    {
-                        // make sure the old slot key is unassigned in the map
-                        self.slot_id_map.remove(old_key);
-                        self.slot_state.remove(old_key);
-                    }
-
-                    // update the slot key -> slot ID map in the cache
-                    self.slot_id_cache[slot_id] = Some((key.clone(), new_gen));
-                    self.slot_id_map.insert(key.clone(), slot_id);
-                }
-
-                let state = self.slot_state.entry(key.clone()).or_default();
-                state.last_rect = Some(*rect);
-
-                if state.task_handle.is_some() {
+                if state.last_updated_view == Some(cview) {
                     continue;
                 }
 
                 if state
                     .data_generation
-                    .map(|prev_gen| {
-                        self.generation.abs_diff(prev_gen) > 4
-                        // self.generation.checked_sub(
-                    })
+                    .map(|prev_gen| self.generation.abs_diff(prev_gen) < 120)
                     .unwrap_or(false)
                 {
+                    log::warn!("skipping new enough slot!");
                     continue;
                 }
 
-                if state.last_updated_view != Some(cview) {
-                    let data_cache = self.data_cache.clone();
-                    let bin_count = self.bin_count;
-                    let path_index = self.path_index.clone();
+                let data_cache = self.data_cache.clone();
+                let bin_count = self.bin_count;
+                let path_index = self.path_index.clone();
 
-                    let task = rt.spawn(Self::slot_task(
-                        self.slot_msg_tx.clone(),
-                        self.generation,
-                        path_index,
-                        data_cache,
-                        bin_count,
-                        key.clone(),
-                        cview,
-                    ));
-                    state.task_handle = Some(task);
-                }
+                let task = rt.spawn(Self::slot_task(
+                    self.slot_msg_tx.clone(),
+                    self.generation,
+                    path_index,
+                    data_cache,
+                    bin_count,
+                    key.clone(),
+                    cview,
+                ));
+                state.task_handle = Some(task);
             }
         }
-        */
 
         self.last_dispatched_view = Some(cview);
 
@@ -569,14 +445,6 @@ impl SlotCache {
                     {
                         continue;
                     }
-                    // if Some(data_gen) = slot_state.data_generation
-                    // if data_gen < self.generation {
-                    //     continue;
-                    // }
-                    // if Some(task_view) != self.last_dispatched_view {
-                    // out of date, discarding
-                    //     continue;
-                    // }
 
                     // get the slot ID, which is assigned on task dispatch above
                     let slot_id = if let Some(id) = self.slot_id_map.get(key) {
@@ -617,6 +485,9 @@ impl SlotCache {
                 }
             }
         }
+
+        self.prepare_vertex_buffer(state, &vertices)?;
+        self.prepare_transform_buffer(state, &vertices, view)?;
 
         if self.any_slot_id_collisions() {
             log::error!("oh no!!!!");
@@ -692,21 +563,18 @@ impl SlotCache {
                         .and_then(|s| s.as_ref())?;
 
                     let last_update =
-                        self.slot_state.get(key)?.last_updated_view?;
+                        self.slot_state.get(key)?.last_updated_view;
 
                     let transform =
-                        Self::view_transform(Some(last_update), current_view);
+                        Self::view_transform(last_update, current_view);
                     Some(transform)
                 })
                 .collect::<Vec<_>>();
 
             // {
-            //     let tdata: &[f32] = bytemuck::cast_slice(&data);
+            //     let tdata: &[[f32; 2]] = bytemuck::cast_slice(&data);
             //     println!("transform: {tdata:?}");
             // }
-
-            // log::warn!("vertex input len: {}", vertices.len());
-            // log::warn!("transform data len: {}", data.len());
 
             state.queue.write_buffer(
                 &buf.buffer,

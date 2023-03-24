@@ -30,8 +30,8 @@ void main() {
 
   float t = i_uv.x;
 
-  // vec2 ab = u_transforms.ab[i_slot_id];
-  // t = ab.x * t + ab.y;
+  vec2 ab = u_transforms.ab[i_slot_id];
+  t = ab.x * t + ab.y;
 
   float c_t = clamp(t, 0.0, 1.0);
 
