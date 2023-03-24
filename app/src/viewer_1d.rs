@@ -862,7 +862,7 @@ impl AppWindow for Viewer1D {
             painter.extend(self.slot_cache.msg_shapes.drain(..));
         }
 
-        self.slot_cache.debug_window(egui_ctx.ctx());
+        // self.slot_cache.debug_window(egui_ctx.ctx());
 
         egui_ctx.end_frame(&window.window);
     }

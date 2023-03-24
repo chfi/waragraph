@@ -66,11 +66,10 @@ impl SlotState {
 // pub struct SlotCache<K: Ord> {
 pub struct SlotCache {
     last_dispatched_view: Option<[Bp; 2]>,
-    last_received_update_view: Option<[Bp; 2]>,
     slot_state: HashMap<SlotKey, SlotState>,
 
     // indexed by SlotId
-    slot_id_cache: Vec<Option<(SlotKey, u64)>>,
+    slot_id_cache: Vec<Option<SlotKey>>,
     // map to SlotId
     slot_id_map: HashMap<SlotKey, usize>,
     slot_id_generation: u64,
@@ -114,7 +113,6 @@ impl SlotCache {
 
         Ok(Self {
             last_dispatched_view: None,
-            last_received_update_view: None,
 
             slot_state: HashMap::default(),
             slot_id_cache,
@@ -166,7 +164,7 @@ impl SlotCache {
             egui::ScrollArea::vertical().show(ui, |ui| {
                 ui.vertical(|ui| {
                     for (ix, entry) in self.slot_id_cache.iter().enumerate() {
-                        if let Some((key, gen)) = entry.as_ref() {
+                        if let Some(key) = entry.as_ref() {
                             entry_uis(ui, ix, key);
                         }
                     }
@@ -342,8 +340,8 @@ impl SlotCache {
                 .iter()
                 .enumerate()
                 .filter_map(|(ix, entry)| {
-                    if let Some(entry) = entry {
-                        let is_active = layout.contains_key(&entry.0);
+                    if let Some(key) = entry {
+                        let is_active = layout.contains_key(key);
                         (!is_active).then_some(ix)
                     } else {
                         Some(ix)
@@ -364,7 +362,7 @@ impl SlotCache {
                     // log::error!("allocating new slot!!! id: {slot_id}");
                     // let (slot_id, cache_entry) = cache_iter.next().unwrap();
 
-                    if let Some((old_key, _old_gen)) =
+                    if let Some(old_key) =
                         self.slot_id_cache.get(slot_id).and_then(|e| e.as_ref())
                     {
                         // make sure the old slot key is unassigned in the map
@@ -372,11 +370,8 @@ impl SlotCache {
                         self.slot_state.remove(old_key);
                     }
 
-                    let new_gen = self.slot_id_generation;
-                    self.slot_id_generation += 1;
-
                     // update the slot key -> slot ID map in the cache
-                    self.slot_id_cache[slot_id] = Some((key.clone(), new_gen));
+                    self.slot_id_cache[slot_id] = Some(key.clone());
                     self.slot_id_map.insert(key.clone(), slot_id);
                 }
 
@@ -557,7 +552,7 @@ impl SlotCache {
                 .iter()
                 .filter_map(|vx| {
                     let slot = vx.slot_id;
-                    let (key, _) = self
+                    let key = self
                         .slot_id_cache
                         .get(slot as usize)
                         .and_then(|s| s.as_ref())?;
@@ -762,7 +757,7 @@ impl SlotCache {
             .iter()
             .enumerate()
             .filter_map(|(slot_id, entry)| Some((slot_id, entry.as_ref()?)))
-            .for_each(|(_slot_id, (key, gen))| {
+            .for_each(|(_slot_id, key)| {
                 *key_count.entry(key).or_default() += 1;
             });
 
