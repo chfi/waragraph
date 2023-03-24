@@ -6,6 +6,49 @@ pub trait PathData<T> {
     fn get_path(&self, path_id: PathId) -> &[T];
 }
 
+pub fn sample_data_into_buffer(
+    index: &PathIndex,
+    path_id: PathId,
+    path_data: &[f32],
+    view_range: std::ops::Range<u64>,
+    bins: &mut [f32],
+) {
+    let bin_count = bins.len();
+
+    let bin_range = {
+        let s = view_range.start;
+        let e = view_range.end;
+        let len = e - s;
+
+        let bin_size = len / bin_count as u64;
+
+        move |bin_ix: usize| {
+            let start = s + bin_size * bin_ix as u64;
+            let end = start + bin_size;
+            start..end
+        }
+    };
+
+    for (bin_ix, buf_val) in bins.iter_mut().enumerate() {
+        // using negative infinity as a marker for empty bins
+        *buf_val = f32::NEG_INFINITY;
+        let range = bin_range(bin_ix);
+        let iter = index.path_data_pan_range_iter(range, path_id, path_data);
+
+        let mut sum_len = 0;
+        let mut sum_val = 0.0;
+
+        for ((_node, len), val) in iter {
+            sum_len += len.0;
+            sum_val += *val * len.0 as f32;
+        }
+
+        if sum_len > 0 {
+            *buf_val = sum_val / sum_len as f32;
+        }
+    }
+}
+
 pub fn sample_path_data_into_buffer<D>(
     index: &PathIndex,
     data: &D,

@@ -5,6 +5,7 @@ use anyhow::Result;
 pub fn main() -> Result<()> {
     env_logger::builder()
         .filter_level(log::LevelFilter::Warn)
+        // .filter_level(log::LevelFilter::Debug)
         .init();
 
     let args = waragraph::app::parse_args();

@@ -53,9 +53,9 @@ pub struct GraphData<T, Stats> {
 }
 
 pub struct GraphPathData<T, Stats> {
-    pub path_data: Vec<Vec<T>>,
-    pub path_stats: Vec<Stats>,
-    pub global_stats: Stats,
+    pub path: PathId,
+    pub path_data: Vec<T>,
+    pub path_stats: Stats,
 }
 
 #[derive(Clone, Copy, PartialEq)]
@@ -94,20 +94,22 @@ impl FStats {
     }
 }
 
-impl<T, S> PathData<T> for GraphPathData<T, S> {
-    fn get_path(&self, path_id: PathId) -> &[T] {
-        &self.path_data[path_id.ix()]
-    }
-}
+// impl<T, S> PathData<T> for GraphPathData<T, S> {
+//     fn get_path(&self, path_id: PathId) -> &[T] {
+//         &self.path_data[path_id.ix()]
+//     }
+// }
 
 // pub type DataSourceFn<A, T> = Arc<dyn Fn(A) -> anyhow::Result<Vec<T>>>;
 
-pub type GraphDataSourceFn<T> = Arc<dyn Fn() -> anyhow::Result<Vec<T>>>;
-pub type PathDataSourceFn<T> = Arc<dyn Fn(PathId) -> anyhow::Result<Vec<T>>>;
+pub type GraphDataSourceFn<T> =
+    Arc<dyn Fn() -> anyhow::Result<Vec<T>> + Send + Sync + 'static>;
+pub type PathDataSourceFn<T> =
+    Arc<dyn Fn(PathId) -> anyhow::Result<Vec<T>> + Send + Sync + 'static>;
 
 pub struct GraphDataSources {
-    graph_f32: HashMap<String, Arc<dyn Fn() -> anyhow::Result<Vec<f32>>>>,
-    path_f32: HashMap<String, Arc<dyn Fn(PathId) -> anyhow::Result<Vec<f32>>>>,
+    graph_f32: HashMap<String, GraphDataSourceFn<f32>>,
+    path_f32: HashMap<String, PathDataSourceFn<f32>>,
 }
 
 impl GraphDataSources {
@@ -205,7 +207,8 @@ impl GraphDataSources {
 pub struct GraphDataCache {
     graph: Arc<PathIndex>,
     graph_f32: RwLock<HashMap<String, Arc<GraphData<f32, FStats>>>>,
-    path_f32: RwLock<HashMap<String, Arc<GraphPathData<f32, FStats>>>>,
+    path_f32:
+        RwLock<HashMap<(String, PathId), Arc<GraphPathData<f32, FStats>>>>,
 
     sources: GraphDataSources,
 }
@@ -262,48 +265,66 @@ impl GraphDataCache {
         Some(data)
     }
 
+    pub async fn fetch_path_data(
+        &self,
+        data_key: &str,
+        path: PathId,
+    ) -> anyhow::Result<Arc<GraphPathData<f32, FStats>>> {
+        {
+            let data_key = data_key.to_string();
+            let path_data = self.path_f32.read().await;
+            if let Some(data) = path_data.get(&(data_key, path)) {
+                return Ok(data.clone());
+            }
+        }
+
+        let source = self.sources.path_f32.get(data_key).ok_or_else(|| {
+            anyhow::anyhow!("Path data source `{data_key}` not found")
+        })?;
+
+        let source = source.clone();
+        let path_data =
+            tokio::task::spawn_blocking(move || source(path)).await??;
+
+        let path_stats = FStats::from_items(path_data.iter().copied());
+
+        let data = Arc::new(GraphPathData {
+            path,
+            path_data,
+            path_stats,
+        });
+
+        let key = (data_key.to_string(), path);
+        self.path_f32.write().await.insert(key, data.clone());
+
+        Ok(data)
+    }
+
     pub fn fetch_path_data_blocking(
         &self,
-        key: &str,
+        data_key: &str,
+        path: PathId,
     ) -> Option<Arc<GraphPathData<f32, FStats>>> {
-        if let Some(data) = self.path_f32.blocking_read().get(key) {
+        let data_key = data_key.to_string();
+        if let Some(data) =
+            self.path_f32.blocking_read().get(&(data_key.clone(), path))
+        {
             return Some(data.clone());
         }
 
-        let source = self.sources.path_f32.get(key)?;
-
-        let path_ids = self.graph.path_names.left_values();
-        let mut data = Vec::with_capacity(self.graph.path_names.len());
-
-        let mut path_stats = Vec::new();
-
-        let mut global_stats = FStats {
-            min: std::f32::INFINITY,
-            max: std::f32::NEG_INFINITY,
-        };
-
-        for &path in path_ids {
-            let path_data = source(path).unwrap();
-
-            let stats = FStats::from_items(path_data.iter().copied());
-
-            global_stats.min = global_stats.min.min(stats.min);
-            global_stats.max = global_stats.max.max(stats.max);
-
-            path_stats.push(stats);
-
-            data.push(path_data);
-        }
+        let source = self.sources.path_f32.get(&data_key)?;
+        let path_data = source(path).unwrap();
+        let path_stats = FStats::from_items(path_data.iter().copied());
 
         let data = Arc::new(GraphPathData {
-            path_data: data,
+            path,
+            path_data,
             path_stats,
-            global_stats,
         });
 
         self.path_f32
             .blocking_write()
-            .insert(key.to_string(), data.clone());
+            .insert((data_key, path), data.clone());
 
         Some(data)
     }

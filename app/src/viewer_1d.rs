@@ -28,12 +28,17 @@ use anyhow::Result;
 
 use waragraph_core::graph::PathIndex;
 
-use self::util::path_sampled_data_viz_buffer;
+use self::cache::{SlotCache, SlotState};
+use self::render::VizModeConfig;
+// use self::util::path_sampled_data_viz_buffer;
 use self::view::View1D;
 use self::widgets::VisualizationModesWidget;
 
 pub mod gui;
 pub mod widgets;
+
+pub mod cache;
+pub mod render;
 
 pub mod util;
 pub mod view;
@@ -52,19 +57,18 @@ pub struct Viewer1D {
 
     force_resample: bool,
 
-    vertices: BufferDesc,
+    slot_cache: SlotCache,
+
+    // vertices: BufferDesc,
     vert_uniform: wgpu::Buffer,
     frag_uniform: wgpu::Buffer,
-
-    gpu_buffers: HashMap<String, BufferDesc>,
 
     dyn_slot_layout: DynamicListLayout<Vec<gui::SlotElem>, gui::SlotElem>,
 
     path_list_view: ListView<PathId>,
 
-    sample_handle:
-        Option<tokio::task::JoinHandle<(std::ops::Range<u64>, Vec<u8>)>>,
-
+    // sample_handle:
+    //     Option<tokio::task::JoinHandle<(std::ops::Range<u64>, Vec<u8>)>>,
     pub self_viz_interact: Arc<AtomicCell<VizInteractions>>,
     pub connected_viz_interact: Option<Arc<AtomicCell<VizInteractions>>>,
 
@@ -75,7 +79,10 @@ pub struct Viewer1D {
 
     // color_mapping: crate::util::Uniform<ColorMap, 16>,
     color_mapping: crate::util::Uniform<Arc<AtomicCell<ColorMap>>, 16>,
-    color_map_widget: Arc<RwLock<ColorMapWidgetShared>>,
+    // color_map_widget: Arc<RwLock<ColorMapWidgetShared>>,
+
+    // NB: very temporary, hopefully
+    viz_mode_config: HashMap<String, VizModeConfig>,
 }
 
 impl Viewer1D {
@@ -183,31 +190,6 @@ impl Viewer1D {
         // let active_viz_data_key = "strand".to_string();
         let active_viz_data_key = "depth".to_string();
 
-        let viz_data_buffer = {
-            let paths =
-                path_list_view.visible_iter().copied().collect::<Vec<_>>();
-
-            let view_range = view.range().clone();
-
-            let path_index = path_index.clone();
-            let data = graph_data_cache
-                .fetch_path_data_blocking(&active_viz_data_key)
-                .unwrap();
-
-            path_sampled_data_viz_buffer(
-                &state.device,
-                &path_index,
-                &data,
-                paths,
-                view.range().clone(),
-                1024,
-            )?
-        };
-
-        let mut gpu_buffers = HashMap::default();
-
-        gpu_buffers.insert("viz_data_buffer".to_string(), viz_data_buffer);
-
         let dyn_slot_layout = {
             let width = |p: f32| taffy::style::Dimension::Percent(p);
 
@@ -291,6 +273,7 @@ impl Viewer1D {
             },
         )?;
 
+        /*
         let color_map_widget = {
             let scheme_id =
                 shared.data_color_schemes.get(&active_viz_data_key).unwrap();
@@ -325,6 +308,7 @@ impl Viewer1D {
 
             widget
         };
+        */
 
         let active_viz_data_key = Arc::new(RwLock::new(active_viz_data_key));
 
@@ -341,7 +325,49 @@ impl Viewer1D {
             );
         }
 
+        let viz_mode_config = {
+            let colors = shared.colors.blocking_read();
+
+            let mut cfg: HashMap<String, VizModeConfig> = HashMap::new();
+
+            let depth = VizModeConfig {
+                name: "depth".to_string(),
+                data_key: "depth".to_string(),
+                color_scheme: colors.get_color_scheme_id("spectral").unwrap(),
+                default_color_map: ColorMap {
+                    value_range: [0.0, 13.0],
+                    color_range: [0.0, 1.0],
+                },
+            };
+
+            let strand = VizModeConfig {
+                name: "strand".to_string(),
+                data_key: "strand".to_string(),
+                color_scheme: colors.get_color_scheme_id("black_red").unwrap(),
+                default_color_map: ColorMap {
+                    value_range: [0.0, 1.0],
+                    color_range: [0.0, 1.0],
+                },
+            };
+
+            for c in [depth, strand] {
+                cfg.insert(c.name.clone(), c);
+            }
+
+            cfg
+        };
+
         log::error!("Initialized in {} seconds", t0.elapsed().as_secs_f32());
+
+        let row_count = 128;
+        let bin_count = 1024;
+        let slot_cache = SlotCache::new(
+            state,
+            path_index.clone(),
+            shared.graph_data_cache.clone(),
+            row_count,
+            bin_count,
+        )?;
 
         Ok(Viewer1D {
             render_graph: graph,
@@ -351,17 +377,16 @@ impl Viewer1D {
             rendered_view: view.range().clone(),
             force_resample: false,
 
-            vertices,
+            slot_cache,
+
+            // vertices,
             vert_uniform,
             frag_uniform,
-
-            gpu_buffers,
 
             dyn_slot_layout,
             path_list_view,
 
-            sample_handle: None,
-
+            // sample_handle: None,
             self_viz_interact,
             connected_viz_interact,
 
@@ -370,7 +395,8 @@ impl Viewer1D {
             active_viz_data_key,
 
             color_mapping,
-            color_map_widget,
+            // color_map_widget,
+            viz_mode_config,
         })
     }
 
@@ -400,50 +426,6 @@ impl Viewer1D {
         [a, b]
     }
 
-    fn sample_buffer_size(bins: usize, rows: usize) -> usize {
-        let prefix_size = std::mem::size_of::<u32>() * 4;
-        let elem_size = std::mem::size_of::<f32>();
-        let size = prefix_size + elem_size * bins * rows;
-        size
-    }
-
-    fn sample_into_vec<S>(
-        index: &PathIndex,
-        data: &GraphPathData<f32, S>,
-        paths: &[PathId],
-        view_range: std::ops::Range<u64>,
-        buffer: &mut Vec<u8>,
-    ) -> Result<()> {
-        let bins = 1024;
-        let size = Self::sample_buffer_size(bins, paths.len());
-        buffer.resize(size, 0u8);
-        Self::sample_into_data_buffer(index, data, paths, view_range, buffer)
-    }
-
-    fn sample_into_data_buffer<S>(
-        index: &PathIndex,
-        data: &GraphPathData<f32, S>,
-        paths: &[PathId],
-        view_range: std::ops::Range<u64>,
-        buffer: &mut [u8],
-    ) -> Result<()> {
-        let bins = 1024;
-        let size = Self::sample_buffer_size(bins, paths.len());
-
-        assert!(buffer.len() >= size);
-
-        waragraph_core::graph::sampling::sample_path_data_into_buffer(
-            index,
-            data,
-            paths.into_iter().copied(),
-            bins,
-            view_range,
-            buffer,
-        );
-
-        Ok(())
-    }
-
     // TODO there's no need to reallocate the buffer every time the list is scrolled...
     fn slot_vertex_buffer(
         device: &wgpu::Device,
@@ -458,9 +440,9 @@ impl Viewer1D {
         layout.visit_layout(|layout, elem| {
             if let gui::SlotElem::PathData { slot_id, data_id } = elem {
                 if let Some(path_id) = path_list_view.get_in_view(*slot_id) {
-                    let rect = crate::gui::layout_egui_rect(&layout);
-                    let v_pos = rect.left_bottom().to_vec2();
-                    let v_size = rect.size();
+                    let rrect = crate::gui::layout_egui_rect(&layout);
+                    let v_pos = rrect.left_bottom().to_vec2();
+                    let v_size = rrect.size();
 
                     data_buf.extend(bytemuck::cast_slice(&[v_pos, v_size]));
                     data_buf.extend(bytemuck::cast_slice(&[*slot_id as u32]));
@@ -492,6 +474,31 @@ impl AppWindow for Viewer1D {
         egui_ctx: &mut EguiCtx,
         dt: f32,
     ) {
+        let mut laid_out_slots = Vec::new();
+        let layout_result =
+            self.dyn_slot_layout.layout().visit_layout(|layout, elem| {
+                if let gui::SlotElem::PathData { slot_id, data_id } = elem {
+                    if let Some(path_id) =
+                        self.path_list_view.get_in_view(*slot_id)
+                    {
+                        let slot_key = (*path_id, data_id.clone());
+                        let rect = crate::gui::layout_egui_rect(&layout);
+                        laid_out_slots.push((slot_key, rect));
+                    }
+                }
+            });
+
+        let update_result = {
+            self.slot_cache.sample_and_update(
+                state,
+                tokio_rt,
+                &self.view,
+                laid_out_slots,
+            )
+        };
+
+        // NB: disabling the color map widget for the time being
+        /*
         {
             let mut color_map_widget = self.color_map_widget.blocking_write();
 
@@ -517,6 +524,7 @@ impl AppWindow for Viewer1D {
 
             self.color_mapping.write_buffer(state);
         }
+        */
 
         let other_interactions = self
             .connected_viz_interact
@@ -577,29 +585,18 @@ impl AppWindow for Viewer1D {
                 }
             }
 
-            let (vertices, vxs, insts) = {
-                let (buffer, insts) = Self::slot_vertex_buffer(
-                    &state.device,
-                    dims,
-                    self.dyn_slot_layout.layout(),
-                    &self.path_list_view,
-                )
-                .expect("Unrecoverable error when creating slot vertex buffer");
-                let vxs = 0..6;
-                let insts = 0..insts;
+            if let Err(e) = update_result {
+                log::error!("Slot cache update error: {e:?}");
+            }
 
-                (buffer, vxs, insts)
-            };
-
+            let insts = 0u32..self.slot_cache.vertex_count as u32;
             self.render_graph.set_node_preprocess_fn(
                 self.draw_path_slot,
                 move |_ctx, op_state| {
-                    op_state.vertices = Some(vxs.clone());
+                    op_state.vertices = Some(0..6);
                     op_state.instances = Some(insts.clone());
                 },
             );
-
-            self.vertices = vertices;
 
             let uniform_data = [dims.x, dims.y];
 
@@ -610,65 +607,9 @@ impl AppWindow for Viewer1D {
             );
         }
 
-        if self.sample_handle.is_none()
-            && (&self.rendered_view != self.view.range() || self.force_resample)
-        {
-            let paths = self
-                .path_list_view
-                .visible_iter()
-                .copied()
-                .collect::<Vec<_>>();
-
-            let view_range = self.view.range().clone();
-
-            let path_index = self.shared.graph.clone();
-
-            let data_id = self.active_viz_data_key.blocking_read().clone();
-
-            let data = self
-                .shared
-                .graph_data_cache
-                .fetch_path_data_blocking(&data_id)
-                .unwrap();
-
-            let join = tokio_rt.spawn_blocking(move || {
-                let mut buf: Vec<u8> = Vec::new();
-
-                Self::sample_into_vec(
-                    &path_index,
-                    &data,
-                    &paths,
-                    view_range.clone(),
-                    &mut buf,
-                )
-                .unwrap();
-
-                (view_range, buf)
-            });
-
-            self.sample_handle = Some(join);
-        }
-
-        if let Some(true) = self.sample_handle.as_ref().map(|j| j.is_finished())
-        {
-            let handle = self.sample_handle.take().unwrap();
-
-            if let Ok((view_range, data)) = tokio_rt.block_on(handle) {
-                let gpu_buffer =
-                    self.gpu_buffers.get("viz_data_buffer").unwrap();
-                state.queue.write_buffer(&gpu_buffer.buffer, 0, &data);
-
-                self.rendered_view = view_range;
-                self.force_resample = false;
-            }
-        }
-
         // update uniform
         {
-            let data = Self::sample_index_transform(
-                &self.rendered_view,
-                self.view.range(),
-            );
+            let data = self.slot_cache.get_view_transform(&self.view);
 
             state.queue.write_buffer(
                 &self.frag_uniform,
@@ -679,10 +620,33 @@ impl AppWindow for Viewer1D {
 
         egui_ctx.begin_frame(&window.window);
 
+        {
+            let fonts = egui_ctx.ctx().fonts();
+            let show_state = |state: &SlotState| {
+                let msg = state.last_msg.as_ref()?;
+                let rect = state.last_rect?;
+                let _ = state.last_updated_view.is_none().then_some(())?;
+
+                let pos = rect.left_center();
+                let anchor = egui::Align2::LEFT_CENTER;
+                Some(egui::Shape::text(
+                    &fonts,
+                    pos,
+                    anchor,
+                    msg,
+                    egui::FontId::monospace(16.0),
+                    egui::Color32::RED,
+                ))
+            };
+            self.slot_cache.update_displayed_messages(show_state);
+        }
+
         let mut path_name_region = egui::Rect::NOTHING;
         let mut path_slot_region = egui::Rect::NOTHING;
 
         let mut shapes = Vec::new();
+
+        shapes.extend(self.slot_cache.msg_shapes.drain(..));
 
         let mut view_range_rect = None;
 
@@ -894,7 +858,11 @@ impl AppWindow for Viewer1D {
                 "main_area_fg".into(),
             ));
             painter.extend(fg_shapes);
+
+            painter.extend(self.slot_cache.msg_shapes.drain(..));
         }
+
+        // self.slot_cache.debug_window(egui_ctx.ctx());
 
         egui_ctx.end_frame(&window.window);
     }
@@ -956,7 +924,22 @@ impl AppWindow for Viewer1D {
         swapchain_view: &wgpu::TextureView,
         encoder: &mut wgpu::CommandEncoder,
     ) -> anyhow::Result<()> {
+        let data_id = self.active_viz_data_key.blocking_read().clone();
+        let viz_mode_color = self
+            .viz_mode_config
+            .get(&data_id)
+            .unwrap_or_else(|| panic!("Config not found for data {data_id}"));
+
+        self.color_mapping.update_data(|cmap| {
+            cmap.store(viz_mode_color.default_color_map);
+        });
         self.color_mapping.write_buffer(&state);
+
+        let has_vertices = self.slot_cache.vertex_buffer.is_some();
+
+        if !has_vertices {
+            return Ok(());
+        }
 
         let size: [u32; 2] = window.window.inner_size().into();
 
@@ -976,15 +959,27 @@ impl AppWindow for Viewer1D {
             },
         );
 
-        let v_stride = std::mem::size_of::<[f32; 5]>();
+        let data_buffer = &self.slot_cache.data_buffer;
         transient_res.insert(
-            "vertices".into(),
+            "viz_data_buffer".into(),
             InputResource::Buffer {
-                size: self.vertices.size,
-                stride: Some(v_stride),
-                buffer: &self.vertices.buffer,
+                size: data_buffer.size,
+                stride: None,
+                buffer: &data_buffer.buffer,
             },
         );
+
+        if let Some(vertices) = self.slot_cache.vertex_buffer.as_ref() {
+            let v_stride = std::mem::size_of::<[f32; 5]>();
+            transient_res.insert(
+                "vertices".into(),
+                InputResource::Buffer {
+                    size: vertices.size,
+                    stride: Some(v_stride),
+                    buffer: &vertices.buffer,
+                },
+            );
+        }
 
         transient_res.insert(
             "vert_cfg".into(),
@@ -1044,27 +1039,16 @@ impl AppWindow for Viewer1D {
             },
         );
 
-        for name in ["viz_data_buffer"] {
-            if let Some(desc) = self.gpu_buffers.get(name) {
-                transient_res.insert(
-                    name.into(),
-                    InputResource::Buffer {
-                        size: desc.size,
-                        stride: None,
-                        buffer: &desc.buffer,
-                    },
-                );
-            }
+        if let Some(transforms) = self.slot_cache.transform_buffer.as_ref() {
+            transient_res.insert(
+                "transform".into(),
+                InputResource::Buffer {
+                    size: 2 * 4,
+                    stride: None,
+                    buffer: &transforms.buffer,
+                },
+            );
         }
-
-        transient_res.insert(
-            "transform".into(),
-            InputResource::Buffer {
-                size: 2 * 4,
-                stride: None,
-                buffer: &self.frag_uniform,
-            },
-        );
 
         self.render_graph.update_transient_cache(&transient_res);
 
@@ -1074,7 +1058,7 @@ impl AppWindow for Viewer1D {
             .unwrap();
 
         if !valid {
-            log::error!("graph validation error");
+            log::error!("Render graph validation error");
         }
 
         self.render_graph
