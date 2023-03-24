@@ -175,14 +175,7 @@ impl SlotCache {
     // returns the view transform, based on the last dispatched view
     // and the current view, for use in a fragment uniform buffer
     pub fn get_view_transform(&self, current_view: &View1D) -> [f32; 2] {
-        if let Some(last_view) = self.last_dispatched_view {
-            let [l0, r0] = last_view;
-            let view0 = (l0.0)..(r0.0);
-            let view1 = current_view.range();
-            super::Viewer1D::sample_index_transform(&view0, view1)
-        } else {
-            [1.0, 0.0]
-        }
+        Self::view_transform(self.last_dispatched_view, current_view)
     }
 
     fn view_transform(
@@ -220,7 +213,7 @@ impl SlotCache {
         }
 
         let time = self.last_update.elapsed().as_micros();
-        log::debug!("Time since last slot update: {time} us");
+        // log::warn!("Time since last slot update: {time} us");
         self.last_update = std::time::Instant::now();
 
         {
@@ -250,8 +243,8 @@ impl SlotCache {
                     active += 1;
                 }
             }
-            log::warn!("# of active tasks before update: {active}");
-            log::warn!("last dispatched view: {:?}", self.last_dispatched_view);
+            // log::warn!("# of active tasks before update: {active}");
+            // log::warn!("last dispatched view: {:?}", self.last_dispatched_view);
         }
 
         let mut vertices: Vec<SlotVertex> = Vec::new();
@@ -291,7 +284,7 @@ impl SlotCache {
         slot_id_count.sort_by_key(|(k, _)| *k);
 
         for (id, count) in slot_id_count {
-            println!(" slot id: {id}\t count: {count}");
+            // println!(" slot id: {id}\t count: {count}");
         }
 
         {
@@ -301,7 +294,7 @@ impl SlotCache {
                     active += 1;
                 }
             }
-            log::warn!("# of active tasks after update: {active}");
+            // log::warn!("# of active tasks after update: {active}");
         }
 
         // update the vertex buffer, reallocating if needed
@@ -390,19 +383,20 @@ impl SlotCache {
                 state.last_rect = Some(*rect);
 
                 if state.task_handle.is_some() {
+                    // log::warn!("task already active for slot");
                     continue;
                 }
 
-                if state
-                    .data_generation
-                    .map(|prev_gen| {
-                        self.generation.abs_diff(prev_gen) > 4
-                        // self.generation.checked_sub(
-                    })
-                    .unwrap_or(false)
-                {
-                    continue;
-                }
+                // if state
+                //     .data_generation
+                //     .map(|prev_gen| {
+                //         self.generation.abs_diff(prev_gen) > 4
+                //         // self.generation.checked_sub(
+                //     })
+                //     .unwrap_or(false)
+                // {
+                //     continue;
+                // }
 
                 if state.last_updated_view != Some(cview) {
                     let data_cache = self.data_cache.clone();
@@ -563,6 +557,7 @@ impl SlotCache {
 
         {
             let mut slot_index = 0usize;
+
             for (key, slot_state) in self.slot_state.iter_mut() {
                 if let Some((task_view, data, data_gen)) =
                     slot_state.task_results(rt)
@@ -607,6 +602,11 @@ impl SlotCache {
                         &self.data_buffer.buffer,
                         offset as u64,
                         size,
+                    );
+                    log::error!(
+                        "writing buffer slot ({}, {}) -> {slot_id}",
+                        key.0.ix(),
+                        key.1
                     );
 
                     slot_state.last_updated_view = Some(task_view);
@@ -692,16 +692,21 @@ impl SlotCache {
                         .and_then(|s| s.as_ref())?;
 
                     let last_update =
-                        self.slot_state.get(key)?.last_updated_view;
+                        self.slot_state.get(key)?.last_updated_view?;
 
                     let transform =
-                        Self::view_transform(last_update, current_view);
+                        Self::view_transform(Some(last_update), current_view);
                     Some(transform)
                 })
                 .collect::<Vec<_>>();
 
-            log::warn!("vertex input len: {}", vertices.len());
-            log::warn!("transform data len: {}", data.len());
+            // {
+            //     let tdata: &[f32] = bytemuck::cast_slice(&data);
+            //     println!("transform: {tdata:?}");
+            // }
+
+            // log::warn!("vertex input len: {}", vertices.len());
+            // log::warn!("transform data len: {}", data.len());
 
             state.queue.write_buffer(
                 &buf.buffer,
