@@ -25,6 +25,12 @@ layout (set = 1, binding = 4) readonly buffer Transform {
   vec2 ab[];
 } u_transforms;
 
+
+
+// TODO: pass in a uniform
+vec4 BG_COLOR = vec4(1);
+// vec4 BG_COLOR = vec4(vec3(0), 1);
+
 void main() {
   uint row_offset = i_slot_id * u_data.row_size;
 
@@ -43,9 +49,8 @@ void main() {
 
   float c_n = mix(u_color_map.min_color, u_color_map.max_color, v_n);
 
-  // v = (v - u_color_map.min_val) / (u_color_map.max_val - u_color_map.min_val);
-
-  vec4 color = texture(sampler1D(u_colors, u_sampler), c_n);
+  vec4 sampled = texture(sampler1D(u_colors, u_sampler), c_n);
+  vec4 color = isinf(v) ? vec4(1.0) : sampled;
 
   f_color = color;
 

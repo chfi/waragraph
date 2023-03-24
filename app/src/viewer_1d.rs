@@ -335,7 +335,7 @@ impl Viewer1D {
                 data_key: "depth".to_string(),
                 color_scheme: colors.get_color_scheme_id("spectral").unwrap(),
                 default_color_map: ColorMap {
-                    value_range: [1.0, 12.0],
+                    value_range: [0.0, 13.0],
                     color_range: [0.0, 1.0],
                 },
             };
@@ -924,6 +924,15 @@ impl AppWindow for Viewer1D {
         swapchain_view: &wgpu::TextureView,
         encoder: &mut wgpu::CommandEncoder,
     ) -> anyhow::Result<()> {
+        let data_id = self.active_viz_data_key.blocking_read().clone();
+        let viz_mode_color = self
+            .viz_mode_config
+            .get(&data_id)
+            .unwrap_or_else(|| panic!("Config not found for data {data_id}"));
+
+        self.color_mapping.update_data(|cmap| {
+            cmap.store(viz_mode_color.default_color_map);
+        });
         self.color_mapping.write_buffer(&state);
 
         let has_vertices = self.slot_cache.vertex_buffer.is_some();

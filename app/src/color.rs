@@ -114,9 +114,8 @@ impl ColorStore {
         };
 
         let spectral = [
-            // rgba(255, 255, 255),
-            rgba(196, 196, 196),
             rgba(128, 128, 128),
+            rgba(196, 196, 196),
             rgba(158, 1, 66),
             rgba(213, 62, 79),
             rgba(244, 109, 67),
