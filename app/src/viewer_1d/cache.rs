@@ -509,6 +509,17 @@ impl SlotCache {
         let prefix_size = std::mem::size_of::<[u32; 4]>();
         prefix_size + self.rows * self.bin_count
     }
+
+    pub fn slot_task_running(&self, slot_id: usize) -> bool {
+        self.slot_id_cache
+            .get(slot_id)
+            .and_then(|key| {
+                let key = key.as_ref()?;
+                let state = self.slot_state.get(key)?;
+                Some(state.task_handle.is_some())
+            })
+            .unwrap_or(false)
+    }
 }
 
 impl SlotCache {
@@ -686,6 +697,8 @@ impl SlotCache {
         );
         let _ = msg_tx.try_send((key.clone(), msg));
 
+        let t0 = std::time::Instant::now();
+
         // let seconds = 3;
 
         // for sec in (0..seconds).rev() {
@@ -704,8 +717,10 @@ impl SlotCache {
         // load data source into cache & get data
         let data = data_cache.fetch_path_data(&data_key, path).await?;
 
+        let fetch_time = t0.elapsed().as_secs_f32();
+
         let msg = format!(
-            "Sampling (path {}, {}), [{}, {}]",
+            "Sampling (path {}, {}), [{}, {}] - data fetched in {fetch_time:.2} sec",
             path.ix(),
             &data_key,
             view[0].0,

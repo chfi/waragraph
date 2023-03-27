@@ -55,7 +55,6 @@ pub struct Viewer1D {
     draw_path_slot: NodeId,
 
     view: View1D,
-    rendered_view: std::ops::Range<u64>,
 
     force_resample: bool,
 
@@ -79,9 +78,7 @@ pub struct Viewer1D {
     // active_viz_data_key: String,
     active_viz_data_key: Arc<RwLock<String>>,
 
-    // color_mapping: crate::util::Uniform<ColorMap, 16>,
     color_mapping: crate::util::Uniform<Arc<AtomicCell<ColorMap>>, 16>,
-    // color_map_widget: Arc<RwLock<ColorMapWidgetShared>>,
 
     // NB: very temporary, hopefully
     viz_mode_config: HashMap<String, VizModeConfig>,
@@ -373,7 +370,6 @@ impl Viewer1D {
             draw_path_slot: draw_node,
 
             view: view.clone(),
-            rendered_view: view.range().clone(),
             force_resample: false,
 
             slot_cache,
@@ -634,7 +630,7 @@ impl AppWindow for Viewer1D {
                     anchor,
                     msg,
                     egui::FontId::monospace(16.0),
-                    egui::Color32::RED,
+                    egui::Color32::WHITE,
                 ))
             };
             self.slot_cache.update_displayed_messages(show_state);
@@ -651,6 +647,7 @@ impl AppWindow for Viewer1D {
 
         let layout_result = {
             let fonts = egui_ctx.ctx().fonts();
+            let time = egui_ctx.ctx().input().time;
 
             self.dyn_slot_layout.visit_layout(|layout, elem| {
                 let rect = crate::gui::layout_egui_rect(&layout);
@@ -704,10 +701,31 @@ impl AppWindow for Viewer1D {
                         );
 
                         let text_pos = rect.left_top();
-                        let text_shape =
-                            egui::epaint::TextShape::new(text_pos, galley);
+                        let text_shape = egui::Shape::Text(
+                            egui::epaint::TextShape::new(text_pos, galley),
+                        );
 
-                        let shape = egui::Shape::Text(text_shape);
+                        let right_center = rect.right_center();
+
+                        let spinner_shape = if self
+                            .slot_cache
+                            .slot_task_running(*slot_id)
+                        {
+                            let spin_offset =
+                                right_center - egui::pos2(9.0, 0.0);
+
+                            let stroke =
+                                egui::Stroke::new(2.0, egui::Color32::WHITE);
+
+                            let t = time as f32;
+
+                            crate::gui::util::spinner(stroke, spin_offset, t)
+                        } else {
+                            egui::Shape::Noop
+                        };
+
+                        let shape =
+                            egui::Shape::Vec(vec![text_shape, spinner_shape]);
 
                         shapes.push(shape);
                     }

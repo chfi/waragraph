@@ -31,3 +31,31 @@ pub(crate) fn fit_text_ellipsis(
 
     galley
 }
+
+pub(crate) fn spinner(
+    stroke: egui::Stroke,
+    offset: egui::Vec2,
+    t: f32,
+) -> egui::Shape {
+    use std::f32::consts::TAU;
+
+    let n = 16usize;
+    let rad = 7.0;
+
+    let point = |i: usize| {
+        let a = TAU * (i as f32 / n as f32);
+        let x = rad * (a + t).cos();
+        let y = rad * (a + t).sin();
+        egui::pos2(x, y)
+    };
+
+    let line = |i0: usize| {
+        let p0 = point(i0) + offset;
+        let p1 = point(i0 + 1) + offset;
+        egui::Shape::line_segment([p0, p1], stroke.clone())
+    };
+
+    let shapes = (0..(n / 2)).map(|i| line(i * 2)).collect::<Vec<_>>();
+
+    egui::Shape::Vec(shapes)
+}
