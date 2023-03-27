@@ -3,13 +3,16 @@ use waragraph_core::graph::{Bp, PathId};
 
 use crate::gui::FlexLayout;
 
+use super::annotations::AnnotSlotId;
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) enum SlotElem {
     Empty,
     ViewRange,
     PathData { slot_id: usize, data_id: String },
     PathName { slot_id: usize },
-    Annotations { path: PathId, annotation_id: String },
+    Annotations { annotation_slot_id: AnnotSlotId },
+    // Annotations { path: PathId, annotation_id: String },
 }
 
 pub(super) fn view_range_shapes(

@@ -43,6 +43,8 @@ pub mod render;
 pub mod util;
 pub mod view;
 
+pub mod annotations;
+
 #[derive(Debug)]
 pub struct Args {
     pub gfa: PathBuf,
@@ -210,10 +212,7 @@ impl Viewer1D {
 
                     let height = match &val {
                         gui::SlotElem::Empty => taffy::style::Dimension::Auto,
-                        gui::SlotElem::Annotations {
-                            path,
-                            annotation_id,
-                        } => {
+                        gui::SlotElem::Annotations { annotation_slot_id } => {
                             // TODO this should be dynamic
                             mk_h(slot_height)
                         }
@@ -712,12 +711,9 @@ impl AppWindow for Viewer1D {
 
                         shapes.push(shape);
                     }
-                    gui::SlotElem::Annotations {
-                        path,
-                        annotation_id,
-                    } => {
+                    gui::SlotElem::Annotations { annotation_slot_id } => {
                         // TODO
-                        //
+                        // create slot-clipped painter & call handler
                     }
                 }
             })
