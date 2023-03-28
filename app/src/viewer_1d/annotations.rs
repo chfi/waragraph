@@ -21,6 +21,9 @@ pub struct Annots1D {
 
 type AnnotsTreeObj = GeomWithData<Line<(i64,)>, usize>;
 
+// type ShapeFn = Box<dyn Fn(egui::Pos2, egui::Rect) -> egui::Shape>;
+type ShapeFn = Box<dyn Fn(egui::Pos2) -> egui::Shape>;
+
 // Container for annotations displayed in a single 1D slot,
 // with the annotations "flattened" to the pangenome coordinate
 // space, down from the path-range space
@@ -29,15 +32,15 @@ pub struct AnnotSlot {
     annots: RTree<AnnotsTreeObj>,
 
     // annots: BTreeMap<[Bp; 2], usize>,
-    shapes: Vec<egui::Shape>,
-    anchors: Vec<Option<Vec2>>,
+    shapes: Vec<ShapeFn>,
+    anchors: Vec<Option<f64>>,
 }
 
 impl AnnotSlot {
     /// Initializes an annotation slot given items in pangenome space.
     ///
     fn new_from_pangenome_space(
-        annotations: impl IntoIterator<Item = (std::ops::Range<Bp>, egui::Shape)>,
+        annotations: impl IntoIterator<Item = (std::ops::Range<Bp>, ShapeFn)>,
     ) -> Self {
         let mut annot_objs = Vec::new();
         let mut shapes = Vec::new();
@@ -66,7 +69,7 @@ impl AnnotSlot {
     fn new_from_path_space(
         graph: &PathIndex,
         annotations: impl IntoIterator<
-            Item = (PathId, std::ops::Range<Bp>, egui::Shape),
+            Item = (PathId, std::ops::Range<Bp>, ShapeFn),
         >,
     ) -> Self {
         // let mut annot_objs = Vec::new();
@@ -100,15 +103,15 @@ impl AnnotSlot {
         todo!();
     }
 
-    fn draw(&self, painter: &egui::Painter, view: &View1D) {
+    fn draw(&mut self, painter: &egui::Painter, view: &View1D) {
         use rstar::AABB;
         let rect = painter.clip_rect();
         let rleft = rect.left() as f64;
         let rright = rect.right() as f64;
 
+        let screen_interval = rleft..=rright;
+
         let range = view.range();
-        // let start = [Bp(range.start), Bp(range.start)];
-        // let end = [Bp(range.end), Bp(range.end)];
 
         let aabb =
             AABB::from_corners((range.start as i64,), (range.end as i64,));
@@ -117,33 +120,26 @@ impl AnnotSlot {
 
         for line in in_view {
             let a_id = line.data;
-            let left = Bp(line.geom().from.0 as u64);
-            let right = Bp(line.geom().to.0 as u64);
+            let left = line.geom().from.0 as u64;
+            let right = line.geom().to.0 as u64;
 
-            let l_f = left.0 as f64;
-            let r_f = right.0 as f64;
-            // let lf = rect.left() as f64
+            if self.anchors[a_id].is_none() {
+                if let Some(a_range) =
+                    anchor_interval(view, &(left..right), &screen_interval)
+                {
+                    let (l, r) = a_range.into_inner();
+                    let x = l + (r - l) * 0.5;
+                    self.anchors[a_id] = Some(x);
+                }
+            }
 
-            //
+            let y = rect.center().y;
+            if let Some(x) = self.anchors[a_id] {
+                let pos = egui::pos2(x as f32, y);
+                let shape = (self.shapes[a_id])(pos);
+                painter.add(shape);
+            }
         }
-
-        // let s_ix = self.annots.binary_search_by(|(&[l, r], _a_id)| {
-        //
-        // });
-
-        /*
-        for (&a_range, &a_id) in self.annots.range(start..end) {
-        let [left, right] = a_range;
-        let shape = &self.shapes[a_id];
-
-        if self.anchors[a_id].is_none() {
-            // create anchor
-        }
-        */
-        //
-        // }
-
-        todo!();
     }
 }
 
@@ -155,8 +151,8 @@ impl AnnotSlot {
 fn anchor_interval(
     view: &View1D,
     pan_range: &std::ops::Range<u64>,
-    screen_interval: &std::ops::RangeInclusive<f32>,
-) -> Option<std::ops::RangeInclusive<f32>> {
+    screen_interval: &std::ops::RangeInclusive<f64>,
+) -> Option<std::ops::RangeInclusive<f64>> {
     let vrange = view.range();
     let pleft = pan_range.start;
     let pright = pan_range.end;
@@ -165,18 +161,18 @@ fn anchor_interval(
         return None;
     }
 
-    let vl = vrange.start as f32;
-    let vr = vrange.end as f32;
+    let vl = vrange.start as f64;
+    let vr = vrange.end as f64;
     let vlen = vr - vl;
 
-    let pl = pleft as f32;
-    let pr = pright as f32;
+    let pl = pleft as f64;
+    let pr = pright as f64;
 
     let left = pleft.max(vrange.start);
     let right = pright.min(vrange.end);
 
-    let l = left as f32;
-    let r = right as f32;
+    let l = left as f64;
+    let r = right as f64;
 
     let lt = (l - vl) / vlen;
     let rt = (r - vr) / vlen;
