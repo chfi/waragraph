@@ -37,7 +37,7 @@ impl Annots1D {
     }
 }
 
-type AnnotsTreeObj = GeomWithData<Line<(i64,)>, usize>;
+type AnnotsTreeObj = GeomWithData<Line<(i64, i64)>, usize>;
 
 // type ShapeFn = Box<dyn Fn(egui::Pos2, egui::Rect) -> egui::Shape>;
 type ShapeFn = Box<dyn Fn(&egui::Painter, egui::Pos2) -> egui::Shape>;
@@ -82,7 +82,7 @@ impl AnnotSlot {
 
         for (a_id, (range, shape)) in annotations.into_iter().enumerate() {
             let geom =
-                Line::new((range.start.0 as i64,), (range.end.0 as i64,));
+                Line::new((range.start.0 as i64, 0), (range.end.0 as i64, 0));
             annot_objs.push(GeomWithData::new(geom, a_id));
             shapes.push(shape);
         }
@@ -149,7 +149,7 @@ impl AnnotSlot {
         let range = view.range();
 
         let aabb =
-            AABB::from_corners((range.start as i64,), (range.end as i64,));
+            AABB::from_corners((range.start as i64, 0), (range.end as i64, 0));
 
         let in_view = self.annots.locate_in_envelope_intersecting(&aabb);
 
