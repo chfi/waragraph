@@ -361,26 +361,26 @@ impl PathIndex {
 
     pub fn step_at_pos(
         &self,
-        path_name: &str,
+        path_id: PathId,
         pos: usize,
     ) -> Option<OrientedNode> {
-        let path_id = self.path_names.get_by_right(path_name)?;
         let offsets = self.path_step_offsets.get(path_id.ix())?;
         let steps = self.path_steps.get(path_id.ix())?;
         let pos_rank = offsets.rank(pos as u64) as usize;
         steps.get(pos_rank).copied()
     }
 
-    pub fn path_step_range_iter<'a>(
+    pub fn path_step_range_iter<'a, P: Into<u64>>(
         &'a self,
-        path_name: &str,
-        pos_range: std::ops::Range<u64>,
+        path_id: PathId,
+        pos_range: std::ops::Range<P>,
     ) -> Option<PathStepRangeIter<'a>> {
-        let path_id = *self.path_names.get_by_right(path_name)?;
         let offsets = self.path_step_offsets.get(path_id.ix())?;
 
-        let start = pos_range.start;
-        let end = pos_range.end;
+        let start = pos_range.start.into();
+        let end = pos_range.end.into();
+        let pos_range = start..end;
+
         let start_rank = offsets.rank(start);
         let end_rank = offsets.rank(end);
 

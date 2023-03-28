@@ -39,7 +39,6 @@ impl Annots1D {
 
 type AnnotsTreeObj = GeomWithData<Line<(i64, i64)>, usize>;
 
-// type ShapeFn = Box<dyn Fn(egui::Pos2, egui::Rect) -> egui::Shape>;
 type ShapeFn = Box<dyn Fn(&egui::Painter, egui::Pos2) -> egui::Shape>;
 
 pub fn text_shape<L: ToString>(label: L) -> ShapeFn {
@@ -87,7 +86,7 @@ impl AnnotSlot {
             shapes.push(shape);
         }
 
-        let anchors = vec![None; annot_objs.len()];
+        let anchors = vec![None; shapes.len()];
 
         let annots = RTree::<AnnotsTreeObj>::bulk_load(annot_objs);
 
@@ -107,35 +106,33 @@ impl AnnotSlot {
             Item = (PathId, std::ops::Range<Bp>, ShapeFn),
         >,
     ) -> Self {
-        // let mut annot_objs = Vec::new();
-        // let mut shapes = Vec::new();
+        let mut annot_objs = Vec::new();
+        let mut shapes = Vec::new();
 
         for (a_id, (path, path_range, shape)) in
             annotations.into_iter().enumerate()
         {
-            todo!();
-
-            // use path index to split path_range into pangenome range chunks
-            // all chunks get the same a_id
-
-            /*
-            let geom =
-                Line::new((range.start.0 as i64,), (range.end.0 as i64,));
-            annot_objs.push(GeomWithData::new(geom, a_id));
             shapes.push(shape);
-            */
+            let range_end = path_range.end;
+            if let Some(steps) = graph.path_step_range_iter(path, path_range) {
+                for (start, step) in steps {
+                    let len = graph.node_length(step.node()).0 as usize;
+                    let end = (start + len).min(range_end.0 as usize);
+                    let geom = Line::new((start as i64, 0), (end as i64, 0));
+                    annot_objs.push(GeomWithData::new(geom, a_id));
+                }
+            }
         }
 
-        // let anchors = vec![None; annot_objs.len()];
+        let anchors = vec![None; shapes.len()];
 
-        // let annots = RTree::<AnnotsTreeObj>::bulk_load(annot_objs);
+        let annots = RTree::<AnnotsTreeObj>::bulk_load(annot_objs);
 
-        // Self {
-        //     annots,
-        //     shapes,
-        //     anchors,
-        // }
-        todo!();
+        Self {
+            annots,
+            shapes,
+            anchors,
+        }
     }
 
     pub(super) fn draw(&mut self, painter: &egui::Painter, view: &View1D) {
