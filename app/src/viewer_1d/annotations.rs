@@ -11,7 +11,7 @@ use super::view::View1D;
 
 /// Rendering annotations into 1D viewer slots
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Default, Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct AnnotSlotId(pub(super) u32);
 
 #[derive(Default)]
@@ -31,6 +31,10 @@ impl Annots1D {
     pub fn get(&self, slot_id: &AnnotSlotId) -> Option<&AnnotSlot> {
         self.slots.get(slot_id)
     }
+
+    pub fn get_mut(&mut self, slot_id: &AnnotSlotId) -> Option<&mut AnnotSlot> {
+        self.slots.get_mut(slot_id)
+    }
 }
 
 type AnnotsTreeObj = GeomWithData<Line<(i64,)>, usize>;
@@ -48,7 +52,7 @@ pub fn text_shape<L: ToString>(label: L) -> ShapeFn {
             &fonts,
             pos,
             egui::Align2::CENTER_CENTER,
-            label,
+            label.clone(),
             font,
             color,
         )
@@ -167,7 +171,7 @@ impl AnnotSlot {
             let y = rect.center().y;
             if let Some(x) = self.anchors[a_id] {
                 let pos = egui::pos2(x as f32, y);
-                let shape = (self.shapes[a_id])(pos);
+                let shape = (self.shapes[a_id])(painter, pos);
                 painter.add(shape);
             }
         }
@@ -232,11 +236,5 @@ pub(crate) mod util {
         });
 
         AnnotSlot::new_from_pangenome_space(annots)
-    }
-
-    pub(crate) fn generate_test_annot_slot(pangenome_len: Bp) -> AnnotSlot {
-        let len = pangenome_len.0;
-
-        todo!();
     }
 }

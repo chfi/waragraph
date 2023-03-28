@@ -82,6 +82,8 @@ pub struct Viewer1D {
 
     // NB: very temporary, hopefully
     viz_mode_config: HashMap<String, VizModeConfig>,
+
+    annotations: annotations::Annots1D,
 }
 
 impl Viewer1D {
@@ -365,6 +367,28 @@ impl Viewer1D {
             bin_count,
         )?;
 
+        let annotations = {
+            let mut annots = annotations::Annots1D::default();
+
+            let n = path_index.node_count;
+            let iter = (0..n).filter_map(|i| {
+                use waragraph_core::graph::Node;
+                let node = Node::from(i);
+                let len = path_index.node_length(node).0;
+                let label = format!("Node {i}|{len}");
+                (len > 500).then_some((node, label))
+            });
+
+            let slot = annotations::util::label_nodes(
+                &path_index,
+                iter, // path_index.pangenome_len(),
+            );
+
+            let a_slot_id = annots.insert_slot(slot);
+
+            annots
+        };
+
         Ok(Viewer1D {
             render_graph: graph,
             draw_path_slot: draw_node,
@@ -392,6 +416,8 @@ impl Viewer1D {
             color_mapping,
             // color_map_widget,
             viz_mode_config,
+
+            annotations,
         })
     }
 
@@ -555,7 +581,15 @@ impl AppWindow for Viewer1D {
             let view_range_row =
                 vec![gui::SlotElem::Empty, gui::SlotElem::ViewRange];
 
-            let rows_iter = [view_range_row].into_iter().chain(rows_iter);
+            let annot_row = vec![
+                gui::SlotElem::Empty,
+                gui::SlotElem::Annotations {
+                    annotation_slot_id: annotations::AnnotSlotId(0),
+                },
+            ];
+
+            let rows_iter =
+                [view_range_row, annot_row].into_iter().chain(rows_iter);
 
             let inner_offset = ultraviolet::Vec2::new(0.0, 4.0);
             let inner_dims = dims - inner_offset;
@@ -640,8 +674,9 @@ impl AppWindow for Viewer1D {
         let mut path_slot_region = egui::Rect::NOTHING;
 
         let mut shapes = Vec::new();
-
         shapes.extend(self.slot_cache.msg_shapes.drain(..));
+
+        let mut annot_slots = Vec::new();
 
         let mut view_range_rect = None;
 
@@ -730,8 +765,7 @@ impl AppWindow for Viewer1D {
                         shapes.push(shape);
                     }
                     gui::SlotElem::Annotations { annotation_slot_id } => {
-                        // TODO
-                        // create slot-clipped painter & call handler
+                        annot_slots.push((*annotation_slot_id, rect));
                     }
                 }
             })
@@ -861,6 +895,14 @@ impl AppWindow for Viewer1D {
                 }
 
                 self.self_viz_interact.store(interact);
+
+                for (slot_id, rect) in annot_slots {
+                    if let Some(annot_slot) = self.annotations.get_mut(&slot_id)
+                    {
+                        let painter = ui.painter_at(rect);
+                        annot_slot.draw(&painter, &self.view);
+                    }
+                }
             });
 
             let painter =
