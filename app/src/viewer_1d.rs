@@ -370,6 +370,7 @@ impl Viewer1D {
         let annotations = {
             let mut annots = annotations::Annots1D::default();
 
+            /*
             let n = path_index.node_count;
             let iter = (0..n).filter_map(|i| {
                 use waragraph_core::graph::Node;
@@ -383,6 +384,17 @@ impl Viewer1D {
                 &path_index,
                 iter, // path_index.pangenome_len(),
             );
+            */
+
+            let label = |l: u64, r: u64| (Bp(l)..Bp(r), format!("{l}-{r}"));
+            let iter = vec![
+                label(100_000, 200_000),
+                label(400_000, 600_000),
+                label(1000_000, 2000_000),
+                label(4000_000, 7000_000),
+            ];
+
+            let slot = annotations::util::pangenome_range_labels(iter);
 
             let a_slot_id = annots.insert_slot(slot);
 

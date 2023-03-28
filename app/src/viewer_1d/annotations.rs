@@ -158,15 +158,18 @@ impl AnnotSlot {
             let left = line.geom().from.0 as u64;
             let right = line.geom().to.0 as u64;
 
-            if self.anchors[a_id].is_none() {
-                if let Some(a_range) =
-                    anchor_interval(view, &(left..right), &screen_interval)
-                {
-                    let (l, r) = a_range.into_inner();
-                    let x = l + (r - l) * 0.5;
-                    self.anchors[a_id] = Some(x);
-                }
+            // if let Some(x) = self.anchors[a_id] {
+            // }
+
+            // if self.anchors[a_id].is_none() {
+            if let Some(a_range) =
+                anchor_interval(view, &(left..right), &screen_interval)
+            {
+                let (l, r) = a_range.into_inner();
+                let x = l + (r - l) * 0.5;
+                self.anchors[a_id] = Some(x);
             }
+            // }
 
             let y = rect.center().y;
             if let Some(x) = self.anchors[a_id] {
@@ -210,7 +213,7 @@ fn anchor_interval(
     let r = right as f64;
 
     let lt = (l - vl) / vlen;
-    let rt = (r - vr) / vlen;
+    let rt = (r - vl) / vlen;
 
     let (sleft, sright) = screen_interval.clone().into_inner();
     let slen = sright - sleft;
@@ -235,6 +238,15 @@ pub(crate) mod util {
             (node_range, text_shape(label))
         });
 
+        AnnotSlot::new_from_pangenome_space(annots)
+    }
+
+    pub(crate) fn pangenome_range_labels<L: ToString>(
+        labels: impl IntoIterator<Item = (std::ops::Range<Bp>, L)>,
+    ) -> AnnotSlot {
+        let annots = labels
+            .into_iter()
+            .map(|(range, label)| (range, text_shape(label)));
         AnnotSlot::new_from_pangenome_space(annots)
     }
 }
