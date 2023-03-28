@@ -14,15 +14,46 @@ use super::view::View1D;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct AnnotSlotId(pub(super) u32);
 
+#[derive(Default)]
 pub struct Annots1D {
     slots: HashMap<AnnotSlotId, AnnotSlot>,
     next_slot_id: AnnotSlotId,
 }
 
+impl Annots1D {
+    pub fn insert_slot(&mut self, slot: AnnotSlot) -> AnnotSlotId {
+        let slot_id = self.next_slot_id;
+        self.slots.insert(slot_id, slot);
+        self.next_slot_id = AnnotSlotId(slot_id.0 + 1);
+        slot_id
+    }
+
+    pub fn get(&self, slot_id: &AnnotSlotId) -> Option<&AnnotSlot> {
+        self.slots.get(slot_id)
+    }
+}
+
 type AnnotsTreeObj = GeomWithData<Line<(i64,)>, usize>;
 
 // type ShapeFn = Box<dyn Fn(egui::Pos2, egui::Rect) -> egui::Shape>;
-type ShapeFn = Box<dyn Fn(egui::Pos2) -> egui::Shape>;
+type ShapeFn = Box<dyn Fn(&egui::Painter, egui::Pos2) -> egui::Shape>;
+
+pub fn text_shape<L: ToString>(label: L) -> ShapeFn {
+    let label = label.to_string();
+    Box::new(move |painter, pos| {
+        let fonts = painter.fonts();
+        let font = egui::FontId::proportional(16.0);
+        let color = egui::Color32::WHITE;
+        egui::Shape::text(
+            &fonts,
+            pos,
+            egui::Align2::CENTER_CENTER,
+            label,
+            font,
+            color,
+        )
+    })
+}
 
 // Container for annotations displayed in a single 1D slot,
 // with the annotations "flattened" to the pangenome coordinate
@@ -39,7 +70,7 @@ pub struct AnnotSlot {
 impl AnnotSlot {
     /// Initializes an annotation slot given items in pangenome space.
     ///
-    fn new_from_pangenome_space(
+    pub fn new_from_pangenome_space(
         annotations: impl IntoIterator<Item = (std::ops::Range<Bp>, ShapeFn)>,
     ) -> Self {
         let mut annot_objs = Vec::new();
@@ -66,7 +97,7 @@ impl AnnotSlot {
     /// Initializes an annotation slot given items in path space.
     /// The path ranges to pangenome space, splitting them if
     /// necessary.
-    fn new_from_path_space(
+    pub fn new_from_path_space(
         graph: &PathIndex,
         annotations: impl IntoIterator<
             Item = (PathId, std::ops::Range<Bp>, ShapeFn),
@@ -103,7 +134,7 @@ impl AnnotSlot {
         todo!();
     }
 
-    fn draw(&mut self, painter: &egui::Painter, view: &View1D) {
+    pub(super) fn draw(&mut self, painter: &egui::Painter, view: &View1D) {
         use rstar::AABB;
         let rect = painter.clip_rect();
         let rleft = rect.left() as f64;
@@ -184,4 +215,28 @@ fn anchor_interval(
     let a_right = sleft + rt * slen;
 
     Some(a_left..=a_right)
+}
+
+pub(crate) mod util {
+    use waragraph_core::graph::{Bp, Node};
+
+    use super::*;
+
+    pub(crate) fn label_nodes<L: ToString>(
+        graph: &PathIndex,
+        labels: impl IntoIterator<Item = (Node, L)>,
+    ) -> AnnotSlot {
+        let annots = labels.into_iter().map(|(node, label)| {
+            let node_range = graph.node_pangenome_range(node);
+            (node_range, text_shape(label))
+        });
+
+        AnnotSlot::new_from_pangenome_space(annots)
+    }
+
+    pub(crate) fn generate_test_annot_slot(pangenome_len: Bp) -> AnnotSlot {
+        let len = pangenome_len.0;
+
+        todo!();
+    }
 }

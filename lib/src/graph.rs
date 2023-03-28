@@ -273,8 +273,19 @@ impl PathIndex {
     }
 
     #[inline]
-    pub fn node_offset_length(&self, node: Node) -> (Bp, Bp) {
+    pub fn node_pangenome_range(&self, node: Node) -> std::ops::Range<Bp> {
         let i = node.0 as u64;
+        let offset = self.segment_offsets.select(i).unwrap_or_default();
+        let next = self
+            .segment_offsets
+            .select(i + 1)
+            .unwrap_or(self.pangenome_len().0);
+
+        Bp(offset)..Bp(next)
+    }
+
+    #[inline]
+    pub fn node_offset_length(&self, node: Node) -> (Bp, Bp) {
         let i = node.0 as u64;
         let offset = self.segment_offsets.select(i).unwrap_or_default();
         let next = self
