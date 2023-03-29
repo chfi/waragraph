@@ -68,10 +68,93 @@ pub struct AnnotSlot {
 
     // annots: BTreeMap<[Bp; 2], usize>,
     shape_fns: Vec<ShapeFn>,
-
-    annot_shape_objs: Vec<AnnotObj>,
     // shape_positions: Vec<Option<Vec2>>,
-    anchors: Vec<Option<f64>>,
+    anchors: Vec<Option<f32>>,
+
+    dynamics: AnnotSlotDynamics,
+}
+
+#[derive(Default)]
+struct AnnotSlotDynamics {
+    // annot id -> annot_shape_objs ix
+    annot_obj_map: HashMap<usize, usize>,
+    annot_shape_objs: Vec<AnnotObj>,
+}
+
+impl AnnotSlotDynamics {
+    fn get_annot_obj(&self, a_id: usize) -> Option<&AnnotObj> {
+        let i = *self.annot_obj_map.get(&a_id)?;
+        Some(&self.annot_shape_objs[i])
+    }
+
+    fn get_annot_obj_mut(&mut self, a_id: usize) -> Option<&mut AnnotObj> {
+        let i = *self.annot_obj_map.get(&a_id)?;
+        Some(&mut self.annot_shape_objs[i])
+    }
+
+    fn get_or_insert_annot_obj_mut(&mut self, a_id: usize) -> &mut AnnotObj {
+        if let Some(i) = self.annot_obj_map.get(&a_id) {
+            &mut self.annot_shape_objs[*i]
+        } else {
+            let obj_i = self.annot_shape_objs.len();
+            let obj = AnnotObj::empty(a_id);
+            self.annot_obj_map.insert(a_id, obj_i);
+            self.annot_shape_objs.push(obj);
+            &mut self.annot_shape_objs[obj_i]
+        }
+    }
+
+    fn prepare(
+        &mut self,
+        annots: &RTree<AnnotsTreeObj>,
+        screen_rect: egui::Rect,
+        view: &View1D,
+    ) {
+        // initialize AnnotObjPos for the annotations in the view
+        // treat X as anchor X; use separate objects with spring constraint later
+
+        use rstar::AABB;
+        let rleft = screen_rect.left();
+        let rright = screen_rect.right();
+
+        let screen_interval = rleft..=rright;
+
+        let range = view.range();
+
+        let aabb =
+            AABB::from_corners((range.start as i64, 0), (range.end as i64, 0));
+
+        let in_view = annots.locate_in_envelope_intersecting(&aabb);
+
+        for line in in_view {
+            let a_id = line.data;
+            let left = line.geom().from.0 as u64;
+            let right = line.geom().to.0 as u64;
+
+            let mut reset_pos = false;
+
+            if let Some(pos) =
+                self.get_annot_obj(a_id).and_then(|o| o.pos.as_ref())
+            {
+                reset_pos = pos.pos_now.x < rleft || pos.pos_now.x > rright;
+            } else {
+                reset_pos = true;
+            }
+
+            if reset_pos {
+                if let Some(a_range) =
+                    anchor_interval(view, &(left..right), &screen_interval)
+                {
+                    let (l, r) = a_range.into_inner();
+                    let x = l + (r - l) * 0.5;
+                    let y = screen_rect.center().y;
+
+                    let obj = self.get_or_insert_annot_obj_mut(a_id);
+                    obj.pos = Some(AnnotObjPos::at_pos(Vec2::new(x, y)));
+                }
+            }
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -89,15 +172,36 @@ impl AnnotObjPos {
             accel: Vec2::zero(),
         }
     }
+    fn update_position(&mut self, dt: f32) {
+        let vel = self.pos_now - self.pos_old;
+        self.pos_old = self.pos_now;
+        self.pos_now = self.pos_now + vel + self.accel * dt * dt;
+        self.accel = Vec2::zero();
+    }
+
+    fn accelerate(&mut self, acc: Vec2) {
+        self.accel += acc;
+    }
 }
 
-#[derive(Debug, Default, Clone, Copy)]
+#[derive(Debug, Clone, Copy)]
 struct AnnotObj {
+    annot_id: usize,
+
     pos: Option<AnnotObjPos>,
+    // anchor_pos: Option<AnnotObjPos>,
     shape_size: Option<Vec2>,
 }
 
 impl AnnotObj {
+    fn empty(annot_id: usize) -> Self {
+        Self {
+            annot_id,
+            pos: None,
+            shape_size: None,
+        }
+    }
+
     fn pos(&self) -> Option<Vec2> {
         self.pos.map(|p| p.pos_now)
     }
@@ -114,21 +218,6 @@ impl AnnotObj {
             egui::vec2(size.x, size.y),
         );
         Some(rect)
-    }
-
-    fn update_position(&mut self, dt: f32) {
-        if let Some(obj_pos) = self.pos.as_mut() {
-            let vel = obj_pos.pos_now - obj_pos.pos_old;
-            obj_pos.pos_old = obj_pos.pos_now;
-            obj_pos.pos_now = obj_pos.pos_now + vel + obj_pos.accel * dt * dt;
-            obj_pos.accel = Vec2::zero();
-        }
-    }
-
-    fn accelerate(&mut self, acc: Vec2) {
-        if let Some(obj_pos) = self.pos.as_mut() {
-            obj_pos.accel += acc;
-        }
     }
 
     fn collides_impl(&self, other: &Self) -> Option<bool> {
@@ -158,8 +247,6 @@ impl AnnotSlot {
             shape_fns.push(shape);
         }
 
-        let annot_shape_objs = vec![AnnotObj::default(); shape_fns.len()];
-
         let anchors = vec![None; shape_fns.len()];
 
         let annots = RTree::<AnnotsTreeObj>::bulk_load(annot_objs);
@@ -168,7 +255,7 @@ impl AnnotSlot {
             annots,
             shape_fns,
             anchors,
-            annot_shape_objs,
+            dynamics: Default::default(),
         }
     }
 
@@ -199,7 +286,6 @@ impl AnnotSlot {
             }
         }
 
-        let annot_shape_objs = vec![AnnotObj::default(); shape_fns.len()];
         let anchors = vec![None; shape_fns.len()];
 
         let annots = RTree::<AnnotsTreeObj>::bulk_load(annot_objs);
@@ -208,14 +294,14 @@ impl AnnotSlot {
             annots,
             shape_fns,
             anchors,
-            annot_shape_objs,
+            dynamics: Default::default(),
         }
     }
 
     pub(super) fn update(&mut self, rect: egui::Rect, view: &View1D, dt: f64) {
         use rstar::AABB;
-        let rleft = rect.left() as f64;
-        let rright = rect.right() as f64;
+        let rleft = rect.left();
+        let rright = rect.right();
 
         let screen_interval = rleft..=rright;
 
@@ -281,8 +367,8 @@ impl AnnotSlot {
     pub(super) fn draw_old(&mut self, painter: &egui::Painter, view: &View1D) {
         use rstar::AABB;
         let rect = painter.clip_rect();
-        let rleft = rect.left() as f64;
-        let rright = rect.right() as f64;
+        let rleft = rect.left();
+        let rright = rect.right();
 
         let screen_interval = rleft..=rright;
 
@@ -329,8 +415,8 @@ impl AnnotSlot {
 fn anchor_interval(
     view: &View1D,
     pan_range: &std::ops::Range<u64>,
-    screen_interval: &std::ops::RangeInclusive<f64>,
-) -> Option<std::ops::RangeInclusive<f64>> {
+    screen_interval: &std::ops::RangeInclusive<f32>,
+) -> Option<std::ops::RangeInclusive<f32>> {
     let vrange = view.range();
     let pleft = pan_range.start;
     let pright = pan_range.end;
@@ -339,18 +425,18 @@ fn anchor_interval(
         return None;
     }
 
-    let vl = vrange.start as f64;
-    let vr = vrange.end as f64;
+    let vl = vrange.start as f32;
+    let vr = vrange.end as f32;
     let vlen = vr - vl;
 
-    let pl = pleft as f64;
-    let pr = pright as f64;
+    let pl = pleft as f32;
+    let pr = pright as f32;
 
     let left = pleft.max(vrange.start);
     let right = pright.min(vrange.end);
 
-    let l = left as f64;
-    let r = right as f64;
+    let l = left as f32;
+    let r = right as f32;
 
     let lt = (l - vl) / vlen;
     let rt = (r - vl) / vlen;
