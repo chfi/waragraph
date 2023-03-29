@@ -213,7 +213,7 @@ impl Viewer1D {
                         gui::SlotElem::Empty => taffy::style::Dimension::Auto,
                         gui::SlotElem::Annotations { annotation_slot_id } => {
                             // TODO this should be dynamic
-                            mk_h(slot_height)
+                            mk_h(100.0)
                         }
                         gui::SlotElem::ViewRange => mk_h(slot_height),
                         gui::SlotElem::PathData { slot_id, data_id } => {
@@ -392,6 +392,8 @@ impl Viewer1D {
                 label(400_000, 600_000),
                 label(1000_000, 2000_000),
                 label(4000_000, 7000_000),
+                label(8000_000, 9000_000),
+                label(12_000_000, 13_000_000),
             ];
 
             let slot = annotations::util::pangenome_range_labels(iter);
@@ -908,7 +910,7 @@ impl AppWindow for Viewer1D {
 
                 self.self_viz_interact.store(interact);
 
-                for (slot_id, rect) in annot_slots {
+                for &(slot_id, rect) in annot_slots.iter() {
                     if let Some(annot_slot) = self.annotations.get_mut(&slot_id)
                     {
                         let painter = ui.painter_at(rect);
@@ -928,6 +930,12 @@ impl AppWindow for Viewer1D {
             painter.extend(fg_shapes);
 
             painter.extend(self.slot_cache.msg_shapes.drain(..));
+        }
+
+        for (slot_id, rect) in annot_slots {
+            if let Some(annot_slot) = self.annotations.get_mut(&slot_id) {
+                annot_slot.update(rect, dt);
+            }
         }
 
         // self.slot_cache.debug_window(egui_ctx.ctx());

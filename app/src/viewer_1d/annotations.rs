@@ -462,8 +462,16 @@ impl AnnotSlot {
     }
     */
 
-    pub(super) fn draw(&self, painter: &egui::Painter, view: &View1D) {
-        todo!();
+    pub(super) fn draw(&mut self, painter: &egui::Painter, view: &View1D) {
+        let screen_rect = painter.clip_rect();
+        self.dynamics.prepare(&self.annots, screen_rect, view);
+
+        self.dynamics
+            .draw(&self.annots, &self.shape_fns, painter, view);
+    }
+
+    pub(super) fn update(&mut self, screen_rect: egui::Rect, dt: f32) {
+        self.dynamics.update(screen_rect, dt);
     }
 
     pub(super) fn draw_old(&mut self, painter: &egui::Painter, view: &View1D) {
