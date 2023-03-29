@@ -222,9 +222,21 @@ impl AnnotSlotDynamics {
             .zip(self.annot_shape_objs.iter_mut())
             .enumerate()
         {
-            // obj.pos.pos_now += delta;
+            obj.pos.pos_now += delta * dt;
+            // obj.pos.accel = delta;
+
+            // gravity
+            obj.pos.accel.y += 10.0;
 
             obj.pos.update_position(dt);
+
+            if let Some(rect) = obj.egui_rect() {
+                if rect.bottom() > screen_rect.bottom() {
+                    obj.pos.pos_now.y -= rect.bottom() - screen_rect.bottom();
+                }
+            }
+
+            // apply anchor constraint
         }
     }
 }
@@ -315,25 +327,27 @@ impl AnnotObj {
 
         let intersection = this.intersect(other);
 
-        // X axis
-        let dx = if diff.x < 0.0 {
-            //   `this` left of `other`
-            -intersection.width() * 0.5
-        } else {
-            //   `this` right of `other`
-            intersection.width() * 0.5
-        };
+        if diff.x > diff.y {
+            let dx = if diff.x < 0.0 {
+                //   `this` left of `other`
+                -intersection.width() * 0.5
+            } else {
+                //   `this` right of `other`
+                intersection.width() * 0.5
+            };
 
-        // Y axis
-        let dy = if diff.y < 0.0 {
-            //   `this` above `other`
-            -intersection.height() * 0.5
+            Vec2::new(dx, 0.0)
         } else {
-            //   `this` below `other`
-            intersection.height() * 0.5
-        };
+            let dy = if diff.y < 0.0 {
+                //   `this` above `other`
+                -intersection.height() * 0.5
+            } else {
+                //   `this` below `other`
+                intersection.height() * 0.5
+            };
 
-        Vec2::new(dx, dy)
+            Vec2::new(0.0, dy)
+        }
     }
 }
 
