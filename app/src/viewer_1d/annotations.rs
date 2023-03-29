@@ -140,6 +140,10 @@ impl AnnotSlotDynamics {
             let mut reset_pos = false;
 
             if let Some(pos) = self.get_annot_obj(a_id).map(|o| o.pos) {
+                log::warn!(
+                    "a_id: {a_id}, pos.x: {}\trleft: {rleft}, rright: {rright}",
+                    pos.pos_now.x
+                );
                 reset_pos = pos.pos_now.x < rleft || pos.pos_now.x > rright;
             } else {
                 reset_pos = true;
@@ -155,6 +159,8 @@ impl AnnotSlotDynamics {
 
                     let obj =
                         self.get_or_insert_annot_obj_mut(a_id, Vec2::new(x, y));
+
+                    log::error!("object reset! {a_id}");
                 }
             }
         }
@@ -216,7 +222,7 @@ impl AnnotSlotDynamics {
             .zip(self.annot_shape_objs.iter_mut())
             .enumerate()
         {
-            obj.pos.pos_now += delta;
+            // obj.pos.pos_now += delta;
 
             obj.pos.update_position(dt);
         }
@@ -468,6 +474,18 @@ impl AnnotSlot {
 
         self.dynamics
             .draw(&self.annots, &self.shape_fns, painter, view);
+
+        // debug rendering
+        for (obj_i, delta) in self.dynamics.deltas.iter().enumerate() {
+            let obj = &self.dynamics.annot_shape_objs[obj_i];
+
+            let pos: egui::Pos2 = mint::Point2::from(obj.pos.pos_now).into();
+            let vec: egui::Vec2 = mint::Vector2::from(*delta).into();
+
+            let stroke = egui::Stroke::new(2.0, egui::Color32::RED);
+
+            painter.arrow(pos, vec, stroke);
+        }
     }
 
     pub(super) fn update(&mut self, screen_rect: egui::Rect, dt: f32) {
