@@ -79,6 +79,8 @@ struct AnnotSlotDynamics {
     // annot id -> annot_shape_objs ix
     annot_obj_map: HashMap<usize, usize>,
     annot_shape_objs: Vec<AnnotObj>,
+
+    deltas: Vec<Vec2>,
 }
 
 impl AnnotSlotDynamics {
@@ -92,12 +94,16 @@ impl AnnotSlotDynamics {
         Some(&mut self.annot_shape_objs[i])
     }
 
-    fn get_or_insert_annot_obj_mut(&mut self, a_id: usize) -> &mut AnnotObj {
+    fn get_or_insert_annot_obj_mut(
+        &mut self,
+        a_id: usize,
+        pos: Vec2,
+    ) -> &mut AnnotObj {
         if let Some(i) = self.annot_obj_map.get(&a_id) {
             &mut self.annot_shape_objs[*i]
         } else {
             let obj_i = self.annot_shape_objs.len();
-            let obj = AnnotObj::empty(a_id);
+            let obj = AnnotObj::with_pos(a_id, pos);
             self.annot_obj_map.insert(a_id, obj_i);
             self.annot_shape_objs.push(obj);
             &mut self.annot_shape_objs[obj_i]
@@ -133,9 +139,7 @@ impl AnnotSlotDynamics {
 
             let mut reset_pos = false;
 
-            if let Some(pos) =
-                self.get_annot_obj(a_id).and_then(|o| o.pos.as_ref())
-            {
+            if let Some(pos) = self.get_annot_obj(a_id).map(|o| o.pos) {
                 reset_pos = pos.pos_now.x < rleft || pos.pos_now.x > rright;
             } else {
                 reset_pos = true;
@@ -149,10 +153,72 @@ impl AnnotSlotDynamics {
                     let x = l + (r - l) * 0.5;
                     let y = screen_rect.center().y;
 
-                    let obj = self.get_or_insert_annot_obj_mut(a_id);
-                    obj.pos = Some(AnnotObjPos::at_pos(Vec2::new(x, y)));
+                    let obj =
+                        self.get_or_insert_annot_obj_mut(a_id, Vec2::new(x, y));
                 }
             }
+        }
+    }
+
+    // also updates the size on screen of the cached annot objects
+    fn draw(
+        &mut self,
+        annots: &RTree<AnnotsTreeObj>,
+        shape_fns: &[ShapeFn],
+        painter: &egui::Painter,
+        view: &View1D,
+    ) {
+        for (&a_id, &obj_i) in &self.annot_obj_map {
+            let obj = &mut self.annot_shape_objs[obj_i];
+            let pos = obj.pos();
+
+            let shape = (shape_fns[a_id])(painter, egui::pos2(pos.x, pos.y));
+            let rect = shape.visual_bounding_rect();
+
+            painter.add(shape);
+
+            let size = rect.size();
+            obj.shape_size = Some(Vec2::new(size.x, size.y));
+        }
+    }
+
+    fn update(&mut self, screen_rect: egui::Rect, dt: f32) {
+        let objs = self.annot_shape_objs.len();
+
+        self.deltas.clear();
+        self.deltas.resize(objs, Vec2::zero());
+
+        for i in 0..objs {
+            for j in 0..objs {
+                if i == j {
+                    continue;
+                }
+
+                let (rect_i, rect_j) = {
+                    let ri = self.annot_shape_objs[i].egui_rect();
+                    let rj = self.annot_shape_objs[j].egui_rect();
+
+                    if let (Some(ri), Some(rj)) = (ri, rj) {
+                        (ri, rj)
+                    } else {
+                        continue;
+                    }
+                };
+
+                let delta = AnnotObj::intersect_delta(rect_i, rect_j);
+                self.deltas[i] += delta;
+            }
+        }
+
+        for (_obj_i, (&delta, obj)) in self
+            .deltas
+            .iter()
+            .zip(self.annot_shape_objs.iter_mut())
+            .enumerate()
+        {
+            obj.pos.pos_now += delta;
+
+            obj.pos.update_position(dt);
         }
     }
 }
@@ -188,22 +254,22 @@ impl AnnotObjPos {
 struct AnnotObj {
     annot_id: usize,
 
-    pos: Option<AnnotObjPos>,
+    pos: AnnotObjPos,
     // anchor_pos: Option<AnnotObjPos>,
     shape_size: Option<Vec2>,
 }
 
 impl AnnotObj {
-    fn empty(annot_id: usize) -> Self {
+    fn with_pos(annot_id: usize, pos: Vec2) -> Self {
         Self {
             annot_id,
-            pos: None,
+            pos: AnnotObjPos::at_pos(pos),
             shape_size: None,
         }
     }
 
-    fn pos(&self) -> Option<Vec2> {
-        self.pos.map(|p| p.pos_now)
+    fn pos(&self) -> Vec2 {
+        self.pos.pos_now
     }
 
     fn size(&self) -> Option<Vec2> {
@@ -211,7 +277,7 @@ impl AnnotObj {
     }
 
     fn egui_rect(&self) -> Option<egui::Rect> {
-        let pos = self.pos()?;
+        let pos = self.pos();
         let size = self.size()?;
         let rect = egui::Rect::from_center_size(
             egui::pos2(pos.x, pos.y),
@@ -228,6 +294,40 @@ impl AnnotObj {
 
     fn collides(&self, other: &Self) -> bool {
         self.collides_impl(other).unwrap_or(false)
+    }
+
+    // outputs the delta that when applied to `this` resolves half of
+    // the collision between the two
+    fn intersect_delta(this: egui::Rect, other: egui::Rect) -> Vec2 {
+        if !this.intersects(other) {
+            return Vec2::zero();
+        }
+
+        let t_center: Vec2 = mint::Point2::from(this.center()).into();
+        let o_center: Vec2 = mint::Point2::from(this.center()).into();
+        let diff = t_center - o_center;
+
+        let intersection = this.intersect(other);
+
+        // X axis
+        let dx = if diff.x < 0.0 {
+            //   `this` left of `other`
+            -intersection.width() * 0.5
+        } else {
+            //   `this` right of `other`
+            intersection.width() * 0.5
+        };
+
+        // Y axis
+        let dy = if diff.y < 0.0 {
+            //   `this` above `other`
+            -intersection.height() * 0.5
+        } else {
+            //   `this` below `other`
+            intersection.height() * 0.5
+        };
+
+        Vec2::new(dx, dy)
     }
 }
 
@@ -298,6 +398,7 @@ impl AnnotSlot {
         }
     }
 
+    /*
     pub(super) fn update(&mut self, rect: egui::Rect, view: &View1D, dt: f64) {
         use rstar::AABB;
         let rleft = rect.left();
@@ -359,6 +460,7 @@ impl AnnotSlot {
 
         todo!();
     }
+    */
 
     pub(super) fn draw(&self, painter: &egui::Painter, view: &View1D) {
         todo!();
