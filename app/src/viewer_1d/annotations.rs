@@ -294,8 +294,33 @@ impl AnnotSlotDynamics {
 
             // gravity
             obj.pos.accel.y += 10.0;
+            let v = obj.pos.pos_now - obj.pos.pos_old;
+
+            if let Some(anchor) = obj.closest_anchor_pos {
+                // let dist = anchor - obj.pos.pos_now.x;
+                let dist = obj.pos.pos_now.x - anchor;
+
+                if dist.abs() > 1.0 {
+                    // let k = 1.0;
+                    // let k = 0.1;
+                    // let k = 0.5;
+                    let k = 0.5;
+
+                    let f = -k * dist;
+                    let a = f;
+
+                    obj.pos.accel.x += a;
+                } else {
+                    let damp = 1.0;
+                    obj.pos.accel.x = -v.x * damp;
+                }
+
+                // obj.pos.pos_now.x = anchor;
+                // obj.closest_anchor_pos = None;
+            }
 
             obj.pos.update_position(dt);
+            //
 
             if let Some(rect) = obj.egui_rect() {
                 if rect.bottom() > screen_rect.bottom() {
@@ -303,11 +328,14 @@ impl AnnotSlotDynamics {
                 }
             }
 
+            // reset
+            obj.closest_anchor_pos = None;
+
             // apply anchor constraint
-            if let Some(anchor) = obj.closest_anchor_pos {
-                obj.pos.pos_now.x = anchor;
-                obj.closest_anchor_pos = None;
-            }
+            // if let Some(anchor) = obj.closest_anchor_pos {
+            //     obj.pos.pos_now.x = anchor;
+            //     obj.closest_anchor_pos = None;
+            // }
         }
     }
 }
