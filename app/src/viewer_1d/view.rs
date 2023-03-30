@@ -33,7 +33,7 @@ impl View1D {
     fn make_valid(&mut self) {
         let len = self.len();
 
-        if len > self.max {
+        if self.range.end > self.max() {
             self.range.end = self.max();
         }
 
