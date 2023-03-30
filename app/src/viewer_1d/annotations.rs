@@ -211,24 +211,17 @@ impl AnnotSlotDynamics {
                     .and_then(|obj| Some((anchor_range?, obj)))
                 {
                     let (left, right) = a_range.into_inner();
+                    let range_x = left + (right - left) * 0.5;
                     let obj_x = obj.pos.pos_now.x;
 
-                    let closest = if obj_x < left {
-                        left
-                    } else if obj_x > right {
-                        right
-                    } else {
-                        obj_x
-                    };
-
-                    let dist = (closest - obj_x).abs();
+                    let dist = (range_x - obj_x).abs();
 
                     if let Some(cur_closest) = obj.closest_anchor_pos.as_mut() {
                         if (*cur_closest - obj_x).abs() > dist {
-                            *cur_closest = closest;
+                            *cur_closest = range_x;
                         }
                     } else {
-                        obj.closest_anchor_pos = Some(closest);
+                        obj.closest_anchor_pos = Some(range_x);
                     }
                 };
             }
@@ -650,9 +643,6 @@ fn anchor_interval(
     let vl = vrange.start as f32;
     let vr = vrange.end as f32;
     let vlen = vr - vl;
-
-    let pl = pleft as f32;
-    let pr = pright as f32;
 
     let left = pleft.max(vrange.start);
     let right = pright.min(vrange.end);
