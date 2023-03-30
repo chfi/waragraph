@@ -391,7 +391,7 @@ impl SlotCache {
                     .map(|prev_gen| self.generation.abs_diff(prev_gen) < 120)
                     .unwrap_or(false)
                 {
-                    log::warn!("skipping new enough slot!");
+                    // log::warn!("skipping new enough slot!");
                     continue;
                 }
 
@@ -466,7 +466,7 @@ impl SlotCache {
                         offset as u64,
                         size,
                     );
-                    log::error!(
+                    log::debug!(
                         "writing buffer slot ({}, {}) -> {slot_id}",
                         key.0.ix(),
                         key.1

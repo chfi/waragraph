@@ -81,6 +81,9 @@ struct AnnotSlotDynamics {
     annot_shape_objs: Vec<AnnotObj>,
 
     deltas: Vec<Vec2>,
+
+    cur_view: Option<View1D>,
+    prev_view: Option<View1D>,
 }
 
 impl AnnotSlotDynamics {
@@ -132,22 +135,29 @@ impl AnnotSlotDynamics {
 
         let in_view = annots.locate_in_envelope_intersecting(&aabb);
 
+        self.prev_view = self.cur_view.clone();
+        self.cur_view = Some(view.clone());
+
+        let view_changed =
+            self.prev_view != self.cur_view && self.cur_view.is_some();
+
+        /*
+        if view_changed, use prev_view & cur_view to derive the delta
+        transformation to be applied to the (screenspace) annotation
+        positions
+        */
+
         for line in in_view {
             let a_id = line.data;
             let left = line.geom().from.0 as u64;
             let right = line.geom().to.0 as u64;
 
-            let mut reset_pos = false;
-
-            if let Some(pos) = self.get_annot_obj(a_id).map(|o| o.pos) {
-                log::warn!(
-                    "a_id: {a_id}, pos.x: {}\trleft: {rleft}, rright: {rright}",
-                    pos.pos_now.x
-                );
-                reset_pos = pos.pos_now.x < rleft || pos.pos_now.x > rright;
-            } else {
-                reset_pos = true;
-            }
+            let reset_pos =
+                if let Some(pos) = self.get_annot_obj(a_id).map(|o| o.pos) {
+                    pos.pos_now.x < rleft || pos.pos_now.x > rright
+                } else {
+                    true
+                };
 
             if reset_pos {
                 if let Some(a_range) =
@@ -155,12 +165,39 @@ impl AnnotSlotDynamics {
                 {
                     let (l, r) = a_range.into_inner();
                     let x = l + (r - l) * 0.5;
+
                     let y = screen_rect.center().y;
 
-                    let obj =
+                    let _obj =
                         self.get_or_insert_annot_obj_mut(a_id, Vec2::new(x, y));
+                }
+            } else if view_changed {
+                // only apply the view transform to annots that haven't been reset
 
-                    log::error!("object reset! {a_id}");
+                let [a, b] = self
+                    .prev_view
+                    .as_ref()
+                    .and_then(|v0| Some((v0, self.cur_view.as_ref()?)))
+                    .map(|(v0, v1)| {
+                        super::Viewer1D::sample_index_transform(
+                            v0.range(),
+                            v1.range(),
+                        )
+                    })
+                    .unwrap();
+
+                let w = screen_rect.width();
+                let x0 = screen_rect.left();
+
+                let apply_tf = |p: &mut Vec2| {
+                    let x = p.x - x0;
+                    let x_ = x * a - w * b;
+                    p.x = x_ + x0;
+                };
+
+                if let Some(obj) = self.get_annot_obj_mut(a_id) {
+                    apply_tf(&mut obj.pos.pos_now);
+                    apply_tf(&mut obj.pos.pos_old);
                 }
             }
         }
@@ -236,7 +273,7 @@ impl AnnotSlotDynamics {
                 }
             }
 
-            // apply anchor constraint
+            // TODO apply anchor constraint
         }
     }
 }
