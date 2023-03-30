@@ -159,11 +159,12 @@ impl AnnotSlotDynamics {
                     true
                 };
 
+            let anchor_range =
+                anchor_interval(view, &(left..right), &screen_interval);
+
             if reset_pos {
-                if let Some(a_range) =
-                    anchor_interval(view, &(left..right), &screen_interval)
-                {
-                    let (l, r) = a_range.into_inner();
+                if let Some(a_range) = anchor_range.as_ref() {
+                    let (l, r) = a_range.clone().into_inner();
                     let x = l + (r - l) * 0.5;
 
                     let y = screen_rect.center().y;
@@ -200,6 +201,37 @@ impl AnnotSlotDynamics {
                     apply_tf(&mut obj.pos.pos_old);
                 }
             }
+
+            {
+                // TODO: update the closest point to the anchor set from the
+                // annotation's current position
+
+                if let Some((a_range, obj)) = self
+                    .get_annot_obj_mut(a_id)
+                    .and_then(|obj| Some((anchor_range?, obj)))
+                {
+                    let (left, right) = a_range.into_inner();
+                    let obj_x = obj.pos.pos_now.x;
+
+                    let closest = if obj_x < left {
+                        left
+                    } else if obj_x > right {
+                        right
+                    } else {
+                        obj_x
+                    };
+
+                    let dist = (closest - obj_x).abs();
+
+                    if let Some(cur_closest) = obj.closest_anchor_pos.as_mut() {
+                        if (*cur_closest - obj_x).abs() > dist {
+                            *cur_closest = closest;
+                        }
+                    } else {
+                        obj.closest_anchor_pos = Some(closest);
+                    }
+                };
+            }
         }
     }
 
@@ -213,15 +245,20 @@ impl AnnotSlotDynamics {
     ) {
         for (&a_id, &obj_i) in &self.annot_obj_map {
             let obj = &mut self.annot_shape_objs[obj_i];
+
             let pos = obj.pos();
 
             let shape = (shape_fns[a_id])(painter, egui::pos2(pos.x, pos.y));
             let rect = shape.visual_bounding_rect();
 
-            painter.add(shape);
-
             let size = rect.size();
             obj.shape_size = Some(Vec2::new(size.x, size.y));
+
+            if obj.closest_anchor_pos.is_none() {
+                continue;
+            }
+
+            painter.add(shape);
         }
     }
 
@@ -273,7 +310,11 @@ impl AnnotSlotDynamics {
                 }
             }
 
-            // TODO apply anchor constraint
+            // apply anchor constraint
+            if let Some(anchor) = obj.closest_anchor_pos {
+                obj.pos.pos_now.x = anchor;
+                obj.closest_anchor_pos = None;
+            }
         }
     }
 }
@@ -310,6 +351,7 @@ struct AnnotObj {
     annot_id: usize,
 
     pos: AnnotObjPos,
+    closest_anchor_pos: Option<f32>,
     // anchor_pos: Option<AnnotObjPos>,
     shape_size: Option<Vec2>,
 }
@@ -319,6 +361,7 @@ impl AnnotObj {
         Self {
             annot_id,
             pos: AnnotObjPos::at_pos(pos),
+            closest_anchor_pos: None,
             shape_size: None,
         }
     }
