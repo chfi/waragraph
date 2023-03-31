@@ -150,18 +150,21 @@ impl App {
             for annot_path in args.annotations.iter() {
                 if let Some(ext) = annot_path.extension() {
                     if ext == "gff" {
+                        let attr = args
+                            .gff_attr
+                            .as_ref()
+                            .map(|s| s.as_str())
+                            .unwrap_or("Name");
+
                         // TODO the name and record functions should be configurable
                         let result = AnnotationSet::from_gff(
                             &path_index,
-                            |name| {
-                                let n = format!("S288C.{name}");
-                                log::warn!("n: {n}");
-                                n
-                            },
+                            |name| name.to_string(),
+                            // |name| format!("S288C.{name}"),
                             |record| {
                                 let attrs = record.attributes();
                                 let label = attrs.iter().find_map(|entry| {
-                                    (entry.key() == "Name")
+                                    (entry.key() == attr)
                                         .then_some(entry.value())
                                 })?;
 
@@ -550,6 +553,7 @@ pub struct Args {
     pub tsv: Option<PathBuf>,
 
     pub annotations: Vec<PathBuf>,
+    pub gff_attr: Option<String>,
     // pub annotations: Option<PathBuf>,
 }
 
@@ -569,13 +573,15 @@ pub fn parse_args() -> std::result::Result<Args, pico_args::Error> {
     if let Some(gff) = gff {
         annotations.push(gff);
     }
-    // pargs.opt_value_from_str("--bed",
+
+    let gff_attr = pargs.opt_value_from_str("--gff-attr")?;
 
     let args = Args {
         gfa: pargs.free_from_os_str(parse_path)?,
         tsv: pargs.opt_free_from_os_str(parse_path)?,
 
         annotations,
+        gff_attr,
         // init_range,
     };
 
