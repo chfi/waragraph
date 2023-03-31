@@ -372,18 +372,18 @@ impl Viewer1D {
             let mut annots = annotations::Annots1D::default();
 
             // Debug/test stuff
-            let label = |l: u64, r: u64| (Bp(l)..Bp(r), format!("{l}-{r}"));
-            let iter = vec![
-                label(100_000, 200_000),
-                label(400_000, 600_000),
-                label(1000_000, 2000_000),
-                label(4000_000, 7000_000),
-                label(7200_000, 7800_000),
-                label(8000_000, 9000_000),
-                label(12_000_000, 13_000_000),
-            ];
-            let slot = annotations::util::pangenome_range_labels(iter);
-            annots.insert_slot(PathId::from(3u32), slot);
+            // let label = |l: u64, r: u64| (Bp(l)..Bp(r), format!("{l}-{r}"));
+            // let iter = vec![
+            //     label(100_000, 200_000),
+            //     label(400_000, 600_000),
+            //     label(1000_000, 2000_000),
+            //     label(4000_000, 7000_000),
+            //     label(7200_000, 7800_000),
+            //     label(8000_000, 9000_000),
+            //     label(12_000_000, 13_000_000),
+            // ];
+            // let slot = annotations::util::pangenome_range_labels(iter);
+            // annots.insert_slot(PathId::from(3u32), slot);
 
             annots
         };
