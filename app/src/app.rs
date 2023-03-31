@@ -149,7 +149,13 @@ impl App {
 
             for annot_path in args.annotations.iter() {
                 if let Some(ext) = annot_path.extension() {
-                    if ext == "gff" {
+                    let result = if ext == "bed" {
+                        AnnotationSet::from_bed(
+                            &path_index,
+                            |name| name.to_string(),
+                            annot_path,
+                        )
+                    } else if ext == "gff" {
                         let attr = args
                             .gff_attr
                             .as_ref()
@@ -157,10 +163,11 @@ impl App {
                             .unwrap_or("Name");
 
                         // TODO the name and record functions should be configurable
-                        let result = AnnotationSet::from_gff(
+                        AnnotationSet::from_gff(
                             &path_index,
                             |name| name.to_string(),
                             // |name| format!("S288C.{name}"),
+                            // |name| format!("SGDref#1#{name}"),
                             |record| {
                                 let attrs = record.attributes();
                                 let label = attrs.iter().find_map(|entry| {
@@ -171,29 +178,32 @@ impl App {
                                 Some(label.to_string())
                             },
                             annot_path,
-                        );
+                        )
+                    } else {
+                        log::error!("Unknown annotation file extension `{ext:?}`, ignoring");
+                        continue;
+                    };
 
-                        match result {
-                            Ok(set) => {
-                                log::warn!(
-                                    "loaded annotation set with {} annotations",
-                                    set.annotations.len()
-                                );
+                    match result {
+                        Ok(set) => {
+                            log::warn!(
+                                "loaded annotation set with {} annotations",
+                                set.annotations.len()
+                            );
 
-                                let name = annot_path
-                                    .file_name()
-                                    .and_then(|s| s.to_str())
-                                    .expect("Annotation file had no name?!");
-                                annotations
-                                    .annotation_sets
-                                    .insert(name.to_string(), Arc::new(set));
-                            }
-                            Err(e) => {
-                                log::error!(
-                                    "Error loading annotation file {:?}: {e:?}",
-                                    annot_path.as_os_str()
-                                );
-                            }
+                            let name = annot_path
+                                .file_name()
+                                .and_then(|s| s.to_str())
+                                .expect("Annotation file had no name?!");
+                            annotations
+                                .annotation_sets
+                                .insert(name.to_string(), Arc::new(set));
+                        }
+                        Err(e) => {
+                            log::error!(
+                                "Error loading annotation file {:?}: {e:?}",
+                                annot_path.as_os_str()
+                            );
                         }
                     }
                 }

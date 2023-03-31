@@ -10,6 +10,60 @@ pub struct AnnotationSet {
 }
 
 impl AnnotationSet {
+    pub fn from_bed(
+        graph: &PathIndex,
+        path_name_map: impl Fn(&str) -> String,
+        bed_path: impl AsRef<std::path::Path>,
+    ) -> Result<Self> {
+        use noodles::bed;
+        use std::fs::File;
+        use std::io::BufReader;
+
+        let mut reader = File::open(bed_path)
+            .map(BufReader::new)
+            .map(bed::Reader::new)?;
+
+        let mut annotations = Vec::new();
+        let mut path_annotations: HashMap<_, Vec<_>> = HashMap::new();
+
+        for result in reader.records::<4>() {
+            match result {
+                Ok(record) => {
+                    if let Some(name) = record.name() {
+                        let seqid = &record.reference_sequence_name();
+
+                        let start = record.start_position().get();
+                        let end = record.end_position().get();
+
+                        let start_bp = Bp(start as u64);
+                        let end_bp = Bp(end as u64);
+                        let range = start_bp..end_bp;
+
+                        let path_name = path_name_map(seqid);
+                        let path_id = *graph
+                            .path_names
+                            .get_by_right(&path_name)
+                            .ok_or_else(|| {
+                                anyhow!("Path not found: {path_name}")
+                            })?;
+
+                        let a_id = annotations.len();
+                        annotations.push((range, name.to_string()));
+                        path_annotations.entry(path_id).or_default().push(a_id);
+                    }
+                }
+                Err(err) => {
+                    log::error!("Error parsing GFF record: {err}");
+                }
+            }
+        }
+
+        Ok(Self {
+            annotations,
+            path_annotations,
+        })
+    }
+
     pub fn from_gff(
         graph: &PathIndex,
         path_name_map: impl Fn(&str) -> String,
