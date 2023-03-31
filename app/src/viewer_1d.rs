@@ -400,7 +400,7 @@ impl Viewer1D {
 
             let slot = annotations::util::pangenome_range_labels(iter);
 
-            let a_slot_id = annots.insert_slot(slot);
+            let a_slot_id = annots.insert_slot_no_path(slot);
 
             annots
         };
@@ -540,6 +540,10 @@ impl AppWindow for Viewer1D {
         {
             // TODO: should be async (but all of this should be rewritten)
             for (path, set) in annot_set_slots {
+                if self.annotations.get_path_slot_id(path).is_some() {
+                    continue;
+                }
+
                 if let Some(annots) = set.path_annotations.get(&path) {
                     let annot_items = annots
                         .iter()
@@ -554,8 +558,8 @@ impl AppWindow for Viewer1D {
                         annot_items,
                     );
 
-                    let a_slot_id = self.annotations.insert_slot(annot_slot);
-                    // TODO store a_slot_id <-> Path
+                    let a_slot_id =
+                        self.annotations.insert_slot(path, annot_slot);
                 }
             }
         }

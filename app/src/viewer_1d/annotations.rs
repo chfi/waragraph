@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, HashMap, HashSet};
 
 use rstar::{
     primitives::{GeomWithData, Line},
@@ -18,12 +18,31 @@ pub struct AnnotSlotId(pub(super) u32);
 pub struct Annots1D {
     slots: HashMap<AnnotSlotId, AnnotSlot>,
     next_slot_id: AnnotSlotId,
+
+    path_annot_slot: HashMap<PathId, AnnotSlotId>,
 }
 
 impl Annots1D {
-    pub fn insert_slot(&mut self, slot: AnnotSlot) -> AnnotSlotId {
+    pub fn get_path_slot_id(&self, path: PathId) -> Option<AnnotSlotId> {
+        let slot = self.path_annot_slot.get(&path)?;
+        Some(*slot)
+    }
+
+    pub fn insert_slot_no_path(&mut self, slot: AnnotSlot) -> AnnotSlotId {
         let slot_id = self.next_slot_id;
         self.slots.insert(slot_id, slot);
+        self.next_slot_id = AnnotSlotId(slot_id.0 + 1);
+        slot_id
+    }
+
+    pub fn insert_slot(
+        &mut self,
+        path: PathId,
+        slot: AnnotSlot,
+    ) -> AnnotSlotId {
+        let slot_id = self.next_slot_id;
+        self.slots.insert(slot_id, slot);
+        self.path_annot_slot.insert(path, slot_id);
         self.next_slot_id = AnnotSlotId(slot_id.0 + 1);
         slot_id
     }
@@ -537,70 +556,6 @@ impl AnnotSlot {
         }
     }
 
-    /*
-    pub(super) fn update(&mut self, rect: egui::Rect, view: &View1D, dt: f64) {
-        use rstar::AABB;
-        let rleft = rect.left();
-        let rright = rect.right();
-
-        let screen_interval = rleft..=rright;
-
-        let range = view.range();
-
-        let aabb =
-            AABB::from_corners((range.start as i64, 0), (range.end as i64, 0));
-
-        let in_view = self.annots.locate_in_envelope_intersecting(&aabb);
-
-        let mut active = Vec::new();
-
-        for line in in_view {
-            let a_id = line.data;
-            let left = line.geom().from.0 as u64;
-            let right = line.geom().to.0 as u64;
-
-            let reset_anchor = self.anchors[a_id]
-                .map(|x| {
-                    // true if anchor is offscreen
-                    // (could be better; take label size into account)
-                    x < rleft || x > rright
-                })
-                .unwrap_or(true);
-
-            if reset_anchor {
-                // place anchor
-                if let Some(a_range) =
-                    anchor_interval(view, &(left..right), &screen_interval)
-                {
-                    let (l, r) = a_range.into_inner();
-                    let x = l + (r - l) * 0.5;
-                    self.anchors[a_id] = Some(x);
-                }
-            }
-
-            active.push(a_id);
-        }
-
-        active.sort();
-        active.dedup();
-
-        for &i in &active {
-            for &j in &active {
-                if i == j {
-                    continue;
-                }
-
-                let colliding = todo!();
-
-                // if colliding, push apart
-                todo!();
-            }
-        }
-
-        todo!();
-    }
-    */
-
     pub(super) fn draw(&mut self, painter: &egui::Painter, view: &View1D) {
         let screen_rect = painter.clip_rect();
         self.dynamics.prepare(&self.annots, screen_rect, view);
@@ -623,48 +578,6 @@ impl AnnotSlot {
 
     pub(super) fn update(&mut self, screen_rect: egui::Rect, dt: f32) {
         self.dynamics.update(screen_rect, dt);
-    }
-
-    pub(super) fn draw_old(&mut self, painter: &egui::Painter, view: &View1D) {
-        use rstar::AABB;
-        let rect = painter.clip_rect();
-        let rleft = rect.left();
-        let rright = rect.right();
-
-        let screen_interval = rleft..=rright;
-
-        let range = view.range();
-
-        let aabb =
-            AABB::from_corners((range.start as i64, 0), (range.end as i64, 0));
-
-        let in_view = self.annots.locate_in_envelope_intersecting(&aabb);
-
-        for line in in_view {
-            let a_id = line.data;
-            let left = line.geom().from.0 as u64;
-            let right = line.geom().to.0 as u64;
-
-            // if let Some(x) = self.anchors[a_id] {
-            // }
-
-            // if self.anchors[a_id].is_none() {
-            if let Some(a_range) =
-                anchor_interval(view, &(left..right), &screen_interval)
-            {
-                let (l, r) = a_range.into_inner();
-                let x = l + (r - l) * 0.5;
-                self.anchors[a_id] = Some(x);
-            }
-            // }
-
-            let y = rect.center().y;
-            if let Some(x) = self.anchors[a_id] {
-                let pos = egui::pos2(x as f32, y);
-                let shape = (self.shape_fns[a_id])(painter, pos);
-                painter.add(shape);
-            }
-        }
     }
 }
 
