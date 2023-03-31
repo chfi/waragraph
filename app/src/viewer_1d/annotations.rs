@@ -198,7 +198,7 @@ impl AnnotSlotDynamics {
 
                 if let Some(obj) = self.get_annot_obj_mut(a_id) {
                     apply_tf(&mut obj.pos.pos_now);
-                    apply_tf(&mut obj.pos.pos_old);
+                    // apply_tf(&mut obj.pos.pos_old);
                 }
             }
 
@@ -298,6 +298,8 @@ impl AnnotSlotDynamics {
 
             if let Some(anchor) = obj.closest_anchor_pos {
                 // let dist = anchor - obj.pos.pos_now.x;
+                obj.pos.pos_now.x = anchor;
+                /*
                 let dist = obj.pos.pos_now.x - anchor;
 
                 if dist.abs() > 1.0 {
@@ -311,9 +313,10 @@ impl AnnotSlotDynamics {
 
                     obj.pos.accel.x += a;
                 } else {
-                    let damp = 1.0;
+                    let damp = 10.0;
                     obj.pos.accel.x = -v.x * damp;
                 }
+                */
 
                 // obj.pos.pos_now.x = anchor;
                 // obj.closest_anchor_pos = None;
