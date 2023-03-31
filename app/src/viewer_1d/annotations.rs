@@ -167,7 +167,8 @@ impl AnnotSlotDynamics {
                     let (l, r) = a_range.clone().into_inner();
                     let x = l + (r - l) * 0.5;
 
-                    let y = screen_rect.center().y;
+                    // let y = screen_rect.center().y + 20.0 * (x * 10.0).sin();
+                    let y = screen_rect.center().y + 20.0 * x.sin();
 
                     let _obj =
                         self.get_or_insert_annot_obj_mut(a_id, Vec2::new(x, y));
@@ -279,7 +280,15 @@ impl AnnotSlotDynamics {
                 };
 
                 let delta = AnnotObj::intersect_delta(rect_i, rect_j);
-                self.deltas[i] += delta;
+
+                // if delta.y.abs() > 0.0 {
+                //     log::warn!("obj {i} - {delta:?}");
+                // }
+
+                self.annot_shape_objs[i].pos.pos_now += delta;
+
+                // obj.pos.pos_now += delta;
+                // self.deltas[i] += delta;
             }
         }
 
@@ -289,7 +298,8 @@ impl AnnotSlotDynamics {
             .zip(self.annot_shape_objs.iter_mut())
             .enumerate()
         {
-            obj.pos.pos_now += delta * dt;
+            // obj.pos.pos_now += delta * dt;
+            // obj.pos.pos_now += delta;
             // obj.pos.accel = delta;
 
             // gravity
@@ -322,11 +332,12 @@ impl AnnotSlotDynamics {
                 // obj.closest_anchor_pos = None;
             }
 
-            obj.pos.update_position(dt);
-            //
+            // TODO: disabled until the collision & update_position behave correctly
+            // obj.pos.update_position(dt);
 
             if let Some(rect) = obj.egui_rect() {
                 if rect.bottom() > screen_rect.bottom() {
+                    // obj.pos.pos_now.y = screen_rect.bottom() - rect.height();
                     obj.pos.pos_now.y -= rect.bottom() - screen_rect.bottom();
                 }
             }
@@ -431,24 +442,28 @@ impl AnnotObj {
 
         let intersection = this.intersect(other);
 
-        if diff.x > diff.y {
+        if diff.x.abs() < diff.y.abs() {
             let dx = if diff.x < 0.0 {
                 //   `this` left of `other`
-                -intersection.width() * 0.5
+                -intersection.width()
             } else {
                 //   `this` right of `other`
-                intersection.width() * 0.5
+                intersection.width()
             };
+
+            let dx = dx * 0.5;
 
             Vec2::new(dx, 0.0)
         } else {
             let dy = if diff.y < 0.0 {
                 //   `this` above `other`
-                -intersection.height() * 0.5
+                -intersection.height()
             } else {
                 //   `this` below `other`
-                intersection.height() * 0.5
+                intersection.height()
             };
+
+            let dy = dy * 0.5;
 
             Vec2::new(0.0, dy)
         }
