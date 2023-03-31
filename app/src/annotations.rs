@@ -1,11 +1,12 @@
 use anyhow::{anyhow, Result};
 use std::collections::HashMap;
+use std::sync::Arc;
 
 use waragraph_core::graph::{Bp, PathId, PathIndex};
 
 pub struct AnnotationSet {
-    annotations: Vec<(std::ops::Range<Bp>, String)>,
-    path_annotations: HashMap<PathId, Vec<usize>>,
+    pub annotations: Vec<(std::ops::Range<Bp>, String)>,
+    pub path_annotations: HashMap<PathId, Vec<usize>>,
 }
 
 impl AnnotationSet {
@@ -58,6 +59,18 @@ impl AnnotationSet {
     }
 }
 
+#[derive(Default)]
 pub struct AnnotationStore {
-    pub(crate) annotation_sets: HashMap<String, AnnotationSet>,
+    pub annotation_sets: HashMap<String, Arc<AnnotationSet>>,
+}
+
+impl AnnotationStore {
+    pub fn get_sets_for_path<'a>(
+        &'a self,
+        path: PathId,
+    ) -> impl Iterator<Item = &'a Arc<AnnotationSet>> {
+        self.annotation_sets.values().filter_map(move |set| {
+            set.path_annotations.contains_key(&path).then_some(set)
+        })
+    }
 }

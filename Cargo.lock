@@ -1761,6 +1761,7 @@ dependencies = [
  "noodles-bam",
  "noodles-bed",
  "noodles-fasta",
+ "noodles-gff",
  "noodles-sam",
 ]
 
@@ -1829,6 +1830,16 @@ dependencies = [
  "memchr",
  "noodles-bgzf",
  "noodles-core",
+]
+
+[[package]]
+name = "noodles-gff"
+version = "0.9.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f8990b5fdbdccabfd5d8dbacb52087bdf42b2947b13d38a200e0887f3c7688c7"
+dependencies = [
+ "noodles-core",
+ "percent-encoding",
 ]
 
 [[package]]

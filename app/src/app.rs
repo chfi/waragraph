@@ -16,6 +16,7 @@ use std::{collections::HashMap, path::PathBuf, sync::Arc};
 use anyhow::Result;
 
 use crate::{
+    annotations::AnnotationStore,
     color::{ColorSchemeId, ColorStore},
     viewer_1d::Viewer1D,
     viewer_2d::Viewer2D,
@@ -44,6 +45,8 @@ pub struct SharedState {
 
     // pub shared: Arc<RwLock<AnyArcMap>>,
     pub graph_data_cache: Arc<GraphDataCache>,
+
+    pub annotations: Arc<RwLock<AnnotationStore>>,
 
     pub colors: Arc<RwLock<ColorStore>>,
 
@@ -142,11 +145,15 @@ impl App {
                 add_entry("strand", "black_red");
             }
 
+            let annotations: Arc<RwLock<AnnotationStore>> =
+                Arc::new(RwLock::new(AnnotationStore::default()));
+
             SharedState {
                 graph: path_index,
 
                 // shared: Arc::new(RwLock::new(AnyArcMap::default())),
                 graph_data_cache,
+                annotations,
 
                 colors,
 

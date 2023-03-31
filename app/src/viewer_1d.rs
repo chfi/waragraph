@@ -7,6 +7,7 @@ use crate::gui::list::DynamicListLayout;
 use crate::gui::FlexLayout;
 use crate::list::ListView;
 use crate::util::BufferDesc;
+use crate::viewer_1d::annotations::AnnotSlot;
 use crossbeam::atomic::AtomicCell;
 use taffy::style::Dimension;
 use tokio::sync::RwLock;
@@ -392,6 +393,7 @@ impl Viewer1D {
                 label(400_000, 600_000),
                 label(1000_000, 2000_000),
                 label(4000_000, 7000_000),
+                label(7200_000, 7800_000),
                 label(8000_000, 9000_000),
                 label(12_000_000, 13_000_000),
             ];
@@ -510,7 +512,12 @@ impl AppWindow for Viewer1D {
         dt: f32,
     ) {
         let mut laid_out_slots = Vec::new();
-        let layout_result =
+
+        let mut annot_set_slots = Vec::new();
+
+        let layout_result = {
+            let annotations = self.shared.annotations.blocking_read();
+
             self.dyn_slot_layout.layout().visit_layout(|layout, elem| {
                 if let gui::SlotElem::PathData { slot_id, data_id } = elem {
                     if let Some(path_id) =
@@ -519,9 +526,39 @@ impl AppWindow for Viewer1D {
                         let slot_key = (*path_id, data_id.clone());
                         let rect = crate::gui::layout_egui_rect(&layout);
                         laid_out_slots.push((slot_key, rect));
+
+                        // if path has an annotation set, create an AnnotSlot
+
+                        for set in annotations.get_sets_for_path(*path_id) {
+                            annot_set_slots.push((*path_id, set.clone()));
+                        }
                     }
                 }
-            });
+            })
+        };
+
+        {
+            // TODO: should be async (but all of this should be rewritten)
+            for (path, set) in annot_set_slots {
+                if let Some(annots) = set.path_annotations.get(&path) {
+                    let annot_items = annots
+                        .iter()
+                        .filter_map(|&i| set.annotations.get(i))
+                        .map(|(range, label)| {
+                            let shape_fn = annotations::text_shape(&label);
+                            (path, range.clone(), shape_fn)
+                        });
+
+                    let annot_slot = AnnotSlot::new_from_path_space(
+                        &self.shared.graph,
+                        annot_items,
+                    );
+
+                    let a_slot_id = self.annotations.insert_slot(annot_slot);
+                    // TODO store a_slot_id <-> Path
+                }
+            }
+        }
 
         let update_result = {
             self.slot_cache.sample_and_update(
