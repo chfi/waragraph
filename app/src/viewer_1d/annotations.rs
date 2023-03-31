@@ -188,7 +188,7 @@ impl AnnotSlotDynamics {
             } else if view_changed {
                 // only apply the view transform to annots that haven't been reset
 
-                let [a, b] = self
+                let transform = self
                     .prev_view
                     .as_ref()
                     .and_then(|v0| Some((v0, self.cur_view.as_ref()?)))
@@ -197,21 +197,22 @@ impl AnnotSlotDynamics {
                             v0.range(),
                             v1.range(),
                         )
-                    })
-                    .unwrap();
+                    });
 
-                let w = screen_rect.width();
-                let x0 = screen_rect.left();
+                if let Some([a, b]) = transform {
+                    let w = screen_rect.width();
+                    let x0 = screen_rect.left();
 
-                let apply_tf = |p: &mut Vec2| {
-                    let x = p.x - x0;
-                    let x_ = x * a - w * b;
-                    p.x = x_ + x0;
-                };
+                    let apply_tf = |p: &mut Vec2| {
+                        let x = p.x - x0;
+                        let x_ = x * a - w * b;
+                        p.x = x_ + x0;
+                    };
 
-                if let Some(obj) = self.get_annot_obj_mut(a_id) {
-                    apply_tf(&mut obj.pos.pos_now);
-                    // apply_tf(&mut obj.pos.pos_old);
+                    if let Some(obj) = self.get_annot_obj_mut(a_id) {
+                        apply_tf(&mut obj.pos.pos_now);
+                        // apply_tf(&mut obj.pos.pos_old);
+                    }
                 }
             }
 
