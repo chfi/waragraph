@@ -28,13 +28,6 @@ impl Annots1D {
         Some(*slot)
     }
 
-    pub fn insert_slot_no_path(&mut self, slot: AnnotSlot) -> AnnotSlotId {
-        let slot_id = self.next_slot_id;
-        self.slots.insert(slot_id, slot);
-        self.next_slot_id = AnnotSlotId(slot_id.0 + 1);
-        slot_id
-    }
-
     pub fn insert_slot(
         &mut self,
         path: PathId,

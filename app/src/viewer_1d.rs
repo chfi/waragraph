@@ -371,22 +371,7 @@ impl Viewer1D {
         let annotations = {
             let mut annots = annotations::Annots1D::default();
 
-            /*
-            let n = path_index.node_count;
-            let iter = (0..n).filter_map(|i| {
-                use waragraph_core::graph::Node;
-                let node = Node::from(i);
-                let len = path_index.node_length(node).0;
-                let label = format!("Node {i}|{len}");
-                (len > 500).then_some((node, label))
-            });
-
-            let slot = annotations::util::label_nodes(
-                &path_index,
-                iter, // path_index.pangenome_len(),
-            );
-            */
-
+            // Debug/test stuff
             let label = |l: u64, r: u64| (Bp(l)..Bp(r), format!("{l}-{r}"));
             let iter = vec![
                 label(100_000, 200_000),
@@ -397,10 +382,8 @@ impl Viewer1D {
                 label(8000_000, 9000_000),
                 label(12_000_000, 13_000_000),
             ];
-
             let slot = annotations::util::pangenome_range_labels(iter);
-
-            let a_slot_id = annots.insert_slot_no_path(slot);
+            annots.insert_slot(PathId::from(3u32), slot);
 
             annots
         };
@@ -558,8 +541,7 @@ impl AppWindow for Viewer1D {
                         annot_items,
                     );
 
-                    let a_slot_id =
-                        self.annotations.insert_slot(path, annot_slot);
+                    self.annotations.insert_slot(path, annot_slot);
                 }
             }
         }
@@ -619,32 +601,41 @@ impl AppWindow for Viewer1D {
         if self.dyn_slot_layout.layout().computed_size() != Some(dims) {
             let data_id = self.active_viz_data_key.blocking_read().clone();
 
-            let rows_iter =
-                self.path_list_view.offset_to_end_iter().enumerate().map(
-                    |(ix, _path)| {
-                        // TODO: should get slot id via a cache keyed to paths;
-                        // right now the entire set of rows gets resampled every change
-                        let name = gui::SlotElem::PathName { slot_id: ix };
-                        let data = gui::SlotElem::PathData {
-                            slot_id: ix,
-                            data_id: data_id.clone(),
-                        };
-                        vec![name, data]
-                    },
-                );
+            let rows_iter = self
+                .path_list_view
+                .offset_to_end_iter()
+                .enumerate()
+                .flat_map(|(ix, path)| {
+                    // TODO: should get slot id via a cache keyed to paths;
+                    // right now the entire set of rows gets resampled every change
+                    let name = gui::SlotElem::PathName { slot_id: ix };
+                    let data = gui::SlotElem::PathData {
+                        slot_id: ix,
+                        data_id: data_id.clone(),
+                    };
+
+                    let path_row = vec![name, data];
+
+                    if let Some(a_slot_id) =
+                        self.annotations.get_path_slot_id(*path)
+                    {
+                        let annot_row = vec![
+                            gui::SlotElem::Empty,
+                            gui::SlotElem::Annotations {
+                                annotation_slot_id: a_slot_id,
+                            },
+                        ];
+
+                        vec![annot_row, path_row]
+                    } else {
+                        vec![path_row]
+                    }
+                });
 
             let view_range_row =
                 vec![gui::SlotElem::Empty, gui::SlotElem::ViewRange];
 
-            let annot_row = vec![
-                gui::SlotElem::Empty,
-                gui::SlotElem::Annotations {
-                    annotation_slot_id: annotations::AnnotSlotId(0),
-                },
-            ];
-
-            let rows_iter =
-                [view_range_row, annot_row].into_iter().chain(rows_iter);
+            let rows_iter = [view_range_row].into_iter().chain(rows_iter);
 
             let inner_offset = ultraviolet::Vec2::new(0.0, 4.0);
             let inner_dims = dims - inner_offset;
