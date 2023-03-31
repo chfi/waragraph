@@ -16,7 +16,7 @@ use std::{collections::HashMap, path::PathBuf, sync::Arc};
 use anyhow::Result;
 
 use crate::{
-    annotations::AnnotationStore,
+    annotations::{AnnotationSet, AnnotationStore},
     color::{ColorSchemeId, ColorStore},
     viewer_1d::Viewer1D,
     viewer_2d::Viewer2D,
@@ -145,8 +145,59 @@ impl App {
                 add_entry("strand", "black_red");
             }
 
+            let mut annotations = AnnotationStore::default();
+
+            for annot_path in args.annotations.iter() {
+                if let Some(ext) = annot_path.extension() {
+                    if ext == "gff" {
+                        // TODO the name and record functions should be configurable
+                        let result = AnnotationSet::from_gff(
+                            &path_index,
+                            |name| {
+                                let n = format!("S288C.{name}");
+                                log::warn!("n: {n}");
+                                n
+                            },
+                            |record| {
+                                let attrs = record.attributes();
+                                let label = attrs.iter().find_map(|entry| {
+                                    (entry.key() == "Name")
+                                        .then_some(entry.value())
+                                })?;
+
+                                Some(label.to_string())
+                            },
+                            annot_path,
+                        );
+
+                        match result {
+                            Ok(set) => {
+                                log::warn!(
+                                    "loaded annotation set with {} annotations",
+                                    set.annotations.len()
+                                );
+
+                                let name = annot_path
+                                    .file_name()
+                                    .and_then(|s| s.to_str())
+                                    .expect("Annotation file had no name?!");
+                                annotations
+                                    .annotation_sets
+                                    .insert(name.to_string(), Arc::new(set));
+                            }
+                            Err(e) => {
+                                log::error!(
+                                    "Error loading annotation file {:?}: {e:?}",
+                                    annot_path.as_os_str()
+                                );
+                            }
+                        }
+                    }
+                }
+            }
+
             let annotations: Arc<RwLock<AnnotationStore>> =
-                Arc::new(RwLock::new(AnnotationStore::default()));
+                Arc::new(RwLock::new(annotations));
 
             SharedState {
                 graph: path_index,
@@ -497,14 +548,28 @@ pub trait AppWindow {
 pub struct Args {
     pub gfa: PathBuf,
     pub tsv: Option<PathBuf>,
-    pub annotations: Option<PathBuf>,
+
+    pub annotations: Vec<PathBuf>,
+    // pub annotations: Option<PathBuf>,
 }
 
 pub fn parse_args() -> std::result::Result<Args, pico_args::Error> {
     let mut pargs = pico_args::Arguments::from_env();
 
-    let annotations = pargs.opt_value_from_os_str("--bed", parse_path)?;
     // let init_range = pargs.opt_value_from_fn("--range", parse_range)?;
+
+    let mut annotations = Vec::new();
+
+    let bed = pargs.opt_value_from_os_str("--bed", parse_path)?;
+    if let Some(bed) = bed {
+        annotations.push(bed);
+    }
+
+    let gff = pargs.opt_value_from_os_str("--gff", parse_path)?;
+    if let Some(gff) = gff {
+        annotations.push(gff);
+    }
+    // pargs.opt_value_from_str("--bed",
 
     let args = Args {
         gfa: pargs.free_from_os_str(parse_path)?,
