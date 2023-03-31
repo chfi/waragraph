@@ -1,80 +1,63 @@
-use anyhow::Result;
-use std::collections::{BTreeMap, HashMap};
-use ultraviolet::Vec2;
+use anyhow::{anyhow, Result};
+use std::collections::HashMap;
 
-use waragraph_core::graph::{Bp, PathId};
+use waragraph_core::graph::{Bp, PathId, PathIndex};
 
-pub mod layout;
-
-pub struct AnnotationCache<T> {
-    records: Vec<T>,
-
-    // BTreeMap is a map from ranges to sets of record indices
-    annotations: HashMap<PathId, BTreeMap<(Bp, Bp), Vec<usize>>>,
+pub struct AnnotationSet {
+    annotations: Vec<(std::ops::Range<Bp>, String)>,
+    path_annotations: HashMap<PathId, Vec<usize>>,
 }
 
-#[derive(Default, Clone)]
-struct AnnotationStore {
-    // path name -> list of (range, text) pairs
-    path_annotations: HashMap<String, Vec<(std::ops::Range<Bp>, String)>>,
-}
+impl AnnotationSet {
+    pub fn from_gff(
+        graph: &PathIndex,
+        path_name_map: impl Fn(&str) -> String,
+        record_label: impl Fn(&noodles::gff::Record) -> Option<String>,
+        gff_path: impl AsRef<std::path::Path>,
+    ) -> Result<Self> {
+        use noodles::gff;
+        use std::fs::File;
+        use std::io::BufReader;
 
-impl AnnotationStore {
-    /*
-    fn layout_positions(
-        &self,
-        path_index: &PathIndex,
-        graph_paths: &GraphPathCurves,
-    ) -> Vec<(Vec2, String)> {
-        let mut out = Vec::new();
+        let mut reader = File::open(gff_path)
+            .map(BufReader::new)
+            .map(gff::Reader::new)?;
 
-        let world_pos_for_offset = |path: &str, pos: usize| {
-            path_index
-                .step_at_pos(path, pos)
-                .and_then(|s| graph_paths.pos_for_node(s.node().ix()))
-        };
+        let mut annotations = Vec::new();
+        let mut path_annotations: HashMap<_, Vec<_>> = HashMap::new();
 
-        for (path, annots) in self.path_annotations.iter() {
-            for (range, text) in annots.iter() {
-                let (s0, s1) = world_pos_for_offset(path, range.start).unwrap();
-                let (e0, e1) = world_pos_for_offset(path, range.end).unwrap();
+        for result in reader.records() {
+            let record = result?;
 
-                let start = s0 + (s1 - s0) / 2.0;
-                let end = e0 + (e1 - e0) / 2.0;
-                let mid = start + (end - start) * 0.5;
+            if let Some(label) = record_label(&record) {
+                let seqid = &record.reference_sequence_name();
 
-                out.push((mid, text.to_string()));
+                let start = record.start().get();
+                let end = record.end().get();
+
+                let start_bp = Bp(start as u64 - 1);
+                let end_bp = Bp(end as u64);
+                let range = start_bp..end_bp;
+
+                let path_name = path_name_map(seqid);
+                let path_id = *graph
+                    .path_names
+                    .get_by_right(&path_name)
+                    .ok_or_else(|| anyhow!("Path not found: {path_name}"))?;
+
+                let a_id = annotations.len();
+                annotations.push((range, label));
+                path_annotations.entry(path_id).or_default().push(a_id);
             }
         }
 
-        out
+        Ok(Self {
+            annotations,
+            path_annotations,
+        })
     }
-    */
+}
 
-    fn fill_from_bed(
-        &mut self,
-        bed_path: impl AsRef<std::path::Path>,
-    ) -> Result<()> {
-        let mut reader = std::fs::File::open(bed_path)
-            .map(std::io::BufReader::new)
-            .map(noodles::bed::Reader::new)?;
-
-        let records = reader.records::<4>();
-
-        for record in records {
-            let record = record?;
-            let path = record.reference_sequence_name();
-            let start = record.start_position().get();
-            let end = record.end_position().get();
-
-            if let Some(name) = record.name() {
-                self.path_annotations
-                    .entry(path.to_string())
-                    .or_default()
-                    .push((Bp(start as u64)..Bp(end as u64), name.to_string()))
-            }
-        }
-
-        Ok(())
-    }
+pub struct AnnotationStore {
+    pub(crate) annotation_sets: HashMap<String, AnnotationSet>,
 }
