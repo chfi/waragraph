@@ -1,9 +1,11 @@
 use std::collections::{BTreeMap, HashMap, HashSet};
+use std::sync::Arc;
 
 use rstar::{
     primitives::{GeomWithData, Line},
     RTree,
 };
+use tokio::{sync::Mutex, task::JoinHandle};
 use ultraviolet::Vec2;
 use waragraph_core::graph::{Bp, PathId, PathIndex};
 
@@ -51,6 +53,8 @@ impl Annots1D {
 
 type AnnotsTreeObj = GeomWithData<Line<(i64, i64)>, usize>;
 
+type AnnotId = usize;
+
 type ShapeFn = Box<dyn Fn(&egui::Painter, egui::Pos2) -> egui::Shape>;
 
 pub fn text_shape<L: ToString>(label: L) -> ShapeFn {
@@ -76,14 +80,19 @@ pub fn text_shape<L: ToString>(label: L) -> ShapeFn {
 pub struct AnnotSlot {
     // id: AnnotSlotId
     // really corresponds to the anchor regions
-    annots: RTree<AnnotsTreeObj>,
+    annots: Arc<RTree<AnnotsTreeObj>>,
 
     // annots: BTreeMap<[Bp; 2], usize>,
     shape_fns: Vec<ShapeFn>,
     // shape_positions: Vec<Option<Vec2>>,
     anchors: Vec<Option<f32>>,
 
-    dynamics: AnnotSlotDynamics,
+    dynamics: Arc<Mutex<AnnotSlotDynamics>>,
+
+    task: Option<JoinHandle<()>>,
+    // pair of (annot_id, pos) as produced by task; first value is used as key to shape_fn
+    positions: Arc<Mutex<Vec<(AnnotId, Vec2)>>>,
+    // shape_sizes_tx: tokio::sync::mpsc
 }
 
 #[derive(Default)]
@@ -99,6 +108,17 @@ struct AnnotSlotDynamics {
 }
 
 impl AnnotSlotDynamics {
+    async fn update_task(
+        state: Arc<Mutex<AnnotSlotDynamics>>,
+        shape_sizes_rx: tokio::sync::oneshot::Receiver<()>,
+    ) {
+        // prepare annot objects
+
+        // if
+
+        todo!();
+    }
+
     fn get_annot_obj(&self, a_id: usize) -> Option<&AnnotObj> {
         let i = *self.annot_obj_map.get(&a_id)?;
         Some(&self.annot_shape_objs[i])
@@ -504,10 +524,12 @@ impl AnnotSlot {
         let annots = RTree::<AnnotsTreeObj>::bulk_load(annot_objs);
 
         Self {
-            annots,
+            annots: Arc::new(annots),
             shape_fns,
             anchors,
             dynamics: Default::default(),
+            task: None,
+            positions: Arc::new(Mutex::new(Vec::new())),
         }
     }
 
@@ -543,15 +565,35 @@ impl AnnotSlot {
         let annots = RTree::<AnnotsTreeObj>::bulk_load(annot_objs);
 
         Self {
-            annots,
+            annots: Arc::new(annots),
             shape_fns,
             anchors,
             dynamics: Default::default(),
+            task: None,
+            positions: Arc::new(Mutex::new(Vec::new())),
         }
+    }
+
+    pub(super) fn update_spawn_task(
+        &self,
+        rt: &tokio::runtime::Handle,
+        screen_rect: egui::Rect,
+        view: &View1D,
+    ) {
+        todo!();
+        //
+    }
+
+    pub(super) fn draw_(&mut self, painter: &egui::Painter, view: &View1D) {
+        //
+        todo!();
     }
 
     pub(super) fn draw(&mut self, painter: &egui::Painter, view: &View1D) {
         let screen_rect = painter.clip_rect();
+
+        // if self.task.is_
+
         self.dynamics.prepare(&self.annots, screen_rect, view);
 
         self.dynamics
@@ -570,7 +612,26 @@ impl AnnotSlot {
         }
     }
 
-    pub(super) fn update(&mut self, screen_rect: egui::Rect, dt: f32) {
+    pub(super) fn update(
+        &mut self,
+        rt: &tokio::runtime::Handle,
+        screen_rect: egui::Rect,
+        dt: f32,
+    ) {
+        if let Some(handle) = self.task.take() {
+            // if done, update the stored positions
+
+            if handle.is_finished() {
+                if let Ok(positions) = rt.block_on(handle) {
+                    self.positions = positions;
+                }
+            } else {
+                self.task = Some(handle);
+            }
+        } else {
+            // spawn task
+        }
+
         self.dynamics.update(screen_rect, dt);
     }
 }
