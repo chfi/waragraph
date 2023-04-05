@@ -92,6 +92,9 @@ pub struct AnnotSlot {
     task: Option<JoinHandle<()>>,
     // pair of (annot_id, pos) as produced by task; first value is used as key to shape_fn
     positions: Arc<Mutex<Vec<(AnnotId, Vec2)>>>,
+
+    // pair of (annot_id, shape size) as produced by rendering
+    shape_sizes: Vec<(AnnotId, Vec2)>,
     // shape_sizes_tx: tokio::sync::mpsc
 }
 
@@ -108,10 +111,7 @@ struct AnnotSlotDynamics {
 }
 
 impl AnnotSlotDynamics {
-    async fn update_task(
-        state: Arc<Mutex<AnnotSlotDynamics>>,
-        shape_sizes_rx: tokio::sync::oneshot::Receiver<()>,
-    ) {
+    async fn update_task(state: Arc<Mutex<AnnotSlotDynamics>>) {
         // prepare annot objects
 
         // if
@@ -263,7 +263,7 @@ impl AnnotSlotDynamics {
     }
 
     // also updates the size on screen of the cached annot objects
-    fn draw(
+    fn draw_old(
         &mut self,
         annots: &RTree<AnnotsTreeObj>,
         shape_fns: &[ShapeFn],
@@ -530,6 +530,7 @@ impl AnnotSlot {
             dynamics: Default::default(),
             task: None,
             positions: Arc::new(Mutex::new(Vec::new())),
+            shape_sizes: Vec::new(),
         }
     }
 
@@ -571,6 +572,7 @@ impl AnnotSlot {
             dynamics: Default::default(),
             task: None,
             positions: Arc::new(Mutex::new(Vec::new())),
+            shape_sizes: Vec::new(),
         }
     }
 
@@ -579,36 +581,76 @@ impl AnnotSlot {
         rt: &tokio::runtime::Handle,
         screen_rect: egui::Rect,
         view: &View1D,
+        dt: f32,
     ) {
-        todo!();
-        //
-    }
+        // store shape sizes that have changed on the annotslotdynamics
+        // but what if it's still executing?
+        // send to the task? well... actually.. right
+        // this only needs to happen in between task executions
 
-    pub(super) fn draw_(&mut self, painter: &egui::Painter, view: &View1D) {
+        if self.task.is_some() {
+            return;
+        }
+
+        {
+            let mut dynamics = self.dynamics.blocking_lock();
+
+            // store the shape sizes from the previous draw
+            // ... but... they need to be stored in AnnotSlot from the draw, then
+            // well, there's no real way around that
+
+            // actually, maybe i could just store the shapes in a
+            // separate vector or collection, and update it every
+            // frame -- that's probably fine, honestly
+
+            // and, actually, the actual update process can be done by iterating
+            // over the vector of (AnnotId, ShapeSize) pairs... i guess?
+
+            // but right now i'll just update the AnnotObjs
+
+            for &(a_id, size) in self.shape_sizes.iter() {
+                if let Some(obj) = dynamics.get_annot_obj_mut(a_id) {
+                    obj.shape_size = Some(size);
+                }
+            }
+        }
+
+        let annots_tree = self.annots.clone();
+        let dynamics = self.dynamics.clone();
+        let view = view.clone();
+
+        // spawn the task
+        let handle = rt.spawn(async move {
+            let mut dynamics = dynamics.lock().await;
+            dynamics.prepare(&annots_tree, screen_rect, &view);
+            dynamics.update(screen_rect, dt);
+        });
+
+        // let handle = rt.spawn_blocking(move || {
+        //     let mut dynamics = dynamics.blocking_lock
+        //     dynamics.prepare(&annots_tree, screen_rect, &view);
+        //     dynamics.update(screen_rect, dt);
+        // });
+
+        self.task = Some(handle);
         //
-        todo!();
     }
 
     pub(super) fn draw(&mut self, painter: &egui::Painter, view: &View1D) {
         let screen_rect = painter.clip_rect();
 
-        // if self.task.is_
+        let positions = self.positions.blocking_lock();
 
-        self.dynamics.prepare(&self.annots, screen_rect, view);
+        self.shape_sizes.clear();
 
-        self.dynamics
-            .draw(&self.annots, &self.shape_fns, painter, view);
+        for &(a_id, pos) in positions.iter() {
+            let pos = mint::Point2::<f32>::from(pos);
+            let shape = self.shape_fns[a_id](painter, pos.into());
+            let size =
+                mint::Vector2::<f32>::from(shape.visual_bounding_rect().size());
+            self.shape_sizes.push((a_id, size.into()));
 
-        // debug rendering
-        for (obj_i, delta) in self.dynamics.deltas.iter().enumerate() {
-            let obj = &self.dynamics.annot_shape_objs[obj_i];
-
-            let pos: egui::Pos2 = mint::Point2::from(obj.pos.pos_now).into();
-            let vec: egui::Vec2 = mint::Vector2::from(*delta).into();
-
-            let stroke = egui::Stroke::new(2.0, egui::Color32::RED);
-
-            painter.arrow(pos, vec, stroke);
+            painter.add(shape);
         }
     }
 
