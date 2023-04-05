@@ -82,22 +82,17 @@ pub struct AnnotSlot {
     // really corresponds to the anchor regions
     annots: Arc<RTree<AnnotsTreeObj>>,
 
-    // annots: BTreeMap<[Bp; 2], usize>,
     shape_fns: Vec<ShapeFn>,
-    // shape_positions: Vec<Option<Vec2>>,
-    anchors: Vec<Option<f32>>,
 
     dynamics: Arc<Mutex<AnnotSlotDynamics>>,
 
-    // task: Option<JoinHandle<()>>,
     task: Option<JoinHandle<Vec<(AnnotId, Vec2)>>>,
+
     // pair of (annot_id, pos) as produced by task; first value is used as key to shape_fn
-    // positions: Arc<Mutex<Vec<(AnnotId, Vec2)>>>,
     positions: Vec<(AnnotId, Vec2)>,
 
     // pair of (annot_id, shape size) as produced by rendering
     shape_sizes: Vec<(AnnotId, Vec2)>,
-    // shape_sizes_tx: tokio::sync::mpsc
 }
 
 #[derive(Default)]
@@ -340,6 +335,7 @@ impl AnnotSlotDynamics {
             obj.pos.accel.y += 10.0;
             let v = obj.pos.pos_now - obj.pos.pos_old;
 
+            // apply anchor constraint
             if let Some(anchor) = obj.closest_anchor_pos {
                 // let dist = anchor - obj.pos.pos_now.x;
                 obj.pos.pos_now.x = anchor;
@@ -381,12 +377,6 @@ impl AnnotSlotDynamics {
 
             // reset
             obj.closest_anchor_pos = None;
-
-            // apply anchor constraint
-            // if let Some(anchor) = obj.closest_anchor_pos {
-            //     obj.pos.pos_now.x = anchor;
-            //     obj.closest_anchor_pos = None;
-            // }
         }
 
         positions
@@ -525,14 +515,11 @@ impl AnnotSlot {
             shape_fns.push(shape);
         }
 
-        let anchors = vec![None; shape_fns.len()];
-
         let annots = RTree::<AnnotsTreeObj>::bulk_load(annot_objs);
 
         Self {
             annots: Arc::new(annots),
             shape_fns,
-            anchors,
             dynamics: Default::default(),
             task: None,
             positions: Vec::new(),
@@ -567,14 +554,11 @@ impl AnnotSlot {
             }
         }
 
-        let anchors = vec![None; shape_fns.len()];
-
         let annots = RTree::<AnnotsTreeObj>::bulk_load(annot_objs);
 
         Self {
             annots: Arc::new(annots),
             shape_fns,
-            anchors,
             dynamics: Default::default(),
             task: None,
             positions: Vec::new(),
@@ -636,14 +620,9 @@ impl AnnotSlot {
         });
 
         self.task = Some(handle);
-        //
     }
 
     pub(super) fn draw(&mut self, painter: &egui::Painter, view: &View1D) {
-        let screen_rect = painter.clip_rect();
-
-        // let positions = self.positions.blocking_lock();
-
         self.shape_sizes.clear();
 
         for &(a_id, pos) in self.positions.iter() {
