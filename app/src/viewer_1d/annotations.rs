@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, HashMap, HashSet};
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use rstar::{
@@ -173,6 +173,11 @@ impl AnnotSlotDynamics {
         positions
         */
 
+        let shape_bin_width = 8usize;
+        let shape_bin_count =
+            (screen_rect.width() / shape_bin_width as f32).round() as usize;
+        let mut shape_bins = vec![0usize; shape_bin_count];
+
         for line in in_view {
             let a_id = line.data;
             let left = line.geom().from.0 as u64;
@@ -253,33 +258,29 @@ impl AnnotSlotDynamics {
                     }
                 };
             }
-        }
-    }
 
-    // also updates the size on screen of the cached annot objects
-    fn draw_old(
-        &mut self,
-        annots: &RTree<AnnotsTreeObj>,
-        shape_fns: &[ShapeFn],
-        painter: &egui::Painter,
-        view: &View1D,
-    ) {
-        for (&a_id, &obj_i) in &self.annot_obj_map {
-            let obj = &mut self.annot_shape_objs[obj_i];
+            // update shape bins
+            if let Some((pos, size)) = self.get_annot_obj(a_id).and_then(|o| {
+                let pos = o.pos.pos_now;
+                let size = o.size()?;
+                Some((pos, size))
+            }) {
+                let w2 = size.x / 2.0;
+                let x = pos.x - screen_rect.left();
+                let left = x - w2;
+                let right = x + w2;
 
-            let pos = obj.pos();
+                let bin_w = shape_bin_width as f32;
 
-            let shape = (shape_fns[a_id])(painter, egui::pos2(pos.x, pos.y));
-            let rect = shape.visual_bounding_rect();
+                let li = (left / bin_w).round() as usize;
+                let ri = (right / bin_w).round() as usize;
+                let ri = ri.clamp(0, shape_bins.len());
+                let li = li.clamp(0, ri);
 
-            let size = rect.size();
-            obj.shape_size = Some(Vec2::new(size.x, size.y));
+                let bin_range = li..ri;
 
-            if obj.closest_anchor_pos.is_none() {
-                continue;
+                shape_bins[bin_range].iter_mut().for_each(|c| *c += 1);
             }
-
-            painter.add(shape);
         }
     }
 
