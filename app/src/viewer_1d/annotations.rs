@@ -89,9 +89,11 @@ pub struct AnnotSlot {
 
     dynamics: Arc<Mutex<AnnotSlotDynamics>>,
 
-    task: Option<JoinHandle<()>>,
+    // task: Option<JoinHandle<()>>,
+    task: Option<JoinHandle<Vec<(AnnotId, Vec2)>>>,
     // pair of (annot_id, pos) as produced by task; first value is used as key to shape_fn
-    positions: Arc<Mutex<Vec<(AnnotId, Vec2)>>>,
+    // positions: Arc<Mutex<Vec<(AnnotId, Vec2)>>>,
+    positions: Vec<(AnnotId, Vec2)>,
 
     // pair of (annot_id, shape size) as produced by rendering
     shape_sizes: Vec<(AnnotId, Vec2)>,
@@ -111,14 +113,6 @@ struct AnnotSlotDynamics {
 }
 
 impl AnnotSlotDynamics {
-    async fn update_task(state: Arc<Mutex<AnnotSlotDynamics>>) {
-        // prepare annot objects
-
-        // if
-
-        todo!();
-    }
-
     fn get_annot_obj(&self, a_id: usize) -> Option<&AnnotObj> {
         let i = *self.annot_obj_map.get(&a_id)?;
         Some(&self.annot_shape_objs[i])
@@ -289,7 +283,11 @@ impl AnnotSlotDynamics {
         }
     }
 
-    fn update(&mut self, screen_rect: egui::Rect, dt: f32) {
+    fn update(
+        &mut self,
+        screen_rect: egui::Rect,
+        dt: f32,
+    ) -> Vec<(AnnotId, Vec2)> {
         let objs = self.annot_shape_objs.len();
 
         self.deltas.clear();
@@ -324,6 +322,8 @@ impl AnnotSlotDynamics {
                 // self.deltas[i] += delta;
             }
         }
+
+        let mut positions = Vec::with_capacity(objs);
 
         for (_obj_i, (&delta, obj)) in self
             .deltas
@@ -363,6 +363,9 @@ impl AnnotSlotDynamics {
 
                 // obj.pos.pos_now.x = anchor;
                 // obj.closest_anchor_pos = None;
+
+                let annot_id = obj.annot_id;
+                positions.push((annot_id, obj.pos.pos_now));
             }
 
             // TODO: disabled until the collision & update_position behave correctly
@@ -384,6 +387,8 @@ impl AnnotSlotDynamics {
             //     obj.closest_anchor_pos = None;
             // }
         }
+
+        positions
     }
 }
 
@@ -529,7 +534,7 @@ impl AnnotSlot {
             anchors,
             dynamics: Default::default(),
             task: None,
-            positions: Arc::new(Mutex::new(Vec::new())),
+            positions: Vec::new(),
             shape_sizes: Vec::new(),
         }
     }
@@ -571,42 +576,45 @@ impl AnnotSlot {
             anchors,
             dynamics: Default::default(),
             task: None,
-            positions: Arc::new(Mutex::new(Vec::new())),
+            positions: Vec::new(),
             shape_sizes: Vec::new(),
         }
     }
 
-    pub(super) fn update_spawn_task(
-        &self,
+    pub(super) fn update(
+        &mut self,
         rt: &tokio::runtime::Handle,
         screen_rect: egui::Rect,
         view: &View1D,
         dt: f32,
     ) {
-        // store shape sizes that have changed on the annotslotdynamics
-        // but what if it's still executing?
-        // send to the task? well... actually.. right
-        // this only needs to happen in between task executions
+        if let Some(handle) = self.task.take() {
+            // if done, update the stored positions
+            if handle.is_finished() {
+                if let Ok(positions) = rt.block_on(handle) {
+                    self.positions = positions;
+                }
+            } else {
+                self.task = Some(handle);
+            }
+        } else {
+            self.update_spawn_task(rt, screen_rect, view, dt);
+        }
+    }
 
+    pub(super) fn update_spawn_task(
+        &mut self,
+        rt: &tokio::runtime::Handle,
+        screen_rect: egui::Rect,
+        view: &View1D,
+        dt: f32,
+    ) {
         if self.task.is_some() {
             return;
         }
 
         {
             let mut dynamics = self.dynamics.blocking_lock();
-
-            // store the shape sizes from the previous draw
-            // ... but... they need to be stored in AnnotSlot from the draw, then
-            // well, there's no real way around that
-
-            // actually, maybe i could just store the shapes in a
-            // separate vector or collection, and update it every
-            // frame -- that's probably fine, honestly
-
-            // and, actually, the actual update process can be done by iterating
-            // over the vector of (AnnotId, ShapeSize) pairs... i guess?
-
-            // but right now i'll just update the AnnotObjs
 
             for &(a_id, size) in self.shape_sizes.iter() {
                 if let Some(obj) = dynamics.get_annot_obj_mut(a_id) {
@@ -623,14 +631,8 @@ impl AnnotSlot {
         let handle = rt.spawn(async move {
             let mut dynamics = dynamics.lock().await;
             dynamics.prepare(&annots_tree, screen_rect, &view);
-            dynamics.update(screen_rect, dt);
+            dynamics.update(screen_rect, dt)
         });
-
-        // let handle = rt.spawn_blocking(move || {
-        //     let mut dynamics = dynamics.blocking_lock
-        //     dynamics.prepare(&annots_tree, screen_rect, &view);
-        //     dynamics.update(screen_rect, dt);
-        // });
 
         self.task = Some(handle);
         //
@@ -639,11 +641,11 @@ impl AnnotSlot {
     pub(super) fn draw(&mut self, painter: &egui::Painter, view: &View1D) {
         let screen_rect = painter.clip_rect();
 
-        let positions = self.positions.blocking_lock();
+        // let positions = self.positions.blocking_lock();
 
         self.shape_sizes.clear();
 
-        for &(a_id, pos) in positions.iter() {
+        for &(a_id, pos) in self.positions.iter() {
             let pos = mint::Point2::<f32>::from(pos);
             let shape = self.shape_fns[a_id](painter, pos.into());
             let size =
@@ -652,29 +654,6 @@ impl AnnotSlot {
 
             painter.add(shape);
         }
-    }
-
-    pub(super) fn update(
-        &mut self,
-        rt: &tokio::runtime::Handle,
-        screen_rect: egui::Rect,
-        dt: f32,
-    ) {
-        if let Some(handle) = self.task.take() {
-            // if done, update the stored positions
-
-            if handle.is_finished() {
-                if let Ok(positions) = rt.block_on(handle) {
-                    self.positions = positions;
-                }
-            } else {
-                self.task = Some(handle);
-            }
-        } else {
-            // spawn task
-        }
-
-        self.dynamics.update(screen_rect, dt);
     }
 }
 

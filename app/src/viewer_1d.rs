@@ -966,7 +966,7 @@ impl AppWindow for Viewer1D {
 
         for (slot_id, rect) in annot_slots {
             if let Some(annot_slot) = self.annotations.get_mut(&slot_id) {
-                annot_slot.update(rect, dt);
+                annot_slot.update(tokio_rt, rect, &self.view, dt);
             }
         }
 
