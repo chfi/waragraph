@@ -9,6 +9,8 @@ pub mod viewer_2d;
 
 pub mod app;
 
+pub mod context;
+
 pub mod annotations;
 pub mod color;
 pub mod gui;
