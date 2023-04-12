@@ -1,6 +1,8 @@
 use std::collections::{BTreeSet, HashMap};
 use std::sync::Arc;
 
+pub mod widget;
+
 #[derive(Default)]
 pub struct ContextState {
     // frame_ctx: Vec<ContextVal<Box<dyn ContextValue>>>, //
@@ -49,15 +51,14 @@ impl ContextState {
         self.open_frame.entry(tid).or_default().push(ctx_val);
     }
 
-    pub fn get<'a, K, T: std::any::Any>(
+    pub fn get<'a, K>(
         &'a self,
-        query: ContextQuery<K, T>,
+        query: &ContextQuery<K>,
     ) -> Option<&'a dyn ContextValue>
     where
         K: Ord + AsRef<str>,
     {
-        let tid = std::any::TypeId::of::<T>();
-        let values = self.ready_frame.get(&tid)?;
+        let values = self.ready_frame.get(&query.type_id)?;
 
         values
             .iter()
@@ -67,41 +68,42 @@ impl ContextState {
     }
 }
 
-pub struct ContextQuery<K: Ord, T: std::any::Any> {
+pub struct ContextQuery<K: Ord> {
     source: Option<K>,
     tags: BTreeSet<K>,
 
-    _data: std::marker::PhantomData<T>,
+    type_id: std::any::TypeId,
 }
 
-impl<K: Ord, T: std::any::Any> ContextQuery<K, T> {
-    pub fn from_source(source: K) -> Self {
+impl<K: Ord> ContextQuery<K> {
+    pub fn from_source<T: std::any::Any>(source: K) -> Self {
         ContextQuery {
             source: Some(source),
             tags: BTreeSet::default(),
-            _data: std::marker::PhantomData,
+            type_id: std::any::TypeId::of::<T>(),
         }
     }
 
-    pub fn from_source_tags(
+    pub fn from_source_tags<T: std::any::Any>(
         source: K,
         tags: impl IntoIterator<Item = K>,
     ) -> Self {
         ContextQuery {
             source: Some(source),
             tags: tags.into_iter().collect(),
-            _data: std::marker::PhantomData,
+            type_id: std::any::TypeId::of::<T>(),
         }
     }
     // }
 
     // impl<'a, T: std::any::Any> ContextQuery<&'a str, T> {
     // impl<K, T: std::any::Any> ContextQuery<K, T> {
-    fn matches_str<V: ContextValue>(&self, value: &V) -> bool
+    fn matches_str<V>(&self, value: &V) -> bool
     where
+        V: ContextValue,
         K: AsRef<str>,
     {
-        if value.type_id() != std::any::TypeId::of::<T>() {
+        if value.type_id() != self.type_id {
             return false;
         }
 
@@ -161,6 +163,7 @@ pub trait ContextValueExtra: ContextValue {
 }
 
 impl<T: ContextValue> ContextValueExtra for T {}
+// impl<'a, T: ContextValue> ContextValueExtra for &'a dyn T {}
 
 impl<T: std::any::Any> ContextValue for ContextVal<T> {
     fn data(&self) -> &dyn std::any::Any {
