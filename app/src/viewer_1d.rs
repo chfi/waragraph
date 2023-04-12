@@ -920,10 +920,19 @@ impl AppWindow for Viewer1D {
                     let hovered_node =
                         self.shared.graph.node_at_pangenome_pos(Bp(pan_pos));
 
+                    if let Some(node) = hovered_node {
+                        context_state.set("Viewer1D", ["hover"], node);
+
+                        if path_slots.clicked() {
+                            context_state.set("Viewer1D", ["click"], node);
+                        }
+                    }
+
                     if path_slots.clicked() {
                         interact.clicked = true;
                     }
 
+                    context_state.set("Viewer1D", ["hover"], Bp(pan_pos));
                     interact.interact_pan_pos = Some(Bp(pan_pos));
                     interact.interact_node = hovered_node;
                 }

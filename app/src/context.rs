@@ -49,30 +49,33 @@ impl ContextState {
         self.open_frame.entry(tid).or_default().push(ctx_val);
     }
 
-    pub fn get<'a, 'b, T: std::any::Any>(
+    pub fn get<'a, K, T: std::any::Any>(
         &'a self,
-        query: ContextQuery<'b, T>,
-    ) -> Option<&'a dyn ContextValue> {
+        query: ContextQuery<K, T>,
+    ) -> Option<&'a dyn ContextValue>
+    where
+        K: Ord + AsRef<str>,
+    {
         let tid = std::any::TypeId::of::<T>();
         let values = self.ready_frame.get(&tid)?;
 
         values
             .iter()
-            .filter(|&v| query.matches(v))
+            .filter(|&v| query.matches_str(v))
             .map(|v| v as &'a dyn ContextValue)
             .next()
     }
 }
 
-pub struct ContextQuery<'a, T: std::any::Any> {
-    source: Option<&'a str>,
-    tags: BTreeSet<&'a str>,
+pub struct ContextQuery<K: Ord, T: std::any::Any> {
+    source: Option<K>,
+    tags: BTreeSet<K>,
 
     _data: std::marker::PhantomData<T>,
 }
 
-impl<'a, T: std::any::Any> ContextQuery<'a, T> {
-    pub fn from_source(source: &'a str) -> Self {
+impl<K: Ord, T: std::any::Any> ContextQuery<K, T> {
+    pub fn from_source(source: K) -> Self {
         ContextQuery {
             source: Some(source),
             tags: BTreeSet::default(),
@@ -81,8 +84,8 @@ impl<'a, T: std::any::Any> ContextQuery<'a, T> {
     }
 
     pub fn from_source_tags(
-        source: &'a str,
-        tags: impl IntoIterator<Item = &'a str>,
+        source: K,
+        tags: impl IntoIterator<Item = K>,
     ) -> Self {
         ContextQuery {
             source: Some(source),
@@ -90,22 +93,28 @@ impl<'a, T: std::any::Any> ContextQuery<'a, T> {
             _data: std::marker::PhantomData,
         }
     }
+    // }
 
-    fn matches<V: ContextValue>(&self, value: &V) -> bool {
+    // impl<'a, T: std::any::Any> ContextQuery<&'a str, T> {
+    // impl<K, T: std::any::Any> ContextQuery<K, T> {
+    fn matches_str<V: ContextValue>(&self, value: &V) -> bool
+    where
+        K: AsRef<str>,
+    {
         if value.type_id() != std::any::TypeId::of::<T>() {
             return false;
         }
 
         let meta = value.meta();
 
-        if let Some(src) = self.source {
-            if src != &meta.source {
+        if let Some(src) = self.source.as_ref() {
+            if src.as_ref() != &meta.source {
                 return false;
             }
         }
 
         let all_tags_present =
-            self.tags.iter().all(|&t| meta.tags.set.contains(t));
+            self.tags.iter().all(|t| meta.tags.set.contains(t.as_ref()));
 
         if !all_tags_present {
             return false;
