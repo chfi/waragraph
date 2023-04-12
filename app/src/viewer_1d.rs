@@ -3,6 +3,7 @@ use crate::app::settings_menu::SettingsWindow;
 use crate::app::{AppWindow, SharedState, VizInteractions};
 use crate::color::widget::{ColorMapWidget, ColorMapWidgetShared};
 use crate::color::ColorMap;
+use crate::context::ContextState;
 use crate::gui::list::DynamicListLayout;
 use crate::gui::FlexLayout;
 use crate::list::ListView;
@@ -492,6 +493,7 @@ impl AppWindow for Viewer1D {
         state: &raving_wgpu::State,
         window: &raving_wgpu::WindowState,
         egui_ctx: &mut EguiCtx,
+        context_state: &mut ContextState,
         dt: f32,
     ) {
         let mut laid_out_slots = Vec::new();

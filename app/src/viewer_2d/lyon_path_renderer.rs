@@ -25,6 +25,7 @@ use winit::event_loop::EventLoopWindowTarget;
 use waragraph_core::graph::{Node, PathIndex};
 
 use crate::app::AppWindow;
+use crate::context::ContextState;
 
 pub struct PathRenderer {
     render_graph: Graph,
@@ -164,6 +165,7 @@ impl AppWindow for PathRenderer {
         _state: &raving_wgpu::State,
         window: &raving_wgpu::WindowState,
         egui_ctx: &mut EguiCtx,
+        context_state: &mut ContextState,
         dt: f32,
     ) {
         /*

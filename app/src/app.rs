@@ -18,6 +18,7 @@ use anyhow::Result;
 use crate::{
     annotations::{AnnotationSet, AnnotationStore},
     color::{ColorSchemeId, ColorStore},
+    context::ContextState,
     viewer_1d::Viewer1D,
     viewer_2d::Viewer2D,
 };
@@ -73,6 +74,8 @@ pub enum AppType {
 pub struct App {
     pub tokio_rt: Arc<Runtime>,
     pub shared: SharedState,
+
+    context_state: ContextState,
 
     app_windows: AppWindows,
     // pub windows: HashMap<WindowId, AppType>,
@@ -165,8 +168,8 @@ impl App {
                         // TODO the name and record functions should be configurable
                         AnnotationSet::from_gff(
                             &path_index,
-                            |name| name.to_string(),
-                            // |name| format!("S288C.{name}"),
+                            // |name| name.to_string(),
+                            |name| format!("S288C.{name}"),
                             // |name| format!("SGDref#1#{name}"),
                             |record| {
                                 let attrs = record.attributes();
@@ -236,9 +239,13 @@ impl App {
             }
         };
 
+        let context_state = ContextState::default();
+
         Ok(Self {
             tokio_rt,
             shared,
+
+            context_state,
 
             app_windows,
             // windows: HashMap::default(),
@@ -450,6 +457,8 @@ impl App {
                     let dt = prev_frame_t.elapsed().as_secs_f32();
                     prev_frame_t = std::time::Instant::now();
 
+                    self.context_state.start_frame();
+
                     while let Ok(msg) = self.app_msg_recv.try_recv() {
                         if let Err(e) =
                             self.process_msg(event_loop_tgt, &state, msg)
@@ -463,7 +472,12 @@ impl App {
                     self.app_windows.update_widget_state();
 
                     for (_app_type, app) in self.app_windows.apps.iter_mut() {
-                        app.update(self.tokio_rt.handle(), &state, dt);
+                        app.update(
+                            self.tokio_rt.handle(),
+                            &state,
+                            &mut self.context_state,
+                            dt,
+                        );
 
                         if Some(app.window.window.id())
                             == self.settings_window_tgt
@@ -532,6 +546,7 @@ pub trait AppWindow {
         state: &raving_wgpu::State,
         window: &raving_wgpu::WindowState,
         egui_ctx: &mut EguiCtx,
+        context_state: &mut ContextState,
         dt: f32,
     );
 

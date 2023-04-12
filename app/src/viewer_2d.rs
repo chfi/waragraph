@@ -1,5 +1,6 @@
 use crate::app::{AppWindow, SharedState, VizInteractions};
 use crate::color::ColorMap;
+use crate::context::ContextState;
 
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -299,6 +300,7 @@ impl AppWindow for Viewer2D {
         state: &raving_wgpu::State,
         window: &raving_wgpu::WindowState,
         egui_ctx: &mut EguiCtx,
+        context_state: &mut ContextState,
         dt: f32,
     ) {
         let other_interactions = self

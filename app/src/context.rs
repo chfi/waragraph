@@ -1,9 +1,13 @@
 use std::collections::{BTreeSet, HashMap};
 use std::sync::Arc;
 
+#[derive(Default)]
 pub struct ContextState {
     // frame_ctx: Vec<ContextVal<Box<dyn ContextValue>>>, //
-    frame_ctx:
+    open_frame:
+        HashMap<std::any::TypeId, Vec<ContextVal<Box<dyn std::any::Any>>>>,
+
+    ready_frame:
         HashMap<std::any::TypeId, Vec<ContextVal<Box<dyn std::any::Any>>>>,
 
     type_names: HashMap<std::any::TypeId, Arc<String>>,
@@ -11,8 +15,7 @@ pub struct ContextState {
 
 impl ContextState {
     pub fn start_frame(&mut self) {
-        self.frame_ctx.clear();
-        todo!();
+        self.ready_frame = std::mem::take(&mut self.open_frame);
     }
 
     pub fn register_type_name<T: std::any::Any>(&mut self, name: &str) {
@@ -43,7 +46,7 @@ impl ContextState {
         };
 
         let tid = std::any::TypeId::of::<T>();
-        self.frame_ctx.entry(tid).or_default().push(ctx_val);
+        self.open_frame.entry(tid).or_default().push(ctx_val);
     }
 
     pub fn get<'a, 'b, T: std::any::Any>(
@@ -51,7 +54,7 @@ impl ContextState {
         query: ContextQuery<'b, T>,
     ) -> Option<&'a dyn ContextValue> {
         let tid = std::any::TypeId::of::<T>();
-        let values = self.frame_ctx.get(&tid)?;
+        let values = self.ready_frame.get(&tid)?;
 
         values
             .iter()
@@ -69,6 +72,25 @@ pub struct ContextQuery<'a, T: std::any::Any> {
 }
 
 impl<'a, T: std::any::Any> ContextQuery<'a, T> {
+    pub fn from_source(source: &'a str) -> Self {
+        ContextQuery {
+            source: Some(source),
+            tags: BTreeSet::default(),
+            _data: std::marker::PhantomData,
+        }
+    }
+
+    pub fn from_source_tags(
+        source: &'a str,
+        tags: impl IntoIterator<Item = &'a str>,
+    ) -> Self {
+        ContextQuery {
+            source: Some(source),
+            tags: tags.into_iter().collect(),
+            _data: std::marker::PhantomData,
+        }
+    }
+
     fn matches<V: ContextValue>(&self, value: &V) -> bool {
         if value.type_id() != std::any::TypeId::of::<T>() {
             return false;
