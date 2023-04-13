@@ -25,6 +25,17 @@ impl ContextState {
         self.type_names.insert(tid, Arc::new(name.to_string()));
     }
 
+    pub fn debug_print(&self) {
+        println!("open_frame: {}", self.open_frame.len());
+
+        println!("ready_frame: {}", self.ready_frame.len());
+        for (tid, ctxs) in self.ready_frame.iter() {
+            for ctx in ctxs {
+                println!("{:?}", ctx.meta());
+            }
+        }
+    }
+
     pub fn set<'tags, T: std::any::Any>(
         &mut self,
         source: &str,
@@ -35,7 +46,10 @@ impl ContextState {
             set: tags.into_iter().map(String::from).collect(),
         };
 
+        let tid = std::any::TypeId::of::<T>();
+
         let ctx_meta = ContextMeta {
+            type_id: tid,
             source: source.to_string(),
             tags,
         };
@@ -47,7 +61,6 @@ impl ContextState {
             meta: ctx_meta,
         };
 
-        let tid = std::any::TypeId::of::<T>();
         self.open_frame.entry(tid).or_default().push(ctx_val);
     }
 
@@ -131,9 +144,11 @@ pub struct Tags {
     pub set: BTreeSet<String>,
 }
 
+#[derive(Debug)]
 pub struct ContextMeta {
-    source: String,
-    tags: Tags,
+    type_id: std::any::TypeId,
+    pub source: String,
+    pub tags: Tags,
 }
 
 pub struct ContextVal<T> {
@@ -165,9 +180,9 @@ pub trait ContextValueExtra: ContextValue {
 impl<T: ContextValue> ContextValueExtra for T {}
 // impl<'a, T: ContextValue> ContextValueExtra for &'a dyn T {}
 
-impl<T: std::any::Any> ContextValue for ContextVal<T> {
+impl ContextValue for ContextVal<Box<dyn std::any::Any>> {
     fn data(&self) -> &dyn std::any::Any {
-        &self.data as _
+        self.data.as_ref()
     }
 
     fn data_mut(&mut self) -> &mut dyn std::any::Any {
@@ -175,7 +190,7 @@ impl<T: std::any::Any> ContextValue for ContextVal<T> {
     }
 
     fn type_id(&self) -> std::any::TypeId {
-        std::any::TypeId::of::<T>()
+        self.meta().type_id
     }
 
     fn meta(&self) -> &ContextMeta {

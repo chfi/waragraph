@@ -18,7 +18,7 @@ use anyhow::Result;
 use crate::{
     annotations::{AnnotationSet, AnnotationStore},
     color::{ColorSchemeId, ColorStore},
-    context::ContextState,
+    context::{widget::ContextInspector, ContextState},
     viewer_1d::Viewer1D,
     viewer_2d::Viewer2D,
 };
@@ -76,6 +76,8 @@ pub struct App {
     pub shared: SharedState,
 
     context_state: ContextState,
+
+    context_inspector: ContextInspector,
 
     app_windows: AppWindows,
     // pub windows: HashMap<WindowId, AppType>,
@@ -241,11 +243,17 @@ impl App {
 
         let context_state = ContextState::default();
 
+        let mut context_inspector =
+            ContextInspector::with_default_widgets(&shared);
+
+        // context_inspector
+
         Ok(Self {
             tokio_rt,
             shared,
 
             context_state,
+            context_inspector,
 
             app_windows,
             // windows: HashMap::default(),
@@ -471,7 +479,7 @@ impl App {
                     // but good enough for now
                     self.app_windows.update_widget_state();
 
-                    for (_app_type, app) in self.app_windows.apps.iter_mut() {
+                    for (app_type, app) in self.app_windows.apps.iter_mut() {
                         app.update(
                             self.tokio_rt.handle(),
                             &state,
@@ -484,6 +492,20 @@ impl App {
                         {
                             self.settings.show(app.egui.ctx());
                         }
+
+                        if matches!(app_type, AppType::Viewer1D) {
+                            // let area = egui::Area::new("context inspector")
+
+                            egui::Window::new("Context inspector").show(
+                                app.egui.ctx(),
+                                |ui| {
+                                    self.context_inspector
+                                        .show(&self.context_state, ui);
+                                },
+                            );
+                        }
+                        // if matches!(app_type, AppType::
+                        // if app.window.window.id()
 
                         app.window.window.request_redraw();
                     }
