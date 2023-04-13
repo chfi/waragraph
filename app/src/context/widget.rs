@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use waragraph_core::graph::Node;
+use waragraph_core::graph::{Node, PathId};
 
 use crate::app::SharedState;
 
@@ -95,6 +95,32 @@ impl ContextInspector {
             },
         );
 
+        // path, short desc
+        let graph = shared.graph.clone();
+        inspector.new_widget(
+            "path_short",
+            move |ui: &mut egui::Ui, meta: &ContextMeta, &path: &PathId| {
+                let path_name = graph
+                    .path_names
+                    .get_by_left(&path)
+                    .map(|s| s.as_str())
+                    .unwrap_or("<ERROR>");
+                let steps_len = graph.path_steps[path.ix()].len();
+
+                let source = &meta.source;
+                let tag = meta
+                    .tags
+                    .set
+                    .iter()
+                    .map(|s| s.as_str())
+                    .next()
+                    .unwrap_or("");
+                ui.label(format!(
+                    " [{source}:{tag}] Path {path_name} - {steps_len} steps"
+                ));
+            },
+        );
+
         // inspector.new_active(
         //     "node_length",
         //     ContextQuery::from_source::<Node>("Viewer1D".to_string()),
@@ -102,6 +128,11 @@ impl ContextInspector {
 
         inspector.new_active(
             "node_short",
+            ContextQuery::from_source::<Node>("Viewer1D".to_string()),
+        );
+
+        inspector.new_active(
+            "path_short",
             ContextQuery::from_source::<Node>("Viewer1D".to_string()),
         );
 
