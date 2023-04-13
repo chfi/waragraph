@@ -91,7 +91,7 @@ pub struct SlotCache {
 
     pub(super) msg_shapes: Vec<egui::Shape>,
 
-    pub(super) last_update: std::time::Instant,
+    pub(super) last_update: Option<std::time::Instant>,
     generation: u64,
 }
 
@@ -135,7 +135,7 @@ impl SlotCache {
             slot_msg_rx,
 
             msg_shapes: Vec::new(),
-            last_update: std::time::Instant::now(),
+            last_update: None,
             generation: 0,
         })
     }
@@ -209,33 +209,16 @@ impl SlotCache {
 
         let layout = layout.into_iter().collect::<HashMap<_, _>>();
 
-        if self.any_slot_id_collisions() {
-            log::error!("oh no!");
+        let should_update = self
+            .last_update
+            .map(|t| t.elapsed().as_micros() < 2_00_000)
+            .unwrap_or(true);
+
+        if !should_update {
+            return Ok(());
         }
 
-        let time = self.last_update.elapsed().as_micros();
-        // log::warn!("Time since last slot update: {time} us");
-        self.last_update = std::time::Instant::now();
-
-        {
-            // O(n^2) layout collision check
-            let mut count = 0;
-
-            for (k0, r0) in layout.iter() {
-                for (k1, r1) in layout.iter() {
-                    if k0 != k1 {
-                        if r0.intersects(*r1) {
-                            log::error!("collision!!!");
-                            count += 1;
-                        }
-                    }
-                }
-            }
-
-            if count > 0 {
-                log::error!(" detected {count} collisions!!!!");
-            }
-        }
+        self.last_update = Some(std::time::Instant::now());
 
         {
             let mut active = 0;
@@ -244,15 +227,11 @@ impl SlotCache {
                     active += 1;
                 }
             }
-            // log::warn!("# of active tasks before update: {active}");
-            // log::warn!("last dispatched view: {:?}", self.last_dispatched_view);
         }
 
         let mut vertices: Vec<SlotVertex> = Vec::new();
 
         let mut slot_id_count: HashMap<usize, usize> = HashMap::new();
-
-        // let mut unused_slots = HashSet<
 
         // add a vertex for each slot in the layout that has an up to date
         // row in the data buffer
@@ -281,13 +260,6 @@ impl SlotCache {
             }
         }
 
-        let mut slot_id_count = slot_id_count.into_iter().collect::<Vec<_>>();
-        slot_id_count.sort_by_key(|(k, _)| *k);
-
-        for (id, count) in slot_id_count {
-            // println!(" slot id: {id}\t count: {count}");
-        }
-
         {
             let mut active = 0;
             for state in self.slot_state.values() {
@@ -295,7 +267,6 @@ impl SlotCache {
                     active += 1;
                 }
             }
-            // log::warn!("# of active tasks after update: {active}");
         }
 
         // update the vertex buffer, reallocating if needed
@@ -483,10 +454,6 @@ impl SlotCache {
 
         self.prepare_vertex_buffer(state, &vertices)?;
         self.prepare_transform_buffer(state, &vertices, view)?;
-
-        if self.any_slot_id_collisions() {
-            log::error!("oh no!!!!");
-        }
 
         self.generation += 1;
 
