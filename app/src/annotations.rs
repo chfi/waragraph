@@ -5,19 +5,34 @@ use std::sync::Arc;
 use waragraph_core::graph::{Bp, PathId, PathIndex};
 
 pub struct AnnotationSet {
+    pub name: String,
     pub annotations: Vec<(std::ops::Range<Bp>, String)>,
     pub path_annotations: HashMap<PathId, Vec<usize>>,
+}
+
+fn annotation_set_name(
+    file_path: impl AsRef<std::path::Path>,
+    name: Option<&str>,
+) -> String {
+    if let Some(name) = name {
+        name.to_string()
+    } else {
+        todo!();
+    }
 }
 
 impl AnnotationSet {
     pub fn from_bed(
         graph: &PathIndex,
+        name: Option<&str>,
         path_name_map: impl Fn(&str) -> String,
         bed_path: impl AsRef<std::path::Path>,
     ) -> Result<Self> {
         use noodles::bed;
         use std::fs::File;
         use std::io::BufReader;
+
+        let name = annotation_set_name(&bed_path, name);
 
         let mut reader = File::open(bed_path)
             .map(BufReader::new)
@@ -59,6 +74,7 @@ impl AnnotationSet {
         }
 
         Ok(Self {
+            name,
             annotations,
             path_annotations,
         })
@@ -66,6 +82,7 @@ impl AnnotationSet {
 
     pub fn from_gff(
         graph: &PathIndex,
+        name: Option<&str>,
         path_name_map: impl Fn(&str) -> String,
         record_label: impl Fn(&noodles::gff::Record) -> Option<String>,
         gff_path: impl AsRef<std::path::Path>,
@@ -73,6 +90,8 @@ impl AnnotationSet {
         use noodles::gff;
         use std::fs::File;
         use std::io::BufReader;
+
+        let name = annotation_set_name(&gff_path, name);
 
         let mut reader = File::open(gff_path)
             .map(BufReader::new)
@@ -115,18 +134,47 @@ impl AnnotationSet {
         }
 
         Ok(Self {
+            name,
             annotations,
             path_annotations,
         })
     }
 }
 
-#[derive(Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct AnnotationSetId(pub usize);
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct AnnotationId(pub usize);
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct GlobalAnnotationId {
+    pub set: AnnotationSetId,
+    pub annot_id: AnnotationId,
+}
+
 pub struct AnnotationStore {
-    pub annotation_sets: HashMap<String, Arc<AnnotationSet>>,
+    pub annotation_sets: HashMap<AnnotationSetId, Arc<AnnotationSet>>,
+    next_set_id: AnnotationSetId,
+}
+
+impl std::default::Default for AnnotationStore {
+    fn default() -> Self {
+        Self {
+            annotation_sets: HashMap::default(),
+            next_set_id: AnnotationSetId(0),
+        }
+    }
 }
 
 impl AnnotationStore {
+    pub fn insert_set(&mut self, set: AnnotationSet) -> AnnotationSetId {
+        let set_id = self.next_set_id;
+        self.next_set_id = AnnotationSetId(set_id.0 + 1);
+        self.annotation_sets.insert(set_id, Arc::new(set));
+        set_id
+    }
+
     pub fn get_sets_for_path<'a>(
         &'a self,
         path: PathId,

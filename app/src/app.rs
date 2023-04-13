@@ -157,6 +157,7 @@ impl App {
                     let result = if ext == "bed" {
                         AnnotationSet::from_bed(
                             &path_index,
+                            None,
                             |name| name.to_string(),
                             annot_path,
                         )
@@ -170,6 +171,7 @@ impl App {
                         // TODO the name and record functions should be configurable
                         AnnotationSet::from_gff(
                             &path_index,
+                            None,
                             // |name| name.to_string(),
                             |name| format!("S288C.{name}"),
                             // |name| format!("SGDref#1#{name}"),
@@ -196,13 +198,7 @@ impl App {
                                 set.annotations.len()
                             );
 
-                            let name = annot_path
-                                .file_name()
-                                .and_then(|s| s.to_str())
-                                .expect("Annotation file had no name?!");
-                            annotations
-                                .annotation_sets
-                                .insert(name.to_string(), Arc::new(set));
+                            annotations.insert_set(set);
                         }
                         Err(e) => {
                             log::error!(

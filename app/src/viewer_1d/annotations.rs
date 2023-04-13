@@ -9,6 +9,8 @@ use tokio::{sync::Mutex, task::JoinHandle};
 use ultraviolet::Vec2;
 use waragraph_core::graph::{Bp, PathId, PathIndex};
 
+use crate::annotations::AnnotationId;
+
 use super::view::View1D;
 
 /// Rendering annotations into 1D viewer slots
@@ -51,9 +53,7 @@ impl Annots1D {
     }
 }
 
-type AnnotsTreeObj = GeomWithData<Line<(i64, i64)>, usize>;
-
-type AnnotId = usize;
+type AnnotsTreeObj = GeomWithData<Line<(i64, i64)>, AnnotationId>;
 
 type ShapeFn = Box<dyn Fn(&egui::Painter, egui::Pos2) -> egui::Shape>;
 
@@ -86,19 +86,19 @@ pub struct AnnotSlot {
 
     dynamics: Arc<Mutex<AnnotSlotDynamics>>,
 
-    task: Option<JoinHandle<Vec<(AnnotId, Vec2)>>>,
+    task: Option<JoinHandle<Vec<(AnnotationId, Vec2)>>>,
 
     // pair of (annot_id, pos) as produced by task; first value is used as key to shape_fn
-    positions: Vec<(AnnotId, Vec2)>,
+    positions: Vec<(AnnotationId, Vec2)>,
 
     // pair of (annot_id, shape size) as produced by rendering
-    shape_sizes: Vec<(AnnotId, Vec2)>,
+    shape_sizes: Vec<(AnnotationId, Vec2)>,
 }
 
 #[derive(Default)]
 struct AnnotSlotDynamics {
     // annot id -> annot_shape_objs ix
-    annot_obj_map: HashMap<usize, usize>,
+    annot_obj_map: HashMap<AnnotationId, usize>,
     annot_shape_objs: Vec<AnnotObj>,
 
     deltas: Vec<Vec2>,
@@ -108,19 +108,22 @@ struct AnnotSlotDynamics {
 }
 
 impl AnnotSlotDynamics {
-    fn get_annot_obj(&self, a_id: usize) -> Option<&AnnotObj> {
+    fn get_annot_obj(&self, a_id: AnnotationId) -> Option<&AnnotObj> {
         let i = *self.annot_obj_map.get(&a_id)?;
         Some(&self.annot_shape_objs[i])
     }
 
-    fn get_annot_obj_mut(&mut self, a_id: usize) -> Option<&mut AnnotObj> {
+    fn get_annot_obj_mut(
+        &mut self,
+        a_id: AnnotationId,
+    ) -> Option<&mut AnnotObj> {
         let i = *self.annot_obj_map.get(&a_id)?;
         Some(&mut self.annot_shape_objs[i])
     }
 
     fn get_or_insert_annot_obj_mut(
         &mut self,
-        a_id: usize,
+        a_id: AnnotationId,
         pos: Vec2,
     ) -> &mut AnnotObj {
         if let Some(i) = self.annot_obj_map.get(&a_id) {
@@ -283,7 +286,7 @@ impl AnnotSlotDynamics {
         &mut self,
         screen_rect: egui::Rect,
         dt: f32,
-    ) -> Vec<(AnnotId, Vec2)> {
+    ) -> Vec<(AnnotationId, Vec2)> {
         let objs = self.annot_shape_objs.len();
 
         self.deltas.clear();
@@ -412,7 +415,7 @@ impl AnnotObjPos {
 
 #[derive(Debug, Clone, Copy)]
 struct AnnotObj {
-    annot_id: usize,
+    annot_id: AnnotationId,
 
     pos: AnnotObjPos,
     closest_anchor_pos: Option<f32>,
@@ -421,7 +424,7 @@ struct AnnotObj {
 }
 
 impl AnnotObj {
-    fn with_pos(annot_id: usize, pos: Vec2) -> Self {
+    fn with_pos(annot_id: AnnotationId, pos: Vec2) -> Self {
         Self {
             annot_id,
             pos: AnnotObjPos::at_pos(pos),
@@ -509,6 +512,7 @@ impl AnnotSlot {
         let mut shape_fns = Vec::new();
 
         for (a_id, (range, shape)) in annotations.into_iter().enumerate() {
+            let a_id = AnnotationId(a_id);
             let geom =
                 Line::new((range.start.0 as i64, 0), (range.end.0 as i64, 0));
             annot_objs.push(GeomWithData::new(geom, a_id));
@@ -542,6 +546,7 @@ impl AnnotSlot {
         for (a_id, (path, path_range, shape)) in
             annotations.into_iter().enumerate()
         {
+            let a_id = AnnotationId(a_id);
             shape_fns.push(shape);
             let range_end = path_range.end;
             if let Some(steps) = graph.path_step_range_iter(path, path_range) {
@@ -627,7 +632,7 @@ impl AnnotSlot {
 
         for &(a_id, pos) in self.positions.iter() {
             let pos = mint::Point2::<f32>::from(pos);
-            let shape = self.shape_fns[a_id](painter, pos.into());
+            let shape = self.shape_fns[a_id.0](painter, pos.into());
             let size =
                 mint::Vector2::<f32>::from(shape.visual_bounding_rect().size());
             self.shape_sizes.push((a_id, size.into()));
