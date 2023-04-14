@@ -289,19 +289,28 @@ impl AnnotSlotDynamics {
     ) -> Vec<(AnnotationId, Vec2)> {
         use iset::IntervalMap;
 
-        let objs = self.annot_shape_objs.len();
+        let objs_n = self.annot_shape_objs.len();
 
         let mut placed_labels: IntervalMap<f32, usize> = IntervalMap::default();
 
-        for obj_i in 0..objs {
-            let rect =
-                if let Some(rect) = self.annot_shape_objs[obj_i].egui_rect() {
-                    rect
-                } else {
-                    continue;
-                };
+        let mut objs = (0..objs_n)
+            .map(|i| (i, &self.annot_shape_objs[i]))
+            .collect::<Vec<_>>();
+        objs.sort_by_key(|(_, o)| o.annot_id);
 
-            let ival = rect.left()..rect.right();
+        for (obj_i, obj) in objs {
+            let ival = if let Some(rect) = obj.egui_rect() {
+                rect.left()..rect.right()
+            } else if let Some(anchor) = obj.closest_anchor_pos {
+                // if the annotation hasn't been rendered yet, but has
+                // a position, give it a placeholder interval
+                let x = anchor;
+                let l = x - 0.5;
+                let r = x + 0.5;
+                l..r
+            } else {
+                continue;
+            };
 
             let overlaps = placed_labels.has_overlap(ival.clone());
 
@@ -310,19 +319,17 @@ impl AnnotSlotDynamics {
             }
         }
 
-        let mut positions = Vec::with_capacity(objs);
+        let mut positions = Vec::with_capacity(objs_n);
 
         for (_range, obj_i) in placed_labels.into_iter(..) {
             let obj = &mut self.annot_shape_objs[obj_i];
 
-            if let Some(anchor) = obj.closest_anchor_pos {
-                obj.pos.pos_now.x = anchor;
-                let annot_id = obj.annot_id;
-                positions.push((annot_id, obj.pos.pos_now));
-            }
+            let annot_id = obj.annot_id;
+            positions.push((annot_id, obj.pos.pos_now));
 
             obj.closest_anchor_pos = None;
         }
+        // log::warn!("pushing {} annotation labels", positions.len());
 
         positions
     }
@@ -667,6 +674,7 @@ impl AnnotSlot {
             let mut dynamics = dynamics.lock().await;
             dynamics.prepare(&annots_tree, screen_rect, &view);
             dynamics.update_simple(screen_rect, dt)
+            // dynamics.update(screen_rect, dt)
         });
 
         self.task = Some(handle);
