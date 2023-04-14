@@ -214,20 +214,14 @@ impl SlotCache {
             .map(|t| t.elapsed().as_micros() < 2_00_000)
             .unwrap_or(true);
 
-        if !should_update {
-            return Ok(());
-        }
+        // TODO: this seems to break things (no sampling happens) if
+        // the first frame takes too long, in particular if
+        // annotations are used
+        // if !should_update {
+        //     return Ok(());
+        // }
 
         self.last_update = Some(std::time::Instant::now());
-
-        {
-            let mut active = 0;
-            for state in self.slot_state.values() {
-                if state.task_handle.is_some() {
-                    active += 1;
-                }
-            }
-        }
 
         let mut vertices: Vec<SlotVertex> = Vec::new();
 
