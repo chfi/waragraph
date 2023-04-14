@@ -282,6 +282,51 @@ impl AnnotSlotDynamics {
         }
     }
 
+    fn update_simple(
+        &mut self,
+        screen_rect: egui::Rect,
+        dt: f32,
+    ) -> Vec<(AnnotationId, Vec2)> {
+        use iset::IntervalMap;
+
+        let objs = self.annot_shape_objs.len();
+
+        let mut placed_labels: IntervalMap<f32, usize> = IntervalMap::default();
+
+        for obj_i in 0..objs {
+            let rect =
+                if let Some(rect) = self.annot_shape_objs[obj_i].egui_rect() {
+                    rect
+                } else {
+                    continue;
+                };
+
+            let ival = rect.left()..rect.right();
+
+            let overlaps = placed_labels.has_overlap(ival.clone());
+
+            if !overlaps {
+                placed_labels.insert(ival, obj_i);
+            }
+        }
+
+        let mut positions = Vec::with_capacity(objs);
+
+        for (_range, obj_i) in placed_labels.into_iter(..) {
+            let obj = &mut self.annot_shape_objs[obj_i];
+
+            if let Some(anchor) = obj.closest_anchor_pos {
+                obj.pos.pos_now.x = anchor;
+                let annot_id = obj.annot_id;
+                positions.push((annot_id, obj.pos.pos_now));
+            }
+
+            obj.closest_anchor_pos = None;
+        }
+
+        positions
+    }
+
     fn update(
         &mut self,
         screen_rect: egui::Rect,
@@ -621,7 +666,7 @@ impl AnnotSlot {
         let handle = rt.spawn(async move {
             let mut dynamics = dynamics.lock().await;
             dynamics.prepare(&annots_tree, screen_rect, &view);
-            dynamics.update(screen_rect, dt)
+            dynamics.update_simple(screen_rect, dt)
         });
 
         self.task = Some(handle);

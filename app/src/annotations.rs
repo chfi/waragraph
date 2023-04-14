@@ -17,7 +17,12 @@ fn annotation_set_name(
     if let Some(name) = name {
         name.to_string()
     } else {
-        todo!();
+        file_path
+            .as_ref()
+            .file_name()
+            .and_then(|s| s.to_str())
+            .unwrap_or_else(|| "<ERROR>")
+            .to_string()
     }
 }
 

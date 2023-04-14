@@ -53,6 +53,8 @@ memchr = "2.5"
 noodles = { version = "0.29", features = ["sam", "bam", "fasta", "bed", "gff"]}
 btoi = "0.4.2"
 
+iset = "0.2"
+
 reunion = "0.1"
 sprs = "0.11"
 
