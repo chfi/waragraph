@@ -458,13 +458,33 @@ impl AnnotSlotDynamics {
             // if the object has an anchor target (i guess they always
             // will, at least the visible set),
 
+            let anchor_tgt = if let Some(tgt) = obj.anchor_target_pos {
+                tgt
+            } else {
+                continue;
+            };
+
             // if it doesn't have an anchor position, set it to the target
+            if obj.anchor_pos.is_none() {
+                obj.anchor_pos = Some(anchor_tgt);
+            }
 
             // if it does have an anchor position, we may need to update it
             //  - if the anchor is further than some given distance from its target,
             //    move the anchor toward the target
 
-            // then lay out the labels horizontally in the interval map; skip once they start overlapping
+            if let Some(anchor) = obj.anchor_pos.as_mut() {
+                let d = *anchor - anchor_tgt;
+                let dist = d.abs();
+
+                // pixels
+                let min_dist = 4.0;
+
+                if dist > min_dist {
+                    // move it 1/10th of the way... let's see how smooth that is
+                    *anchor -= d * 1.0 / 10.0;
+                }
+            }
 
             if let Some([a, b]) = transform {
                 // apply view transform to labels if applicable
@@ -483,35 +503,16 @@ impl AnnotSlotDynamics {
                 apply_tf(obj.anchor_target_pos.as_mut());
                 apply_tf(obj.anchor_pos.as_mut());
             }
-        }
 
-        //
+            // then lay out the labels horizontally in the interval
+            // map; skip once they start overlapping
 
-        todo!();
+            // just use the anchor (not target) as the position for
+            // now
 
-        let mut positions = Vec::with_capacity(objs_n);
-
-        // for (_range, obj_i) in placed_labels.into_iter(..) {
-        //     let obj = &mut self.annot_shape_objs[obj_i];
-
-        //     let annot_id = obj.annot_id;
-        //     positions.push((annot_id, obj.pos.pos_now));
-
-        //     obj.closest_anchor_pos = None;
-        // }
-
-        positions
-
-        /*
-        for (obj_i, obj) in objs {
-            let ival = if let Some(rect) = obj.egui_rect() {
-                rect.left()..rect.right()
-            } else if let Some(anchor) = obj.closest_anchor_pos {
-                // if the annotation hasn't been rendered yet, but has
-                // a position, give it a placeholder interval
-                let x = anchor;
-                let l = x - 0.5;
-                let r = x + 0.5;
+            let ival = if let Some(pos) = obj.anchor_pos {
+                let l = pos - width / 2.0;
+                let r = pos + width / 2.0;
                 l..r
             } else {
                 continue;
@@ -524,20 +525,27 @@ impl AnnotSlotDynamics {
             }
         }
 
+        //
+
         let mut positions = Vec::with_capacity(objs_n);
 
         for (_range, obj_i) in placed_labels.into_iter(..) {
             let obj = &mut self.annot_shape_objs[obj_i];
 
             let annot_id = obj.annot_id;
-            positions.push((annot_id, obj.pos.pos_now));
 
-            obj.closest_anchor_pos = None;
+            let x = if let Some(anchor) = obj.anchor_pos {
+                anchor
+            } else {
+                continue;
+            };
+
+            let y = screen_rect.center().y;
+
+            positions.push((annot_id, Vec2::new(x, y)));
         }
 
         positions
-        */
-        // log::warn!("pushing {} annotation labels", positions.len());
     }
 
     /*
@@ -670,30 +678,12 @@ impl AnnotObj {
     fn empty(annot_id: AnnotationId) -> Self {
         Self {
             annot_id,
-            // pos: None,
-            // closest_anchor_pos: None,
             shape_size: None,
 
             anchor_target_pos: None,
             anchor_pos: None,
         }
     }
-
-    // fn with_pos(annot_id: AnnotationId, pos: Vec2) -> Self {
-    //     Self {
-    //         annot_id,
-    //         pos: Some(AnnotObjPos::at_pos(pos)),
-    //         closest_anchor_pos: None,
-    //         shape_size: None,
-
-    //         anchor_target_pos: None,
-    //         anchor_pos: None,
-    //     }
-    // }
-
-    // fn pos(&self) -> Vec2 {
-    //     self.pos.pos_now
-    // }
 
     fn size(&self) -> Option<Vec2> {
         self.shape_size
@@ -710,56 +700,6 @@ impl AnnotObj {
         Some(rect)
     }
     */
-
-    // fn collides_impl(&self, other: &Self) -> Option<bool> {
-    // let a = self.egui_rect()?;
-    // let b = other.egui_rect()?;
-    // Some(a.intersects(b))
-    // }
-
-    // fn collides(&self, other: &Self) -> bool {
-    //     self.collides_impl(other).unwrap_or(false)
-    // }
-
-    // outputs the delta that when applied to `this` resolves half of
-    // the collision between the two
-    fn intersect_delta(this: egui::Rect, other: egui::Rect) -> Vec2 {
-        if !this.intersects(other) {
-            return Vec2::zero();
-        }
-
-        let t_center: Vec2 = mint::Point2::from(this.center()).into();
-        let o_center: Vec2 = mint::Point2::from(this.center()).into();
-        let diff = t_center - o_center;
-
-        let intersection = this.intersect(other);
-
-        if diff.x.abs() < diff.y.abs() {
-            let dx = if diff.x < 0.0 {
-                //   `this` left of `other`
-                -intersection.width()
-            } else {
-                //   `this` right of `other`
-                intersection.width()
-            };
-
-            let dx = dx * 0.5;
-
-            Vec2::new(dx, 0.0)
-        } else {
-            let dy = if diff.y < 0.0 {
-                //   `this` above `other`
-                -intersection.height()
-            } else {
-                //   `this` below `other`
-                intersection.height()
-            };
-
-            let dy = dy * 0.5;
-
-            Vec2::new(0.0, dy)
-        }
-    }
 }
 
 impl AnnotSlot {
