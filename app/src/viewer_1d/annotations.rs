@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{BTreeSet, HashMap, HashSet};
 use std::sync::Arc;
 
 use rstar::{
@@ -105,19 +105,20 @@ struct AnnotSlotDynamics {
 
     cur_view: Option<View1D>,
     prev_view: Option<View1D>,
+
+    visible_set: BTreeSet<AnnotationId>,
+    // visible_set: HashSet<AnnotationId>,
 }
 
 #[derive(Debug, Clone, Copy)]
 struct AnnotObj {
     annot_id: AnnotationId,
 
-    pos: AnnotObjPos,
-
+    // pos: AnnotObjPos,
     anchor_target_pos: Option<f32>,
     anchor_pos: Option<f32>,
 
-    // todo remove
-    closest_anchor_pos: Option<f32>,
+    // closest_anchor_pos: Option<f32>,
     // anchor_pos: Option<AnnotObjPos>,
     shape_size: Option<Vec2>,
 }
@@ -146,13 +147,13 @@ impl AnnotSlotDynamics {
     fn get_or_insert_annot_obj_mut(
         &mut self,
         a_id: AnnotationId,
-        pos: Vec2,
+        // pos: Vec2,
     ) -> &mut AnnotObj {
         if let Some(i) = self.annot_obj_map.get(&a_id) {
             &mut self.annot_shape_objs[*i]
         } else {
             let obj_i = self.annot_shape_objs.len();
-            let obj = AnnotObj::with_pos(a_id, pos);
+            let obj = AnnotObj::empty(a_id);
             self.annot_obj_map.insert(a_id, obj_i);
             self.annot_shape_objs.push(obj);
             &mut self.annot_shape_objs[obj_i]
@@ -184,7 +185,9 @@ impl AnnotSlotDynamics {
         let mut annot_ranges: HashMap<AnnotationId, Vec<_>> =
             HashMap::default();
 
-        // initialize annotation labels that are visible
+        // let mut annot_reset_pos: HashSet<_> = HashSet::default();
+
+        // collect the visible annotations
         for line in in_view {
             let a_id = line.data;
             let left = line.geom().from.0 as u64;
@@ -198,36 +201,76 @@ impl AnnotSlotDynamics {
                     .or_default()
                     .push(anchor_range.clone());
             }
-
-            // if the annotation has no object, create it
-
-            // if the ann. object has no target anchor, or if the
-            // target anchor position is offscreen,
-
-            todo!();
         }
 
-        use rand::distributions::{WeightedError, WeightedIndex};
+        self.visible_set.clear();
+
+        use rand::distributions::WeightedIndex;
         use rand::prelude::*;
         let mut rng = rand::thread_rng();
 
         for (&a_id, ranges) in annot_ranges.iter() {
-            // choose a random position from the intersection of view
-            // with the anchor ranges (across all visible sections) &
-            // set the anchor target position to that point
+            // if the annotation has no object, create it
+            let obj = self.get_or_insert_annot_obj_mut(a_id);
 
-            let (ranges, lens): (Vec<_>, Vec<_>) =
-                ranges.iter().map(|r| (r, r.end() - r.start())).unzip();
+            // if there's already an anchor target on this object,
+            // constrain it to the visible anchor set
 
-            let dist = WeightedIndex::new(&lens).unwrap();
+            if let Some(tgt) = obj.anchor_target_pos.as_mut() {
+                let mut dist = std::f32::INFINITY;
+                let mut closest_tgt = None;
 
-            let ix = rng.sample(dist);
-            let anchor_target = rng.gen_range(ranges[ix].clone());
+                for range in ranges {
+                    // if the current target is already on one of the ranges,
+                    // we're done
+                    if *tgt >= *range.start() && *tgt <= *range.end() {
+                        // dist = 0.0;
+                        closest_tgt = Some(*tgt);
+                        break;
+                    }
+
+                    let closest = if *tgt < *range.start() {
+                        *range.start()
+                    } else if *tgt > *range.end() {
+                        *range.end()
+                    } else {
+                        unreachable!();
+                    };
+
+                    let new_dist = (closest - *tgt).abs();
+                    if new_dist < dist {
+                        closest_tgt = Some(closest);
+                        dist = new_dist;
+                    }
+                }
+
+                if let Some(new_tgt) = closest_tgt {
+                    *tgt = new_tgt;
+                }
+            } else {
+                let (ranges, lens): (Vec<_>, Vec<_>) =
+                    ranges.iter().map(|r| (r, r.end() - r.start())).unzip();
+
+                // if the ann. object has no anchor target,
+                // choose a random position from the intersection of view
+                // with the anchor ranges (across all visible sections) &
+                // set the anchor target position to that point
+
+                let dist = WeightedIndex::new(&lens).unwrap();
+
+                let ix = rng.sample(dist);
+                let anchor_target = rng.gen_range(ranges[ix].clone());
+
+                obj.anchor_target_pos = Some(anchor_target);
+            }
+
+            if obj.anchor_target_pos.is_some() {
+                self.visible_set.insert(a_id);
+            }
         }
-
-        todo!();
     }
 
+    /*
     fn prepare_old(
         &mut self,
         annots: &RTree<AnnotsTreeObj>,
@@ -372,6 +415,7 @@ impl AnnotSlotDynamics {
             }
         }
     }
+    */
 
     fn update_simple(
         &mut self,
@@ -382,13 +426,83 @@ impl AnnotSlotDynamics {
 
         let objs_n = self.annot_shape_objs.len();
 
+        // let mut objs = (0..objs_n)
+        //     .map(|i| (i, &self.annot_shape_objs[i]))
+        //     .collect::<Vec<_>>();
+        // objs.sort_by_key(|(_, o)| o.annot_id);
+
+        // NB: this might get weird... maybe i want to store the last
+        // updated view for each object, and use that to compute the
+        // transform -- but that's only if this ends up not working
+        let transform = self
+            .prev_view
+            .as_ref()
+            .and_then(|v0| Some((v0, self.cur_view.as_ref()?)))
+            .filter(|(v0, v1)| v0 != v1) // no need to transform if there's no change in view
+            .map(|(v0, v1)| {
+                super::Viewer1D::sample_index_transform(v0.range(), v1.range())
+            });
+
         let mut placed_labels: IntervalMap<f32, usize> = IntervalMap::default();
 
-        let mut objs = (0..objs_n)
-            .map(|i| (i, &self.annot_shape_objs[i]))
-            .collect::<Vec<_>>();
-        objs.sort_by_key(|(_, o)| o.annot_id);
+        for &annot_id in &self.visible_set {
+            let obj_i = self.annot_obj_map[&annot_id];
+            let obj = &mut self.annot_shape_objs[obj_i];
 
+            let width = if let Some(size) = obj.size() {
+                size.x
+            } else {
+                1.0
+            };
+
+            // if the object has an anchor target (i guess they always
+            // will, at least the visible set),
+
+            // if it doesn't have an anchor position, set it to the target
+
+            // if it does have an anchor position, we may need to update it
+            //  - if the anchor is further than some given distance from its target,
+            //    move the anchor toward the target
+
+            // then lay out the labels horizontally in the interval map; skip once they start overlapping
+
+            if let Some([a, b]) = transform {
+                // apply view transform to labels if applicable
+
+                let apply_tf = |val: Option<&mut f32>| {
+                    let w = screen_rect.width();
+                    let x0 = screen_rect.left();
+
+                    if let Some(x) = val {
+                        let v = *x - x0;
+                        let v_ = v * a - w * b;
+                        *x = v_ + x0;
+                    }
+                };
+
+                apply_tf(obj.anchor_target_pos.as_mut());
+                apply_tf(obj.anchor_pos.as_mut());
+            }
+        }
+
+        //
+
+        todo!();
+
+        let mut positions = Vec::with_capacity(objs_n);
+
+        // for (_range, obj_i) in placed_labels.into_iter(..) {
+        //     let obj = &mut self.annot_shape_objs[obj_i];
+
+        //     let annot_id = obj.annot_id;
+        //     positions.push((annot_id, obj.pos.pos_now));
+
+        //     obj.closest_anchor_pos = None;
+        // }
+
+        positions
+
+        /*
         for (obj_i, obj) in objs {
             let ival = if let Some(rect) = obj.egui_rect() {
                 rect.left()..rect.right()
@@ -420,11 +534,13 @@ impl AnnotSlotDynamics {
 
             obj.closest_anchor_pos = None;
         }
-        // log::warn!("pushing {} annotation labels", positions.len());
 
         positions
+        */
+        // log::warn!("pushing {} annotation labels", positions.len());
     }
 
+    /*
     fn update(
         &mut self,
         screen_rect: egui::Rect,
@@ -527,6 +643,7 @@ impl AnnotSlotDynamics {
 
         positions
     }
+    */
 }
 
 impl AnnotObjPos {
@@ -550,11 +667,11 @@ impl AnnotObjPos {
 }
 
 impl AnnotObj {
-    fn with_pos(annot_id: AnnotationId, pos: Vec2) -> Self {
+    fn empty(annot_id: AnnotationId) -> Self {
         Self {
             annot_id,
-            pos: AnnotObjPos::at_pos(pos),
-            closest_anchor_pos: None,
+            // pos: None,
+            // closest_anchor_pos: None,
             shape_size: None,
 
             anchor_target_pos: None,
@@ -562,14 +679,27 @@ impl AnnotObj {
         }
     }
 
-    fn pos(&self) -> Vec2 {
-        self.pos.pos_now
-    }
+    // fn with_pos(annot_id: AnnotationId, pos: Vec2) -> Self {
+    //     Self {
+    //         annot_id,
+    //         pos: Some(AnnotObjPos::at_pos(pos)),
+    //         closest_anchor_pos: None,
+    //         shape_size: None,
+
+    //         anchor_target_pos: None,
+    //         anchor_pos: None,
+    //     }
+    // }
+
+    // fn pos(&self) -> Vec2 {
+    //     self.pos.pos_now
+    // }
 
     fn size(&self) -> Option<Vec2> {
         self.shape_size
     }
 
+    /*
     fn egui_rect(&self) -> Option<egui::Rect> {
         let pos = self.pos();
         let size = self.size()?;
@@ -579,16 +709,17 @@ impl AnnotObj {
         );
         Some(rect)
     }
+    */
 
-    fn collides_impl(&self, other: &Self) -> Option<bool> {
-        let a = self.egui_rect()?;
-        let b = other.egui_rect()?;
-        Some(a.intersects(b))
-    }
+    // fn collides_impl(&self, other: &Self) -> Option<bool> {
+    // let a = self.egui_rect()?;
+    // let b = other.egui_rect()?;
+    // Some(a.intersects(b))
+    // }
 
-    fn collides(&self, other: &Self) -> bool {
-        self.collides_impl(other).unwrap_or(false)
-    }
+    // fn collides(&self, other: &Self) -> bool {
+    //     self.collides_impl(other).unwrap_or(false)
+    // }
 
     // outputs the delta that when applied to `this` resolves half of
     // the collision between the two
