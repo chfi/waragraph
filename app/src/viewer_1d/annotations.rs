@@ -107,6 +107,28 @@ struct AnnotSlotDynamics {
     prev_view: Option<View1D>,
 }
 
+#[derive(Debug, Clone, Copy)]
+struct AnnotObj {
+    annot_id: AnnotationId,
+
+    pos: AnnotObjPos,
+
+    anchor_target_pos: Option<f32>,
+    anchor_pos: Option<f32>,
+
+    // todo remove
+    closest_anchor_pos: Option<f32>,
+    // anchor_pos: Option<AnnotObjPos>,
+    shape_size: Option<Vec2>,
+}
+
+#[derive(Debug, Clone, Copy)]
+struct AnnotObjPos {
+    pos_now: Vec2,
+    pos_old: Vec2,
+    accel: Vec2,
+}
+
 impl AnnotSlotDynamics {
     fn get_annot_obj(&self, a_id: AnnotationId) -> Option<&AnnotObj> {
         let i = *self.annot_obj_map.get(&a_id)?;
@@ -138,6 +160,75 @@ impl AnnotSlotDynamics {
     }
 
     fn prepare(
+        &mut self,
+        annots: &RTree<AnnotsTreeObj>,
+        screen_rect: egui::Rect,
+        view: &View1D,
+    ) {
+        use rstar::AABB;
+        let rleft = screen_rect.left();
+        let rright = screen_rect.right();
+
+        let screen_interval = rleft..=rright;
+
+        let range = view.range();
+
+        let aabb =
+            AABB::from_corners((range.start as i64, 0), (range.end as i64, 0));
+
+        let in_view = annots.locate_in_envelope_intersecting(&aabb);
+
+        self.prev_view = self.cur_view.clone();
+        self.cur_view = Some(view.clone());
+
+        let mut annot_ranges: HashMap<AnnotationId, Vec<_>> =
+            HashMap::default();
+
+        // initialize annotation labels that are visible
+        for line in in_view {
+            let a_id = line.data;
+            let left = line.geom().from.0 as u64;
+            let right = line.geom().to.0 as u64;
+
+            if let Some(anchor_range) =
+                anchor_interval(view, &(left..right), &screen_interval)
+            {
+                annot_ranges
+                    .entry(a_id)
+                    .or_default()
+                    .push(anchor_range.clone());
+            }
+
+            // if the annotation has no object, create it
+
+            // if the ann. object has no target anchor, or if the
+            // target anchor position is offscreen,
+
+            todo!();
+        }
+
+        use rand::distributions::{WeightedError, WeightedIndex};
+        use rand::prelude::*;
+        let mut rng = rand::thread_rng();
+
+        for (&a_id, ranges) in annot_ranges.iter() {
+            // choose a random position from the intersection of view
+            // with the anchor ranges (across all visible sections) &
+            // set the anchor target position to that point
+
+            let (ranges, lens): (Vec<_>, Vec<_>) =
+                ranges.iter().map(|r| (r, r.end() - r.start())).unzip();
+
+            let dist = WeightedIndex::new(&lens).unwrap();
+
+            let ix = rng.sample(dist);
+            let anchor_target = rng.gen_range(ranges[ix].clone());
+        }
+
+        todo!();
+    }
+
+    fn prepare_old(
         &mut self,
         annots: &RTree<AnnotsTreeObj>,
         screen_rect: egui::Rect,
@@ -438,13 +529,6 @@ impl AnnotSlotDynamics {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
-struct AnnotObjPos {
-    pos_now: Vec2,
-    pos_old: Vec2,
-    accel: Vec2,
-}
-
 impl AnnotObjPos {
     fn at_pos(pos: Vec2) -> Self {
         Self {
@@ -465,16 +549,6 @@ impl AnnotObjPos {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
-struct AnnotObj {
-    annot_id: AnnotationId,
-
-    pos: AnnotObjPos,
-    closest_anchor_pos: Option<f32>,
-    // anchor_pos: Option<AnnotObjPos>,
-    shape_size: Option<Vec2>,
-}
-
 impl AnnotObj {
     fn with_pos(annot_id: AnnotationId, pos: Vec2) -> Self {
         Self {
@@ -482,6 +556,9 @@ impl AnnotObj {
             pos: AnnotObjPos::at_pos(pos),
             closest_anchor_pos: None,
             shape_size: None,
+
+            anchor_target_pos: None,
+            anchor_pos: None,
         }
     }
 
@@ -644,7 +721,7 @@ impl AnnotSlot {
         }
     }
 
-    pub(super) fn update_spawn_task(
+    fn update_spawn_task(
         &mut self,
         rt: &tokio::runtime::Handle,
         screen_rect: egui::Rect,

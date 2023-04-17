@@ -41,6 +41,7 @@ colorous = "1.0"
 # raving-wgpu = { path = "../../raving-wgpu" }
 raving-wgpu = { git = "https://github.com/chfi/raving-wgpu" }
 lyon = "1.0"
+rand = "0.8"
 
 anyhow = "1.0"
 
