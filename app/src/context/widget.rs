@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use waragraph_core::graph::{Node, PathId};
 
-use crate::app::SharedState;
+use crate::{annotations::GlobalAnnotationId, app::SharedState};
 
 use super::{
     ContextMeta, ContextQuery, ContextState, ContextValue, ContextValueExtra,
@@ -121,6 +121,42 @@ impl ContextInspector {
             },
         );
 
+        // annotation, with path, short desc
+        let graph = shared.graph.clone();
+        let annotations = shared.annotations.clone();
+        inspector.new_widget(
+            "annotation_path_short",
+            move |ui: &mut egui::Ui,
+                  meta: &ContextMeta,
+                  (path, annot_id): &(PathId, GlobalAnnotationId)| {
+                let annot_text = {
+                    let annots = annotations.blocking_read();
+                    let set =
+                        annots.annotation_sets.get(&annot_id.set).unwrap();
+                    let (_range, text) = set.get(annot_id.annot_id).unwrap();
+                    text.to_string()
+                };
+
+                let path_name = graph
+                    .path_names
+                    .get_by_left(&path)
+                    .map(|s| s.as_str())
+                    .unwrap_or("<ERROR>");
+
+                let source = &meta.source;
+                let tag = meta
+                    .tags
+                    .set
+                    .iter()
+                    .map(|s| s.as_str())
+                    .next()
+                    .unwrap_or("");
+                ui.label(format!(
+                    " [{source}:{tag}] Path {path_name} - {annot_text}"
+                ));
+            },
+        );
+
         // inspector.new_active(
         //     "node_length",
         //     ContextQuery::from_source::<Node>("Viewer1D".to_string()),
@@ -134,6 +170,13 @@ impl ContextInspector {
         inspector.new_active(
             "path_short",
             ContextQuery::from_source::<Node>("Viewer1D".to_string()),
+        );
+
+        inspector.new_active(
+            "annotation_path_short",
+            ContextQuery::from_source::<(PathId, GlobalAnnotationId)>(
+                "Viewer1D".to_string(),
+            ),
         );
 
         inspector
