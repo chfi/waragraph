@@ -281,7 +281,8 @@ impl AnnotSlotDynamics {
                 super::Viewer1D::sample_index_transform(v0.range(), v1.range())
             });
 
-        let mut placed_labels: IntervalMap<f32, usize> = IntervalMap::default();
+        let mut placed_labels: IntervalMap<f32, (usize, usize)> =
+            IntervalMap::default();
 
         for &annot_id in &self.visible_set {
             let obj_i = self.annot_obj_map[&annot_id];
@@ -338,6 +339,11 @@ impl AnnotSlotDynamics {
                     }
                 };
 
+                // TODO: instead of updating the anchor_target_pos like this,
+                // it should be immediately set to the correct position;
+                // essentially take the screen -> world transform from the
+                // previous view, then apply the world -> screen transform
+                // from the new view
                 apply_tf(obj.anchor_target_pos.as_mut());
                 apply_tf(obj.anchor_pos.as_mut());
             }
@@ -356,18 +362,17 @@ impl AnnotSlotDynamics {
                 continue;
             };
 
-            let overlaps = placed_labels.has_overlap(ival.clone());
+            const MAX_OVERLAPS: usize = 7;
+            let overlap_count = placed_labels.intervals(ival.clone()).count();
 
-            if !overlaps {
-                placed_labels.insert(ival, obj_i);
+            if overlap_count < MAX_OVERLAPS {
+                placed_labels.insert(ival, (obj_i, overlap_count));
             }
         }
 
-        //
-
         let mut positions = Vec::with_capacity(objs_n);
 
-        for (_range, obj_i) in placed_labels.into_iter(..) {
+        for (_range, (obj_i, overlap_count)) in placed_labels.into_iter(..) {
             let obj = &mut self.annot_shape_objs[obj_i];
 
             let annot_id = obj.annot_id;
@@ -378,7 +383,14 @@ impl AnnotSlotDynamics {
                 continue;
             };
 
-            let y = screen_rect.center().y;
+            let yd = if let Some(size) = obj.size() {
+                size.y + 2.0
+            } else {
+                6.0
+            };
+
+            let y0 = screen_rect.bottom() - 8.0;
+            let y = y0 - yd * overlap_count as f32;
 
             positions.push((annot_id, Vec2::new(x, y)));
         }
@@ -553,7 +565,9 @@ impl AnnotSlot {
                 mint::Vector2::<f32>::from(shape.visual_bounding_rect().size());
             self.shape_sizes.push((a_id, size.into()));
 
-            painter.add(shape);
+            if pos.y > painter.clip_rect().top() {
+                painter.add(shape);
+            }
         }
     }
 }
