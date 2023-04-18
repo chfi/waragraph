@@ -114,20 +114,10 @@ struct AnnotSlotDynamics {
 struct AnnotObj {
     annot_id: AnnotationId,
 
-    // pos: AnnotObjPos,
     anchor_target_pos: Option<f32>,
     anchor_pos: Option<f32>,
 
-    // closest_anchor_pos: Option<f32>,
-    // anchor_pos: Option<AnnotObjPos>,
     shape_size: Option<Vec2>,
-}
-
-#[derive(Debug, Clone, Copy)]
-struct AnnotObjPos {
-    pos_now: Vec2,
-    pos_old: Vec2,
-    accel: Vec2,
 }
 
 impl AnnotSlotDynamics {
@@ -270,153 +260,6 @@ impl AnnotSlotDynamics {
         }
     }
 
-    /*
-    fn prepare_old(
-        &mut self,
-        annots: &RTree<AnnotsTreeObj>,
-        screen_rect: egui::Rect,
-        view: &View1D,
-    ) {
-        // initialize AnnotObjPos for the annotations in the view
-        // treat X as anchor X; use separate objects with spring constraint later
-
-        use rstar::AABB;
-        let rleft = screen_rect.left();
-        let rright = screen_rect.right();
-
-        let screen_interval = rleft..=rright;
-
-        let range = view.range();
-
-        let aabb =
-            AABB::from_corners((range.start as i64, 0), (range.end as i64, 0));
-
-        let in_view = annots.locate_in_envelope_intersecting(&aabb);
-
-        self.prev_view = self.cur_view.clone();
-        self.cur_view = Some(view.clone());
-
-        let view_changed =
-            self.prev_view != self.cur_view && self.cur_view.is_some();
-
-        /*
-        if view_changed, use prev_view & cur_view to derive the delta
-        transformation to be applied to the (screenspace) annotation
-        positions
-        */
-
-        let shape_bin_width = 8usize;
-        let shape_bin_count =
-            (screen_rect.width() / shape_bin_width as f32).round() as usize;
-        let mut shape_bins = vec![0usize; shape_bin_count];
-
-        for line in in_view {
-            let a_id = line.data;
-            let left = line.geom().from.0 as u64;
-            let right = line.geom().to.0 as u64;
-
-            let reset_pos =
-                if let Some(pos) = self.get_annot_obj(a_id).map(|o| o.pos) {
-                    pos.pos_now.x < rleft || pos.pos_now.x > rright
-                } else {
-                    true
-                };
-
-            let anchor_range =
-                anchor_interval(view, &(left..right), &screen_interval);
-
-            if reset_pos {
-                if let Some(a_range) = anchor_range.as_ref() {
-                    let (l, r) = a_range.clone().into_inner();
-                    let x = l + (r - l) * 0.5;
-
-                    // let y = screen_rect.center().y + 20.0 * (x * 10.0).sin();
-                    let y = screen_rect.center().y + 20.0 * x.sin();
-
-                    let _obj =
-                        self.get_or_insert_annot_obj_mut(a_id, Vec2::new(x, y));
-                }
-            } else if view_changed {
-                // only apply the view transform to annots that haven't been reset
-
-                let transform = self
-                    .prev_view
-                    .as_ref()
-                    .and_then(|v0| Some((v0, self.cur_view.as_ref()?)))
-                    .map(|(v0, v1)| {
-                        super::Viewer1D::sample_index_transform(
-                            v0.range(),
-                            v1.range(),
-                        )
-                    });
-
-                if let Some([a, b]) = transform {
-                    let w = screen_rect.width();
-                    let x0 = screen_rect.left();
-
-                    let apply_tf = |p: &mut Vec2| {
-                        let x = p.x - x0;
-                        let x_ = x * a - w * b;
-                        p.x = x_ + x0;
-                    };
-
-                    if let Some(obj) = self.get_annot_obj_mut(a_id) {
-                        apply_tf(&mut obj.pos.pos_now);
-                        // apply_tf(&mut obj.pos.pos_old);
-                    }
-                }
-            }
-
-            {
-                // TODO: update the closest point to the anchor set from the
-                // annotation's current position
-
-                if let Some((a_range, obj)) = self
-                    .get_annot_obj_mut(a_id)
-                    .and_then(|obj| Some((anchor_range?, obj)))
-                {
-                    let (left, right) = a_range.into_inner();
-                    let range_x = left + (right - left) * 0.5;
-                    let obj_x = obj.pos.pos_now.x;
-
-                    let dist = (range_x - obj_x).abs();
-
-                    if let Some(cur_closest) = obj.closest_anchor_pos.as_mut() {
-                        if (*cur_closest - obj_x).abs() > dist {
-                            *cur_closest = range_x;
-                        }
-                    } else {
-                        obj.closest_anchor_pos = Some(range_x);
-                    }
-                };
-            }
-
-            // update shape bins
-            if let Some((pos, size)) = self.get_annot_obj(a_id).and_then(|o| {
-                let pos = o.pos.pos_now;
-                let size = o.size()?;
-                Some((pos, size))
-            }) {
-                let w2 = size.x / 2.0;
-                let x = pos.x - screen_rect.left();
-                let left = x - w2;
-                let right = x + w2;
-
-                let bin_w = shape_bin_width as f32;
-
-                let li = (left / bin_w).round() as usize;
-                let ri = (right / bin_w).round() as usize;
-                let ri = ri.clamp(0, shape_bins.len());
-                let li = li.clamp(0, ri);
-
-                let bin_range = li..ri;
-
-                shape_bins[bin_range].iter_mut().for_each(|c| *c += 1);
-            }
-        }
-    }
-    */
-
     fn update_simple(
         &mut self,
         screen_rect: egui::Rect,
@@ -425,11 +268,6 @@ impl AnnotSlotDynamics {
         use iset::IntervalMap;
 
         let objs_n = self.annot_shape_objs.len();
-
-        // let mut objs = (0..objs_n)
-        //     .map(|i| (i, &self.annot_shape_objs[i]))
-        //     .collect::<Vec<_>>();
-        // objs.sort_by_key(|(_, o)| o.annot_id);
 
         // NB: this might get weird... maybe i want to store the last
         // updated view for each object, and use that to compute the
@@ -546,131 +384,6 @@ impl AnnotSlotDynamics {
         }
 
         positions
-    }
-
-    /*
-    fn update(
-        &mut self,
-        screen_rect: egui::Rect,
-        dt: f32,
-    ) -> Vec<(AnnotationId, Vec2)> {
-        let objs = self.annot_shape_objs.len();
-
-        self.deltas.clear();
-        self.deltas.resize(objs, Vec2::zero());
-
-        for i in 0..objs {
-            for j in 0..objs {
-                if i == j {
-                    continue;
-                }
-
-                let (rect_i, rect_j) = {
-                    let ri = self.annot_shape_objs[i].egui_rect();
-                    let rj = self.annot_shape_objs[j].egui_rect();
-
-                    if let (Some(ri), Some(rj)) = (ri, rj) {
-                        (ri, rj)
-                    } else {
-                        continue;
-                    }
-                };
-
-                let delta = AnnotObj::intersect_delta(rect_i, rect_j);
-
-                // if delta.y.abs() > 0.0 {
-                //     log::warn!("obj {i} - {delta:?}");
-                // }
-
-                self.annot_shape_objs[i].pos.pos_now += delta;
-
-                // obj.pos.pos_now += delta;
-                // self.deltas[i] += delta;
-            }
-        }
-
-        let mut positions = Vec::with_capacity(objs);
-
-        for (_obj_i, (&delta, obj)) in self
-            .deltas
-            .iter()
-            .zip(self.annot_shape_objs.iter_mut())
-            .enumerate()
-        {
-            // obj.pos.pos_now += delta * dt;
-            // obj.pos.pos_now += delta;
-            // obj.pos.accel = delta;
-
-            // gravity
-            obj.pos.accel.y += 10.0;
-            let v = obj.pos.pos_now - obj.pos.pos_old;
-
-            // apply anchor constraint
-            if let Some(anchor) = obj.closest_anchor_pos {
-                // let dist = anchor - obj.pos.pos_now.x;
-                obj.pos.pos_now.x = anchor;
-                /*
-                let dist = obj.pos.pos_now.x - anchor;
-
-                if dist.abs() > 1.0 {
-                    // let k = 1.0;
-                    // let k = 0.1;
-                    // let k = 0.5;
-                    let k = 0.5;
-
-                    let f = -k * dist;
-                    let a = f;
-
-                    obj.pos.accel.x += a;
-                } else {
-                    let damp = 10.0;
-                    obj.pos.accel.x = -v.x * damp;
-                }
-                */
-
-                // obj.pos.pos_now.x = anchor;
-                // obj.closest_anchor_pos = None;
-
-                let annot_id = obj.annot_id;
-                positions.push((annot_id, obj.pos.pos_now));
-            }
-
-            // TODO: disabled until the collision & update_position behave correctly
-            // obj.pos.update_position(dt);
-
-            if let Some(rect) = obj.egui_rect() {
-                if rect.bottom() > screen_rect.bottom() {
-                    // obj.pos.pos_now.y = screen_rect.bottom() - rect.height();
-                    obj.pos.pos_now.y -= rect.bottom() - screen_rect.bottom();
-                }
-            }
-
-            // reset
-            obj.closest_anchor_pos = None;
-        }
-
-        positions
-    }
-    */
-}
-
-impl AnnotObjPos {
-    fn at_pos(pos: Vec2) -> Self {
-        Self {
-            pos_now: pos,
-            pos_old: pos,
-            accel: Vec2::zero(),
-        }
-    }
-    fn update_position(&mut self, dt: f32) {
-        let vel = self.pos_now - self.pos_old;
-        self.pos_old = self.pos_now;
-        self.pos_now = self.pos_now + vel + self.accel * dt * dt;
-        self.accel = Vec2::zero();
-    }
-
-    fn accelerate(&mut self, acc: Vec2) {
-        self.accel += acc;
     }
 }
 
@@ -909,5 +622,32 @@ pub(crate) mod util {
             .into_iter()
             .map(|(range, label)| (range, text_shape(label)));
         AnnotSlot::new_from_pangenome_space(annots)
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+struct AnnotObjPos {
+    pos_now: Vec2,
+    pos_old: Vec2,
+    accel: Vec2,
+}
+
+impl AnnotObjPos {
+    fn at_pos(pos: Vec2) -> Self {
+        Self {
+            pos_now: pos,
+            pos_old: pos,
+            accel: Vec2::zero(),
+        }
+    }
+    fn update_position(&mut self, dt: f32) {
+        let vel = self.pos_now - self.pos_old;
+        self.pos_old = self.pos_now;
+        self.pos_now = self.pos_now + vel + self.accel * dt * dt;
+        self.accel = Vec2::zero();
+    }
+
+    fn accelerate(&mut self, acc: Vec2) {
+        self.accel += acc;
     }
 }
