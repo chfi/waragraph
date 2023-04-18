@@ -555,8 +555,16 @@ impl AnnotSlot {
         self.task = Some(handle);
     }
 
-    pub(super) fn draw(&mut self, painter: &egui::Painter, view: &View1D) {
+    /// returns the hovered annotation, if any
+    pub(super) fn draw(
+        &mut self,
+        painter: &egui::Painter,
+        view: &View1D,
+        cursor_pos: Option<egui::Pos2>,
+    ) -> Option<AnnotationId> {
         self.shape_sizes.clear();
+
+        let mut interacted = None;
 
         for &(a_id, pos) in self.positions.iter() {
             let pos = mint::Point2::<f32>::from(pos);
@@ -565,10 +573,20 @@ impl AnnotSlot {
                 mint::Vector2::<f32>::from(shape.visual_bounding_rect().size());
             self.shape_sizes.push((a_id, size.into()));
 
+            if interacted.is_none() {
+                if let Some(pos) = cursor_pos {
+                    if shape.visual_bounding_rect().contains(pos) {
+                        interacted = Some(a_id);
+                    }
+                }
+            }
+
             if pos.y > painter.clip_rect().top() {
                 painter.add(shape);
             }
         }
+
+        interacted
     }
 }
 

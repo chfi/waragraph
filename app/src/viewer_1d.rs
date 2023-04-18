@@ -957,7 +957,14 @@ impl AppWindow for Viewer1D {
                     if let Some(annot_slot) = self.annotations.get_mut(&slot_id)
                     {
                         let painter = ui.painter_at(rect);
-                        annot_slot.draw(&painter, &self.view);
+
+                        let cursor_pos = ui.input().pointer.hover_pos();
+                        let interacted =
+                            annot_slot.draw(&painter, &self.view, cursor_pos);
+
+                        if let Some(annot) = interacted {
+                            log::warn!("hovered {annot:?}");
+                        }
                     }
                 }
             });
