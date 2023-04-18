@@ -751,8 +751,10 @@ impl AnnotSlot {
             let range_end = path_range.end;
             if let Some(steps) = graph.path_step_range_iter(path, path_range) {
                 for (start, step) in steps {
-                    let len = graph.node_length(step.node()).0 as usize;
-                    let end = (start + len).min(range_end.0 as usize);
+                    let (offset, len) = graph.node_offset_length(step.node());
+                    let start = offset.0 as usize;
+                    let len = len.0 as usize;
+                    let end = start + len;
                     let geom = Line::new((start as i64, 0), (end as i64, 0));
                     annot_objs.push(GeomWithData::new(geom, a_id));
                 }
