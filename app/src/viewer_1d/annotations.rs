@@ -1,6 +1,7 @@
 use std::collections::{BTreeSet, HashMap, HashSet};
 use std::sync::Arc;
 
+use bimap::BiHashMap;
 use rstar::{
     primitives::{GeomWithData, Line},
     RTree,
@@ -9,7 +10,7 @@ use tokio::{sync::Mutex, task::JoinHandle};
 use ultraviolet::Vec2;
 use waragraph_core::graph::{Bp, PathId, PathIndex};
 
-use crate::annotations::AnnotationId;
+use crate::annotations::{AnnotationId, AnnotationSetId};
 
 use super::view::View1D;
 
@@ -23,13 +24,21 @@ pub struct Annots1D {
     slots: HashMap<AnnotSlotId, AnnotSlot>,
     next_slot_id: AnnotSlotId,
 
-    path_annot_slot: HashMap<PathId, AnnotSlotId>,
+    path_annot_slot: BiHashMap<PathId, AnnotSlotId>,
 }
 
 impl Annots1D {
     pub fn get_path_slot_id(&self, path: PathId) -> Option<AnnotSlotId> {
-        let slot = self.path_annot_slot.get(&path)?;
+        let slot = self.path_annot_slot.get_by_left(&path)?;
         Some(*slot)
+    }
+
+    pub fn get_annotation_slot_path(
+        &self,
+        annot_slot: AnnotSlotId,
+    ) -> Option<PathId> {
+        let path = self.path_annot_slot.get_by_right(&annot_slot)?;
+        Some(*path)
     }
 
     pub fn insert_slot(
@@ -78,7 +87,8 @@ pub fn text_shape<L: ToString>(label: L) -> ShapeFn {
 // with the annotations "flattened" to the pangenome coordinate
 // space, down from the path-range space
 pub struct AnnotSlot {
-    // id: AnnotSlotId
+    pub(super) set_id: AnnotationSetId,
+
     // really corresponds to the anchor regions
     annots: Arc<RTree<AnnotsTreeObj>>,
 
@@ -431,6 +441,7 @@ impl AnnotSlot {
     /// Initializes an annotation slot given items in pangenome space.
     ///
     pub fn new_from_pangenome_space(
+        set_id: AnnotationSetId,
         annotations: impl IntoIterator<Item = (std::ops::Range<Bp>, ShapeFn)>,
     ) -> Self {
         let mut annot_objs = Vec::new();
@@ -447,6 +458,7 @@ impl AnnotSlot {
         let annots = RTree::<AnnotsTreeObj>::bulk_load(annot_objs);
 
         Self {
+            set_id,
             annots: Arc::new(annots),
             shape_fns,
             dynamics: Default::default(),
@@ -461,6 +473,7 @@ impl AnnotSlot {
     /// necessary.
     pub fn new_from_path_space(
         graph: &PathIndex,
+        set_id: AnnotationSetId,
         annotations: impl IntoIterator<
             Item = (PathId, std::ops::Range<Bp>, ShapeFn),
         >,
@@ -489,6 +502,7 @@ impl AnnotSlot {
         let annots = RTree::<AnnotsTreeObj>::bulk_load(annot_objs);
 
         Self {
+            set_id,
             annots: Arc::new(annots),
             shape_fns,
             dynamics: Default::default(),
@@ -628,33 +642,6 @@ fn anchor_interval(
     let a_right = sleft + rt * slen;
 
     Some(a_left..=a_right)
-}
-
-pub(crate) mod util {
-    use waragraph_core::graph::{Bp, Node};
-
-    use super::*;
-
-    pub(crate) fn label_nodes<L: ToString>(
-        graph: &PathIndex,
-        labels: impl IntoIterator<Item = (Node, L)>,
-    ) -> AnnotSlot {
-        let annots = labels.into_iter().map(|(node, label)| {
-            let node_range = graph.node_pangenome_range(node);
-            (node_range, text_shape(label))
-        });
-
-        AnnotSlot::new_from_pangenome_space(annots)
-    }
-
-    pub(crate) fn pangenome_range_labels<L: ToString>(
-        labels: impl IntoIterator<Item = (std::ops::Range<Bp>, L)>,
-    ) -> AnnotSlot {
-        let annots = labels
-            .into_iter()
-            .map(|(range, label)| (range, text_shape(label)));
-        AnnotSlot::new_from_pangenome_space(annots)
-    }
 }
 
 #[derive(Debug, Clone, Copy)]

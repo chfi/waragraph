@@ -1,3 +1,4 @@
+use crate::annotations::GlobalAnnotationId;
 use crate::app::resource::GraphPathData;
 use crate::app::settings_menu::SettingsWindow;
 use crate::app::{AppWindow, SharedState, VizInteractions};
@@ -514,8 +515,11 @@ impl AppWindow for Viewer1D {
 
                         // if path has an annotation set, create an AnnotSlot
 
-                        for set in annotations.get_sets_for_path(*path_id) {
-                            annot_set_slots.push((*path_id, set.clone()));
+                        for (set_id, set) in
+                            annotations.get_sets_for_path(*path_id)
+                        {
+                            annot_set_slots
+                                .push((*path_id, (set_id, set.clone())));
                         }
                     }
                 }
@@ -524,7 +528,7 @@ impl AppWindow for Viewer1D {
 
         {
             // TODO: should be async (but all of this should be rewritten)
-            for (path, set) in annot_set_slots {
+            for (path, (set_id, set)) in annot_set_slots {
                 if self.annotations.get_path_slot_id(path).is_some() {
                     continue;
                 }
@@ -540,6 +544,7 @@ impl AppWindow for Viewer1D {
 
                     let annot_slot = AnnotSlot::new_from_path_space(
                         &self.shared.graph,
+                        set_id,
                         annot_items,
                     );
 
@@ -962,8 +967,19 @@ impl AppWindow for Viewer1D {
                         let interacted =
                             annot_slot.draw(&painter, &self.view, cursor_pos);
 
-                        if let Some(annot) = interacted {
-                            log::warn!("hovered {annot:?}");
+                        if let Some(annot_id) = interacted {
+                            let set = annot_slot.set_id;
+                            let global_id =
+                                GlobalAnnotationId { set, annot_id };
+
+                            let path = self
+                                .annotations
+                                .get_annotation_slot_path(slot_id)
+                                .unwrap();
+
+                            let ctx_data = (path, global_id);
+
+                            context_state.set("Viewer1D", ["hover"], ctx_data);
                         }
                     }
                 }
