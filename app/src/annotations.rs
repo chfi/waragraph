@@ -27,6 +27,13 @@ fn annotation_set_name(
 }
 
 impl AnnotationSet {
+    pub fn get(
+        &self,
+        annot_id: AnnotationId,
+    ) -> Option<&(std::ops::Range<Bp>, String)> {
+        self.annotations.get(annot_id.0)
+    }
+
     pub fn from_bed(
         graph: &PathIndex,
         name: Option<&str>,
@@ -183,9 +190,13 @@ impl AnnotationStore {
     pub fn get_sets_for_path<'a>(
         &'a self,
         path: PathId,
-    ) -> impl Iterator<Item = &'a Arc<AnnotationSet>> {
-        self.annotation_sets.values().filter_map(move |set| {
-            set.path_annotations.contains_key(&path).then_some(set)
-        })
+    ) -> impl Iterator<Item = (AnnotationSetId, &'a Arc<AnnotationSet>)> {
+        self.annotation_sets
+            .iter()
+            .filter_map(move |(set_id, set)| {
+                set.path_annotations
+                    .contains_key(&path)
+                    .then_some((*set_id, set))
+            })
     }
 }

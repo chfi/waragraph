@@ -761,15 +761,39 @@ impl AppWindow for Viewer1D {
                     gui::SlotElem::ViewRange => {
                         view_range_rect = Some(rect);
                     }
-                    gui::SlotElem::PathData { .. } => {
-                        if let Some(hovered_annot) = context_state.get(
-                            &ContextQuery::from_source::<(
+                    gui::SlotElem::PathData { slot_id, data_id } => {
+
+                        // NB: all of this is to draw stuff on the pangenome ranges
+                        // covered by the hovered annotation label, if any
+
+                        let query = ContextQuery::from_source::<(
                                 PathId,
                                 GlobalAnnotationId,
-                            )>("Viewer1D"),
-                        ) {
-                            // TODO compute regions for annotation
-                            // push shape for hovered annotation
+                            )>("Viewer1D");
+
+                        if let Some(hovered_annot) = context_state
+                            .get(&query)
+                            .and_then(|ctx| 
+                                ctx.data().downcast_ref::<(PathId, GlobalAnnotationId)>()
+                            )
+                        {
+                            let (path_id, g_annot_id) = hovered_annot;
+
+                            let slot_id = self
+                                .annotations
+                                .get_path_slot_id(*path_id)
+                                .unwrap();
+
+                            let regions = self.annotations.get(&slot_id).and_then(|slot| {
+                                slot.annotation_ranges.get(&g_annot_id.annot_id)
+                            });
+
+                            for range in regions {
+                                // map range to screen space
+
+                                // draw based on intersection of image of range(s)
+                                // with slot clip rect
+                            }
                         }
 
                         path_slot_region = path_slot_region.union(rect);
