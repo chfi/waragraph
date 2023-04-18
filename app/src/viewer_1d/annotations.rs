@@ -91,6 +91,7 @@ pub struct AnnotSlot {
 
     // really corresponds to the anchor regions
     annots: Arc<RTree<AnnotsTreeObj>>,
+    pub annotation_ranges: HashMap<AnnotationId, Vec<std::ops::Range<Bp>>>,
 
     shape_fns: Vec<ShapeFn>,
 
@@ -447,12 +448,23 @@ impl AnnotSlot {
         let mut annot_objs = Vec::new();
         let mut shape_fns = Vec::new();
 
+        let mut annotation_ranges: HashMap<
+            AnnotationId,
+            Vec<std::ops::Range<Bp>>,
+        > = HashMap::default();
+
         for (a_id, (range, shape)) in annotations.into_iter().enumerate() {
             let a_id = AnnotationId(a_id);
             let geom =
                 Line::new((range.start.0 as i64, 0), (range.end.0 as i64, 0));
             annot_objs.push(GeomWithData::new(geom, a_id));
             shape_fns.push(shape);
+
+            annotation_ranges.entry(a_id).or_default().push(range);
+        }
+
+        for ranges in annotation_ranges.values_mut() {
+            ranges.sort_by_key(|r| (r.start, r.end));
         }
 
         let annots = RTree::<AnnotsTreeObj>::bulk_load(annot_objs);
@@ -460,6 +472,7 @@ impl AnnotSlot {
         Self {
             set_id,
             annots: Arc::new(annots),
+            annotation_ranges,
             shape_fns,
             dynamics: Default::default(),
             task: None,
@@ -481,22 +494,39 @@ impl AnnotSlot {
         let mut annot_objs = Vec::new();
         let mut shape_fns = Vec::new();
 
+        let mut annotation_ranges: HashMap<
+            AnnotationId,
+            Vec<std::ops::Range<Bp>>,
+        > = HashMap::default();
+
         for (a_id, (path, path_range, shape)) in
             annotations.into_iter().enumerate()
         {
             let a_id = AnnotationId(a_id);
             shape_fns.push(shape);
             let range_end = path_range.end;
+
             if let Some(steps) = graph.path_step_range_iter(path, path_range) {
-                for (start, step) in steps {
+                for (_path_start, step) in steps {
                     let (offset, len) = graph.node_offset_length(step.node());
                     let start = offset.0 as usize;
                     let len = len.0 as usize;
                     let end = start + len;
                     let geom = Line::new((start as i64, 0), (end as i64, 0));
                     annot_objs.push(GeomWithData::new(geom, a_id));
+
+                    let range = Bp(start as u64)..Bp(end as u64);
+                    annotation_ranges.entry(a_id).or_default().push(range);
                 }
             }
+        }
+
+        for ranges in annotation_ranges.values_mut() {
+            ranges.sort_by_key(|r| (r.start, r.end));
+
+            // TODO: simplify the stored ranges by iterating the
+            // steps, building up blocks of continuous runs in
+            // pangenome space
         }
 
         let annots = RTree::<AnnotsTreeObj>::bulk_load(annot_objs);
@@ -504,6 +534,7 @@ impl AnnotSlot {
         Self {
             set_id,
             annots: Arc::new(annots),
+            annotation_ranges,
             shape_fns,
             dynamics: Default::default(),
             task: None,

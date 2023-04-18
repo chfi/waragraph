@@ -4,7 +4,7 @@ use crate::app::settings_menu::SettingsWindow;
 use crate::app::{AppWindow, SharedState, VizInteractions};
 use crate::color::widget::{ColorMapWidget, ColorMapWidgetShared};
 use crate::color::ColorMap;
-use crate::context::ContextState;
+use crate::context::{ContextQuery, ContextState};
 use crate::gui::list::DynamicListLayout;
 use crate::gui::FlexLayout;
 use crate::list::ListView;
@@ -762,6 +762,16 @@ impl AppWindow for Viewer1D {
                         view_range_rect = Some(rect);
                     }
                     gui::SlotElem::PathData { .. } => {
+                        if let Some(hovered_annot) = context_state.get(
+                            &ContextQuery::from_source::<(
+                                PathId,
+                                GlobalAnnotationId,
+                            )>("Viewer1D"),
+                        ) {
+                            // TODO compute regions for annotation
+                            // push shape for hovered annotation
+                        }
+
                         path_slot_region = path_slot_region.union(rect);
                     }
                     gui::SlotElem::PathName { slot_id } => {
