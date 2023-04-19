@@ -29,7 +29,7 @@ impl ContextState {
         println!("open_frame: {}", self.open_frame.len());
 
         println!("ready_frame: {}", self.ready_frame.len());
-        for (tid, ctxs) in self.ready_frame.iter() {
+        for (_tid, ctxs) in self.ready_frame.iter() {
             for ctx in ctxs {
                 println!("{:?}", ctx.meta());
             }
@@ -62,6 +62,24 @@ impl ContextState {
         };
 
         self.open_frame.entry(tid).or_default().push(ctx_val);
+    }
+
+    pub fn get_cast<'a, K, T: std::any::Any>(
+        &'a self,
+        query: &ContextQuery<K>,
+    ) -> Option<&'a T>
+    where
+        K: Ord + AsRef<str>,
+    {
+        let values = self.ready_frame.get(&query.type_id)?;
+
+        values.iter().find_map(|v| {
+            query
+                .matches_str(v)
+                .then_some(v)?
+                .data()
+                .downcast_ref::<T>()
+        })
     }
 
     pub fn get<'a, K>(

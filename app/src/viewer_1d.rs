@@ -762,20 +762,16 @@ impl AppWindow for Viewer1D {
                         view_range_rect = Some(rect);
                     }
                     gui::SlotElem::PathData { slot_id, data_id } => {
-
                         // NB: all of this is to draw stuff on the pangenome ranges
                         // covered by the hovered annotation label, if any
 
                         let query = ContextQuery::from_source::<(
-                                PathId,
-                                GlobalAnnotationId,
-                            )>("Viewer1D");
+                            PathId,
+                            GlobalAnnotationId,
+                        )>("Viewer1D");
 
                         if let Some(hovered_annot) = context_state
-                            .get(&query)
-                            .and_then(|ctx| 
-                                ctx.data().downcast_ref::<(PathId, GlobalAnnotationId)>()
-                            )
+                            .get_cast::<_, (PathId, GlobalAnnotationId)>(&query)
                         {
                             let (path_id, g_annot_id) = hovered_annot;
 
