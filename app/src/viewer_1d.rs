@@ -43,7 +43,6 @@ pub mod widgets;
 pub mod cache;
 pub mod render;
 
-pub mod util;
 pub mod view;
 
 pub mod annotations;
@@ -770,26 +769,55 @@ impl AppWindow for Viewer1D {
                             GlobalAnnotationId,
                         )>("Viewer1D");
 
+                        let slot_path_id = self.path_list_view.get_in_view(*slot_id);
+                        if slot_path_id.is_none() {
+                            return;
+                        }
+
                         if let Some(hovered_annot) = context_state
                             .get_cast::<_, (PathId, GlobalAnnotationId)>(&query)
                         {
                             let (path_id, g_annot_id) = hovered_annot;
 
-                            let slot_id = self
+                            if slot_path_id.unwrap() != path_id {
+                                return;
+                            }
+
+                            let annot_slot_id = self
                                 .annotations
                                 .get_path_slot_id(*path_id)
                                 .unwrap();
 
-                            let regions = self.annotations.get(&slot_id).and_then(|slot| {
-                                slot.annotation_ranges.get(&g_annot_id.annot_id)
-                            });
+                            let regions = self
+                                .annotations
+                                .get(&annot_slot_id)
+                                .and_then(|slot| {
+                                    slot.annotation_ranges
+                                        .get(&g_annot_id.annot_id)
+                                });
 
-                            for range in regions {
-                                // map range to screen space
+                            let slot_x_range = rect.x_range();
 
-                                // draw based on intersection of image of range(s)
-                                // with slot clip rect
-                            }
+                            let draw_range = |range: std::ops::RangeInclusive<f32>| -> egui::Shape {
+                                let range_rect = egui::Rect::from_x_y_ranges(range, rect.y_range());
+                                let color = egui::Rgba::from_rgba_unmultiplied(0.8, 0.2, 0.2, 0.5);
+                                // let stroke = egui::Stroke::new(0.0, color);
+
+                                egui::Shape::rect_filled(range_rect, 0.0, color)
+                            };
+
+                            regions
+                                .into_iter()
+                                .flatten()
+                                .filter_map(|range| {
+                                    self.view.map_bp_interval_to_screen_x(
+                                        range,
+                                        &slot_x_range,
+                                    )
+                                })
+                                .for_each(|slot_space_range| {
+                                    shapes.push(draw_range(slot_space_range));
+                                });
                         }
 
                         path_slot_region = path_slot_region.union(rect);
