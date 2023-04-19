@@ -191,11 +191,11 @@ impl AnnotSlotDynamics {
         // collect the visible annotations
         for line in in_view {
             let a_id = line.data;
-            let left = line.geom().from.0 as u64;
-            let right = line.geom().to.0 as u64;
+            let left = Bp(line.geom().from.0 as u64);
+            let right = Bp(line.geom().to.0 as u64);
 
-            if let Some(anchor_range) =
-                anchor_interval(view, &(left..right), &screen_interval)
+            if let Some(anchor_range) = view
+                .map_bp_interval_to_screen_x(&(left..right), &screen_interval)
             {
                 annot_ranges
                     .entry(a_id)
@@ -633,46 +633,6 @@ impl AnnotSlot {
 
         interacted
     }
-}
-
-// returns the range of valid anchor points along the x-axis, in
-// screen space, of the `pan_range` range under the transformation
-// induced by the `view` and `screen_interval`
-//
-// if the intersection of `view` and `pan_range` is empty, None is returned
-fn anchor_interval(
-    view: &View1D,
-    pan_range: &std::ops::Range<u64>,
-    screen_interval: &std::ops::RangeInclusive<f32>,
-) -> Option<std::ops::RangeInclusive<f32>> {
-    let vrange = view.range();
-    let pleft = pan_range.start;
-    let pright = pan_range.end;
-
-    if pleft > vrange.end || pright < vrange.start {
-        return None;
-    }
-
-    let vl = vrange.start as f32;
-    let vr = vrange.end as f32;
-    let vlen = vr - vl;
-
-    let left = pleft.max(vrange.start);
-    let right = pright.min(vrange.end);
-
-    let l = left as f32;
-    let r = right as f32;
-
-    let lt = (l - vl) / vlen;
-    let rt = (r - vl) / vlen;
-
-    let (sleft, sright) = screen_interval.clone().into_inner();
-    let slen = sright - sleft;
-
-    let a_left = sleft + lt * slen;
-    let a_right = sleft + rt * slen;
-
-    Some(a_left..=a_right)
 }
 
 #[derive(Debug, Clone, Copy)]
