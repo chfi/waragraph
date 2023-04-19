@@ -776,9 +776,38 @@ impl AppWindow for Viewer1D {
                             let draw_range = |range: std::ops::RangeInclusive<f32>| -> egui::Shape {
                                 let range_rect = egui::Rect::from_x_y_ranges(range, rect.y_range());
                                 let color = egui::Rgba::from_rgba_unmultiplied(0.8, 0.2, 0.2, 0.5);
-                                // let stroke = egui::Stroke::new(0.0, color);
-
                                 egui::Shape::rect_filled(range_rect, 0.0, color)
+                                /*
+                                if range_rect.width() >= 1.0 {
+                                    let color = egui::Rgba::from_rgba_unmultiplied(0.8, 0.2, 0.2, 0.5);
+                                    egui::Shape::rect_filled(range_rect, 0.0, color)
+                                } else {
+                                    // this part looks a bit weird since there's a lot of subpixel ranges
+                                    // that actually overlap, so leave it for later
+                                    let rect = range_rect.expand(1.0);
+                                    let color = egui::Rgba::RED;
+                                    let stroke = egui::Stroke::new(1.0, color);
+                                    let top = rect.center_top();
+                                    let btm = rect.center_bottom();
+
+                                    use egui::vec2;
+                                    let mid = [top, btm];
+                                    let ul = top + vec2(-1.0, -1.0);
+                                    let ur = top + vec2(1.0, -1.0);
+                                    let dl = btm + vec2(-1.0, 1.0);
+                                    let dr = btm + vec2(1.0, 1.0);
+
+                                    let upper = [ul, ur];
+                                    let lower = [dl, dr];
+
+                                    egui::Shape::Vec(vec![
+                                        egui::Shape::line_segment(upper, stroke),
+                                        egui::Shape::line_segment(mid, stroke),
+                                        egui::Shape::line_segment(lower, stroke),
+                                    ])
+                                }
+                                */
+
                             };
 
                             regions

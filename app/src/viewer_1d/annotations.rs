@@ -1,4 +1,4 @@
-use std::collections::{BTreeSet, HashMap, HashSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::sync::Arc;
 
 use bimap::BiHashMap;
@@ -278,6 +278,8 @@ impl AnnotSlotDynamics {
     ) -> Vec<(AnnotationId, Vec2)> {
         use iset::IntervalMap;
 
+        const MAX_OVERLAPS: usize = 5;
+
         let objs_n = self.annot_shape_objs.len();
 
         // NB: this might get weird... maybe i want to store the last
@@ -295,12 +297,18 @@ impl AnnotSlotDynamics {
         let mut placed_labels: IntervalMap<f32, (usize, usize)> =
             IntervalMap::default();
 
+        let mut object_range: HashMap<usize, std::ops::Range<f32>> =
+            HashMap::default();
+
+        // AnnotationId -> [Object Id]
+        let mut overlapping: BTreeMap<usize, Vec<usize>> = BTreeMap::default();
+
         for &annot_id in &self.visible_set {
             let obj_i = self.annot_obj_map[&annot_id];
             let obj = &mut self.annot_shape_objs[obj_i];
 
             let width = if let Some(size) = obj.size() {
-                size.x.min(1.0)
+                size.x.max(1.0)
             } else {
                 1.0
             };
@@ -373,18 +381,49 @@ impl AnnotSlotDynamics {
                 continue;
             };
 
-            const MAX_OVERLAPS: usize = 7;
-            let overlap_count = placed_labels.intervals(ival.clone()).count();
+            let overlaps = placed_labels
+                .values(ival.clone())
+                .map(|(obj_i, _)| *obj_i)
+                .collect::<Vec<_>>();
+            let overlap_count = overlaps.len();
 
             if overlap_count < MAX_OVERLAPS {
+                object_range.insert(obj_i, ival.clone());
                 placed_labels.insert(ival, (obj_i, overlap_count));
+                overlapping.insert(obj_i, overlaps);
             }
         }
 
-        let mut positions = Vec::with_capacity(objs_n);
+        // Object ID -> Option<Row Index>
+        let mut rows: HashMap<usize, usize> = HashMap::default();
+
+        for (range, (obj_i, overlap_count)) in placed_labels.iter(..) {
+            let overlaps =
+                placed_labels.values(range.clone()).map(|(obj_i, _)| *obj_i);
+
+            let overlapping_rows = overlaps
+                .filter_map(|j| rows.get(&j))
+                .copied()
+                .collect::<HashSet<_>>();
+
+            let row_ix = (0..MAX_OVERLAPS - 1)
+                .find(|row| !overlapping_rows.contains(&row));
+
+            if let Some(i) = row_ix {
+                rows.insert(*obj_i, i);
+            }
+        }
+
+        let mut positions = Vec::with_capacity(placed_labels.len());
 
         for (_range, (obj_i, overlap_count)) in placed_labels.into_iter(..) {
             let obj = &mut self.annot_shape_objs[obj_i];
+
+            let row_ix = if let Some(i) = rows.get(&obj_i) {
+                *i
+            } else {
+                continue;
+            };
 
             let annot_id = obj.annot_id;
 
@@ -401,7 +440,7 @@ impl AnnotSlotDynamics {
             };
 
             let y0 = screen_rect.bottom() - 8.0;
-            let y = y0 - yd * overlap_count as f32;
+            let y = y0 - yd * row_ix as f32;
 
             positions.push((annot_id, Vec2::new(x, y)));
         }
@@ -629,7 +668,7 @@ impl AnnotSlot {
                 }
             }
 
-            if pos.y > painter.clip_rect().top() {
+            if painter.clip_rect().intersects(shape.visual_bounding_rect()) {
                 painter.add(shape);
             }
         }
