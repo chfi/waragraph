@@ -300,7 +300,7 @@ impl AnnotSlotDynamics {
             let obj = &mut self.annot_shape_objs[obj_i];
 
             let width = if let Some(size) = obj.size() {
-                size.x
+                size.x.min(1.0)
             } else {
                 1.0
             };
@@ -610,6 +610,9 @@ impl AnnotSlot {
         self.shape_sizes.clear();
 
         let mut interacted = None;
+        let cursor_in_slot = cursor_pos
+            .map(|pos| painter.clip_rect().contains(pos))
+            .unwrap_or(false);
 
         for &(a_id, pos) in self.positions.iter() {
             let pos = mint::Point2::<f32>::from(pos);
@@ -618,7 +621,7 @@ impl AnnotSlot {
                 mint::Vector2::<f32>::from(shape.visual_bounding_rect().size());
             self.shape_sizes.push((a_id, size.into()));
 
-            if interacted.is_none() {
+            if cursor_in_slot && interacted.is_none() {
                 if let Some(pos) = cursor_pos {
                     if shape.visual_bounding_rect().contains(pos) {
                         interacted = Some(a_id);

@@ -1,5 +1,4 @@
 use crate::annotations::GlobalAnnotationId;
-use crate::app::resource::GraphPathData;
 use crate::app::settings_menu::SettingsWindow;
 use crate::app::{AppWindow, SharedState, VizInteractions};
 use crate::color::widget::{ColorMapWidget, ColorMapWidgetShared};
@@ -196,61 +195,56 @@ impl Viewer1D {
         let dyn_slot_layout = {
             let width = |p: f32| taffy::style::Dimension::Percent(p);
 
-            let mut layout: DynamicListLayout<
-                Vec<gui::SlotElem>,
-                gui::SlotElem,
-            > = DynamicListLayout::new(
-                [width(0.2), width(0.8)],
-                |row: &Vec<gui::SlotElem>, ix| {
-                    //
-                    let val = row.get(ix)?.clone();
+            let layout: DynamicListLayout<Vec<gui::SlotElem>, gui::SlotElem> =
+                DynamicListLayout::new(
+                    [width(0.2), width(0.8)],
+                    |row: &Vec<gui::SlotElem>, ix| {
+                        //
+                        let val = row.get(ix)?.clone();
 
-                    let mk_h = |h: f32| taffy::style::Dimension::Points(h);
+                        let mk_h = |h: f32| taffy::style::Dimension::Points(h);
 
-                    // TODO: grab this from some sort of config
-                    let slot_height = 20.0;
-                    // let slot_height = 80.0;
+                        // TODO: grab this from some sort of config
+                        let slot_height = 20.0;
+                        // let slot_height = 80.0;
 
-                    let height = match &val {
-                        gui::SlotElem::Empty => taffy::style::Dimension::Auto,
-                        gui::SlotElem::Annotations { annotation_slot_id } => {
-                            // TODO this should be dynamic
-                            mk_h(100.0)
-                        }
-                        gui::SlotElem::ViewRange => mk_h(slot_height),
-                        gui::SlotElem::PathData { slot_id, data_id } => {
-                            mk_h(slot_height)
-                        }
-                        gui::SlotElem::PathName { slot_id } => {
-                            mk_h(slot_height)
-                        }
-                    };
+                        let height = match &val {
+                            gui::SlotElem::Empty => {
+                                taffy::style::Dimension::Auto
+                            }
+                            gui::SlotElem::Annotations {
+                                annotation_slot_id,
+                            } => {
+                                // TODO this should be dynamic
+                                mk_h(100.0)
+                            }
+                            gui::SlotElem::ViewRange => mk_h(slot_height),
+                            gui::SlotElem::PathData { .. } => mk_h(slot_height),
+                            gui::SlotElem::PathName { .. } => mk_h(slot_height),
+                        };
 
-                    Some((val, height))
-                },
-            );
+                        Some((val, height))
+                    },
+                );
 
             layout
         };
 
-        let (vertices, vxs, insts) = {
-            let size =
-                ultraviolet::Vec2::new(win_dims[0] as f32, win_dims[1] as f32);
-            let (buffer, insts) = Self::slot_vertex_buffer(
-                &state.device,
-                size,
-                dyn_slot_layout.layout(),
-                &path_list_view,
-            )?;
-            let vxs = 0..6;
-            let insts = 0..insts;
+        // let (vertices, vxs, insts) = {
+        //     let (buffer, insts) = Self::slot_vertex_buffer(
+        //         &state.device,
+        //         dyn_slot_layout.layout(),
+        //         &path_list_view,
+        //     )?;
+        //     let vxs = 0..6;
+        //     let insts = 0..insts;
 
-            (buffer, vxs, insts)
-        };
+        //     (buffer, vxs, insts)
+        // };
 
         graph.set_node_preprocess_fn(draw_node, move |_ctx, op_state| {
-            op_state.vertices = Some(vxs.clone());
-            op_state.instances = Some(insts.clone());
+            op_state.vertices = Some(0..6);
+            op_state.instances = Some(0..0);
         });
 
         let self_viz_interact =
@@ -369,25 +363,7 @@ impl Viewer1D {
             bin_count,
         )?;
 
-        let annotations = {
-            let mut annots = annotations::Annots1D::default();
-
-            // Debug/test stuff
-            // let label = |l: u64, r: u64| (Bp(l)..Bp(r), format!("{l}-{r}"));
-            // let iter = vec![
-            //     label(100_000, 200_000),
-            //     label(400_000, 600_000),
-            //     label(1000_000, 2000_000),
-            //     label(4000_000, 7000_000),
-            //     label(7200_000, 7800_000),
-            //     label(8000_000, 9000_000),
-            //     label(12_000_000, 13_000_000),
-            // ];
-            // let slot = annotations::util::pangenome_range_labels(iter);
-            // annots.insert_slot(PathId::from(3u32), slot);
-
-            annots
-        };
+        let annotations = annotations::Annots1D::default();
 
         Ok(Viewer1D {
             render_graph: graph,
@@ -450,7 +426,6 @@ impl Viewer1D {
     // TODO there's no need to reallocate the buffer every time the list is scrolled...
     fn slot_vertex_buffer(
         device: &wgpu::Device,
-        win_dims: ultraviolet::Vec2,
         layout: &FlexLayout<gui::SlotElem>,
         path_list_view: &ListView<PathId>,
     ) -> Result<(BufferDesc, u32)> {
@@ -760,7 +735,7 @@ impl AppWindow for Viewer1D {
                     gui::SlotElem::ViewRange => {
                         view_range_rect = Some(rect);
                     }
-                    gui::SlotElem::PathData { slot_id, data_id } => {
+                    gui::SlotElem::PathData { slot_id, .. } => {
                         // NB: all of this is to draw stuff on the pangenome ranges
                         // covered by the hovered annotation label, if any
 
@@ -1069,10 +1044,10 @@ impl AppWindow for Viewer1D {
 
     fn on_event(
         &mut self,
-        window_dims: [u32; 2],
+        _window_dims: [u32; 2],
         event: &winit::event::WindowEvent,
     ) -> bool {
-        let mut consume = false;
+        let consume = false;
 
         if let WindowEvent::KeyboardInput { input, .. } = event {
             if let Some(key) = input.virtual_keycode {
