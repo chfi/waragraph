@@ -1197,7 +1197,8 @@ impl AppWindow for Viewer1D {
         let (sampler, tex, tex_size) = {
             let colors = self.shared.colors.blocking_read();
 
-            let sampler = colors.linear_sampler.clone();
+            // let sampler = colors.linear_sampler.clone();
+            let sampler = colors.nearest_sampler.clone();
 
             let data_key = self.active_viz_data_key.blocking_read().clone();
 
