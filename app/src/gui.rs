@@ -49,24 +49,24 @@ impl<T> FlexLayout<T> {
                 height: Dimension::Auto,
             },
             margin: Rect {
-                left: Dimension::Points(0.0),
-                right: Dimension::Points(0.0),
-                top: Dimension::Points(10.0),
-                bottom: Dimension::Points(0.0),
+                left: LengthPercentageAuto::Points(0.0),
+                right: LengthPercentageAuto::Points(0.0),
+                top: LengthPercentageAuto::Points(10.0),
+                bottom: LengthPercentageAuto::Points(0.0),
             },
             size: Size {
                 width: Dimension::Auto,
                 height: Dimension::Auto,
             },
             gap: Size {
-                width: Dimension::Undefined,
-                height: Dimension::Points(10.0),
+                width: LengthPercentage::ZERO,
+                height: LengthPercentage::Points(10.0),
             },
             padding: Rect {
-                left: Dimension::Points(4.0),
-                right: Dimension::Points(4.0),
-                top: Dimension::Points(0.0),
-                bottom: Dimension::Points(0.0),
+                left: LengthPercentage::Points(4.0),
+                right: LengthPercentage::Points(4.0),
+                top: LengthPercentage::Points(0.0),
+                bottom: LengthPercentage::Points(0.0),
             },
             ..Default::default()
         }
@@ -79,18 +79,18 @@ impl<T> FlexLayout<T> {
                 height: Dimension::Auto,
             },
             margin: Rect {
-                left: Dimension::Points(4.0),
-                right: Dimension::Points(4.0),
-                top: Dimension::Points(0.0),
-                bottom: Dimension::Points(0.0),
+                left: LengthPercentageAuto::Points(4.0),
+                right: LengthPercentageAuto::Points(4.0),
+                top: LengthPercentageAuto::Points(0.0),
+                bottom: LengthPercentageAuto::Points(0.0),
             },
             padding: Rect {
-                left: Dimension::Points(4.0),
-                right: Dimension::Points(4.0),
-                top: Dimension::Points(0.0),
-                bottom: Dimension::Points(0.0),
+                left: LengthPercentage::Points(4.0),
+                right: LengthPercentage::Points(4.0),
+                top: LengthPercentage::Points(0.0),
+                bottom: LengthPercentage::Points(0.0),
             },
-            align_self: AlignSelf::Stretch,
+            align_self: Some(AlignItems::Stretch),
             // position_type: PositionType::Relative,
             ..Style::default()
         }
@@ -105,10 +105,10 @@ impl<T> FlexLayout<T> {
 
         Style {
             margin: Rect {
-                left: Dimension::Points(4.0),
-                right: Dimension::Points(4.0),
-                top: Dimension::Points(0.0),
-                bottom: Dimension::Points(0.0),
+                left: LengthPercentageAuto::Points(4.0),
+                right: LengthPercentageAuto::Points(4.0),
+                top: LengthPercentageAuto::Points(0.0),
+                bottom: LengthPercentageAuto::Points(0.0),
             },
             size: Size { width, height },
             ..Default::default()
@@ -226,8 +226,9 @@ impl<T> FlexLayout<T> {
                 inner_children.push(inner);
             }
 
-            let row_node =
-                self.taffy.new_with_children(row_style, &inner_children)?;
+            let row_node = self
+                .taffy
+                .new_with_children(row_style.clone(), &inner_children)?;
             children.push(row_node);
         }
 
