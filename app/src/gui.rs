@@ -146,6 +146,7 @@ impl<T> FlexLayout<T> {
         }
     }
 
+    /*
     pub fn prepend_rows<Rows, Row>(
         &mut self,
         rows: Rows,
@@ -195,6 +196,7 @@ impl<T> FlexLayout<T> {
 
         Ok(())
     }
+    */
 
     pub fn fill_with_rows<Rows, Row>(
         &mut self,
