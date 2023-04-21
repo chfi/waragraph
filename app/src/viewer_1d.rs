@@ -572,7 +572,9 @@ impl AppWindow for Viewer1D {
             .unwrap_or_default();
 
         let [width, height]: [u32; 2] = window.window.inner_size().into();
-        let dims = ultraviolet::Vec2::new(width as f32, height as f32);
+        let pixels_per_point = egui_ctx.ctx().pixels_per_point();
+        let dims = ultraviolet::Vec2::new(width as f32, height as f32)
+            / pixels_per_point;
 
         let screen_rect = egui::Rect::from_min_max(
             egui::pos2(0.0, 0.0),
