@@ -1,3 +1,5 @@
+use crossbeam::atomic::AtomicCell;
+use palette::convert::IntoColorUnclamped;
 use tokio::sync::RwLock;
 
 use std::sync::Arc;
@@ -10,6 +12,21 @@ use crate::app::{
 pub struct VisualizationModesWidget {
     pub(super) shared: SharedState,
     pub(super) active_viz_data_key: Arc<RwLock<String>>,
+    pub(super) use_linear_sampler: Arc<AtomicCell<bool>>,
+}
+
+impl VisualizationModesWidget {
+    pub fn new(
+        shared: SharedState,
+        active_viz_data_key: Arc<RwLock<String>>,
+        use_linear_sampler: Arc<AtomicCell<bool>>,
+    ) -> Self {
+        Self {
+            shared,
+            active_viz_data_key,
+            use_linear_sampler,
+        }
+    }
 }
 
 impl SettingsWidget for VisualizationModesWidget {
@@ -27,23 +44,32 @@ impl SettingsWidget for VisualizationModesWidget {
             .collect::<Vec<_>>();
         path_data_sources.sort();
 
-        // let mut current_key = self.active_viz_data_key.clone();
-
-        let resp = ui.horizontal(|ui| {
-            for key in path_data_sources {
-                if ui
-                    .add_enabled(
-                        key != current_key.as_str(),
-                        egui::Button::new(key),
-                    )
-                    .clicked()
-                {
-                    *current_key = key.to_string();
+        let resp = ui.vertical(|ui| {
+            let data_sources = ui.horizontal(|ui| {
+                for key in path_data_sources {
+                    if ui
+                        .add_enabled(
+                            key != current_key.as_str(),
+                            egui::Button::new(key),
+                        )
+                        .clicked()
+                    {
+                        *current_key = key.to_string();
+                    }
                 }
-            }
+            });
+
+            let sampler = {
+                let mut use_linear = self.use_linear_sampler.load();
+                let resp = ui.checkbox(
+                    &mut use_linear,
+                    "Use linear interpolation for color schemes",
+                );
+                self.use_linear_sampler.store(use_linear);
+                resp
+            };
         });
 
-        // self.active_viz_data_key = current_key;
         SettingsUiResponse {
             response: resp.response,
         }

@@ -52,8 +52,6 @@ pub struct Viewer2D {
     render_graph: Graph,
     draw_node: NodeId,
 
-    // pub self_viz_interact: Arc<AtomicCell<VizInteractions>>,
-    // pub connected_viz_interact: Option<Arc<AtomicCell<VizInteractions>>>,
     shared: SharedState,
 
     active_viz_data_key: String,
@@ -390,15 +388,6 @@ impl AppWindow for Viewer2D {
                 let painter = ui.painter();
                 painter.extend(annot_shapes);
             });
-
-            // if let Some(node) = clicked_node_1d {
-            //     let text = format!("Node: {}", node.ix());
-            //     egui::Window::new("Information")
-            //         .fixed_pos([20.0f32, 20.0])
-            //         .show(ctx, |ui| {
-            //             ui.label(egui::RichText::new(text).size(20.0))
-            //         });
-            // }
 
             let scroll = ctx.input().scroll_delta;
 

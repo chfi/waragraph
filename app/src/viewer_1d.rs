@@ -69,12 +69,11 @@ pub struct Viewer1D {
 
     path_list_view: ListView<PathId>,
 
-    // sample_handle:
-    //     Option<tokio::task::JoinHandle<(std::ops::Range<u64>, Vec<u8>)>>,
     shared: SharedState,
 
     // active_viz_data_key: String,
     active_viz_data_key: Arc<RwLock<String>>,
+    use_linear_sampler: Arc<AtomicCell<bool>>,
 
     color_mapping: crate::util::Uniform<Arc<AtomicCell<ColorMap>>, 16>,
 
@@ -227,18 +226,6 @@ impl Viewer1D {
             layout
         };
 
-        // let (vertices, vxs, insts) = {
-        //     let (buffer, insts) = Self::slot_vertex_buffer(
-        //         &state.device,
-        //         dyn_slot_layout.layout(),
-        //         &path_list_view,
-        //     )?;
-        //     let vxs = 0..6;
-        //     let insts = 0..insts;
-
-        //     (buffer, vxs, insts)
-        // };
-
         graph.set_node_preprocess_fn(draw_node, move |_ctx, op_state| {
             op_state.vertices = Some(0..6);
             op_state.instances = Some(0..0);
@@ -298,11 +285,13 @@ impl Viewer1D {
         */
 
         let active_viz_data_key = Arc::new(RwLock::new(active_viz_data_key));
+        let use_linear_sampler = Arc::new(AtomicCell::new(false));
 
         {
             let viz_mode_widget = VisualizationModesWidget {
                 shared: shared.clone(),
                 active_viz_data_key: active_viz_data_key.clone(),
+                use_linear_sampler: use_linear_sampler.clone(),
             };
 
             settings_window.register_widget(
@@ -378,6 +367,7 @@ impl Viewer1D {
             shared: shared.clone(),
 
             active_viz_data_key,
+            use_linear_sampler,
 
             color_mapping,
             // color_map_widget,
@@ -1181,8 +1171,11 @@ impl AppWindow for Viewer1D {
         let (sampler, tex, tex_size) = {
             let colors = self.shared.colors.blocking_read();
 
-            // let sampler = colors.linear_sampler.clone();
-            let sampler = colors.nearest_sampler.clone();
+            let sampler = if self.use_linear_sampler.load() {
+                colors.linear_sampler.clone()
+            } else {
+                colors.nearest_sampler.clone()
+            };
 
             let data_key = self.active_viz_data_key.blocking_read().clone();
 
