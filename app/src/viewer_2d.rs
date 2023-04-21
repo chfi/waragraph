@@ -319,6 +319,8 @@ impl AppWindow for Viewer2D {
             egui::pos2(dims.x, dims.y),
         );
 
+        let dims = dims / egui_ctx.ctx().pixels_per_point();
+
         let mut annot_shapes = Vec::new();
 
         if let Some(node) = other_interactions.interact_node {
@@ -412,7 +414,7 @@ impl AppWindow for Viewer2D {
                 if scroll.y.abs() > min_scroll {
                     let dz = 1.0 - scroll.y * factor;
                     let uvp = Vec2::new(pos.x, pos.y);
-                    let mut norm = uvp / scale_dims;
+                    let mut norm = uvp / dims;
                     norm.y = 1.0 - norm.y;
                     self.view.zoom_with_focus(norm, dz);
                 }
