@@ -1,6 +1,6 @@
 use crate::app::{AppWindow, SharedState, VizInteractions};
 use crate::color::ColorMap;
-use crate::context::ContextState;
+use crate::context::{ContextQuery, ContextState};
 
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -21,7 +21,7 @@ use anyhow::Result;
 
 use ultraviolet::*;
 
-use waragraph_core::graph::PathIndex;
+use waragraph_core::graph::{Node, PathIndex};
 
 pub mod layout;
 pub mod view;
@@ -52,9 +52,8 @@ pub struct Viewer2D {
     render_graph: Graph,
     draw_node: NodeId,
 
-    pub self_viz_interact: Arc<AtomicCell<VizInteractions>>,
-    pub connected_viz_interact: Option<Arc<AtomicCell<VizInteractions>>>,
-
+    // pub self_viz_interact: Arc<AtomicCell<VizInteractions>>,
+    // pub connected_viz_interact: Option<Arc<AtomicCell<VizInteractions>>>,
     shared: SharedState,
 
     active_viz_data_key: String,
@@ -205,10 +204,6 @@ impl Viewer2D {
             op_state.instances = Some(0..instances);
         });
 
-        let self_viz_interact =
-            Arc::new(AtomicCell::new(VizInteractions::default()));
-        let connected_viz_interact = None;
-
         // let active_viz_data_key = "node_id".to_string();
         let active_viz_data_key = "depth".to_string();
 
@@ -256,9 +251,6 @@ impl Viewer2D {
             render_graph: graph,
             draw_node,
 
-            self_viz_interact,
-            connected_viz_interact,
-
             shared: shared.clone(),
 
             color_mapping,
@@ -303,12 +295,6 @@ impl AppWindow for Viewer2D {
         context_state: &mut ContextState,
         dt: f32,
     ) {
-        let other_interactions = self
-            .connected_viz_interact
-            .as_ref()
-            .map(|i| i.take())
-            .unwrap_or_default();
-
         let [width, height]: [u32; 2] = window.window.inner_size().into();
         let dims = ultraviolet::Vec2::new(width as f32, height as f32);
 
@@ -323,11 +309,20 @@ impl AppWindow for Viewer2D {
 
         let mut annot_shapes = Vec::new();
 
-        if let Some(node) = other_interactions.interact_node {
+        let hovered_node_1d = context_state
+            .query_get_cast::<_, Node>(Some("Viewer1D"), ["hover"])
+            .copied();
+
+        let clicked_node_1d = context_state
+            .query_get_cast::<_, Node>(Some("Viewer1D"), ["click"])
+            .copied();
+
+        if let Some(node) = hovered_node_1d {
             let (n0, n1) = self.node_positions.node_pos(node);
             let mid = n0 + (n1 - n0) * 0.5;
 
-            if other_interactions.clicked {
+            // a bit hacky but its fine
+            if clicked_node_1d.is_some() {
                 self.view.center = mid;
             }
 
@@ -396,14 +391,14 @@ impl AppWindow for Viewer2D {
                 painter.extend(annot_shapes);
             });
 
-            if let Some(node) = other_interactions.interact_node {
-                let text = format!("Node: {}", node.ix());
-                egui::Window::new("Information")
-                    .fixed_pos([20.0f32, 20.0])
-                    .show(ctx, |ui| {
-                        ui.label(egui::RichText::new(text).size(20.0))
-                    });
-            }
+            // if let Some(node) = clicked_node_1d {
+            //     let text = format!("Node: {}", node.ix());
+            //     egui::Window::new("Information")
+            //         .fixed_pos([20.0f32, 20.0])
+            //         .show(ctx, |ui| {
+            //             ui.label(egui::RichText::new(text).size(20.0))
+            //         });
+            // }
 
             let scroll = ctx.input().scroll_delta;
 

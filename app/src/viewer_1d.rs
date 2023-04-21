@@ -71,9 +71,6 @@ pub struct Viewer1D {
 
     // sample_handle:
     //     Option<tokio::task::JoinHandle<(std::ops::Range<u64>, Vec<u8>)>>,
-    pub self_viz_interact: Arc<AtomicCell<VizInteractions>>,
-    pub connected_viz_interact: Option<Arc<AtomicCell<VizInteractions>>>,
-
     shared: SharedState,
 
     // active_viz_data_key: String,
@@ -247,10 +244,6 @@ impl Viewer1D {
             op_state.instances = Some(0..0);
         });
 
-        let self_viz_interact =
-            Arc::new(AtomicCell::new(VizInteractions::default()));
-        let connected_viz_interact = None;
-
         let color_mapping_val = Arc::new(AtomicCell::new(ColorMap {
             value_range: [0.0, 1.0],
             color_range: [0.0, 1.0],
@@ -382,9 +375,6 @@ impl Viewer1D {
             path_list_view,
 
             // sample_handle: None,
-            self_viz_interact,
-            connected_viz_interact,
-
             shared: shared.clone(),
 
             active_viz_data_key,
@@ -564,12 +554,6 @@ impl AppWindow for Viewer1D {
             self.color_mapping.write_buffer(state);
         }
         */
-
-        let other_interactions = self
-            .connected_viz_interact
-            .as_ref()
-            .map(|i| i.take())
-            .unwrap_or_default();
 
         let [width, height]: [u32; 2] = window.window.inner_size().into();
         let pixels_per_point = egui_ctx.ctx().pixels_per_point();
@@ -1019,8 +1003,6 @@ impl AppWindow for Viewer1D {
                         interact.interact_pan_pos,
                     ));
                 }
-
-                self.self_viz_interact.store(interact);
 
                 for &(slot_id, rect) in annot_slots.iter() {
                     if let Some(annot_slot) = self.annotations.get_mut(&slot_id)

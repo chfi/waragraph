@@ -56,10 +56,6 @@ pub struct SharedState {
     // tsv_path: Option<Arc<RwLock<PathBuf>>>,
     pub data_color_schemes: HashMap<String, ColorSchemeId>,
 
-    // TODO these cells are clunky and temporary
-    viewer_1d_interactions: Arc<AtomicCell<VizInteractions>>,
-    viewer_2d_interactions: Arc<AtomicCell<VizInteractions>>,
-
     pub app_msg_send: tokio::sync::mpsc::Sender<AppMsg>,
 }
 
@@ -226,13 +222,6 @@ impl App {
 
                 workspace,
 
-                viewer_1d_interactions: Arc::new(AtomicCell::new(
-                    Default::default(),
-                )),
-                viewer_2d_interactions: Arc::new(AtomicCell::new(
-                    Default::default(),
-                )),
-
                 app_msg_send,
             }
         };
@@ -307,10 +296,6 @@ impl App {
                 &mut self.settings,
             )?;
 
-            app.self_viz_interact = self.shared.viewer_1d_interactions.clone();
-            app.connected_viz_interact =
-                Some(self.shared.viewer_2d_interactions.clone());
-
             Ok(Box::new(app))
         })?;
 
@@ -345,10 +330,6 @@ impl App {
                 tsv,
                 &self.shared,
             )?;
-
-            app.self_viz_interact = self.shared.viewer_2d_interactions.clone();
-            app.connected_viz_interact =
-                Some(self.shared.viewer_1d_interactions.clone());
 
             Ok(Box::new(app))
         })?;

@@ -64,6 +64,23 @@ impl ContextState {
         self.open_frame.entry(tid).or_default().push(ctx_val);
     }
 
+    pub fn query_get_cast<'a, K, T: std::any::Any>(
+        &'a self,
+        source: Option<K>,
+        tags: impl IntoIterator<Item = K>,
+    ) -> Option<&'a T>
+    where
+        K: Ord + AsRef<str>,
+    {
+        let query = ContextQuery {
+            source,
+            tags: tags.into_iter().collect(),
+            type_id: std::any::TypeId::of::<T>(),
+        };
+
+        self.get_cast::<K, T>(&query)
+    }
+
     pub fn get_cast<'a, K, T: std::any::Any>(
         &'a self,
         query: &ContextQuery<K>,
