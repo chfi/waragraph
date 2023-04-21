@@ -63,7 +63,7 @@ pub struct SharedState {
     pub app_msg_send: tokio::sync::mpsc::Sender<AppMsg>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum AppType {
     Viewer1D,
     Viewer2D,
@@ -239,10 +239,13 @@ impl App {
 
         let context_state = ContextState::default();
 
-        let mut context_inspector =
-            ContextInspector::with_default_widgets(&shared);
+        let context_inspector = ContextInspector::with_default_widgets(&shared);
 
-        // context_inspector
+        settings.register_widget(
+            "Context",
+            "Context Inspector",
+            context_inspector.settings_widget().clone(),
+        );
 
         Ok(Self {
             tokio_rt,
@@ -475,6 +478,9 @@ impl App {
                     // but good enough for now
                     self.app_windows.update_widget_state();
 
+                    let context_inspector_tgts =
+                        self.context_inspector.active_targets();
+
                     for (app_type, app) in self.app_windows.apps.iter_mut() {
                         app.update(
                             self.tokio_rt.handle(),
@@ -489,19 +495,14 @@ impl App {
                             self.settings.show(app.egui.ctx());
                         }
 
-                        if matches!(app_type, AppType::Viewer1D) {
-                            // let area = egui::Area::new("context inspector")
-
-                            egui::Window::new("Context inspector").show(
-                                app.egui.ctx(),
-                                |ui| {
+                        if context_inspector_tgts.contains(app_type) {
+                            egui::Window::new("Context Inspector")
+                                .default_pos([100.0, 100.0])
+                                .show(app.egui.ctx(), |ui| {
                                     self.context_inspector
                                         .show(&self.context_state, ui);
-                                },
-                            );
+                                });
                         }
-                        // if matches!(app_type, AppType::
-                        // if app.window.window.id()
 
                         app.window.window.request_redraw();
                     }

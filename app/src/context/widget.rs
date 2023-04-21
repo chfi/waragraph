@@ -1,8 +1,18 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
+use std::sync::Arc;
 
+use egui::mutex::Mutex;
 use waragraph_core::graph::{Node, PathId};
 
-use crate::{annotations::GlobalAnnotationId, app::SharedState};
+use tokio::sync::{mpsc, oneshot, RwLock};
+
+use crate::{
+    annotations::GlobalAnnotationId,
+    app::{
+        settings_menu::{SettingsUiResponse, SettingsWidget},
+        AppType, SharedState,
+    },
+};
 
 use super::{
     ContextMeta, ContextQuery, ContextState, ContextValue, ContextValueExtra,
@@ -15,9 +25,16 @@ pub type CtxWidget = Box<dyn Fn(&mut egui::Ui, &dyn ContextValue)>;
 pub struct ContextInspector {
     widgets: HashMap<String, CtxWidget>,
     active: Vec<(ContextQuery<String>, String)>,
+
+    settings: Arc<RwLock<ContextInspectorSettings>>,
 }
 
 impl ContextInspector {
+    pub fn active_targets(&self) -> HashSet<AppType> {
+        let settings = self.settings.blocking_read();
+        settings.inspector_targets.clone()
+    }
+
     pub fn new_widget<T, F>(&mut self, name: &str, widget: F)
     where
         T: std::any::Any,
@@ -64,6 +81,9 @@ impl ContextInspector {
         let mut inspector = Self {
             widgets: HashMap::default(),
             active: Vec::new(),
+            settings: Arc::new(
+                RwLock::new(ContextInspectorSettings::default()),
+            ),
         };
 
         // Node length
@@ -180,5 +200,52 @@ impl ContextInspector {
         );
 
         inspector
+    }
+
+    pub fn settings_widget(&self) -> &Arc<RwLock<ContextInspectorSettings>> {
+        &self.settings
+    }
+}
+
+#[derive(Debug, Default, Clone)]
+pub struct ContextInspectorSettings {
+    inspector_targets: HashSet<AppType>,
+}
+
+impl SettingsWidget for ContextInspectorSettings {
+    fn show(
+        &mut self,
+        ui: &mut egui::Ui,
+        _settings_ctx: &crate::app::settings_menu::SettingsUiContext,
+    ) -> crate::app::settings_menu::SettingsUiResponse {
+        let resp = ui.horizontal(|ui| {
+            let app_title = |app_ty: &AppType| match app_ty {
+                AppType::Viewer1D => "1D Viewer".to_string(),
+                AppType::Viewer2D => "2D Viewer".to_string(),
+                AppType::Custom(name) => name.to_string(),
+            };
+
+            // TODO: pull actual available windows, maybe, somehow
+            for app_ty in [AppType::Viewer1D, AppType::Viewer2D] {
+                let title = app_title(&app_ty);
+
+                let mut enabled = self.inspector_targets.contains(&app_ty);
+                let was_enabled = enabled;
+
+                let check = ui.checkbox(&mut enabled, title);
+
+                if check.changed() {
+                    if was_enabled {
+                        self.inspector_targets.remove(&app_ty);
+                    } else {
+                        self.inspector_targets.insert(app_ty);
+                    }
+                }
+            }
+        });
+
+        SettingsUiResponse {
+            response: resp.response,
+        }
     }
 }
