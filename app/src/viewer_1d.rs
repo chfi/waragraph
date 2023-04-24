@@ -402,43 +402,6 @@ impl Viewer1D {
 
         [a, b]
     }
-
-    // TODO there's no need to reallocate the buffer every time the list is scrolled...
-    fn slot_vertex_buffer(
-        device: &wgpu::Device,
-        layout: &FlexLayout<gui::SlotElem>,
-        path_list_view: &ListView<PathId>,
-    ) -> Result<(BufferDesc, u32)> {
-        let mut data_buf: Vec<u8> = Vec::new();
-
-        let stride = std::mem::size_of::<[f32; 5]>();
-
-        layout.visit_layout(|layout, elem| {
-            if let gui::SlotElem::PathData { slot_id, data_id } = elem {
-                if let Some(path_id) = path_list_view.get_in_view(*slot_id) {
-                    let rrect = crate::gui::layout_egui_rect(&layout);
-                    let v_pos = rrect.left_bottom().to_vec2();
-                    let v_size = rrect.size();
-
-                    data_buf.extend(bytemuck::cast_slice(&[v_pos, v_size]));
-                    data_buf.extend(bytemuck::cast_slice(&[*slot_id as u32]));
-                }
-            }
-        })?;
-        let slot_count = data_buf.len() / stride;
-
-        let usage = wgpu::BufferUsages::VERTEX;
-
-        let buffer = device.create_buffer_init(&BufferInitDescriptor {
-            label: None,
-            contents: data_buf.as_slice(),
-            usage,
-        });
-
-        let slots = BufferDesc::new(buffer, data_buf.len());
-
-        Ok((slots, slot_count as u32))
-    }
 }
 
 impl AppWindow for Viewer1D {

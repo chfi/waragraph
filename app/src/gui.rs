@@ -15,6 +15,34 @@ pub mod list;
 
 pub mod util;
 
+pub struct ListLayout<C, T> {
+    // in logical pixels
+    computed_for_rect: Option<egui::Rect>,
+
+    taffy: Taffy,
+    node_data: BTreeMap<Node, T>,
+    root: Option<Node>,
+}
+
+impl<C, T> ListLayout<C, T> {
+    //
+
+    pub fn fill_with_rows<Rows>(
+        &mut self,
+        //
+        rows: Rows,
+    ) -> Result<(), TaffyError>
+    where
+        Rows: IntoIterator<Item = ()>,
+    {
+        todo!();
+    }
+
+    fn container_row_style(&self) -> Style {
+        todo!();
+    }
+}
+
 pub struct FlexLayout<T> {
     offset: Vec2,
 
