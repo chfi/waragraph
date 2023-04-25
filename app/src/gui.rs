@@ -6,7 +6,7 @@
     The latter is powered by `taffy`
 */
 
-use std::collections::{BTreeMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
 
 use taffy::{error::TaffyError, prelude::*};
 use ultraviolet::Vec2;
@@ -15,19 +15,73 @@ pub mod list;
 
 pub mod util;
 
-pub struct ListLayout<C, T> {
-    // in logical pixels
-    computed_for_rect: Option<egui::Rect>,
-
+/*
+Each row can contain its own inline grid layout, subject to parameters shared
+by the entire layout -- or, if needed, a row can control its own size and grid
+*/
+pub struct RowGridLayout<T> {
     taffy: Taffy,
     node_data: BTreeMap<Node, T>,
     root: Option<Node>,
+
+    root_style: Style,
+    row_base_style: Style,
+    // row_templates: HashMap<String, RowTemplate>,
+
+    // in logical pixels
+    computed_for_rect: Option<egui::Rect>,
 }
 
-impl<C, T> ListLayout<C, T> {
-    //
+// enum RowTemplate {
+//     Grid,
+//     Flex,
+//     Single,
+// }
 
-    pub fn fill_with_rows<Rows>(
+// pub struct RowTemplate {
+//     style: Style,
+// }
+
+impl<T> RowGridLayout<T> {
+    //
+    pub fn new() -> Self {
+        let root_style = Style {
+            display: Display::Flex,
+            flex_direction: FlexDirection::Column,
+            ..Default::default()
+        };
+
+        let base_row_height = 20.0; // pixels
+
+        let row_base_style = Style {
+            display: Display::Grid,
+            flex_basis: points(base_row_height),
+            grid_template_rows: vec![points(100.0), fr(1.0)],
+            grid_template_columns: vec![fr(1.0)],
+            ..Default::default()
+        };
+
+        Self {
+            taffy: Taffy::new(),
+            node_data: BTreeMap::default(),
+            root: None,
+
+            root_style,
+            row_base_style,
+
+            computed_for_rect: None,
+        }
+    }
+
+    fn compute_layout(
+        &mut self,
+        //
+        rect: egui::Rect,
+    ) -> Result<(), TaffyError> {
+        todo!();
+    }
+
+    pub fn build_layout_for_rows<Rows>(
         &mut self,
         //
         rows: Rows,
@@ -38,10 +92,74 @@ impl<C, T> ListLayout<C, T> {
         todo!();
     }
 
-    fn container_row_style(&self) -> Style {
-        todo!();
+    pub fn visit_layout(
+        &self,
+        mut visitor: impl FnMut(Layout, &T),
+        // ) -> Result<(), TaffyError> {
+    ) -> anyhow::Result<()> {
+        let mut stack: Vec<(Vec2, Node)> = Vec::new();
+
+        let container_offset = if let Some(rect) = self.computed_for_rect {
+            let lt = rect.left_top();
+            Vec2::new(lt.x, lt.y)
+        } else {
+            anyhow::bail!(RowGridLayoutError::VisitBeforeLayout);
+        };
+
+        if let Some(root) = self.root {
+            stack.push((container_offset, root));
+        }
+
+        let mut visited = HashSet::new();
+
+        while let Some((offset, node)) = stack.pop() {
+            // println!("visit! {}", visited.len());
+            visited.insert(node);
+            let mut this_layout = *self.taffy.layout(node)?;
+
+            let children = LayoutTree::children(&self.taffy, node);
+
+            let loc = this_layout.location;
+            let this_pos = Vec2::new(loc.x, loc.y);
+            let offset = offset + this_pos;
+            // let offset = container_offset + offset + this_pos;
+
+            if let Some(data) = self.node_data.get(&node) {
+                this_layout.location.x = offset.x;
+                this_layout.location.y = offset.y;
+
+                visitor(this_layout, data);
+            }
+
+            for &inner in children {
+                if !visited.contains(&inner) {
+                    stack.push((offset, inner));
+                }
+            }
+        }
+
+        Ok(())
     }
 }
+
+// #[derive(Clone)]
+// pub struct RowLayoutStyle {
+//     container_style: Style,
+//     row_container_style: Style,
+//     inner_row_styles: HashMap<String, Style>,
+// }
+
+/*
+pub struct RowLayout<C, T> {
+    // in logical pixels
+    computed_for_rect: Option<egui::Rect>,
+
+    taffy: Taffy,
+    node_data: BTreeMap<Node, T>,
+    root: Option<Node>,
+}
+
+*/
 
 pub struct FlexLayout<T> {
     offset: Vec2,
@@ -405,3 +523,20 @@ pub fn layout_egui_rect(layout: &Layout) -> egui::Rect {
     let center = bl + egui::vec2(size.x / 2.0, size.y / 2.0);
     egui::Rect::from_center_size(center, size)
 }
+
+#[derive(Debug)]
+pub enum RowGridLayoutError {
+    VisitBeforeLayout,
+}
+
+impl std::fmt::Display for RowGridLayoutError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            RowGridLayoutError::VisitBeforeLayout => {
+                write!(f, "Cannot visit layout before computing it")
+            }
+        }
+    }
+}
+
+impl std::error::Error for RowGridLayoutError {}

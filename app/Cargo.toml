@@ -26,7 +26,7 @@ egui_file = "0.5"
 wgpu = { version = "0.14.0", features = ["spirv"] }
 # naga = { version = "0.10", features = ["clone", "spv-in", "glsl-in", "spv-out"] }
 
-taffy = "0.3"
+taffy = { version = "0.3", features = ["grid"] }
 
 mint = "0.5"
 ultraviolet = { version = "0.9", features = ["bytemuck", "f64", "mint"]}
