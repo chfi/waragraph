@@ -73,12 +73,33 @@ impl<T> RowGridLayout<T> {
         }
     }
 
-    fn compute_layout(
-        &mut self,
-        //
-        rect: egui::Rect,
-    ) -> Result<(), TaffyError> {
-        todo!();
+    pub fn compute_layout(&mut self, rect: egui::Rect) -> anyhow::Result<()> {
+        let root = if let Some(root) = self.root {
+            root
+        } else {
+            anyhow::bail!(RowGridLayoutError::ComputeEmptyLayout);
+        };
+
+        // let sized_root_style =
+        //     Style {
+        //         size: Size {
+        //             width: points(rect.width()),
+        //             height: points(rect.height()),
+        //         },
+        //         ..self.root_style.clone()
+        //     }
+        // ;
+        // self.taffy.set_style(root, sized_root_style)?;
+
+        let container_space = Size {
+            width: AvailableSpace::from_points(rect.width()),
+            height: AvailableSpace::from_points(rect.height()),
+        };
+        self.taffy.compute_layout(root, container_space)?;
+
+        self.computed_for_rect = Some(rect);
+
+        Ok(())
     }
 
     pub fn build_layout_for_rows<Rows>(
@@ -87,9 +108,59 @@ impl<T> RowGridLayout<T> {
         rows: Rows,
     ) -> Result<(), TaffyError>
     where
-        Rows: IntoIterator<Item = ()>,
+        Rows: IntoIterator<Item = [Option<T>; 2]>,
     {
-        todo!();
+        // create children
+        let mut children = Vec::new();
+
+        // let child_style =
+
+        for column_data in rows {
+            // create inner columns
+
+            let elem_style = |i: i16| Style {
+                grid_row: line(i),
+                grid_column: span(1),
+                ..Default::default()
+            };
+
+            // let elem_style = Style {
+            //     grid_row: span(1),
+            //     grid_column: span(1),
+            //     ..Default::default()
+            // };
+
+            // let n1 = self.taffy.new_leaf(elem_style(1))?;
+            // let n2 = self.taffy.new_leaf(elem_style(2))?;
+
+            let mut row_children = Vec::new();
+
+            for (i, d) in column_data.into_iter().enumerate() {
+                if let Some(d) = d {
+                    let i = (i + 1) as i16;
+                    let n = self.taffy.new_leaf(elem_style(i))?;
+                    self.node_data.insert(n, d);
+                    row_children.push(n);
+                }
+            }
+
+            // create row container
+            let row = self.taffy.new_with_children(
+                self.row_base_style.clone(),
+                &row_children,
+            )?;
+
+            children.push(row);
+        }
+
+        // create root container with children
+        let root = self
+            .taffy
+            .new_with_children(self.root_style.clone(), &children)?;
+
+        self.root = Some(root);
+
+        Ok(())
     }
 
     pub fn visit_layout(
@@ -526,6 +597,7 @@ pub fn layout_egui_rect(layout: &Layout) -> egui::Rect {
 
 #[derive(Debug)]
 pub enum RowGridLayoutError {
+    ComputeEmptyLayout,
     VisitBeforeLayout,
 }
 
@@ -534,6 +606,9 @@ impl std::fmt::Display for RowGridLayoutError {
         match self {
             RowGridLayoutError::VisitBeforeLayout => {
                 write!(f, "Cannot visit layout before computing it")
+            }
+            RowGridLayoutError::ComputeEmptyLayout => {
+                write!(f, "Cannot compute an empty layout")
             }
         }
     }
