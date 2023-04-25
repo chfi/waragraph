@@ -615,3 +615,35 @@ impl std::fmt::Display for RowGridLayoutError {
 }
 
 impl std::error::Error for RowGridLayoutError {}
+
+#[cfg(test)]
+mod tests {
+
+    use super::*;
+
+    use anyhow::Result;
+
+    #[test]
+    fn row_grid_layout() -> Result<()> {
+        let mut layout: RowGridLayout<usize> = RowGridLayout::new();
+
+        let rows: Vec<[Option<usize>; 2]> =
+            (0..8).map(|u| [Some(u * 2), Some(1 + u * 2)]).collect();
+
+        layout.build_layout_for_rows(rows)?;
+
+        let screen_rect =
+            egui::Rect::from_x_y_ranges(100.0..=900.0, 200.0..=700.0);
+
+        layout.compute_layout(screen_rect)?;
+
+        layout.visit_layout(|layout, val| {
+            let location = layout.location;
+            let size = layout.size;
+            println!("{val} - {location:?} \t {size:?}");
+        })?;
+        //
+
+        Ok(())
+    }
+}
