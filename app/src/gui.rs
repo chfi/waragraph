@@ -53,11 +53,13 @@ impl<T> RowGridLayout<T> {
 
         let base_row_height = 20.0; // pixels
 
+        // TODO support custom styles
         let row_base_style = Style {
             display: Display::Grid,
+
             flex_basis: points(base_row_height),
-            grid_template_rows: vec![points(100.0), fr(1.0)],
-            grid_template_columns: vec![fr(1.0)],
+            grid_template_rows: vec![fr(1.0)],
+            grid_template_columns: vec![points(100.0), fr(1.0)],
             ..Default::default()
         };
 
@@ -80,16 +82,14 @@ impl<T> RowGridLayout<T> {
             anyhow::bail!(RowGridLayoutError::ComputeEmptyLayout);
         };
 
-        // let sized_root_style =
-        //     Style {
-        //         size: Size {
-        //             width: points(rect.width()),
-        //             height: points(rect.height()),
-        //         },
-        //         ..self.root_style.clone()
-        //     }
-        // ;
-        // self.taffy.set_style(root, sized_root_style)?;
+        let sized_root_style = Style {
+            size: Size {
+                width: points(rect.width()),
+                height: points(rect.height()),
+            },
+            ..self.root_style.clone()
+        };
+        self.taffy.set_style(root, sized_root_style)?;
 
         let container_space = Size {
             width: AvailableSpace::from_points(rect.width()),
@@ -113,27 +113,16 @@ impl<T> RowGridLayout<T> {
         // create children
         let mut children = Vec::new();
 
-        // let child_style =
-
         for column_data in rows {
             // create inner columns
 
+            let mut row_children = Vec::new();
+
             let elem_style = |i: i16| Style {
-                grid_row: line(i),
-                grid_column: span(1),
+                grid_row: span(1),
+                grid_column: line(i),
                 ..Default::default()
             };
-
-            // let elem_style = Style {
-            //     grid_row: span(1),
-            //     grid_column: span(1),
-            //     ..Default::default()
-            // };
-
-            // let n1 = self.taffy.new_leaf(elem_style(1))?;
-            // let n2 = self.taffy.new_leaf(elem_style(2))?;
-
-            let mut row_children = Vec::new();
 
             for (i, d) in column_data.into_iter().enumerate() {
                 if let Some(d) = d {
@@ -193,7 +182,6 @@ impl<T> RowGridLayout<T> {
             let loc = this_layout.location;
             let this_pos = Vec2::new(loc.x, loc.y);
             let offset = offset + this_pos;
-            // let offset = container_offset + offset + this_pos;
 
             if let Some(data) = self.node_data.get(&node) {
                 this_layout.location.x = offset.x;
@@ -212,25 +200,6 @@ impl<T> RowGridLayout<T> {
         Ok(())
     }
 }
-
-// #[derive(Clone)]
-// pub struct RowLayoutStyle {
-//     container_style: Style,
-//     row_container_style: Style,
-//     inner_row_styles: HashMap<String, Style>,
-// }
-
-/*
-pub struct RowLayout<C, T> {
-    // in logical pixels
-    computed_for_rect: Option<egui::Rect>,
-
-    taffy: Taffy,
-    node_data: BTreeMap<Node, T>,
-    root: Option<Node>,
-}
-
-*/
 
 pub struct FlexLayout<T> {
     offset: Vec2,
@@ -640,9 +609,22 @@ mod tests {
         layout.visit_layout(|layout, val| {
             let location = layout.location;
             let size = layout.size;
+
+            assert_eq!(location.y, 200.0 + 20.0 * (val / 2) as f32);
+
+            if *val % 2 == 0 {
+                assert_eq!(location.x, 100.0);
+                assert_eq!(size.width, 100.0);
+                assert_eq!(size.height, 20.0);
+            } else {
+                assert_eq!(location.x, 200.0);
+                assert_eq!(size.width, 700.0);
+                assert_eq!(size.height, 20.0);
+            }
             println!("{val} - {location:?} \t {size:?}");
         })?;
-        //
+
+        taffy::debug::print_tree(&layout.taffy, layout.root.unwrap());
 
         Ok(())
     }
