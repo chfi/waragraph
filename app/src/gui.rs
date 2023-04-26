@@ -44,24 +44,35 @@ pub struct GridEntry<T> {
 }
 
 impl<T> GridEntry<T> {
-    pub fn auto(data: T) -> Self {
-        Self::new([0, 0], data)
-    }
-
+    /// Specify a specific grid coordinate with `[x, y]`, for nonzero
+    /// `x`, `y`, or use `0` to use a single span, and have layout
+    /// order depend on the data order.
     pub fn new(
         grid_pos: [i16; 2],
         // grid_row: Option<i16>,
         // grid_column: Option<i16>,
         data: T,
     ) -> Self {
-        // let to_prop = |val| if let Some(i) = val { line(i) } else { span(1) };
+        let to_prop = |val| if val != 0 { line(val) } else { span(1) };
         let style = Style {
-            grid_row: line(grid_pos[0]),
-            grid_column: line(grid_pos[1]),
+            grid_row: to_prop(grid_pos[0]),
+            grid_column: to_prop(grid_pos[1]),
             ..Default::default()
         };
 
         Self { style, data }
+    }
+
+    pub fn auto(data: T) -> Self {
+        Self::new([0, 0], data)
+    }
+
+    pub fn columns(
+        iter: impl IntoIterator<Item = T>,
+    ) -> impl Iterator<Item = GridEntry<T>> {
+        iter.into_iter()
+            .enumerate()
+            .map(|(i, data)| GridEntry::new([1, i as i16], data))
     }
 }
 
@@ -624,16 +635,13 @@ mod tests {
 
     #[test]
     fn row_grid_layout() -> Result<()> {
+        use taffy::prelude::*;
+
         let mut layout: RowGridLayout<usize> = RowGridLayout::new();
 
-        // let rows: Vec<[Option<usize>; 2]> =
-        //     (0..8).map(|u| [Some(u * 2), Some(1 + u * 2)]).collect();
-
         let rows = (0..8).map(|u| {
-            let column_data = vec![
-                GridEntry::new([1, 1], u * 2),
-                GridEntry::new([1, 2], 1 + u * 2),
-            ];
+            let column_data =
+                vec![GridEntry::auto(u * 2), GridEntry::auto(1 + u * 2)];
 
             let mut entry = RowEntry {
                 desired_height: None,
@@ -654,21 +662,40 @@ mod tests {
 
         layout.compute_layout(screen_rect)?;
 
+        let expected_results = [
+            (15, [200.0, 440.0], [700.0, 20.0]),
+            (14, [100.0, 440.0], [100.0, 20.0]),
+            (13, [200.0, 380.0], [700.0, 60.0]),
+            (12, [100.0, 380.0], [100.0, 60.0]),
+            (11, [200.0, 360.0], [700.0, 20.0]),
+            (10, [100.0, 360.0], [100.0, 20.0]),
+            (9, [200.0, 310.0], [700.0, 50.0]),
+            (8, [100.0, 310.0], [100.0, 50.0]),
+            (7, [200.0, 290.0], [700.0, 20.0]),
+            (6, [100.0, 290.0], [100.0, 20.0]),
+            (5, [200.0, 250.0], [700.0, 40.0]),
+            (4, [100.0, 250.0], [100.0, 40.0]),
+            (3, [200.0, 230.0], [700.0, 20.0]),
+            (2, [100.0, 230.0], [100.0, 20.0]),
+            (1, [200.0, 200.0], [700.0, 30.0]),
+            (0, [100.0, 200.0], [100.0, 30.0]),
+        ]
+        .into_iter()
+        .map(|(val, [x, y], [width, height])| {
+            let pos = taffy::geometry::Point { x, y };
+            let size = Size { width, height };
+            (val, (pos, size))
+        })
+        .collect::<HashMap<_, _>>();
+
         layout.visit_layout(|layout, val| {
             let location = layout.location;
             let size = layout.size;
 
-            // assert_eq!(location.y, 200.0 + 20.0 * (val / 2) as f32);
+            let expected = expected_results.get(val).unwrap();
 
-            // if *val % 2 == 0 {
-            //     assert_eq!(location.x, 100.0);
-            //     assert_eq!(size.width, 100.0);
-            //     assert_eq!(size.height, 20.0);
-            // } else {
-            //     assert_eq!(location.x, 200.0);
-            //     assert_eq!(size.width, 700.0);
-            //     assert_eq!(size.height, 20.0);
-            // }
+            assert_eq!(location, expected.0);
+            assert_eq!(size, expected.1);
             println!("{val} - {location:?} \t {size:?}");
         })?;
 
