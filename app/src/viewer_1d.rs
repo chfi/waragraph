@@ -681,9 +681,10 @@ impl AppWindow for Viewer1D {
                     if let Some(a_slot_id) =
                         self.annotations.get_path_slot_id(*path)
                     {
+                        println!("adding annot slot");
                         // if annotation slot is present, change the grid_template_row field
                         // and append the extra column data
-                        row_entry.grid_template_rows.insert(0, points(30.0));
+                        row_entry.grid_template_rows.insert(0, points(40.0));
 
                         row_entry.column_data.push(GridEntry::new(
                             [2, 2],
@@ -718,11 +719,37 @@ impl AppWindow for Viewer1D {
             let layout_result =
                 row_grid_layout.build_layout_for_rows(rows_iter);
 
-            match layout_result {
-                Ok(layout) => {
-                    log::warn!("RowGridLayout constructed");
-                }
-                Err(_) => todo!(),
+            if let Err(e) = layout_result {
+                log::error!("{e:?}");
+            }
+
+            let rect = screen_rect.shrink(50.0);
+
+            let layout_result = row_grid_layout.compute_layout(rect);
+
+            if let Err(e) = layout_result {
+                log::error!("{e:?}");
+            }
+
+            log::warn!("RowGridLayout constructed");
+
+            let layout_result = row_grid_layout.visit_layout(|layout, elem| {
+                let rect = crate::gui::layout_egui_rect(&layout);
+
+                let stroke = egui::Stroke {
+                    width: 1.0,
+                    color: egui::Color32::RED,
+                };
+                let dbg_rect = egui::Shape::rect_stroke(
+                    rect,
+                    egui::Rounding::default(),
+                    stroke,
+                );
+                shapes.push(dbg_rect);
+            });
+
+            if let Err(e) = layout_result {
+                log::error!("{e:?}");
             }
         }
 
@@ -737,16 +764,16 @@ impl AppWindow for Viewer1D {
             self.dyn_slot_layout.visit_layout(|layout, elem| {
                 let rect = crate::gui::layout_egui_rect(&layout);
 
-                let stroke = egui::Stroke {
-                    width: 1.0,
-                    color: egui::Color32::RED,
-                };
-                let dbg_rect = egui::Shape::rect_stroke(
-                    rect,
-                    egui::Rounding::default(),
-                    stroke,
-                );
-                shapes.push(dbg_rect);
+                // let stroke = egui::Stroke {
+                //     width: 1.0,
+                //     color: egui::Color32::RED,
+                // };
+                // let dbg_rect = egui::Shape::rect_stroke(
+                //     rect,
+                //     egui::Rounding::default(),
+                //     stroke,
+                // );
+                // shapes.push(dbg_rect);
 
                 // hacky fix for rows that are laid out beyond the limits of the view
                 if !screen_rect.intersects(rect) {
