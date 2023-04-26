@@ -33,10 +33,10 @@ pub struct RowGridLayout<T> {
 }
 
 pub struct RowEntry<T> {
-    desired_height: Option<f32>,
-    grid_template_columns: Vec<TrackSizingFunction>,
-    grid_template_rows: Vec<TrackSizingFunction>,
-    column_data: Vec<GridEntry<T>>,
+    pub desired_height: Option<f32>,
+    pub grid_template_columns: Vec<TrackSizingFunction>,
+    pub grid_template_rows: Vec<TrackSizingFunction>,
+    pub column_data: Vec<GridEntry<T>>,
 }
 
 impl<T> RowEntry<T> {

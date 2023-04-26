@@ -5,7 +5,7 @@ use crate::color::widget::{ColorMapWidget, ColorMapWidgetShared};
 use crate::color::ColorMap;
 use crate::context::{ContextQuery, ContextState};
 use crate::gui::list::DynamicListLayout;
-use crate::gui::FlexLayout;
+use crate::gui::{FlexLayout, GridEntry, RowEntry, RowGridLayout};
 use crate::list::ListView;
 use crate::util::BufferDesc;
 use crate::viewer_1d::annotations::AnnotSlot;
@@ -641,6 +641,90 @@ impl AppWindow for Viewer1D {
 
         let mut shapes = Vec::new();
         shapes.extend(self.slot_cache.msg_shapes.drain(..));
+
+        {
+            use taffy::prelude::*;
+            let data_id = self.active_viz_data_key.blocking_read().clone();
+
+            let mut row_grid_layout: RowGridLayout<gui::SlotElem> =
+                RowGridLayout::new();
+
+            // TODO hook this up to path names, allow resize, etc.
+            // store in egui cache
+            let info_col_width = 100.0;
+
+            let header_row = {
+                RowEntry {
+                    column_data: vec![GridEntry::new(
+                        [1, 2],
+                        gui::SlotElem::ViewRange,
+                    )],
+                    ..RowEntry::default()
+                }
+            };
+
+            let rows_iter = self
+                .path_list_view
+                .offset_to_end_iter()
+                .enumerate()
+                .map(|(ix, path)| {
+                    let mut row_entry = RowEntry {
+                        desired_height: None,
+                        grid_template_columns: vec![
+                            points(info_col_width),
+                            fr(1.0),
+                        ],
+                        column_data: vec![],
+                        ..RowEntry::default()
+                    };
+
+                    if let Some(a_slot_id) =
+                        self.annotations.get_path_slot_id(*path)
+                    {
+                        // if annotation slot is present, change the grid_template_row field
+                        // and append the extra column data
+                        row_entry.grid_template_rows.insert(0, points(30.0));
+
+                        row_entry.column_data.push(GridEntry::new(
+                            [2, 2],
+                            gui::SlotElem::Annotations {
+                                annotation_slot_id: a_slot_id,
+                            },
+                        ));
+                    }
+
+                    let slot_id = ix;
+
+                    // add path name and path data
+                    row_entry.column_data.extend([
+                        GridEntry::new(
+                            [1, 1],
+                            gui::SlotElem::PathName { slot_id },
+                        ),
+                        GridEntry::new(
+                            [1, 2],
+                            gui::SlotElem::PathData {
+                                slot_id,
+                                data_id: data_id.clone(),
+                            },
+                        ),
+                    ]);
+
+                    row_entry
+                });
+
+            let rows_iter = [header_row].into_iter().chain(rows_iter);
+
+            let layout_result =
+                row_grid_layout.build_layout_for_rows(rows_iter);
+
+            match layout_result {
+                Ok(layout) => {
+                    log::warn!("RowGridLayout constructed");
+                }
+                Err(_) => todo!(),
+            }
+        }
 
         let mut annot_slots = Vec::new();
 
