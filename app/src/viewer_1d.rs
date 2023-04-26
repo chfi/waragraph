@@ -655,6 +655,8 @@ impl AppWindow for Viewer1D {
 
             let header_row = {
                 RowEntry {
+                    // desired_height: Some(50.0),
+                    grid_template_rows: vec![points(100.0)],
                     column_data: vec![GridEntry::new(
                         [1, 2],
                         gui::SlotElem::ViewRange,
@@ -663,56 +665,57 @@ impl AppWindow for Viewer1D {
                 }
             };
 
-            let rows_iter = self
-                .path_list_view
-                .offset_to_end_iter()
-                .enumerate()
-                .map(|(ix, path)| {
-                    let mut row_entry = RowEntry {
-                        desired_height: None,
-                        grid_template_columns: vec![
-                            points(info_col_width),
-                            fr(1.0),
-                        ],
-                        column_data: vec![],
-                        ..RowEntry::default()
-                    };
+            let rows_iter =
+                self.path_list_view.offset_to_end_iter().enumerate().map(
+                    |(ix, path)| {
+                        let mut row_entry = RowEntry {
+                            // desired_height: None,
+                            grid_template_columns: vec![
+                                points(info_col_width),
+                                fr(1.0),
+                            ],
+                            column_data: vec![],
+                            ..RowEntry::default()
+                        };
 
-                    if let Some(a_slot_id) =
-                        self.annotations.get_path_slot_id(*path)
-                    {
-                        println!("adding annot slot");
-                        // if annotation slot is present, change the grid_template_row field
-                        // and append the extra column data
-                        row_entry.grid_template_rows.insert(0, points(40.0));
+                        if let Some(a_slot_id) =
+                            self.annotations.get_path_slot_id(*path)
+                        {
+                            println!("adding annot slot");
+                            // if annotation slot is present, change the grid_template_row field
+                            // and append the extra column data
+                            row_entry.grid_template_rows =
+                                vec![points(33.0), points(20.0)];
+                            // row_entry.grid_template_rows.insert(0, points(80.0));
 
-                        row_entry.column_data.push(GridEntry::new(
-                            [2, 2],
-                            gui::SlotElem::Annotations {
-                                annotation_slot_id: a_slot_id,
-                            },
-                        ));
-                    }
+                            row_entry.column_data.push(GridEntry::new(
+                                [2, 2],
+                                gui::SlotElem::Annotations {
+                                    annotation_slot_id: a_slot_id,
+                                },
+                            ));
+                        }
 
-                    let slot_id = ix;
+                        let slot_id = ix;
 
-                    // add path name and path data
-                    row_entry.column_data.extend([
-                        GridEntry::new(
-                            [1, 1],
-                            gui::SlotElem::PathName { slot_id },
-                        ),
-                        GridEntry::new(
-                            [1, 2],
-                            gui::SlotElem::PathData {
-                                slot_id,
-                                data_id: data_id.clone(),
-                            },
-                        ),
-                    ]);
+                        // add path name and path data
+                        row_entry.column_data.extend([
+                            GridEntry::new(
+                                [1, 1],
+                                gui::SlotElem::PathName { slot_id },
+                            ),
+                            GridEntry::new(
+                                [1, 2],
+                                gui::SlotElem::PathData {
+                                    slot_id,
+                                    data_id: data_id.clone(),
+                                },
+                            ),
+                        ]);
 
-                    row_entry
-                });
+                        row_entry
+                    },
+                );
 
             let rows_iter = [header_row].into_iter().chain(rows_iter);
 
@@ -747,6 +750,11 @@ impl AppWindow for Viewer1D {
                 );
                 shapes.push(dbg_rect);
             });
+
+            taffy::debug::print_tree(
+                &row_grid_layout.taffy,
+                row_grid_layout.root.unwrap(),
+            );
 
             if let Err(e) = layout_result {
                 log::error!("{e:?}");

@@ -20,9 +20,9 @@ Each row can contain its own inline grid layout, subject to parameters shared
 by the entire layout -- or, if needed, a row can control its own size and grid
 */
 pub struct RowGridLayout<T> {
-    taffy: Taffy,
-    node_data: BTreeMap<Node, T>,
-    root: Option<Node>,
+    pub taffy: Taffy,
+    pub node_data: BTreeMap<Node, T>,
+    pub root: Option<Node>,
 
     root_style: Style,
     row_base_style: Style,
@@ -83,6 +83,10 @@ impl<T> GridEntry<T> {
     ) -> Self {
         let to_prop = |val| if val != 0 { line(val) } else { span(1) };
         let style = Style {
+            size: Size {
+                width: Dimension::Auto,
+                height: percent(1.0),
+            },
             grid_row: to_prop(grid_pos[0]),
             grid_column: to_prop(grid_pos[1]),
             ..Default::default()
@@ -117,19 +121,20 @@ impl<T> GridEntry<T> {
 impl<T> RowGridLayout<T> {
     //
     pub fn new() -> Self {
+        let base_row_height = 20.0; // pixels
+
         let root_style = Style {
             display: Display::Flex,
             flex_direction: FlexDirection::Column,
             ..Default::default()
         };
 
-        let base_row_height = 20.0; // pixels
-
         // TODO support custom styles
         let row_base_style = Style {
             display: Display::Grid,
 
             flex_basis: points(base_row_height),
+            flex_shrink: 0.0, // probably not the way to go about this
             ..Default::default()
         };
 
@@ -163,7 +168,8 @@ impl<T> RowGridLayout<T> {
 
         let container_space = Size {
             width: AvailableSpace::from_points(rect.width()),
-            height: AvailableSpace::from_points(rect.height()),
+            height: AvailableSpace::MaxContent,
+            // height: AvailableSpace::from_points(rect.height()),
         };
         self.taffy.compute_layout(root, container_space)?;
 
@@ -189,7 +195,7 @@ impl<T> RowGridLayout<T> {
             let row_style = row_entry.apply_style(self.row_base_style.clone());
 
             for grid_entry in row_entry.column_data {
-                let style = grid_entry.style;
+                let mut style = grid_entry.style;
 
                 let node = self.taffy.new_leaf(style)?;
                 self.node_data.insert(node, grid_entry.data);
@@ -650,6 +656,65 @@ mod tests {
     use super::*;
 
     use anyhow::Result;
+
+    #[test]
+    fn multi_row_grid_layout() -> Result<()> {
+        use taffy::prelude::*;
+
+        let mut layout: RowGridLayout<usize> = RowGridLayout::new();
+
+        let rows = (0..8).flat_map(|u| {
+            if u == 3 {
+                let column_data = vec![
+                    GridEntry::auto(u * 57),
+                    GridEntry::auto(1 + u * 57),
+                    GridEntry::auto(2 + u * 57),
+                    GridEntry::auto(3 + u * 57),
+                ];
+
+                let mut entry = RowEntry {
+                    grid_template_columns: vec![points(300.0), fr(1.0)],
+                    grid_template_rows: vec![points(100.0), points(70.0)],
+                    column_data,
+                    ..RowEntry::default()
+                };
+
+                vec![entry]
+            } else {
+                let column_data =
+                    vec![GridEntry::auto(u * 2), GridEntry::auto(1 + u * 2)];
+                let mut entry = RowEntry {
+                    grid_template_columns: vec![points(100.0), fr(1.0)],
+                    column_data,
+                    ..RowEntry::default()
+                };
+                if u % 2 == 0 {
+                    let u2 = u / 2;
+                    // entry.desired_height = Some(30.0 + 10.0 * u2 as f32);
+                }
+
+                vec![entry]
+            }
+        });
+
+        layout.build_layout_for_rows(rows)?;
+
+        let screen_rect =
+            egui::Rect::from_x_y_ranges(100.0..=900.0, 200.0..=700.0);
+
+        layout.compute_layout(screen_rect)?;
+
+        layout.visit_layout(|layout, val| {
+            let location = layout.location;
+            let size = layout.size;
+
+            println!("{val} - {location:?} \t {size:?}");
+        })?;
+
+        taffy::debug::print_tree(&layout.taffy, layout.root.unwrap());
+
+        Ok(())
+    }
 
     #[test]
     fn row_grid_layout() -> Result<()> {
