@@ -32,6 +32,12 @@ pub struct RowGridLayout<T> {
     computed_for_rect: Option<egui::Rect>,
 }
 
+pub struct RowEntry<T> {
+    desired_height: Option<f32>,
+    grid_template_columns: Vec<TrackSizingFunction>,
+    column_data: Vec<T>,
+}
+
 // enum RowTemplate {
 //     Grid,
 //     Flex,
@@ -98,6 +104,56 @@ impl<T> RowGridLayout<T> {
         self.taffy.compute_layout(root, container_space)?;
 
         self.computed_for_rect = Some(rect);
+
+        Ok(())
+    }
+
+    pub fn build_layout_for_rows_<Rows>(
+        &mut self,
+        rows: Rows,
+    ) -> Result<(), TaffyError>
+    where
+        Rows: IntoIterator<Item = RowEntry<T>>,
+    {
+        // create children
+        let mut children = Vec::new();
+
+        for entry in rows.into_iter() {
+            // create inner columns
+            let mut row_children = Vec::new();
+
+            for (i, data) in entry.column_data.into_iter().enumerate() {
+                let style = Style {
+                    grid_row: span(1),
+                    grid_column: line(1 + i as i16),
+                    ..Default::default()
+                };
+
+                let node = self.taffy.new_leaf(style)?;
+                self.node_data.insert(node, data);
+                row_children.push(node);
+            }
+
+            let mut row_style = Style {
+                grid_template_columns: entry.grid_template_columns,
+                ..self.row_base_style.clone()
+            };
+
+            if let Some(height) = entry.desired_height {
+                row_style.flex_basis = points(height);
+            };
+
+            let row = self.taffy.new_with_children(row_style, &row_children)?;
+
+            children.push(row);
+        }
+
+        // create root container with children
+        let root = self
+            .taffy
+            .new_with_children(self.root_style.clone(), &children)?;
+
+        self.root = Some(root);
 
         Ok(())
     }
