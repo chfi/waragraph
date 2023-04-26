@@ -35,7 +35,35 @@ pub struct RowGridLayout<T> {
 pub struct RowEntry<T> {
     desired_height: Option<f32>,
     grid_template_columns: Vec<TrackSizingFunction>,
+    grid_template_rows: Vec<TrackSizingFunction>,
     column_data: Vec<GridEntry<T>>,
+}
+
+impl<T> RowEntry<T> {
+    pub fn apply_style(&self, style: Style) -> Style {
+        let mut style = Style {
+            grid_template_columns: self.grid_template_columns.clone(),
+            grid_template_rows: self.grid_template_rows.clone(),
+            ..style
+        };
+
+        if let Some(height) = self.desired_height {
+            style.flex_basis = points(height);
+        }
+
+        style
+    }
+}
+
+impl<T> std::default::Default for RowEntry<T> {
+    fn default() -> Self {
+        Self {
+            desired_height: None,
+            grid_template_columns: vec![fr(1.0)],
+            grid_template_rows: vec![fr(1.0)],
+            column_data: Vec::new(),
+        }
+    }
 }
 
 pub struct GridEntry<T> {
@@ -102,8 +130,6 @@ impl<T> RowGridLayout<T> {
             display: Display::Grid,
 
             flex_basis: points(base_row_height),
-            grid_template_rows: vec![fr(1.0)],
-            grid_template_columns: vec![points(100.0), fr(1.0)],
             ..Default::default()
         };
 
@@ -160,23 +186,15 @@ impl<T> RowGridLayout<T> {
             // create inner columns
             let mut row_children = Vec::new();
 
-            for (i, grid_entry) in row_entry.column_data.into_iter().enumerate()
-            {
+            let row_style = row_entry.apply_style(self.row_base_style.clone());
+
+            for grid_entry in row_entry.column_data {
                 let style = grid_entry.style;
 
                 let node = self.taffy.new_leaf(style)?;
                 self.node_data.insert(node, grid_entry.data);
                 row_children.push(node);
             }
-
-            let mut row_style = Style {
-                grid_template_columns: row_entry.grid_template_columns,
-                ..self.row_base_style.clone()
-            };
-
-            if let Some(height) = row_entry.desired_height {
-                row_style.flex_basis = points(height);
-            };
 
             let row = self.taffy.new_with_children(row_style, &row_children)?;
 
@@ -644,9 +662,9 @@ mod tests {
                 vec![GridEntry::auto(u * 2), GridEntry::auto(1 + u * 2)];
 
             let mut entry = RowEntry {
-                desired_height: None,
                 grid_template_columns: vec![points(100.0), fr(1.0)],
                 column_data,
+                ..RowEntry::default()
             };
             if u % 2 == 0 {
                 let u2 = u / 2;
