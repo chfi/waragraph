@@ -179,59 +179,79 @@ impl<T> RowGridLayout<T> {
         &mut self,
         // need to take screen size here though
         available_height: f32,
+        header: impl IntoIterator<Item = RowEntry<T>>,
         rows: &[U],
         index: usize,
         mut to_entry: impl FnMut(&U) -> RowEntry<T>,
     ) -> Result<std::ops::Range<usize>, TaffyError> {
-        // first fill "forward"
         let mut remaining_height = available_height;
 
         let mut children = Vec::new();
 
-        let mut handle_row = |row: &U| -> Result<bool, TaffyError> {
-            let row_entry = to_entry(row);
-            let mut row_children = Vec::new();
+        let mut handle_row =
+            |row_entry: RowEntry<T>| -> Result<bool, TaffyError> {
+                let mut row_children = Vec::new();
 
-            let row_style = row_entry.apply_style(self.row_base_style.clone());
+                let row_style =
+                    row_entry.apply_style(self.row_base_style.clone());
 
-            for grid_entry in row_entry.column_data {
-                let node = self.taffy.new_leaf(grid_entry.style)?;
-                self.node_data.insert(node, grid_entry.data);
-                row_children.push(node);
-            }
-
-            let row = self.taffy.new_with_children(row_style, &row_children)?;
-
-            self.taffy.compute_layout(
-                row,
-                Size {
-                    width: AvailableSpace::MaxContent,
-                    height: AvailableSpace::MinContent,
-                },
-            )?;
-
-            let est = self.taffy.layout(row)?;
-
-            if remaining_height - est.size.height < 0.0 {
-                // adding this would overflow, so remove the last row and we're done
-                self.taffy.remove(row)?;
-                for child in row_children {
-                    self.node_data.remove(&child);
-                    self.taffy.remove(child)?;
+                for grid_entry in row_entry.column_data {
+                    let node = self.taffy.new_leaf(grid_entry.style)?;
+                    self.node_data.insert(node, grid_entry.data);
+                    row_children.push(node);
                 }
-                return Ok(true);
+
+                let row =
+                    self.taffy.new_with_children(row_style, &row_children)?;
+
+                self.taffy.compute_layout(
+                    row,
+                    Size {
+                        width: AvailableSpace::MaxContent,
+                        height: AvailableSpace::MinContent,
+                    },
+                )?;
+
+                let est = self.taffy.layout(row)?;
+
+                if remaining_height - est.size.height < 0.0 {
+                    // adding this would overflow, so remove the last row and we're done
+                    self.taffy.remove(row)?;
+                    for child in row_children {
+                        self.node_data.remove(&child);
+                        self.taffy.remove(child)?;
+                    }
+                    return Ok(true);
+                }
+
+                println!("estimated size: {:?}", est.size);
+
+                remaining_height -= est.size.height;
+                children.push(row);
+
+                Ok(false)
+            };
+
+        // add the header, if any
+
+        let mut header_rows = 0;
+
+        for row in header {
+            // let row_entry = to_entry(row);
+            let full = handle_row(row)?;
+
+            if full {
+                break;
+            } else {
+                header_rows += 1;
             }
+        }
 
-            println!("estimated size: {:?}", est.size);
-
-            remaining_height -= est.size.height;
-            children.push(row);
-
-            Ok(false)
-        };
+        // fill forward from the row index
 
         for row in &rows[index..] {
-            let full = handle_row(row)?;
+            let row_entry = to_entry(row);
+            let full = handle_row(row_entry)?;
 
             if full {
                 break;
@@ -245,7 +265,8 @@ impl<T> RowGridLayout<T> {
 
         if !space_full {
             for row in rows[..index].iter().rev() {
-                let full = handle_row(row)?;
+                let row_entry = to_entry(row);
+                let full = handle_row(row_entry)?;
 
                 if full {
                     break;
@@ -262,7 +283,10 @@ impl<T> RowGridLayout<T> {
 
         self.root = Some(root);
 
-        let index_range = start_index..children.len();
+        let slice_row_count = children.len() - header_rows;
+        let end_index = start_index + slice_row_count;
+
+        let index_range = start_index..end_index;
 
         Ok(index_range)
     }
@@ -753,20 +777,30 @@ mod tests {
         let rows = (0..10).collect::<Vec<_>>();
         let row_map = |row: &usize| -> RowEntry<String> {
             RowEntry {
-                // desired_height: todo!(),
                 grid_template_columns: vec![fr(1.0)],
-                grid_template_rows: vec![points(15.0 * (1.0 + *row as f32))],
+                grid_template_rows: vec![points(25.0 * (1.0 + *row as f32))],
                 column_data: vec![GridEntry::auto(format!("Entry {row}"))],
-                // grid_template_columns: todo!(),
-                // grid_template_rows: todo!(),
-                // column_data: todo!(),
                 ..RowEntry::default()
             }
         };
 
+        let header_row = RowEntry {
+            desired_height: Some(17.0),
+            grid_template_columns: vec![fr(1.0)],
+            grid_template_rows: vec![fr(1.0)],
+            column_data: vec![GridEntry::auto(format!("Header"))],
+            ..RowEntry::default()
+        };
+
         let available_height = 100.0;
 
-        layout.fill_from_slice_index(available_height, &rows, 0, &row_map)?;
+        layout.fill_from_slice_index(
+            available_height,
+            [header_row],
+            &rows,
+            0,
+            &row_map,
+        )?;
 
         let screen_rect = egui::Rect::from_x_y_ranges(0.0..=200.0, 0.0..=100.0);
 
