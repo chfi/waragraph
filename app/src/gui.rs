@@ -108,16 +108,6 @@ impl<T> GridEntry<T> {
     }
 }
 
-// enum RowTemplate {
-//     Grid,
-//     Flex,
-//     Single,
-// }
-
-// pub struct RowTemplate {
-//     style: Style,
-// }
-
 impl<T> RowGridLayout<T> {
     //
     pub fn new() -> Self {
@@ -198,16 +188,14 @@ impl<T> RowGridLayout<T> {
 
         let mut children = Vec::new();
 
-        for row in &rows[index..] {
+        let mut handle_row = |row: &U| -> Result<bool, TaffyError> {
             let row_entry = to_entry(row);
             let mut row_children = Vec::new();
 
             let row_style = row_entry.apply_style(self.row_base_style.clone());
 
             for grid_entry in row_entry.column_data {
-                let mut style = grid_entry.style;
-
-                let node = self.taffy.new_leaf(style)?;
+                let node = self.taffy.new_leaf(grid_entry.style)?;
                 self.node_data.insert(node, grid_entry.data);
                 row_children.push(node);
             }
@@ -226,17 +214,46 @@ impl<T> RowGridLayout<T> {
 
             if remaining_height - est.size.height < 0.0 {
                 // adding this would overflow, so remove the last row and we're done
-                let _ = self.taffy.remove(row);
-                break;
+                self.taffy.remove(row)?;
+                for child in row_children {
+                    self.node_data.remove(&child);
+                    self.taffy.remove(child)?;
+                }
+                return Ok(true);
             }
 
             println!("estimated size: {:?}", est.size);
 
             remaining_height -= est.size.height;
             children.push(row);
+
+            Ok(false)
+        };
+
+        for row in &rows[index..] {
+            let full = handle_row(row)?;
+
+            if full {
+                break;
+            }
         }
 
-        // TODO if there's space left, prepend rows
+        // if there's space left, prepend rows
+        let space_full = available_height < 0.0;
+
+        let mut start_index = index;
+
+        if !space_full {
+            for row in rows[..index].iter().rev() {
+                let full = handle_row(row)?;
+
+                if full {
+                    break;
+                } else {
+                    start_index -= 1;
+                }
+            }
+        }
 
         // create root container with children
         let root = self
@@ -245,8 +262,7 @@ impl<T> RowGridLayout<T> {
 
         self.root = Some(root);
 
-        // TODO return the actual used range of indices
-        let index_range = 0..children.len();
+        let index_range = start_index..children.len();
 
         Ok(index_range)
     }
@@ -268,8 +284,7 @@ impl<T> RowGridLayout<T> {
             let row_style = row_entry.apply_style(self.row_base_style.clone());
 
             for grid_entry in row_entry.column_data {
-                let mut style = grid_entry.style;
-
+                let style = grid_entry.style;
                 let node = self.taffy.new_leaf(style)?;
                 self.node_data.insert(node, grid_entry.data);
                 row_children.push(node);
@@ -293,7 +308,6 @@ impl<T> RowGridLayout<T> {
     pub fn visit_layout(
         &self,
         mut visitor: impl FnMut(Layout, &T),
-        // ) -> Result<(), TaffyError> {
     ) -> anyhow::Result<()> {
         let mut stack: Vec<(Vec2, Node)> = Vec::new();
 
