@@ -642,12 +642,14 @@ impl AppWindow for Viewer1D {
         let mut shapes = Vec::new();
         shapes.extend(self.slot_cache.msg_shapes.drain(..));
 
-        {
+        let row_grid_layout = {
             use taffy::prelude::*;
             let data_id = self.active_viz_data_key.blocking_read().clone();
 
             let mut row_grid_layout: RowGridLayout<gui::SlotElem> =
                 RowGridLayout::new();
+
+            let rect = screen_rect.shrink(50.0);
 
             // TODO hook this up to path names, allow resize, etc.
             // store in egui cache
@@ -664,69 +666,66 @@ impl AppWindow for Viewer1D {
                     ..RowEntry::default()
                 }
             };
+            let view_offset = self.path_list_view.offset();
 
-            let rows_iter =
-                self.path_list_view.offset_to_end_iter().enumerate().map(
-                    |(ix, path)| {
-                        let mut row_entry = RowEntry {
-                            // desired_height: None,
-                            grid_template_columns: vec![
-                                points(info_col_width),
-                                fr(1.0),
-                            ],
-                            column_data: vec![],
-                            ..RowEntry::default()
-                        };
+            let layout_result = row_grid_layout.fill_from_slice_index(
+                rect.height(),
+                [header_row],
+                &self.path_list_view.as_slice(),
+                view_offset,
+                |(list_ix, path)| {
+                    let mut row_entry = RowEntry {
+                        // desired_height: None,
+                        grid_template_columns: vec![
+                            points(info_col_width),
+                            fr(1.0),
+                        ],
+                        column_data: vec![],
+                        ..RowEntry::default()
+                    };
 
-                        if let Some(a_slot_id) =
-                            self.annotations.get_path_slot_id(*path)
-                        {
-                            println!("adding annot slot");
-                            // if annotation slot is present, change the grid_template_row field
-                            // and append the extra column data
-                            row_entry.grid_template_rows =
-                                vec![points(33.0), points(20.0)];
-                            // row_entry.grid_template_rows.insert(0, points(80.0));
+                    if let Some(a_slot_id) =
+                        self.annotations.get_path_slot_id(*path)
+                    {
+                        println!("adding annot slot");
+                        // if annotation slot is present, change the grid_template_row field
+                        // and append the extra column data
+                        row_entry.grid_template_rows =
+                            vec![points(33.0), points(20.0)];
+                        // row_entry.grid_template_rows.insert(0, points(80.0));
 
-                            row_entry.column_data.push(GridEntry::new(
-                                [2, 2],
-                                gui::SlotElem::Annotations {
-                                    annotation_slot_id: a_slot_id,
-                                },
-                            ));
-                        }
+                        row_entry.column_data.push(GridEntry::new(
+                            [2, 2],
+                            gui::SlotElem::Annotations {
+                                annotation_slot_id: a_slot_id,
+                            },
+                        ));
+                    }
 
-                        let slot_id = ix;
+                    let slot_id = *list_ix;
 
-                        // add path name and path data
-                        row_entry.column_data.extend([
-                            GridEntry::new(
-                                [1, 1],
-                                gui::SlotElem::PathName { slot_id },
-                            ),
-                            GridEntry::new(
-                                [1, 2],
-                                gui::SlotElem::PathData {
-                                    slot_id,
-                                    data_id: data_id.clone(),
-                                },
-                            ),
-                        ]);
+                    // add path name and path data
+                    row_entry.column_data.extend([
+                        GridEntry::new(
+                            [1, 1],
+                            gui::SlotElem::PathName { slot_id },
+                        ),
+                        GridEntry::new(
+                            [1, 2],
+                            gui::SlotElem::PathData {
+                                slot_id,
+                                data_id: data_id.clone(),
+                            },
+                        ),
+                    ]);
 
-                        row_entry
-                    },
-                );
+                    row_entry
+                },
+            );
 
-            let rows_iter = [header_row].into_iter().chain(rows_iter);
-
-            let layout_result =
-                row_grid_layout.build_layout_for_rows(rows_iter);
-
-            if let Err(e) = layout_result {
-                log::error!("{e:?}");
+            if let Ok((range, _height_rem)) = layout_result {
+                // TODO set view
             }
-
-            let rect = screen_rect.shrink(50.0);
 
             let layout_result = row_grid_layout.compute_layout(rect);
 
@@ -759,7 +758,50 @@ impl AppWindow for Viewer1D {
             if let Err(e) = layout_result {
                 log::error!("{e:?}");
             }
-        }
+
+            row_grid_layout
+        };
+
+        let mut path_name_slots: Vec<(
+            PathId,
+            taffy::prelude::Node,
+            gui::SlotElem,
+        )> = Vec::new();
+        let mut path_data_slots: Vec<(
+            PathId,
+            taffy::prelude::Node,
+            gui::SlotElem,
+        )> = Vec::new();
+        let mut path_annotation_slots: Vec<(
+            PathId,
+            taffy::prelude::Node,
+            gui::SlotElem,
+        )> = Vec::new();
+
+        row_grid_layout.visit_layout(|layout, elem| {
+            // todo!();
+
+            match elem {
+                gui::SlotElem::Empty => {
+                    // noop
+                }
+                gui::SlotElem::ViewRange => {
+                    // store view range
+                }
+                gui::SlotElem::PathData { slot_id, data_id } => {
+                    // append data slot (need to pass path data through to here, though)
+                    // todo!()
+                }
+                gui::SlotElem::PathName { slot_id } => {
+                    // append name slot
+                    // todo!()
+                }
+                gui::SlotElem::Annotations { annotation_slot_id } => {
+                    // append annot slot
+                    // todo!()
+                }
+            }
+        });
 
         let mut annot_slots = Vec::new();
 
