@@ -175,6 +175,9 @@ impl<T> RowGridLayout<T> {
         Ok(())
     }
 
+    /// Returns the range of row indices that fit inside the given
+    /// vertical space, optionally with a fixed header, and the
+    /// remaining space
     pub fn fill_from_slice_index<U>(
         &mut self,
         // need to take screen size here though
@@ -183,8 +186,12 @@ impl<T> RowGridLayout<T> {
         rows: &[U],
         index: usize,
         mut to_entry: impl FnMut(&U) -> RowEntry<T>,
-    ) -> Result<std::ops::Range<usize>, TaffyError> {
-        let mut remaining_height = available_height;
+    ) -> Result<(std::ops::Range<usize>, f32), TaffyError> {
+        use crossbeam::atomic::AtomicCell;
+
+        // not exactly needed here, but a comfy way to get some state
+        // out of the closure below
+        let remaining_height = AtomicCell::new(available_height);
 
         let mut children = Vec::new();
 
@@ -214,7 +221,9 @@ impl<T> RowGridLayout<T> {
 
                 let est = self.taffy.layout(row)?;
 
-                if remaining_height - est.size.height < 0.0 {
+                let mut height = remaining_height.load();
+
+                if height - est.size.height < 0.0 {
                     // adding this would overflow, so remove the last row and we're done
                     self.taffy.remove(row)?;
                     for child in row_children {
@@ -224,10 +233,12 @@ impl<T> RowGridLayout<T> {
                     return Ok(true);
                 }
 
-                println!("estimated size: {:?}", est.size);
+                // println!("estimated size: {:?}", est.size);
 
-                remaining_height -= est.size.height;
+                height -= est.size.height;
                 children.push(row);
+
+                remaining_height.store(height);
 
                 Ok(false)
             };
@@ -259,7 +270,7 @@ impl<T> RowGridLayout<T> {
         }
 
         // if there's space left, prepend rows
-        let space_full = available_height < 0.0;
+        let space_full = remaining_height.load() < 0.0;
 
         let mut start_index = index;
 
@@ -288,7 +299,7 @@ impl<T> RowGridLayout<T> {
 
         let index_range = start_index..end_index;
 
-        Ok(index_range)
+        Ok((index_range, remaining_height.load()))
     }
 
     pub fn build_layout_for_rows<Rows>(
@@ -792,28 +803,47 @@ mod tests {
             ..RowEntry::default()
         };
 
-        let available_height = 100.0;
+        let available_height = 200.0;
 
-        layout.fill_from_slice_index(
+        let (range, height) = layout.fill_from_slice_index(
             available_height,
             [header_row],
             &rows,
-            0,
+            2,
             &row_map,
         )?;
+
+        assert_eq!(range, 2..4);
+        assert_eq!(height, 25.0);
 
         let screen_rect = egui::Rect::from_x_y_ranges(0.0..=200.0, 0.0..=100.0);
 
         layout.compute_layout(screen_rect)?;
 
+        let expected = [
+            ("Header", [0.0, 0.0], [200.0, 17.0]),
+            ("Entry 2", [0.0, 17.0], [200.0, 75.0]),
+            ("Entry 3", [0.0, 92.0], [200.0, 100.0]),
+        ]
+        .into_iter()
+        .map(|(val, [x, y], [width, height])| {
+            let pos = taffy::geometry::Point { x, y };
+            let size = Size { width, height };
+            (val, (pos, size))
+        })
+        .collect::<HashMap<_, _>>();
+
         layout.visit_layout(|layout, val| {
             let location = layout.location;
             let size = layout.size;
 
+            assert_eq!(&(location, size), expected.get(val.as_str()).unwrap());
             println!("{val} - {location:?} \t {size:?}");
         })?;
 
         taffy::debug::print_tree(&layout.taffy, layout.root.unwrap());
+
+        println!("Filled range: {range:?}\tRemaining height: {height}");
 
         Ok(())
     }
