@@ -134,7 +134,7 @@ impl<T> RowGridLayout<T> {
             display: Display::Grid,
 
             flex_basis: points(base_row_height),
-            flex_shrink: 0.0, // probably not the way to go about this
+            // flex_shrink: 0.0, // probably not the way to go about this
             ..Default::default()
         };
 
@@ -148,6 +148,13 @@ impl<T> RowGridLayout<T> {
 
             computed_for_rect: None,
         }
+    }
+
+    pub fn clear(&mut self) {
+        self.taffy.clear();
+        self.node_data.clear();
+        self.root = None;
+        self.computed_for_rect = None;
     }
 
     pub fn compute_layout(&mut self, rect: egui::Rect) -> anyhow::Result<()> {
@@ -168,14 +175,80 @@ impl<T> RowGridLayout<T> {
 
         let container_space = Size {
             width: AvailableSpace::from_points(rect.width()),
-            height: AvailableSpace::MaxContent,
-            // height: AvailableSpace::from_points(rect.height()),
+            // height: AvailableSpace::MaxContent,
+            height: AvailableSpace::from_points(rect.height()),
         };
         self.taffy.compute_layout(root, container_space)?;
 
         self.computed_for_rect = Some(rect);
 
         Ok(())
+    }
+
+    pub fn fill_from_slice_index<U>(
+        &mut self,
+        // need to take screen size here though
+        available_height: f32,
+        rows: &[U],
+        index: usize,
+        mut to_entry: impl FnMut(&U) -> RowEntry<T>,
+    ) -> Result<std::ops::Range<usize>, TaffyError> {
+        // first fill "forward"
+        let mut remaining_height = available_height;
+
+        let mut children = Vec::new();
+
+        for row in &rows[index..] {
+            let row_entry = to_entry(row);
+            let mut row_children = Vec::new();
+
+            let row_style = row_entry.apply_style(self.row_base_style.clone());
+
+            for grid_entry in row_entry.column_data {
+                let mut style = grid_entry.style;
+
+                let node = self.taffy.new_leaf(style)?;
+                self.node_data.insert(node, grid_entry.data);
+                row_children.push(node);
+            }
+
+            let row = self.taffy.new_with_children(row_style, &row_children)?;
+
+            self.taffy.compute_layout(
+                row,
+                Size {
+                    width: AvailableSpace::MaxContent,
+                    height: AvailableSpace::MinContent,
+                },
+            )?;
+
+            let est = self.taffy.layout(row)?;
+
+            if remaining_height - est.size.height < 0.0 {
+                // adding this would overflow, so remove the last row and we're done
+                let _ = self.taffy.remove(row);
+                break;
+            }
+
+            println!("estimated size: {:?}", est.size);
+
+            remaining_height -= est.size.height;
+            children.push(row);
+        }
+
+        // TODO if there's space left, prepend rows
+
+        // create root container with children
+        let root = self
+            .taffy
+            .new_with_children(self.root_style.clone(), &children)?;
+
+        self.root = Some(root);
+
+        // TODO return the actual used range of indices
+        let index_range = 0..children.len();
+
+        Ok(index_range)
     }
 
     pub fn build_layout_for_rows<Rows>(
@@ -656,6 +729,46 @@ mod tests {
     use super::*;
 
     use anyhow::Result;
+
+    #[test]
+    fn fill_from_slice_to_fit() -> Result<()> {
+        use taffy::prelude::*;
+
+        let mut layout: RowGridLayout<String> = RowGridLayout::new();
+
+        let rows = (0..10).collect::<Vec<_>>();
+        let row_map = |row: &usize| -> RowEntry<String> {
+            RowEntry {
+                // desired_height: todo!(),
+                grid_template_columns: vec![fr(1.0)],
+                grid_template_rows: vec![points(15.0 * (1.0 + *row as f32))],
+                column_data: vec![GridEntry::auto(format!("Entry {row}"))],
+                // grid_template_columns: todo!(),
+                // grid_template_rows: todo!(),
+                // column_data: todo!(),
+                ..RowEntry::default()
+            }
+        };
+
+        let available_height = 100.0;
+
+        layout.fill_from_slice_index(available_height, &rows, 0, &row_map)?;
+
+        let screen_rect = egui::Rect::from_x_y_ranges(0.0..=200.0, 0.0..=100.0);
+
+        layout.compute_layout(screen_rect)?;
+
+        layout.visit_layout(|layout, val| {
+            let location = layout.location;
+            let size = layout.size;
+
+            println!("{val} - {location:?} \t {size:?}");
+        })?;
+
+        taffy::debug::print_tree(&layout.taffy, layout.root.unwrap());
+
+        Ok(())
+    }
 
     #[test]
     fn multi_row_grid_layout() -> Result<()> {
