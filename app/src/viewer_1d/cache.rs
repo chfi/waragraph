@@ -188,7 +188,11 @@ impl SlotCache {
             let [l0, r0] = last_view;
             let view0 = (l0.0)..(r0.0);
             let view1 = current_view.range();
-            super::Viewer1D::sample_index_transform(&view0, view1)
+            if &view0 == view1 {
+                [1.0, 0.0]
+            } else {
+                super::Viewer1D::sample_index_transform(&view0, view1)
+            }
         } else {
             [1.0, 0.0]
         }
@@ -762,7 +766,7 @@ impl SlotCache {
         let t_stride = std::mem::size_of::<[f32; 2]>();
 
         let need_realloc = if let Some(buf) = self.transform_buffer.as_ref() {
-            buf.size < vertices.len() * t_stride
+            buf.size < self.rows * t_stride
         } else {
             true
         };
@@ -771,7 +775,7 @@ impl SlotCache {
             let usage =
                 wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST;
 
-            let buf_size = t_stride * vertices.len().next_power_of_two();
+            let buf_size = t_stride * self.rows.next_power_of_two();
 
             let buffer = state.device.create_buffer(&wgpu::BufferDescriptor {
                 label: Some("Slot Cache Fragment Transform Buffer"),
@@ -788,28 +792,30 @@ impl SlotCache {
 
         //
         if let Some(buf) = self.transform_buffer.as_ref() {
-            let data = vertices
-                .iter()
-                .filter_map(|vx| {
-                    let slot = vx.slot_id;
+            let mut data = vec![[1f32, 0f32]; self.rows];
+
+            for vx in vertices.iter() {
+                let slot = vx.slot_id;
+
+                let last_view = {
                     let key = self
                         .slot_id_cache
                         .get(slot as usize)
-                        .and_then(|s| s.as_ref())?;
+                        .and_then(|s| s.as_ref());
 
-                    let last_update =
-                        self.slot_state.get(key)?.last_updated_view;
+                    if let Some(state) =
+                        key.and_then(|key| self.slot_state.get(key))
+                    {
+                        state.last_updated_view
+                    } else {
+                        continue;
+                    }
+                };
 
-                    let transform =
-                        Self::view_transform(last_update, current_view);
-                    Some(transform)
-                })
-                .collect::<Vec<_>>();
+                let transform = Self::view_transform(last_view, current_view);
 
-            // {
-            //     let tdata: &[[f32; 2]] = bytemuck::cast_slice(&data);
-            //     println!("transform: {tdata:?}");
-            // }
+                data[slot as usize] = transform;
+            }
 
             state.queue.write_buffer(
                 &buf.buffer,
@@ -817,7 +823,6 @@ impl SlotCache {
                 bytemuck::cast_slice(&data),
             );
 
-            debug_assert_eq!(data.len(), vertices.len());
             Ok(())
         } else {
             unreachable!();
