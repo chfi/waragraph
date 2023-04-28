@@ -65,8 +65,7 @@ pub struct Viewer1D {
     vert_uniform: wgpu::Buffer,
     frag_uniform: wgpu::Buffer,
 
-    dyn_slot_layout: DynamicListLayout<Vec<gui::SlotElem>, gui::SlotElem>,
-
+    // dyn_slot_layout: DynamicListLayout<Vec<gui::SlotElem>, gui::SlotElem>,
     path_list_view: ListView<PathId>,
 
     shared: SharedState,
@@ -188,6 +187,7 @@ impl Viewer1D {
         // let active_viz_data_key = "strand".to_string();
         let active_viz_data_key = "depth".to_string();
 
+        /*
         let dyn_slot_layout = {
             let width = |p: f32| taffy::style::Dimension::Percent(p);
 
@@ -225,6 +225,7 @@ impl Viewer1D {
 
             layout
         };
+        */
 
         graph.set_node_preprocess_fn(draw_node, move |_ctx, op_state| {
             op_state.vertices = Some(0..6);
@@ -360,7 +361,7 @@ impl Viewer1D {
             vert_uniform,
             frag_uniform,
 
-            dyn_slot_layout,
+            // dyn_slot_layout,
             path_list_view,
 
             // sample_handle: None,
@@ -416,6 +417,19 @@ impl AppWindow for Viewer1D {
     ) {
         let mut laid_out_slots = Vec::new();
 
+        egui_ctx.begin_frame(&window.window);
+
+        /* >> TODO <<
+          [ ] Prepare annotation slots for relevant paths
+          [ ] Path name slots
+          [ ] View range slot
+          [ ] Annotation slots
+          [ ] Fit left column to names
+          [ ] Draggable name column separator
+          [ ] Annotation highlight in path slot on hover
+        */
+
+        /*
         let mut annot_set_slots = Vec::new();
 
         let layout_result = {
@@ -463,6 +477,7 @@ impl AppWindow for Viewer1D {
                 }
             }
         }
+        */
 
         let [width, height]: [u32; 2] = window.window.inner_size().into();
         let pixels_per_point = egui_ctx.ctx().pixels_per_point();
@@ -622,14 +637,87 @@ impl AppWindow for Viewer1D {
         let mut data_slots: HashMap<_, Vec<_>> = HashMap::new();
         let mut slot_rect_map = HashMap::new();
 
-        let _ = row_grid_layout.visit_layout(|layout, elem| {
-            if let gui::SlotElem::PathData { path_id, data_id } = elem {
-                let rect = crate::gui::layout_egui_rect(&layout);
-                laid_out_slots.push(((*path_id, data_id.to_string()), rect));
+        let query = ContextQuery::from_source::<(PathId, GlobalAnnotationId)>(
+            "Viewer1D",
+        );
 
-                let key = data_id.to_string();
-                data_slots.entry(key).or_default().push((*path_id, rect));
-                slot_rect_map.insert((*path_id, data_id.to_string()), rect);
+        let hovered_annot =
+            context_state.get_cast::<_, (PathId, GlobalAnnotationId)>(&query);
+
+        let mut annot_slots = Vec::new();
+
+        let mut view_range_rect = None;
+
+        // (path_name, path_data)
+        // let mut path_slots: HashMap<PathId, (egui::Rect, egui::Rect)> = HashMap::default();
+        let mut path_name_slots: HashMap<PathId, egui::Rect> =
+            HashMap::default();
+
+        let _ = row_grid_layout.visit_layout(|layout, elem| {
+            let rect = crate::gui::layout_egui_rect(&layout);
+
+            match elem {
+                gui::SlotElem::Empty => {}
+                gui::SlotElem::ViewRange => {
+                    view_range_rect = Some(rect);
+                }
+                gui::SlotElem::PathData { path_id, data_id } => {
+                    let rect = crate::gui::layout_egui_rect(&layout);
+                    laid_out_slots
+                        .push(((*path_id, data_id.to_string()), rect));
+
+                    let key = data_id.to_string();
+                    data_slots.entry(key).or_default().push((*path_id, rect));
+                    slot_rect_map.insert((*path_id, data_id.to_string()), rect);
+
+                    if let Some((path, g_annot_id)) = hovered_annot {
+                        if path == path_id {
+                            // draw regions here
+                            let annot_slot_id = self
+                                .annotations
+                                .get_path_slot_id(*path_id)
+                                .unwrap();
+
+                            let regions = self
+                                .annotations
+                                .get(&annot_slot_id)
+                                .and_then(|slot| {
+                                    slot.annotation_ranges
+                                        .get(&g_annot_id.annot_id)
+                                });
+
+                            let slot_x_range = rect.x_range();
+                            let color = egui::Rgba::from_rgba_unmultiplied(
+                                0.8, 0.2, 0.2, 0.5,
+                            );
+
+                            shapes.extend(
+                                regions
+                                    .into_iter()
+                                    .flatten()
+                                    .filter_map(|range| {
+                                        self.view.map_bp_interval_to_screen_x(
+                                            range,
+                                            &slot_x_range,
+                                        )
+                                    })
+                                    .map(|slot_space_range| {
+                                        gui::fill_h_range_of_rect(
+                                            color,
+                                            rect,
+                                            slot_space_range,
+                                        )
+                                    }),
+                            );
+                        }
+                    }
+                }
+                gui::SlotElem::PathName { path_id } => {
+                    path_name_slots.insert(*path_id, rect);
+                }
+                gui::SlotElem::Annotations { annotation_slot_id } => {
+                    annot_slots.push((*annotation_slot_id, rect));
+                }
             }
         });
 
@@ -685,6 +773,7 @@ impl AppWindow for Viewer1D {
             self.color_mapping.write_buffer(state);
         }
         */
+        /*
         if self.dyn_slot_layout.layout().computed_size() != Some(dims) {
             let data_id = self.active_viz_data_key.blocking_read().clone();
 
@@ -768,6 +857,7 @@ impl AppWindow for Viewer1D {
                 bytemuck::cast_slice(uniform_data.as_slice()),
             );
         }
+        */
 
         // update uniform
         {
@@ -779,8 +869,6 @@ impl AppWindow for Viewer1D {
                 bytemuck::cast_slice(&data),
             );
         }
-
-        egui_ctx.begin_frame(&window.window);
 
         {
             let fonts = egui_ctx.ctx().fonts();
@@ -808,10 +896,7 @@ impl AppWindow for Viewer1D {
 
         shapes.extend(self.slot_cache.msg_shapes.drain(..));
 
-        let mut annot_slots = Vec::new();
-
-        let mut view_range_rect = None;
-
+        /*
         let layout_result = {
             let fonts = egui_ctx.ctx().fonts();
             let time = egui_ctx.ctx().input().time;
@@ -989,10 +1074,13 @@ impl AppWindow for Viewer1D {
                 }
             })
         };
+        */
 
+        /*
         if let Err(e) = layout_result {
             log::error!("GUI layout error: {e:?}");
         }
+        */
 
         {
             let ctx = egui_ctx.ctx();
@@ -1005,6 +1093,7 @@ impl AppWindow for Viewer1D {
                 .movable(false)
                 .constrain(true);
 
+            /*
             main_area.show(ctx, |ui| {
                 let path_names =
                     ui.allocate_rect(path_name_region, egui::Sense::hover());
@@ -1148,6 +1237,7 @@ impl AppWindow for Viewer1D {
                     }
                 }
             });
+            */
 
             let painter =
                 egui_ctx.ctx().layer_painter(egui::LayerId::background());
