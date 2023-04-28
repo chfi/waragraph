@@ -9,8 +9,8 @@ use super::annotations::AnnotSlotId;
 pub(super) enum SlotElem {
     Empty,
     ViewRange,
-    PathData { slot_id: usize, data_id: String },
-    PathName { slot_id: usize },
+    PathData { path_id: PathId, data_id: String },
+    PathName { path_id: PathId },
     Annotations { annotation_slot_id: AnnotSlotId },
     // Annotations { path: PathId, annotation_id: String },
 }

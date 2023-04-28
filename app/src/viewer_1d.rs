@@ -422,22 +422,16 @@ impl AppWindow for Viewer1D {
             let annotations = self.shared.annotations.blocking_read();
 
             self.dyn_slot_layout.layout().visit_layout(|layout, elem| {
-                if let gui::SlotElem::PathData { slot_id, data_id } = elem {
-                    if let Some(path_id) =
-                        self.path_list_view.get_in_view(*slot_id)
+                if let gui::SlotElem::PathData { path_id, data_id } = elem {
+                    let slot_key = (*path_id, data_id.clone());
+                    let rect = crate::gui::layout_egui_rect(&layout);
+                    laid_out_slots.push((slot_key, rect));
+
+                    // if path has an annotation set, create an AnnotSlot
+
+                    for (set_id, set) in annotations.get_sets_for_path(*path_id)
                     {
-                        let slot_key = (*path_id, data_id.clone());
-                        let rect = crate::gui::layout_egui_rect(&layout);
-                        laid_out_slots.push((slot_key, rect));
-
-                        // if path has an annotation set, create an AnnotSlot
-
-                        for (set_id, set) in
-                            annotations.get_sets_for_path(*path_id)
-                        {
-                            annot_set_slots
-                                .push((*path_id, (set_id, set.clone())));
-                        }
+                        annot_set_slots.push((*path_id, (set_id, set.clone())));
                     }
                 }
             })
@@ -486,10 +480,8 @@ impl AppWindow for Viewer1D {
             use taffy::prelude::*;
             let data_id = self.active_viz_data_key.blocking_read().clone();
 
-            let mut row_grid_layout: RowGridLayout<(
-                Option<PathId>,
-                gui::SlotElem,
-            )> = RowGridLayout::new();
+            let mut row_grid_layout: RowGridLayout<gui::SlotElem> =
+                RowGridLayout::new();
 
             let rect = screen_rect.shrink(50.0);
 
@@ -503,7 +495,7 @@ impl AppWindow for Viewer1D {
                     grid_template_rows: vec![points(100.0)],
                     column_data: vec![GridEntry::new(
                         [1, 2],
-                        (None, gui::SlotElem::ViewRange),
+                        gui::SlotElem::ViewRange,
                     )],
                     ..RowEntry::default()
                 }
@@ -515,7 +507,7 @@ impl AppWindow for Viewer1D {
                 [header_row],
                 &self.path_list_view.as_slice(),
                 view_offset,
-                |(list_ix, path)| {
+                |&(list_ix, path_id)| {
                     let mut row_entry = RowEntry {
                         // desired_height: None,
                         grid_template_columns: vec![
@@ -527,7 +519,7 @@ impl AppWindow for Viewer1D {
                     };
 
                     if let Some(a_slot_id) =
-                        self.annotations.get_path_slot_id(*path)
+                        self.annotations.get_path_slot_id(path_id)
                     {
                         println!("adding annot slot");
                         // if annotation slot is present, change the grid_template_row field
@@ -538,32 +530,24 @@ impl AppWindow for Viewer1D {
 
                         row_entry.column_data.push(GridEntry::new(
                             [2, 2],
-                            (
-                                Some(*path),
-                                gui::SlotElem::Annotations {
-                                    annotation_slot_id: a_slot_id,
-                                },
-                            ),
+                            gui::SlotElem::Annotations {
+                                annotation_slot_id: a_slot_id,
+                            },
                         ));
                     }
-
-                    let slot_id = *list_ix;
 
                     // add path name and path data
                     row_entry.column_data.extend([
                         GridEntry::new(
                             [1, 1],
-                            (Some(*path), gui::SlotElem::PathName { slot_id }),
+                            gui::SlotElem::PathName { path_id },
                         ),
                         GridEntry::new(
                             [1, 2],
-                            (
-                                Some(*path),
-                                gui::SlotElem::PathData {
-                                    slot_id,
-                                    data_id: data_id.clone(),
-                                },
-                            ),
+                            gui::SlotElem::PathData {
+                                path_id,
+                                data_id: data_id.clone(),
+                            },
                         ),
                     ]);
 
@@ -631,11 +615,9 @@ impl AppWindow for Viewer1D {
         */
 
         let _ = row_grid_layout.visit_layout(|layout, elem| {
-            if let (Some(path), gui::SlotElem::PathData { slot_id, data_id }) =
-                elem
-            {
+            if let gui::SlotElem::PathData { path_id, data_id } = elem {
                 let rect = crate::gui::layout_egui_rect(&layout);
-                laid_out_slots.push(((*path, data_id.to_string()), rect));
+                laid_out_slots.push(((*path_id, data_id.to_string()), rect));
             }
         });
 
@@ -685,19 +667,19 @@ impl AppWindow for Viewer1D {
                 .path_list_view
                 .offset_to_end_iter()
                 .enumerate()
-                .flat_map(|(ix, path)| {
+                .flat_map(|(ix, &path_id)| {
                     // TODO: should get slot id via a cache keyed to paths;
                     // right now the entire set of rows gets resampled every change
-                    let name = gui::SlotElem::PathName { slot_id: ix };
+                    let name = gui::SlotElem::PathName { path_id };
                     let data = gui::SlotElem::PathData {
-                        slot_id: ix,
+                        path_id,
                         data_id: data_id.clone(),
                     };
 
                     let path_row = vec![name, data];
 
                     if let Some(a_slot_id) =
-                        self.annotations.get_path_slot_id(*path)
+                        self.annotations.get_path_slot_id(path_id)
                     {
                         let annot_row = vec![
                             gui::SlotElem::Empty,
@@ -833,7 +815,7 @@ impl AppWindow for Viewer1D {
                     gui::SlotElem::ViewRange => {
                         view_range_rect = Some(rect);
                     }
-                    gui::SlotElem::PathData { slot_id, .. } => {
+                    gui::SlotElem::PathData { path_id, .. } => {
                         // NB: all of this is to draw stuff on the pangenome ranges
                         // covered by the hovered annotation label, if any
 
@@ -842,19 +824,19 @@ impl AppWindow for Viewer1D {
                             GlobalAnnotationId,
                         )>("Viewer1D");
 
-                        let slot_path_id = self.path_list_view.get_in_view(*slot_id);
-                        if slot_path_id.is_none() {
-                            return;
-                        }
+                        // let slot_path_id = self.path_list_view.get_in_view(*slot_id);
+                        // if slot_path_id.is_none() {
+                        //     return;
+                        // }
 
                         if let Some(hovered_annot) = context_state
                             .get_cast::<_, (PathId, GlobalAnnotationId)>(&query)
                         {
                             let (path_id, g_annot_id) = hovered_annot;
 
-                            if slot_path_id.unwrap() != path_id {
-                                return;
-                            }
+                            // if slot_path_id.unwrap() != path_id {
+                            //     return;
+                            // }
 
                             let annot_slot_id = self
                                 .annotations
@@ -924,14 +906,9 @@ impl AppWindow for Viewer1D {
 
                         path_slot_region = path_slot_region.union(rect);
                     }
-                    gui::SlotElem::PathName { slot_id } => {
+                    gui::SlotElem::PathName { path_id } => {
                         path_name_region = path_name_region.union(rect);
 
-                        let path_id = self.path_list_view.get_in_view(*slot_id);
-                        if path_id.is_none() {
-                            return;
-                        }
-                        let path_id = path_id.unwrap();
 
                         let path_name = self
                             .shared
@@ -955,6 +932,7 @@ impl AppWindow for Viewer1D {
 
                         let right_center = rect.right_center();
 
+                        /*
                         let spinner_shape = if self
                             .slot_cache
                             .slot_task_running(*slot_id)
@@ -971,9 +949,12 @@ impl AppWindow for Viewer1D {
                         } else {
                             egui::Shape::Noop
                         };
-
                         let shape =
                             egui::Shape::Vec(vec![text_shape, spinner_shape]);
+                        */
+
+                        let shape =
+                            egui::Shape::Vec(vec![text_shape]);
 
                         shapes.push(shape);
                     }

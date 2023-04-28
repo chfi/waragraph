@@ -10,25 +10,6 @@ use ultraviolet::Vec2;
 
 use super::FlexLayout;
 
-pub struct DynamicList<Slot> {
-    layout: FlexLayout<Slot>,
-}
-
-impl<Slot> DynamicList<Slot> {
-    pub fn new() -> Self {
-        todo!();
-    }
-
-    pub fn build_layout<Row>(
-        &mut self,
-        screen_rect: egui::Rect,
-        rows: impl IntoIterator<Item = Row>,
-    ) -> Result<(), TaffyError> {
-        //
-        todo!();
-    }
-}
-
 pub struct DynamicListLayout<Row, Elem> {
     layout: FlexLayout<Elem>,
     column_count: usize,
