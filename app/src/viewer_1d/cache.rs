@@ -4,7 +4,7 @@ use std::{
     sync::Arc,
 };
 
-use tokio::task::JoinHandle;
+use tokio::{task::JoinHandle, time::Instant};
 use waragraph_core::graph::{Bp, PathId, PathIndex};
 
 use anyhow::Result;
@@ -33,6 +33,7 @@ pub type SlotMsg = String;
 #[derive(Default)]
 pub struct SlotState {
     pub data_generation: Option<u64>,
+    pub updated_at: Option<Instant>,
     pub last_updated_view: Option<[Bp; 2]>,
     task_handle: Option<SlotTaskHandle>,
     pub last_msg: Option<SlotMsg>,
@@ -210,6 +211,10 @@ impl SlotCache {
 
         // TODO limit the task spawn rate by storing the Instant each
         // slot was last updated
+
+        // first i need to assign slot IDs/indices to the SlotKeys,
+        // which are created from the paths + the shared data_key
+
         todo!();
     }
 
@@ -261,6 +266,7 @@ impl SlotCache {
 
                 slot_state.last_updated_view = Some(task_view);
                 slot_state.data_generation = Some(data_ts);
+                slot_state.updated_at = Some(Instant::now());
 
                 // schedule an update to the corresponding row
                 write_view.copy_from_slice(&data);
@@ -302,6 +308,87 @@ impl SlotCache {
         self.prepare_transform_buffer(state, &vertices, view)?;
 
         todo!();
+    }
+
+    fn assign_rows_for_slots<'a>(
+        &mut self,
+        slots: impl Iterator<Item = &'a SlotKey>,
+        current_view: [Bp; 2],
+    ) -> std::result::Result<(), SlotCacheError> {
+        // evict from cache based on last updated *time*, as in Instant
+
+        // let time_since_update = self.last_update
+
+        // any row without a
+        let mut free_rows = self
+            .slot_id_cache
+            .iter()
+            .enumerate()
+            .rev()
+            .filter_map(|(ix, key)| key.is_some().then_some(ix))
+            .collect::<Vec<_>>();
+
+        let mut eviction_cands: Vec<(SlotKey, tokio::time::Duration)> = self
+            .slot_state
+            .iter()
+            .filter_map(|(slot_key, state)| {
+                if state.task_handle.is_some() {
+                    return None;
+                }
+
+                if let Some(view) = state.last_updated_view {
+                    if view == current_view {
+                        return None;
+                    }
+                }
+
+                let updated_at = state.updated_at?;
+                let time_since = updated_at.elapsed();
+                Some((slot_key.clone(), time_since))
+            })
+            .collect();
+
+        // sort so oldest are last
+        eviction_cands.sort_by_key(|(_, dur)| *dur);
+
+        for slot_key in slots {
+            if let Some(row_id) = free_rows.pop() {
+                // use the free row, no eviction needed
+
+                let new_state = SlotState::default();
+                self.slot_id_cache[row_id] = Some(slot_key.clone());
+                self.slot_id_map.insert(slot_key.clone(), row_id);
+                self.slot_state.insert(slot_key.clone(), new_state);
+
+                continue;
+            }
+
+            // otherwise try to evict an old row
+
+            let candidate = eviction_cands.pop();
+            let row_id = candidate
+                .as_ref()
+                .and_then(|(slot_key, _)| self.slot_id_map.get(slot_key))
+                .copied();
+
+            if let Some(((old_slot_key, _dur), row_id)) = candidate.zip(row_id)
+            {
+                let _old_state = self.slot_state.remove(&old_slot_key);
+                self.slot_id_map.remove(&old_slot_key);
+
+                let new_state = SlotState::default();
+                self.slot_id_cache[row_id] = Some(slot_key.clone());
+                self.slot_id_map.insert(slot_key.clone(), row_id);
+                self.slot_state.insert(slot_key.clone(), new_state);
+
+                continue;
+            }
+
+            // by this point we can't find a row for this slot, so return with an error
+            return Err(SlotCacheError::OutOfRows);
+        }
+
+        Ok(())
     }
 
     pub fn sample_and_update<I>(
@@ -550,6 +637,7 @@ impl SlotCache {
 
                     slot_state.last_updated_view = Some(task_view);
                     slot_state.data_generation = Some(data_gen);
+                    slot_state.updated_at = Some(Instant::now());
 
                     // schedule an update to the corresponding row
                     write_view.copy_from_slice(&data);
@@ -858,3 +946,20 @@ impl SlotCache {
         collision
     }
 }
+
+#[derive(Debug)]
+pub enum SlotCacheError {
+    OutOfRows,
+}
+
+impl std::fmt::Display for SlotCacheError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            SlotCacheError::OutOfRows => {
+                write!(f, "Cannot assign rows without reallocating")
+            }
+        }
+    }
+}
+
+impl std::error::Error for SlotCacheError {}
