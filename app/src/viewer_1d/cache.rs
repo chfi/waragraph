@@ -201,11 +201,11 @@ impl SlotCache {
         view: &View1D,
         data_key: &str,
         paths: impl IntoIterator<Item = PathId>,
-        // layout: I,
-    ) -> Result<()>
-// where
-        // I: IntoIterator<Item = (PathId, egui::Rect)>,
-    {
+    ) -> Result<()> {
+        let vl = view.range().start;
+        let vr = view.range().end;
+        let current_view = [Bp(vl), Bp(vr)];
+
         // spawn tasks for each of the out-of-date paths in the
         // iterator (based on the current view)
 
@@ -215,7 +215,70 @@ impl SlotCache {
         // first i need to assign slot IDs/indices to the SlotKeys,
         // which are created from the paths + the shared data_key
 
-        todo!();
+        let slots = paths
+            .into_iter()
+            .map(|path| (path, data_key.to_string()))
+            .collect::<Vec<_>>();
+
+        let result = self.assign_rows_for_slots(slots.iter(), current_view);
+
+        if let Err(SlotCacheError::OutOfRows) = result {
+            // TODO reallocate
+            log::error!("Slot cache full! TODO reallocate");
+        }
+
+        for slot_key in &slots {
+            let state = if let Some(state) = self.slot_state.get_mut(slot_key) {
+                state
+            } else {
+                log::warn!(
+                    "Slot key (Path {}, {}) missing state",
+                    slot_key.0.ix(),
+                    slot_key.1
+                );
+                continue;
+            };
+
+            if state.task_handle.is_some()
+                || state.last_updated_view == Some(current_view)
+            {
+                continue;
+            }
+
+            if let Some(time_since_update) =
+                state.updated_at.map(|s| s.elapsed())
+            {
+                if time_since_update.as_secs_f32() < 0.1 {
+                    continue;
+                }
+            }
+
+            let data_cache = self.data_cache.clone();
+            let bin_count = self.bin_count;
+            let path_index = self.path_index.clone();
+
+            let task = rt.spawn(Self::slot_task(
+                self.slot_msg_tx.clone(),
+                self.generation,
+                path_index,
+                data_cache,
+                bin_count,
+                slot_key.clone(),
+                current_view,
+            ));
+            state.task_handle = Some(task);
+        }
+
+        self.last_dispatched_view = Some(current_view);
+
+        // update messages on slots
+        while let Ok((key, msg)) = self.slot_msg_rx.try_recv() {
+            if let Some(state) = self.slot_state.get_mut(&key) {
+                state.last_msg = Some(msg);
+            }
+        }
+
+        Ok(())
     }
 
     pub fn update(
@@ -307,7 +370,7 @@ impl SlotCache {
         self.prepare_vertex_buffer(state, &vertices)?;
         self.prepare_transform_buffer(state, &vertices, view)?;
 
-        todo!();
+        Ok(())
     }
 
     fn assign_rows_for_slots<'a>(
