@@ -388,8 +388,9 @@ impl SlotCache {
             .iter()
             .enumerate()
             .rev()
-            .filter_map(|(ix, key)| key.is_some().then_some(ix))
+            .filter_map(|(ix, key)| key.is_none().then_some(ix))
             .collect::<Vec<_>>();
+        log::warn!("free rows count: {}", free_rows.len());
 
         let mut eviction_cands: Vec<(SlotKey, tokio::time::Duration)> = self
             .slot_state
@@ -415,6 +416,11 @@ impl SlotCache {
         eviction_cands.sort_by_key(|(_, dur)| *dur);
 
         for slot_key in slots {
+            // slot's already assigned to a row
+            if self.slot_id_map.contains_key(slot_key) {
+                continue;
+            }
+
             if let Some(row_id) = free_rows.pop() {
                 // use the free row, no eviction needed
 

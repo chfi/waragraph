@@ -614,23 +614,43 @@ impl AppWindow for Viewer1D {
         )> = Vec::new();
         */
 
+        let mut data_slots: HashMap<_, Vec<_>> = HashMap::new();
+        let mut slot_rect_map = HashMap::new();
+
         let _ = row_grid_layout.visit_layout(|layout, elem| {
             if let gui::SlotElem::PathData { path_id, data_id } = elem {
                 let rect = crate::gui::layout_egui_rect(&layout);
                 laid_out_slots.push(((*path_id, data_id.to_string()), rect));
+
+                let key = data_id.to_string();
+                data_slots.entry(key).or_default().push((*path_id, rect));
+                slot_rect_map.insert((*path_id, data_id.to_string()), rect);
             }
         });
 
         // laid_out_slots =
-
-        let update_result = {
-            self.slot_cache.sample_and_update(
+        for (data_key, path_rects) in data_slots {
+            let result = self.slot_cache.sample_for_data(
                 state,
                 tokio_rt,
                 &self.view,
-                laid_out_slots,
-            )
-        };
+                data_key.as_str(),
+                path_rects.iter().map(|(path, _)| *path),
+            );
+        }
+
+        let slot_update_result =
+            self.slot_cache
+                .update(state, tokio_rt, &self.view, &slot_rect_map);
+
+        // let update_result = {
+        //     self.slot_cache.sample_and_update(
+        //         state,
+        //         tokio_rt,
+        //         &self.view,
+        //         laid_out_slots,
+        //     )
+        // };
 
         // NB: disabling the color map widget for the time being
         /*
@@ -722,9 +742,9 @@ impl AppWindow for Viewer1D {
                 }
             }
 
-            if let Err(e) = update_result {
-                log::error!("Slot cache update error: {e:?}");
-            }
+            // if let Err(e) = update_result {
+            //     log::error!("Slot cache update error: {e:?}");
+            // }
 
             let insts = 0u32..self.slot_cache.vertex_count as u32;
             self.render_graph.set_node_preprocess_fn(
