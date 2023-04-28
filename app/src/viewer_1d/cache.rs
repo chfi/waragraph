@@ -193,6 +193,117 @@ impl SlotCache {
         }
     }
 
+    pub fn sample_for_data(
+        &mut self,
+        state: &raving_wgpu::State,
+        rt: &tokio::runtime::Handle,
+        view: &View1D,
+        data_key: &str,
+        paths: impl IntoIterator<Item = PathId>,
+        // layout: I,
+    ) -> Result<()>
+// where
+        // I: IntoIterator<Item = (PathId, egui::Rect)>,
+    {
+        // spawn tasks for each of the out-of-date paths in the
+        // iterator (based on the current view)
+
+        // TODO limit the task spawn rate by storing the Instant each
+        // slot was last updated
+        todo!();
+    }
+
+    pub fn update(
+        &mut self,
+        state: &raving_wgpu::State,
+        rt: &tokio::runtime::Handle,
+        view: &View1D,
+        slot_rects: &HashMap<SlotKey, egui::Rect>,
+    ) -> Result<()> {
+        // queue updates from completed tasks to be uploaded to the GPU
+        for (slot_key, slot_state) in self.slot_state.iter_mut() {
+            if let Some((task_view, data, data_ts)) =
+                slot_state.task_results(rt)
+            {
+                //
+                if slot_state
+                    .data_generation
+                    .map(|prev_ts| prev_ts > data_ts)
+                    .unwrap_or(false)
+                {
+                    continue;
+                }
+
+                let slot_id = if let Some(id) = self.slot_id_map.get(slot_key) {
+                    *id
+                } else {
+                    continue;
+                };
+
+                let prefix_size = std::mem::size_of::<[u32; 2]>();
+                let elem_size = std::mem::size_of::<f32>();
+                let offset = prefix_size + slot_id * self.bin_count * elem_size;
+
+                let size = std::num::NonZeroU64::new(
+                    (elem_size * self.bin_count) as u64,
+                )
+                .unwrap();
+                let mut write_view = state.queue.write_buffer_with(
+                    &self.data_buffer.buffer,
+                    offset as u64,
+                    size,
+                );
+                log::debug!(
+                    "writing buffer slot ({}, {}) -> {slot_id}",
+                    slot_key.0.ix(),
+                    slot_key.1
+                );
+
+                slot_state.last_updated_view = Some(task_view);
+                slot_state.data_generation = Some(data_ts);
+
+                // schedule an update to the corresponding row
+                write_view.copy_from_slice(&data);
+            }
+        }
+
+        // create vertices for the slots that contain data
+        let mut vertices: Vec<SlotVertex> = Vec::new();
+
+        for (slot_key, rect) in slot_rects {
+            let (state, &id) = {
+                let state = self.slot_state.get(slot_key);
+                let id = self.slot_id_map.get(slot_key);
+                let state_id = state.zip(id);
+
+                if state_id.is_none() {
+                    continue;
+                }
+
+                state_id.unwrap()
+            };
+
+            if state.data_generation.is_none() {
+                continue;
+            }
+
+            let vx = SlotVertex {
+                position: [rect.left(), rect.bottom()],
+                size: [rect.width(), rect.height()],
+                slot_id: id as u32,
+            };
+
+            vertices.push(vx);
+        }
+
+        self.vertex_count = vertices.len();
+
+        self.prepare_vertex_buffer(state, &vertices)?;
+        self.prepare_transform_buffer(state, &vertices, view)?;
+
+        todo!();
+    }
+
     pub fn sample_and_update<I>(
         &mut self,
         state: &raving_wgpu::State,

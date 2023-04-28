@@ -507,7 +507,7 @@ impl AppWindow for Viewer1D {
                 [header_row],
                 &self.path_list_view.as_slice(),
                 view_offset,
-                |&(list_ix, path_id)| {
+                |&(_list_ix, path_id)| {
                     let mut row_entry = RowEntry {
                         // desired_height: None,
                         grid_template_columns: vec![
