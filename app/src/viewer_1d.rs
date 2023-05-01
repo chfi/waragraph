@@ -509,7 +509,10 @@ impl AppWindow for Viewer1D {
             let header_row = {
                 RowEntry {
                     // desired_height: Some(50.0),
-                    // grid_template_columns
+                    grid_template_columns: vec![
+                        points(info_col_width),
+                        fr(1.0),
+                    ],
                     grid_template_rows: vec![points(100.0)],
                     column_data: vec![GridEntry::new(
                         [1, 2],
@@ -791,35 +794,65 @@ impl AppWindow for Viewer1D {
             );
         }
 
-        // add spinners
-        for slot_key in viz_slot_rect_map.keys() {
-            if self.slot_cache.slot_task_running(slot_key) {
-                let (path, _) = slot_key;
-                if let Some(rect) = path_name_slots.get(path) {
-                    let right_center = rect.right_center();
-                    let spin_offset = right_center - egui::pos2(9.0, 0.0);
+        {
+            let annotations = self.shared.annotations.blocking_read();
 
-                    let stroke = egui::Stroke::new(2.0, egui::Color32::WHITE);
+            for slot_key in viz_slot_rect_map.keys() {
+                let (path, _data_key) = slot_key;
+                let path = *path;
+                // initialize annotation slots if necessary; this part is kinda janky
 
-                    let t = time as f32;
+                let has_annot_slot =
+                    self.annotations.get_path_slot_id(path).is_some();
 
-                    shapes.push(crate::gui::util::spinner(
-                        stroke,
-                        spin_offset,
-                        t,
-                    ));
+                // TODO: annotations should be able to be sourced from
+                // any annot. set for a slot, and not only be
+                // initialized once and then forgotten about
+                if let Some((set_id, set)) =
+                    annotations.get_sets_for_path(path).next()
+                {
+                    if !has_annot_slot {
+                        if let Some(annots) = set.path_annotations.get(&path) {
+                            let annot_items = annots
+                                .iter()
+                                .filter_map(|&i| set.annotations.get(i))
+                                .map(|(range, label)| {
+                                    let shape_fn =
+                                        annotations::text_shape(&label);
+                                    (path, range.clone(), shape_fn)
+                                });
+
+                            let annot_slot = AnnotSlot::new_from_path_space(
+                                &self.shared.graph,
+                                set_id,
+                                annot_items,
+                            );
+
+                            self.annotations.insert_slot(path, annot_slot);
+                        }
+                    }
+                }
+
+                // add spinners
+                if self.slot_cache.slot_task_running(slot_key) {
+                    if let Some(rect) = path_name_slots.get(&path) {
+                        let right_center = rect.right_center();
+                        let spin_offset = right_center - egui::pos2(9.0, 0.0);
+
+                        let stroke =
+                            egui::Stroke::new(2.0, egui::Color32::WHITE);
+
+                        let t = time as f32;
+
+                        shapes.push(crate::gui::util::spinner(
+                            stroke,
+                            spin_offset,
+                            t,
+                        ));
+                    }
                 }
             }
         }
-
-        // let update_result = {
-        //     self.slot_cache.sample_and_update(
-        //         state,
-        //         tokio_rt,
-        //         &self.view,
-        //         laid_out_slots,
-        //     )
-        // };
 
         // NB: disabling the color map widget for the time being
         /*
@@ -847,91 +880,6 @@ impl AppWindow for Viewer1D {
             );
 
             self.color_mapping.write_buffer(state);
-        }
-        */
-        /*
-        if self.dyn_slot_layout.layout().computed_size() != Some(dims) {
-            let data_id = self.active_viz_data_key.blocking_read().clone();
-
-            let rows_iter = self
-                .path_list_view
-                .offset_to_end_iter()
-                .enumerate()
-                .flat_map(|(ix, &path_id)| {
-                    // TODO: should get slot id via a cache keyed to paths;
-                    // right now the entire set of rows gets resampled every change
-                    let name = gui::SlotElem::PathName { path_id };
-                    let data = gui::SlotElem::PathData {
-                        path_id,
-                        data_id: data_id.clone(),
-                    };
-
-                    let path_row = vec![name, data];
-
-                    if let Some(a_slot_id) =
-                        self.annotations.get_path_slot_id(path_id)
-                    {
-                        let annot_row = vec![
-                            gui::SlotElem::Empty,
-                            gui::SlotElem::Annotations {
-                                annotation_slot_id: a_slot_id,
-                            },
-                        ];
-
-                        vec![annot_row, path_row]
-                    } else {
-                        vec![path_row]
-                    }
-                });
-
-            let view_range_row =
-                vec![gui::SlotElem::Empty, gui::SlotElem::ViewRange];
-
-            let rows_iter = [view_range_row].into_iter().chain(rows_iter);
-
-            let inner_offset = ultraviolet::Vec2::new(0.0, 4.0);
-            let inner_dims = dims - inner_offset;
-
-            match self.dyn_slot_layout.build_layout(
-                inner_offset,
-                inner_dims,
-                rows_iter,
-            ) {
-                // TODO: prepend rows to fill out when scrolled all the way down
-                // (need to add the "reverse" row_iter)
-                // .and_then(|(rows_added, avail_height)| {
-                //     self.dyn_slot_layout.prepend_rows
-                //     todo!();
-                //     //
-                // }) {
-                Ok((rows_added, avail_height)) => {
-                    self.path_list_view.resize(rows_added);
-                }
-                Err(e) => {
-                    log::error!("Slot layout error: {e:?}");
-                }
-            }
-
-            // if let Err(e) = update_result {
-            //     log::error!("Slot cache update error: {e:?}");
-            // }
-
-            let insts = 0u32..self.slot_cache.vertex_count as u32;
-            self.render_graph.set_node_preprocess_fn(
-                self.draw_path_slot,
-                move |_ctx, op_state| {
-                    op_state.vertices = Some(0..6);
-                    op_state.instances = Some(insts.clone());
-                },
-            );
-
-            let uniform_data = [dims.x, dims.y];
-
-            state.queue.write_buffer(
-                &self.vert_uniform,
-                0,
-                bytemuck::cast_slice(uniform_data.as_slice()),
-            );
         }
         */
 
@@ -972,145 +920,6 @@ impl AppWindow for Viewer1D {
 
         shapes.extend(self.slot_cache.msg_shapes.drain(..));
 
-        /*
-        let layout_result = {
-            let fonts = egui_ctx.ctx().fonts();
-            let time = egui_ctx.ctx().input().time;
-
-            self.dyn_slot_layout.visit_layout(|layout, elem| {
-                let rect = crate::gui::layout_egui_rect(&layout);
-
-                // let stroke = egui::Stroke {
-                //     width: 1.0,
-                //     color: egui::Color32::RED,
-                // };
-                // let dbg_rect = egui::Shape::rect_stroke(
-                //     rect,
-                //     egui::Rounding::default(),
-                //     stroke,
-                // );
-                // shapes.push(dbg_rect);
-
-                // hacky fix for rows that are laid out beyond the limits of the view
-                if !screen_rect.intersects(rect) {
-                    return;
-                }
-
-                match elem {
-                    gui::SlotElem::Empty => (),
-                    gui::SlotElem::ViewRange => {
-                        view_range_rect = Some(rect);
-                    }
-                    gui::SlotElem::PathData { path_id, .. } => {
-                        // NB: all of this is to draw stuff on the pangenome ranges
-                        // covered by the hovered annotation label, if any
-
-                        let query = ContextQuery::from_source::<(
-                            PathId,
-                            GlobalAnnotationId,
-                        )>("Viewer1D");
-
-                        // let slot_path_id = self.path_list_view.get_in_view(*slot_id);
-                        // if slot_path_id.is_none() {
-                        //     return;
-                        // }
-
-                        if let Some(hovered_annot) = context_state
-                            .get_cast::<_, (PathId, GlobalAnnotationId)>(&query)
-                        {
-                            let (path_id, g_annot_id) = hovered_annot;
-
-                            // if slot_path_id.unwrap() != path_id {
-                            //     return;
-                            // }
-
-                            let annot_slot_id = self
-                                .annotations
-                                .get_path_slot_id(*path_id)
-                                .unwrap();
-
-                            let regions = self
-                                .annotations
-                                .get(&annot_slot_id)
-                                .and_then(|slot| {
-                                    slot.annotation_ranges
-                                        .get(&g_annot_id.annot_id)
-                                });
-
-                            let slot_x_range = rect.x_range();
-
-                            let draw_range = |range: std::ops::RangeInclusive<f32>| -> egui::Shape {
-                                let range_rect = egui::Rect::from_x_y_ranges(range, rect.y_range());
-                                let color = egui::Rgba::from_rgba_unmultiplied(0.8, 0.2, 0.2, 0.5);
-                                egui::Shape::rect_filled(range_rect, 0.0, color)
-                                /*
-                                if range_rect.width() >= 1.0 {
-                                    let color = egui::Rgba::from_rgba_unmultiplied(0.8, 0.2, 0.2, 0.5);
-                                    egui::Shape::rect_filled(range_rect, 0.0, color)
-                                } else {
-                                    // this part looks a bit weird since there's a lot of subpixel ranges
-                                    // that actually overlap, so leave it for later
-                                    let rect = range_rect.expand(1.0);
-                                    let color = egui::Rgba::RED;
-                                    let stroke = egui::Stroke::new(1.0, color);
-                                    let top = rect.center_top();
-                                    let btm = rect.center_bottom();
-
-                                    use egui::vec2;
-                                    let mid = [top, btm];
-                                    let ul = top + vec2(-1.0, -1.0);
-                                    let ur = top + vec2(1.0, -1.0);
-                                    let dl = btm + vec2(-1.0, 1.0);
-                                    let dr = btm + vec2(1.0, 1.0);
-
-                                    let upper = [ul, ur];
-                                    let lower = [dl, dr];
-
-                                    egui::Shape::Vec(vec![
-                                        egui::Shape::line_segment(upper, stroke),
-                                        egui::Shape::line_segment(mid, stroke),
-                                        egui::Shape::line_segment(lower, stroke),
-                                    ])
-                                }
-                                */
-
-                            };
-
-                            regions
-                                .into_iter()
-                                .flatten()
-                                .filter_map(|range| {
-                                    self.view.map_bp_interval_to_screen_x(
-                                        range,
-                                        &slot_x_range,
-                                    )
-                                })
-                                .for_each(|slot_space_range| {
-                                    shapes.push(draw_range(slot_space_range));
-                                });
-                        }
-
-                        path_slot_region = path_slot_region.union(rect);
-                    }
-                    gui::SlotElem::PathName { path_id } => {
-                        path_name_region = path_name_region.union(rect);
-
-
-                    }
-                    gui::SlotElem::Annotations { annotation_slot_id } => {
-                        annot_slots.push((*annotation_slot_id, rect));
-                    }
-                }
-            })
-        };
-        */
-
-        /*
-        if let Err(e) = layout_result {
-            log::error!("GUI layout error: {e:?}");
-        }
-        */
-
         {
             let ctx = egui_ctx.ctx();
 
@@ -1121,6 +930,47 @@ impl AppWindow for Viewer1D {
                 .interactable(true)
                 .movable(false)
                 .constrain(true);
+
+            main_area.show(ctx, |ui| {
+                //
+                if let Some(rect) = view_range_rect {
+                    let fonts = ui.fonts();
+                    let range = self.view.range();
+                    let left = Bp(range.start);
+                    let right = Bp(range.end);
+                    shapes.extend(gui::view_range_shapes(
+                        &fonts, rect, left, right,
+                        None,
+                        // interact.interact_pan_pos,
+                    ));
+                }
+
+                for &(slot_id, rect) in annot_slots.iter() {
+                    if let Some(annot_slot) = self.annotations.get_mut(&slot_id)
+                    {
+                        let painter = ui.painter_at(rect);
+
+                        let cursor_pos = ui.input().pointer.hover_pos();
+                        let interacted =
+                            annot_slot.draw(&painter, &self.view, cursor_pos);
+
+                        if let Some(annot_id) = interacted {
+                            let set = annot_slot.set_id;
+                            let global_id =
+                                GlobalAnnotationId { set, annot_id };
+
+                            let path = self
+                                .annotations
+                                .get_annotation_slot_path(slot_id)
+                                .unwrap();
+
+                            let ctx_data = (path, global_id);
+
+                            context_state.set("Viewer1D", ["hover"], ctx_data);
+                        }
+                    }
+                }
+            });
 
             /*
             main_area.show(ctx, |ui| {
@@ -1226,45 +1076,6 @@ impl AppWindow for Viewer1D {
                     interact.interact_node = hovered_node;
                 }
 
-                if let Some(rect) = view_range_rect {
-                    let fonts = ui.fonts();
-                    let range = self.view.range();
-                    let left = Bp(range.start);
-                    let right = Bp(range.end);
-                    shapes.extend(gui::view_range_shapes(
-                        &fonts,
-                        rect,
-                        left,
-                        right,
-                        interact.interact_pan_pos,
-                    ));
-                }
-
-                for &(slot_id, rect) in annot_slots.iter() {
-                    if let Some(annot_slot) = self.annotations.get_mut(&slot_id)
-                    {
-                        let painter = ui.painter_at(rect);
-
-                        let cursor_pos = ui.input().pointer.hover_pos();
-                        let interacted =
-                            annot_slot.draw(&painter, &self.view, cursor_pos);
-
-                        if let Some(annot_id) = interacted {
-                            let set = annot_slot.set_id;
-                            let global_id =
-                                GlobalAnnotationId { set, annot_id };
-
-                            let path = self
-                                .annotations
-                                .get_annotation_slot_path(slot_id)
-                                .unwrap();
-
-                            let ctx_data = (path, global_id);
-
-                            context_state.set("Viewer1D", ["hover"], ctx_data);
-                        }
-                    }
-                }
             });
             */
 
