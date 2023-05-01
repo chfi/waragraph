@@ -743,14 +743,10 @@ impl SlotCache {
         prefix_size + self.rows * self.bin_count
     }
 
-    pub fn slot_task_running(&self, slot_id: usize) -> bool {
-        self.slot_id_cache
-            .get(slot_id)
-            .and_then(|key| {
-                let key = key.as_ref()?;
-                let state = self.slot_state.get(key)?;
-                Some(state.task_handle.is_some())
-            })
+    pub fn slot_task_running(&self, key: &SlotKey) -> bool {
+        self.slot_state
+            .get(key)
+            .map(|state| state.task_handle.is_some())
             .unwrap_or(false)
     }
 }

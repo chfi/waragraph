@@ -419,6 +419,8 @@ impl AppWindow for Viewer1D {
 
         egui_ctx.begin_frame(&window.window);
 
+        let time = egui_ctx.ctx().input().time;
+
         /* >> TODO <<
           [ ] Prepare annotation slots for relevant paths
           [ ] Path name slots
@@ -585,7 +587,7 @@ impl AppWindow for Viewer1D {
                 log::error!("{e:?}");
             }
 
-            log::warn!("RowGridLayout constructed");
+            // log::warn!("RowGridLayout constructed");
 
             let layout_result = row_grid_layout.visit_layout(|layout, elem| {
                 let rect = crate::gui::layout_egui_rect(&layout);
@@ -635,7 +637,7 @@ impl AppWindow for Viewer1D {
         */
 
         let mut data_slots: HashMap<_, Vec<_>> = HashMap::new();
-        let mut slot_rect_map = HashMap::new();
+        let mut viz_slot_rect_map = HashMap::new();
 
         let query = ContextQuery::from_source::<(PathId, GlobalAnnotationId)>(
             "Viewer1D",
@@ -653,73 +655,125 @@ impl AppWindow for Viewer1D {
         let mut path_name_slots: HashMap<PathId, egui::Rect> =
             HashMap::default();
 
-        let _ = row_grid_layout.visit_layout(|layout, elem| {
-            let rect = crate::gui::layout_egui_rect(&layout);
+        {
+            let fonts = egui_ctx.ctx().fonts();
 
-            match elem {
-                gui::SlotElem::Empty => {}
-                gui::SlotElem::ViewRange => {
-                    view_range_rect = Some(rect);
-                }
-                gui::SlotElem::PathData { path_id, data_id } => {
-                    let rect = crate::gui::layout_egui_rect(&layout);
-                    laid_out_slots
-                        .push(((*path_id, data_id.to_string()), rect));
+            let _ = row_grid_layout.visit_layout(|layout, elem| {
+                let rect = crate::gui::layout_egui_rect(&layout);
 
-                    let key = data_id.to_string();
-                    data_slots.entry(key).or_default().push((*path_id, rect));
-                    slot_rect_map.insert((*path_id, data_id.to_string()), rect);
+                match elem {
+                    gui::SlotElem::Empty => {}
+                    gui::SlotElem::ViewRange => {
+                        view_range_rect = Some(rect);
+                    }
+                    gui::SlotElem::PathData { path_id, data_id } => {
+                        let rect = crate::gui::layout_egui_rect(&layout);
+                        laid_out_slots
+                            .push(((*path_id, data_id.to_string()), rect));
 
-                    if let Some((path, g_annot_id)) = hovered_annot {
-                        if path == path_id {
-                            // draw regions here
-                            let annot_slot_id = self
-                                .annotations
-                                .get_path_slot_id(*path_id)
-                                .unwrap();
+                        let key = data_id.to_string();
+                        data_slots
+                            .entry(key)
+                            .or_default()
+                            .push((*path_id, rect));
+                        viz_slot_rect_map
+                            .insert((*path_id, data_id.to_string()), rect);
 
-                            let regions = self
-                                .annotations
-                                .get(&annot_slot_id)
-                                .and_then(|slot| {
-                                    slot.annotation_ranges
-                                        .get(&g_annot_id.annot_id)
-                                });
+                        if let Some((path, g_annot_id)) = hovered_annot {
+                            if path == path_id {
+                                // draw regions here
+                                let annot_slot_id = self
+                                    .annotations
+                                    .get_path_slot_id(*path_id)
+                                    .unwrap();
 
-                            let slot_x_range = rect.x_range();
-                            let color = egui::Rgba::from_rgba_unmultiplied(
-                                0.8, 0.2, 0.2, 0.5,
-                            );
+                                let regions = self
+                                    .annotations
+                                    .get(&annot_slot_id)
+                                    .and_then(|slot| {
+                                        slot.annotation_ranges
+                                            .get(&g_annot_id.annot_id)
+                                    });
 
-                            shapes.extend(
-                                regions
-                                    .into_iter()
-                                    .flatten()
-                                    .filter_map(|range| {
-                                        self.view.map_bp_interval_to_screen_x(
-                                            range,
-                                            &slot_x_range,
-                                        )
-                                    })
-                                    .map(|slot_space_range| {
-                                        gui::fill_h_range_of_rect(
-                                            color,
-                                            rect,
-                                            slot_space_range,
-                                        )
-                                    }),
-                            );
+                                let slot_x_range = rect.x_range();
+                                let color = egui::Rgba::from_rgba_unmultiplied(
+                                    0.8, 0.2, 0.2, 0.5,
+                                );
+
+                                shapes.extend(
+                                    regions
+                                        .into_iter()
+                                        .flatten()
+                                        .filter_map(|range| {
+                                            self.view
+                                                .map_bp_interval_to_screen_x(
+                                                    range,
+                                                    &slot_x_range,
+                                                )
+                                        })
+                                        .map(|slot_space_range| {
+                                            gui::fill_h_range_of_rect(
+                                                color,
+                                                rect,
+                                                slot_space_range,
+                                            )
+                                        }),
+                                );
+                            }
                         }
                     }
+                    gui::SlotElem::PathName { path_id } => {
+                        path_name_slots.insert(*path_id, rect);
+
+                        let path_name = self
+                            .shared
+                            .graph
+                            .path_names
+                            .get_by_left(path_id)
+                            .unwrap();
+
+                        let galley = crate::gui::util::fit_text_ellipsis(
+                            &fonts,
+                            path_name,
+                            egui::FontId::monospace(16.0),
+                            egui::Color32::WHITE,
+                            rect.size().x,
+                        );
+
+                        let text_pos = rect.left_top();
+                        let text_shape = egui::Shape::Text(
+                            egui::epaint::TextShape::new(text_pos, galley),
+                        );
+
+                        // let mut local_shapes = vec![text_shape];
+
+                        // let right_center = rect.right_center();
+
+                        // if self.slot_cache.slot_task_running(*slot_id) {
+                        //     let spin_offset =
+                        //         right_center - egui::pos2(9.0, 0.0);
+
+                        //     let stroke =
+                        //         egui::Stroke::new(2.0, egui::Color32::WHITE);
+
+                        //     let t = time as f32;
+
+                        //     local_shapes.push(crate::gui::util::spinner(
+                        //         stroke,
+                        //         spin_offset,
+                        //         t,
+                        //     ))
+                        // }
+
+                        shapes.push(text_shape);
+                        // shapes.push(egui::Shape::Vec(local_shapes));
+                    }
+                    gui::SlotElem::Annotations { annotation_slot_id } => {
+                        annot_slots.push((*annotation_slot_id, rect));
+                    }
                 }
-                gui::SlotElem::PathName { path_id } => {
-                    path_name_slots.insert(*path_id, rect);
-                }
-                gui::SlotElem::Annotations { annotation_slot_id } => {
-                    annot_slots.push((*annotation_slot_id, rect));
-                }
-            }
-        });
+            });
+        }
 
         // laid_out_slots =
         for (data_key, path_rects) in data_slots {
@@ -732,9 +786,34 @@ impl AppWindow for Viewer1D {
             );
         }
 
-        let slot_update_result =
-            self.slot_cache
-                .update(state, tokio_rt, &self.view, &slot_rect_map);
+        let slot_update_result = self.slot_cache.update(
+            state,
+            tokio_rt,
+            &self.view,
+            &viz_slot_rect_map,
+        );
+
+        // add spinners
+        for slot_key in viz_slot_rect_map.keys() {
+            if self.slot_cache.slot_task_running(slot_key) {
+                let (path, _) = slot_key;
+                if let Some(rect) = path_name_slots.get(path) {
+                    let right_center = rect.right_center();
+                    let spin_offset = right_center - egui::pos2(9.0, 0.0);
+
+                    let stroke = egui::Stroke::new(2.0, egui::Color32::WHITE);
+
+                    let t = time as f32;
+
+                    shapes.push(crate::gui::util::spinner(
+                        stroke,
+                        spin_offset,
+                        t,
+                    ))
+                }
+                //
+            }
+        }
 
         // let update_result = {
         //     self.slot_cache.sample_and_update(
@@ -1020,53 +1099,6 @@ impl AppWindow for Viewer1D {
                         path_name_region = path_name_region.union(rect);
 
 
-                        let path_name = self
-                            .shared
-                            .graph
-                            .path_names
-                            .get_by_left(path_id)
-                            .unwrap();
-
-                        let galley = crate::gui::util::fit_text_ellipsis(
-                            &fonts,
-                            path_name,
-                            egui::FontId::monospace(16.0),
-                            egui::Color32::WHITE,
-                            rect.size().x,
-                        );
-
-                        let text_pos = rect.left_top();
-                        let text_shape = egui::Shape::Text(
-                            egui::epaint::TextShape::new(text_pos, galley),
-                        );
-
-                        let right_center = rect.right_center();
-
-                        /*
-                        let spinner_shape = if self
-                            .slot_cache
-                            .slot_task_running(*slot_id)
-                        {
-                            let spin_offset =
-                                right_center - egui::pos2(9.0, 0.0);
-
-                            let stroke =
-                                egui::Stroke::new(2.0, egui::Color32::WHITE);
-
-                            let t = time as f32;
-
-                            crate::gui::util::spinner(stroke, spin_offset, t)
-                        } else {
-                            egui::Shape::Noop
-                        };
-                        let shape =
-                            egui::Shape::Vec(vec![text_shape, spinner_shape]);
-                        */
-
-                        let shape =
-                            egui::Shape::Vec(vec![text_shape]);
-
-                        shapes.push(shape);
                     }
                     gui::SlotElem::Annotations { annotation_slot_id } => {
                         annot_slots.push((*annotation_slot_id, rect));
