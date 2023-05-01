@@ -578,7 +578,7 @@ impl AppWindow for Viewer1D {
             );
 
             if let Ok((range, _height_rem)) = layout_result {
-                // TODO set view
+                self.path_list_view.resize(range.len());
             }
 
             let layout_result = row_grid_layout.compute_layout(rect);
