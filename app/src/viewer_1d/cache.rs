@@ -394,7 +394,7 @@ impl SlotCache {
             .rev()
             .filter_map(|(ix, key)| key.is_none().then_some(ix))
             .collect::<Vec<_>>();
-        log::warn!("free rows count: {}", free_rows.len());
+        // log::warn!("free rows count: {}", free_rows.len());
 
         let mut eviction_cands: Vec<(SlotKey, tokio::time::Duration)> = self
             .slot_state

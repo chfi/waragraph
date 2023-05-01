@@ -745,28 +745,7 @@ impl AppWindow for Viewer1D {
                             egui::epaint::TextShape::new(text_pos, galley),
                         );
 
-                        // let mut local_shapes = vec![text_shape];
-
-                        // let right_center = rect.right_center();
-
-                        // if self.slot_cache.slot_task_running(*slot_id) {
-                        //     let spin_offset =
-                        //         right_center - egui::pos2(9.0, 0.0);
-
-                        //     let stroke =
-                        //         egui::Stroke::new(2.0, egui::Color32::WHITE);
-
-                        //     let t = time as f32;
-
-                        //     local_shapes.push(crate::gui::util::spinner(
-                        //         stroke,
-                        //         spin_offset,
-                        //         t,
-                        //     ))
-                        // }
-
                         shapes.push(text_shape);
-                        // shapes.push(egui::Shape::Vec(local_shapes));
                     }
                     gui::SlotElem::Annotations { annotation_slot_id } => {
                         annot_slots.push((*annotation_slot_id, rect));
@@ -786,12 +765,31 @@ impl AppWindow for Viewer1D {
             );
         }
 
-        let slot_update_result = self.slot_cache.update(
-            state,
-            tokio_rt,
-            &self.view,
-            &viz_slot_rect_map,
-        );
+        {
+            let _slot_update_result = self.slot_cache.update(
+                state,
+                tokio_rt,
+                &self.view,
+                &viz_slot_rect_map,
+            );
+
+            let insts = 0u32..self.slot_cache.vertex_count as u32;
+            self.render_graph.set_node_preprocess_fn(
+                self.draw_path_slot,
+                move |_ctx, op_state| {
+                    op_state.vertices = Some(0..6);
+                    op_state.instances = Some(insts.clone());
+                },
+            );
+
+            let uniform_data = [dims.x, dims.y];
+
+            state.queue.write_buffer(
+                &self.vert_uniform,
+                0,
+                bytemuck::cast_slice(uniform_data.as_slice()),
+            );
+        }
 
         // add spinners
         for slot_key in viz_slot_rect_map.keys() {
@@ -809,9 +807,8 @@ impl AppWindow for Viewer1D {
                         stroke,
                         spin_offset,
                         t,
-                    ))
+                    ));
                 }
-                //
             }
         }
 
