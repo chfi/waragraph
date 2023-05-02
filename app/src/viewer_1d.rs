@@ -4,7 +4,6 @@ use crate::app::{AppWindow, SharedState, VizInteractions};
 use crate::color::widget::{ColorMapWidget, ColorMapWidgetShared};
 use crate::color::ColorMap;
 use crate::context::{ContextQuery, ContextState};
-use crate::gui::list::DynamicListLayout;
 use crate::gui::{FlexLayout, GridEntry, RowEntry, RowGridLayout};
 use crate::list::ListView;
 use crate::util::BufferDesc;
@@ -65,7 +64,6 @@ pub struct Viewer1D {
     vert_uniform: wgpu::Buffer,
     frag_uniform: wgpu::Buffer,
 
-    // dyn_slot_layout: DynamicListLayout<Vec<gui::SlotElem>, gui::SlotElem>,
     path_list_view: ListView<PathId>,
 
     shared: SharedState,
@@ -186,46 +184,6 @@ impl Viewer1D {
 
         // let active_viz_data_key = "strand".to_string();
         let active_viz_data_key = "depth".to_string();
-
-        /*
-        let dyn_slot_layout = {
-            let width = |p: f32| taffy::style::Dimension::Percent(p);
-
-            let layout: DynamicListLayout<Vec<gui::SlotElem>, gui::SlotElem> =
-                DynamicListLayout::new(
-                    [width(0.2), width(0.8)],
-                    |row: &Vec<gui::SlotElem>, ix| {
-                        //
-                        let val = row.get(ix)?.clone();
-
-                        let mk_h = |h: f32| taffy::style::Dimension::Points(h);
-
-                        // TODO: grab this from some sort of config
-                        let slot_height = 20.0;
-                        // let slot_height = 80.0;
-
-                        let height = match &val {
-                            gui::SlotElem::Empty => {
-                                taffy::style::Dimension::Auto
-                            }
-                            gui::SlotElem::Annotations {
-                                annotation_slot_id,
-                            } => {
-                                // TODO this should be dynamic
-                                mk_h(100.0)
-                            }
-                            gui::SlotElem::ViewRange => mk_h(slot_height),
-                            gui::SlotElem::PathData { .. } => mk_h(slot_height),
-                            gui::SlotElem::PathName { .. } => mk_h(slot_height),
-                        };
-
-                        Some((val, height))
-                    },
-                );
-
-            layout
-        };
-        */
 
         graph.set_node_preprocess_fn(draw_node, move |_ctx, op_state| {
             op_state.vertices = Some(0..6);
@@ -361,7 +319,6 @@ impl Viewer1D {
             vert_uniform,
             frag_uniform,
 
-            // dyn_slot_layout,
             path_list_view,
 
             // sample_handle: None,
@@ -452,7 +409,7 @@ impl AppWindow for Viewer1D {
             let mut row_grid_layout: RowGridLayout<gui::SlotElem> =
                 RowGridLayout::new();
 
-            let rect = screen_rect.shrink(50.0);
+            let main_view_rect = screen_rect.shrink(2.0);
 
             let info_col_width = {
                 let id = egui::Id::new(Self::COLUMN_SEPARATOR_ID);
@@ -463,7 +420,6 @@ impl AppWindow for Viewer1D {
 
             let header_row = {
                 RowEntry {
-                    // desired_height: Some(50.0),
                     grid_template_columns: vec![
                         points(info_col_width),
                         fr(1.0),
@@ -479,7 +435,7 @@ impl AppWindow for Viewer1D {
             let view_offset = self.path_list_view.offset();
 
             let layout_result = row_grid_layout.fill_from_slice_index(
-                rect.height(),
+                main_view_rect.height(),
                 [header_row],
                 &self.path_list_view.as_slice(),
                 view_offset,
@@ -537,7 +493,7 @@ impl AppWindow for Viewer1D {
                 self.path_list_view.resize(range.len());
             }
 
-            let layout_result = row_grid_layout.compute_layout(rect);
+            let layout_result = row_grid_layout.compute_layout(main_view_rect);
 
             if let Err(e) = layout_result {
                 log::error!("{e:?}");
