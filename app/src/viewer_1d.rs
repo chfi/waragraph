@@ -405,6 +405,10 @@ impl Viewer1D {
     }
 }
 
+impl Viewer1D {
+    const COLUMN_SEPARATOR_ID: &'static str = "Viewer1D-Column-Separator";
+}
+
 impl AppWindow for Viewer1D {
     fn update(
         &mut self,
@@ -415,70 +419,18 @@ impl AppWindow for Viewer1D {
         context_state: &mut ContextState,
         dt: f32,
     ) {
-        let mut laid_out_slots = Vec::new();
-
         egui_ctx.begin_frame(&window.window);
 
         let time = egui_ctx.ctx().input().time;
 
         /* >> TODO <<
-          [ ] Prepare annotation slots for relevant paths
-          [ ] Path name slots
-          [ ] View range slot
-          [ ] Annotation slots
+          [x] Prepare annotation slots for relevant paths
+          [x] Path name slots
+          [x] View range slot
+          [x] Annotation slots
           [ ] Fit left column to names
           [ ] Draggable name column separator
           [ ] Annotation highlight in path slot on hover
-        */
-
-        /*
-        let mut annot_set_slots = Vec::new();
-
-        let layout_result = {
-            let annotations = self.shared.annotations.blocking_read();
-
-            self.dyn_slot_layout.layout().visit_layout(|layout, elem| {
-                if let gui::SlotElem::PathData { path_id, data_id } = elem {
-                    let slot_key = (*path_id, data_id.clone());
-                    let rect = crate::gui::layout_egui_rect(&layout);
-                    laid_out_slots.push((slot_key, rect));
-
-                    // if path has an annotation set, create an AnnotSlot
-
-                    for (set_id, set) in annotations.get_sets_for_path(*path_id)
-                    {
-                        annot_set_slots.push((*path_id, (set_id, set.clone())));
-                    }
-                }
-            })
-        };
-
-        {
-            // TODO: should be async (but all of this should be rewritten)
-            for (path, (set_id, set)) in annot_set_slots {
-                if self.annotations.get_path_slot_id(path).is_some() {
-                    continue;
-                }
-
-                if let Some(annots) = set.path_annotations.get(&path) {
-                    let annot_items = annots
-                        .iter()
-                        .filter_map(|&i| set.annotations.get(i))
-                        .map(|(range, label)| {
-                            let shape_fn = annotations::text_shape(&label);
-                            (path, range.clone(), shape_fn)
-                        });
-
-                    let annot_slot = AnnotSlot::new_from_path_space(
-                        &self.shared.graph,
-                        set_id,
-                        annot_items,
-                    );
-
-                    self.annotations.insert_slot(path, annot_slot);
-                }
-            }
-        }
         */
 
         let [width, height]: [u32; 2] = window.window.inner_size().into();
@@ -502,9 +454,12 @@ impl AppWindow for Viewer1D {
 
             let rect = screen_rect.shrink(50.0);
 
-            // TODO hook this up to path names, allow resize, etc.
-            // store in egui cache
-            let info_col_width = 100.0;
+            let info_col_width = {
+                let id = egui::Id::new(Self::COLUMN_SEPARATOR_ID);
+                let mut memory = egui_ctx.ctx().memory();
+                let width = memory.data.get_temp_mut_or(id, 150f32);
+                *width
+            };
 
             let header_row = {
                 RowEntry {
@@ -617,26 +572,6 @@ impl AppWindow for Viewer1D {
             row_grid_layout
         };
 
-        laid_out_slots.clear();
-
-        /*
-        let mut path_name_slots: Vec<(
-            PathId,
-            taffy::prelude::Node,
-            gui::SlotElem,
-        )> = Vec::new();
-        let mut path_data_slots: Vec<(
-            PathId,
-            taffy::prelude::Node,
-            gui::SlotElem,
-        )> = Vec::new();
-        let mut path_annotation_slots: Vec<(
-            PathId,
-            taffy::prelude::Node,
-            gui::SlotElem,
-        )> = Vec::new();
-        */
-
         let mut data_slots: HashMap<_, Vec<_>> = HashMap::new();
         let mut viz_slot_rect_map = HashMap::new();
 
@@ -673,8 +608,6 @@ impl AppWindow for Viewer1D {
                     gui::SlotElem::PathData { path_id, data_id } => {
                         let rect = crate::gui::layout_egui_rect(&layout);
                         path_slot_region = path_slot_region.union(rect);
-                        laid_out_slots
-                            .push(((*path_id, data_id.to_string()), rect));
 
                         let key = data_id.to_string();
                         data_slots
@@ -760,7 +693,6 @@ impl AppWindow for Viewer1D {
             });
         }
 
-        // laid_out_slots =
         for (data_key, path_rects) in data_slots {
             let result = self.slot_cache.sample_for_data(
                 state,
@@ -932,38 +864,6 @@ impl AppWindow for Viewer1D {
                 .constrain(true);
 
             main_area.show(ctx, |ui| {
-                {
-                    let left = path_name_region.right();
-                    let right = path_slot_region.left();
-                    let mid = left + (right - left) * 0.5;
-                    let (top, btm) = path_name_region.y_range().into_inner();
-
-                    let sep_rect = egui::Rect::from_min_max(
-                        egui::pos2(mid - 1.0, top),
-                        egui::pos2(mid + 1.0, btm),
-                    );
-
-                    let column_separator = ui
-                        .allocate_rect(sep_rect, egui::Sense::click_and_drag())
-                        .on_hover_cursor(egui::CursorIcon::ResizeColumn);
-
-                    if column_separator.hovered {
-                        let shape = egui::Shape::line_segment(
-                            [sep_rect.center_top(), sep_rect.center_bottom()],
-                            egui::Stroke::new(
-                                1.0,
-                                egui::Color32::from_white_alpha(180),
-                            ),
-                        );
-                        shapes.push(shape);
-                    }
-
-                    if column_separator.dragged_by(egui::PointerButton::Primary)
-                    {
-                        // TODO update stored column size in egui cache
-                    }
-                };
-
                 let path_names =
                     ui.allocate_rect(path_name_region, egui::Sense::hover());
 
@@ -1056,27 +956,43 @@ impl AppWindow for Viewer1D {
                         }
                     }
                 }
-            });
 
-            /*
+                {
+                    let left = path_name_region.right();
+                    let right = path_slot_region.left();
+                    let mid = left + (right - left) * 0.5;
+                    let (top, btm) = path_name_region.y_range().into_inner();
 
-                if column_separator.dragged_by(egui::PointerButton::Primary) {
-                    let old_width = path_name_region.width();
-                    let dx = column_separator.drag_delta().x;
-                    let new_width = old_width + dx;
-                    let new_p = new_width / old_width;
+                    let sep_rect = egui::Rect::from_min_max(
+                        egui::pos2(mid - 1.0, top),
+                        egui::pos2(mid + 1.0, btm),
+                    );
 
-                    if let Dimension::Percent(p) =
-                        &mut self.dyn_slot_layout.column_widths_mut()[0]
-                    {
-                        *p *= new_p;
-                        *p = p.clamp(0.05, 0.95);
+                    let column_separator = ui
+                        .allocate_rect(sep_rect, egui::Sense::click_and_drag())
+                        .on_hover_cursor(egui::CursorIcon::ResizeColumn);
+
+                    if column_separator.hovered {
+                        let shape = egui::Shape::line_segment(
+                            [sep_rect.center_top(), sep_rect.center_bottom()],
+                            egui::Stroke::new(
+                                1.0,
+                                egui::Color32::from_white_alpha(180),
+                            ),
+                        );
+                        shapes.push(shape);
                     }
+                    let dx = column_separator.drag_delta().x;
 
-                    self.dyn_slot_layout.clear_layout();
-                }
-
-            */
+                    if column_separator.dragged_by(egui::PointerButton::Primary)
+                    {
+                        let id = egui::Id::new(Self::COLUMN_SEPARATOR_ID);
+                        let mut memory = ui.memory();
+                        let width = memory.data.get_temp_mut_or(id, 150f32);
+                        *width = (*width + dx).clamp(50.0, 400.0);
+                    }
+                };
+            });
 
             let painter =
                 egui_ctx.ctx().layer_painter(egui::LayerId::background());
@@ -1086,7 +1002,6 @@ impl AppWindow for Viewer1D {
                 egui::Order::Foreground,
                 "main_area_fg".into(),
             ));
-            // painter.extend(fg_shapes);
 
             painter.extend(self.slot_cache.msg_shapes.drain(..));
         }
@@ -1096,8 +1011,6 @@ impl AppWindow for Viewer1D {
                 annot_slot.update(tokio_rt, rect, &self.view, dt);
             }
         }
-
-        // self.slot_cache.debug_window(egui_ctx.ctx());
 
         egui_ctx.end_frame(&window.window);
     }
