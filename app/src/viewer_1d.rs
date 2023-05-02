@@ -513,7 +513,7 @@ impl AppWindow for Viewer1D {
                         points(info_col_width),
                         fr(1.0),
                     ],
-                    grid_template_rows: vec![points(100.0)],
+                    grid_template_rows: vec![points(20.0)],
                     column_data: vec![GridEntry::new(
                         [1, 2],
                         gui::SlotElem::ViewRange,
@@ -530,13 +530,11 @@ impl AppWindow for Viewer1D {
                 view_offset,
                 |&(_list_ix, path_id)| {
                     let mut row_entry = RowEntry {
-                        // desired_height: None,
                         grid_template_columns: vec![
                             points(info_col_width),
                             fr(1.0),
                         ],
-                        grid_template_rows: vec![points(20.0)],
-                        // grid_template_rows: vec![points(20.0)],
+                        grid_template_rows: vec![points(30.0)],
                         column_data: vec![],
                         ..RowEntry::default()
                     };
@@ -658,6 +656,9 @@ impl AppWindow for Viewer1D {
         let mut path_name_slots: HashMap<PathId, egui::Rect> =
             HashMap::default();
 
+        let mut path_name_region = egui::Rect::NOTHING;
+        let mut path_slot_region = egui::Rect::NOTHING;
+
         {
             let fonts = egui_ctx.ctx().fonts();
 
@@ -671,6 +672,7 @@ impl AppWindow for Viewer1D {
                     }
                     gui::SlotElem::PathData { path_id, data_id } => {
                         let rect = crate::gui::layout_egui_rect(&layout);
+                        path_slot_region = path_slot_region.union(rect);
                         laid_out_slots
                             .push(((*path_id, data_id.to_string()), rect));
 
@@ -727,6 +729,7 @@ impl AppWindow for Viewer1D {
                     }
                     gui::SlotElem::PathName { path_id } => {
                         path_name_slots.insert(*path_id, rect);
+                        path_name_region = path_name_region.union(rect);
 
                         let path_name = self
                             .shared
@@ -915,15 +918,12 @@ impl AppWindow for Viewer1D {
             self.slot_cache.update_displayed_messages(show_state);
         }
 
-        let mut path_name_region = egui::Rect::NOTHING;
-        let mut path_slot_region = egui::Rect::NOTHING;
-
         shapes.extend(self.slot_cache.msg_shapes.drain(..));
 
         {
             let ctx = egui_ctx.ctx();
 
-            let mut fg_shapes = Vec::new();
+            // let mut fg_shapes = Vec::new();
 
             let main_area = egui::Area::new("main_area_1d")
                 .order(egui::Order::Background)
@@ -932,6 +932,92 @@ impl AppWindow for Viewer1D {
                 .constrain(true);
 
             main_area.show(ctx, |ui| {
+                {
+                    let left = path_name_region.right();
+                    let right = path_slot_region.left();
+                    let mid = left + (right - left) * 0.5;
+                    let (top, btm) = path_name_region.y_range().into_inner();
+
+                    let sep_rect = egui::Rect::from_min_max(
+                        egui::pos2(mid - 1.0, top),
+                        egui::pos2(mid + 1.0, btm),
+                    );
+
+                    let column_separator = ui
+                        .allocate_rect(sep_rect, egui::Sense::click_and_drag())
+                        .on_hover_cursor(egui::CursorIcon::ResizeColumn);
+
+                    if column_separator.hovered {
+                        let shape = egui::Shape::line_segment(
+                            [sep_rect.center_top(), sep_rect.center_bottom()],
+                            egui::Stroke::new(
+                                1.0,
+                                egui::Color32::from_white_alpha(180),
+                            ),
+                        );
+                        shapes.push(shape);
+                    }
+
+                    if column_separator.dragged_by(egui::PointerButton::Primary)
+                    {
+                        // TODO update stored column size in egui cache
+                    }
+                };
+
+                let path_names =
+                    ui.allocate_rect(path_name_region, egui::Sense::hover());
+
+                let path_slots = ui.allocate_rect(
+                    path_slot_region,
+                    egui::Sense::click_and_drag(),
+                );
+
+                let scroll = ui.input().scroll_delta;
+
+                if path_names.hovered() {
+                    // hardcoded row height for now; should be stored/fetched
+                    let rows = (scroll.y / 20.0).round() as isize;
+
+                    if rows != 0 {
+                        self.path_list_view.scroll_relative(-rows);
+                        self.force_resample = true;
+                    }
+                }
+
+                if path_slots.dragged_by(egui::PointerButton::Primary) {
+                    let dx =
+                        path_slots.drag_delta().x / path_slot_region.width();
+                    self.view.translate_norm_f32(-dx);
+                }
+
+                if let Some(pos) = path_slots.hover_pos() {
+                    let left = path_slot_region.left();
+                    let width = path_slot_region.width();
+                    let rel_x = (pos.x - left) / width;
+
+                    let min_scroll = 1.0;
+                    let factor = 0.01;
+                    if scroll.y.abs() > min_scroll {
+                        let dz = 1.0 - scroll.y * factor;
+                        self.view.zoom_with_focus(rel_x, dz);
+                    }
+
+                    let pan_pos = self.view.offset()
+                        + (rel_x * self.view.len() as f32) as u64;
+                    let hovered_node =
+                        self.shared.graph.node_at_pangenome_pos(Bp(pan_pos));
+
+                    if let Some(node) = hovered_node {
+                        context_state.set("Viewer1D", ["hover"], node);
+
+                        if path_slots.clicked() {
+                            context_state.set("Viewer1D", ["click"], node);
+                        }
+                    }
+
+                    context_state.set("Viewer1D", ["hover"], Bp(pan_pos));
+                }
+
                 //
                 if let Some(rect) = view_range_rect {
                     let fonts = ui.fonts();
@@ -973,38 +1059,6 @@ impl AppWindow for Viewer1D {
             });
 
             /*
-            main_area.show(ctx, |ui| {
-                let path_names =
-                    ui.allocate_rect(path_name_region, egui::Sense::hover());
-
-                let path_slots = ui.allocate_rect(
-                    path_slot_region,
-                    egui::Sense::click_and_drag(),
-                );
-
-                let sep_rect = {
-                    let (top, btm) = path_name_region.y_range().into_inner();
-                    let left = path_name_region.right();
-                    let right = path_slot_region.left();
-
-                    egui::Rect::from_min_max(
-                        egui::pos2(left, top),
-                        egui::pos2(right, btm),
-                    )
-                };
-
-                let column_separator = ui
-                    .allocate_rect(sep_rect, egui::Sense::click_and_drag())
-                    .on_hover_cursor(egui::CursorIcon::ResizeColumn);
-
-                if column_separator.hovered() {
-                    let shape = egui::Shape::rect_filled(
-                        sep_rect,
-                        egui::Rounding::same(2.0),
-                        egui::Color32::from_white_alpha(180),
-                    );
-                    fg_shapes.push(shape);
-                }
 
                 if column_separator.dragged_by(egui::PointerButton::Primary) {
                     let old_width = path_name_region.width();
@@ -1022,61 +1076,6 @@ impl AppWindow for Viewer1D {
                     self.dyn_slot_layout.clear_layout();
                 }
 
-                let scroll = ui.input().scroll_delta;
-
-                if path_names.hovered() {
-                    // hardcoded row height for now; should be stored/fetched
-                    let rows = (scroll.y / 20.0).round() as isize;
-
-                    if rows != 0 {
-                        self.path_list_view.scroll_relative(-rows);
-                        self.force_resample = true;
-                    }
-                }
-
-                if path_slots.dragged_by(egui::PointerButton::Primary) {
-                    let dx =
-                        path_slots.drag_delta().x / path_slot_region.width();
-                    self.view.translate_norm_f32(-dx);
-                }
-
-                let mut interact = VizInteractions::default();
-
-                if let Some(pos) = path_slots.hover_pos() {
-                    let left = path_slot_region.left();
-                    let width = path_slot_region.width();
-                    let rel_x = (pos.x - left) / width;
-
-                    let min_scroll = 1.0;
-                    let factor = 0.01;
-                    if scroll.y.abs() > min_scroll {
-                        let dz = 1.0 - scroll.y * factor;
-                        self.view.zoom_with_focus(rel_x, dz);
-                    }
-
-                    let pan_pos = self.view.offset()
-                        + (rel_x * self.view.len() as f32) as u64;
-                    let hovered_node =
-                        self.shared.graph.node_at_pangenome_pos(Bp(pan_pos));
-
-                    if let Some(node) = hovered_node {
-                        context_state.set("Viewer1D", ["hover"], node);
-
-                        if path_slots.clicked() {
-                            context_state.set("Viewer1D", ["click"], node);
-                        }
-                    }
-
-                    if path_slots.clicked() {
-                        interact.clicked = true;
-                    }
-
-                    context_state.set("Viewer1D", ["hover"], Bp(pan_pos));
-                    interact.interact_pan_pos = Some(Bp(pan_pos));
-                    interact.interact_node = hovered_node;
-                }
-
-            });
             */
 
             let painter =
@@ -1087,7 +1086,7 @@ impl AppWindow for Viewer1D {
                 egui::Order::Foreground,
                 "main_area_fg".into(),
             ));
-            painter.extend(fg_shapes);
+            // painter.extend(fg_shapes);
 
             painter.extend(self.slot_cache.msg_shapes.drain(..));
         }
