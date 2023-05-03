@@ -142,7 +142,16 @@ impl<K: Ord> ContextQuery<K> {
             type_id: std::any::TypeId::of::<T>(),
         }
     }
-    // }
+
+    pub fn from_tags<T: std::any::Any>(
+        tags: impl IntoIterator<Item = K>,
+    ) -> Self {
+        ContextQuery {
+            source: None,
+            tags: tags.into_iter().collect(),
+            type_id: std::any::TypeId::of::<T>(),
+        }
+    }
 
     // impl<'a, T: std::any::Any> ContextQuery<&'a str, T> {
     // impl<K, T: std::any::Any> ContextQuery<K, T> {

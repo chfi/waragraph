@@ -736,23 +736,7 @@ impl AppWindow for Viewer1D {
 
         // add ruler
         {
-            /*
-            use waragraph_core::graph::Node;
-            let query = ContextQuery::from_source::<(Node, PathId, usize, Bp)>(
-                "Viewer1D",
-            );
-
-            let step_ctx =
-                context_state.get_cast::<_, (Node, PathId, usize, Bp)>(&query);
-
-            if let Some((node, path, _step, pos)) = step_ctx {
-                // well... need exact position, here!
-                //
-            }
-            */
-
-            let query =
-                ContextQuery::from_source_tags::<Bp>("Viewer1D", ["hover"]);
+            let query = ContextQuery::from_tags::<Bp>(["hover"]);
 
             let pan_pos = context_state.get_cast::<_, Bp>(&query);
             if let Some(pos) = pan_pos {
@@ -1012,6 +996,36 @@ impl AppWindow for Viewer1D {
                     }
                 };
             });
+
+            // path position tooltip (temporary)
+            {
+                use waragraph_core::graph::Node;
+                let query =
+                    ContextQuery::from_source::<(Node, PathId, usize, Bp)>(
+                        "Viewer1D",
+                    );
+
+                let step_ctx = context_state
+                    .get_cast::<_, (Node, PathId, usize, Bp)>(&query);
+
+                if let Some((node, path, _step, pos)) = step_ctx {
+                    egui::containers::popup::show_tooltip(
+                        egui_ctx.ctx(),
+                        egui::Id::new("Viewer1D-PathPos-Tooltip"),
+                        |ui| {
+                            let path_name = self
+                                .shared
+                                .graph
+                                .path_names
+                                .get_by_left(path)
+                                .map(|n| n.as_str())
+                                .unwrap_or("ERROR");
+                            ui.label(format!("Path {path_name}"));
+                            ui.label(format!("Pos {} bp", pos.0));
+                        },
+                    );
+                }
+            }
 
             let painter =
                 egui_ctx.ctx().layer_painter(egui::LayerId::background());
