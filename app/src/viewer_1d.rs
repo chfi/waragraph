@@ -499,9 +499,8 @@ impl AppWindow for Viewer1D {
                 log::error!("{e:?}");
             }
 
-            // log::warn!("RowGridLayout constructed");
-
-            let layout_result = row_grid_layout.visit_layout(|layout, elem| {
+            /*
+            let _debug_layout_result = row_grid_layout.visit_layout(|layout, elem| {
                 let rect = crate::gui::layout_egui_rect(&layout);
 
                 let stroke = egui::Stroke {
@@ -515,15 +514,7 @@ impl AppWindow for Viewer1D {
                 );
                 shapes.push(dbg_rect);
             });
-
-            // taffy::debug::print_tree(
-            //     &row_grid_layout.taffy,
-            //     row_grid_layout.root.unwrap(),
-            // );
-
-            if let Err(e) = layout_result {
-                log::error!("{e:?}");
-            }
+            */
 
             row_grid_layout
         };
@@ -542,8 +533,6 @@ impl AppWindow for Viewer1D {
 
         let mut view_range_rect = None;
 
-        // (path_name, path_data)
-        // let mut path_slots: HashMap<PathId, (egui::Rect, egui::Rect)> = HashMap::default();
         let mut path_name_slots: HashMap<PathId, egui::Rect> =
             HashMap::default();
 
@@ -870,8 +859,30 @@ impl AppWindow for Viewer1D {
                             context_state.set("Viewer1D", ["click"], node);
                         }
                     }
-
                     context_state.set("Viewer1D", ["hover"], Bp(pan_pos));
+
+                    // searches through all the slots, which probably isn't a problem,
+                    // but it's annoying
+                    let hovered_path = viz_slot_rect_map.iter().find_map(
+                        |((path, _), rect)| rect.contains(pos).then_some(*path),
+                    );
+
+                    if let Some((path, node)) = hovered_path.zip(hovered_node) {
+                        let (step, offset) = self
+                            .shared
+                            .graph
+                            .node_path_step_offsets(node, path)
+                            .and_then(|mut iter| iter.next())
+                            .unwrap();
+
+                        context_state.set(
+                            "Viewer1D",
+                            ["hover"],
+                            (node, path, step, offset),
+                        );
+
+                        // let path_pos = self.shared.graph.
+                    }
                 }
 
                 //
