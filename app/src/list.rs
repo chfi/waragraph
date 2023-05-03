@@ -21,6 +21,10 @@ impl<T> ListView<T> {
         }
     }
 
+    pub fn as_slice(&self) -> &[(usize, T)] {
+        &self.values
+    }
+
     pub fn get_in_view(&self, local_offset: usize) -> Option<&T> {
         if local_offset >= self.view_len {
             return None;

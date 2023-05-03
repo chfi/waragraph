@@ -4,7 +4,7 @@ use std::{
     sync::Arc,
 };
 
-use tokio::task::JoinHandle;
+use tokio::{task::JoinHandle, time::Instant};
 use waragraph_core::graph::{Bp, PathId, PathIndex};
 
 use anyhow::Result;
@@ -33,6 +33,7 @@ pub type SlotMsg = String;
 #[derive(Default)]
 pub struct SlotState {
     pub data_generation: Option<u64>,
+    pub updated_at: Option<Instant>,
     pub last_updated_view: Option<[Bp; 2]>,
     task_handle: Option<SlotTaskHandle>,
     pub last_msg: Option<SlotMsg>,
@@ -91,7 +92,7 @@ pub struct SlotCache {
 
     pub(super) msg_shapes: Vec<egui::Shape>,
 
-    pub(super) last_update: std::time::Instant,
+    pub(super) last_update: Option<std::time::Instant>,
     generation: u64,
 }
 
@@ -135,7 +136,7 @@ impl SlotCache {
             slot_msg_rx,
 
             msg_shapes: Vec::new(),
-            last_update: std::time::Instant::now(),
+            last_update: None,
             generation: 0,
         })
     }
@@ -187,10 +188,280 @@ impl SlotCache {
             let [l0, r0] = last_view;
             let view0 = (l0.0)..(r0.0);
             let view1 = current_view.range();
-            super::Viewer1D::sample_index_transform(&view0, view1)
+            if &view0 == view1 {
+                [1.0, 0.0]
+            } else {
+                super::Viewer1D::sample_index_transform(&view0, view1)
+            }
         } else {
             [1.0, 0.0]
         }
+    }
+
+    pub fn sample_for_data(
+        &mut self,
+        state: &raving_wgpu::State,
+        rt: &tokio::runtime::Handle,
+        view: &View1D,
+        data_key: &str,
+        paths: impl IntoIterator<Item = PathId>,
+    ) -> Result<()> {
+        let vl = view.range().start;
+        let vr = view.range().end;
+        let current_view = [Bp(vl), Bp(vr)];
+
+        // spawn tasks for each of the out-of-date paths in the
+        // iterator (based on the current view)
+
+        // TODO limit the task spawn rate by storing the Instant each
+        // slot was last updated
+
+        // first i need to assign slot IDs/indices to the SlotKeys,
+        // which are created from the paths + the shared data_key
+
+        let slots = paths
+            .into_iter()
+            .map(|path| (path, data_key.to_string()))
+            .collect::<Vec<_>>();
+
+        let result = self.assign_rows_for_slots(slots.iter(), current_view);
+
+        if let Err(SlotCacheError::OutOfRows) = result {
+            // TODO reallocate
+            log::error!("Slot cache full! TODO reallocate");
+        }
+
+        for slot_key in &slots {
+            let state = if let Some(state) = self.slot_state.get_mut(slot_key) {
+                state
+            } else {
+                log::warn!(
+                    "Slot key (Path {}, {}) missing state",
+                    slot_key.0.ix(),
+                    slot_key.1
+                );
+                continue;
+            };
+
+            if state.task_handle.is_some()
+                || state.last_updated_view == Some(current_view)
+            {
+                continue;
+            }
+
+            if let Some(time_since_update) =
+                state.updated_at.map(|s| s.elapsed())
+            {
+                if time_since_update.as_secs_f32() < 0.1 {
+                    continue;
+                }
+            }
+
+            let data_cache = self.data_cache.clone();
+            let bin_count = self.bin_count;
+            let path_index = self.path_index.clone();
+
+            let task = rt.spawn(Self::slot_task(
+                self.slot_msg_tx.clone(),
+                self.generation,
+                path_index,
+                data_cache,
+                bin_count,
+                slot_key.clone(),
+                current_view,
+            ));
+            state.task_handle = Some(task);
+        }
+
+        self.last_dispatched_view = Some(current_view);
+
+        // update messages on slots
+        while let Ok((key, msg)) = self.slot_msg_rx.try_recv() {
+            if let Some(state) = self.slot_state.get_mut(&key) {
+                state.last_msg = Some(msg);
+            }
+        }
+
+        Ok(())
+    }
+
+    pub fn update(
+        &mut self,
+        state: &raving_wgpu::State,
+        rt: &tokio::runtime::Handle,
+        view: &View1D,
+        slot_rects: &HashMap<SlotKey, egui::Rect>,
+    ) -> Result<()> {
+        // queue updates from completed tasks to be uploaded to the GPU
+        for (slot_key, slot_state) in self.slot_state.iter_mut() {
+            if let Some((task_view, data, data_ts)) =
+                slot_state.task_results(rt)
+            {
+                //
+                if slot_state
+                    .data_generation
+                    .map(|prev_ts| prev_ts > data_ts)
+                    .unwrap_or(false)
+                {
+                    continue;
+                }
+
+                let slot_id = if let Some(id) = self.slot_id_map.get(slot_key) {
+                    *id
+                } else {
+                    continue;
+                };
+
+                let prefix_size = std::mem::size_of::<[u32; 2]>();
+                let elem_size = std::mem::size_of::<f32>();
+                let offset = prefix_size + slot_id * self.bin_count * elem_size;
+
+                let size = std::num::NonZeroU64::new(
+                    (elem_size * self.bin_count) as u64,
+                )
+                .unwrap();
+                let mut write_view = state.queue.write_buffer_with(
+                    &self.data_buffer.buffer,
+                    offset as u64,
+                    size,
+                );
+                log::debug!(
+                    "writing buffer slot ({}, {}) -> {slot_id}",
+                    slot_key.0.ix(),
+                    slot_key.1
+                );
+
+                slot_state.last_updated_view = Some(task_view);
+                slot_state.data_generation = Some(data_ts);
+                slot_state.updated_at = Some(Instant::now());
+
+                // schedule an update to the corresponding row
+                write_view.copy_from_slice(&data);
+            }
+        }
+
+        // create vertices for the slots that contain data
+        let mut vertices: Vec<SlotVertex> = Vec::new();
+
+        for (slot_key, rect) in slot_rects {
+            let (state, &id) = {
+                let state = self.slot_state.get(slot_key);
+                let id = self.slot_id_map.get(slot_key);
+                let state_id = state.zip(id);
+
+                if state_id.is_none() {
+                    continue;
+                }
+
+                state_id.unwrap()
+            };
+
+            if state.data_generation.is_none() {
+                continue;
+            }
+
+            let vx = SlotVertex {
+                position: [rect.left(), rect.bottom()],
+                size: [rect.width(), rect.height()],
+                slot_id: id as u32,
+            };
+
+            vertices.push(vx);
+        }
+
+        self.vertex_count = vertices.len();
+
+        self.prepare_vertex_buffer(state, &vertices)?;
+        self.prepare_transform_buffer(state, &vertices, view)?;
+
+        Ok(())
+    }
+
+    fn assign_rows_for_slots<'a>(
+        &mut self,
+        slots: impl Iterator<Item = &'a SlotKey>,
+        current_view: [Bp; 2],
+    ) -> std::result::Result<(), SlotCacheError> {
+        // evict from cache based on last updated *time*, as in Instant
+
+        // let time_since_update = self.last_update
+
+        // any row without a
+        let mut free_rows = self
+            .slot_id_cache
+            .iter()
+            .enumerate()
+            .rev()
+            .filter_map(|(ix, key)| key.is_none().then_some(ix))
+            .collect::<Vec<_>>();
+        // log::warn!("free rows count: {}", free_rows.len());
+
+        let mut eviction_cands: Vec<(SlotKey, tokio::time::Duration)> = self
+            .slot_state
+            .iter()
+            .filter_map(|(slot_key, state)| {
+                if state.task_handle.is_some() {
+                    return None;
+                }
+
+                if let Some(view) = state.last_updated_view {
+                    if view == current_view {
+                        return None;
+                    }
+                }
+
+                let updated_at = state.updated_at?;
+                let time_since = updated_at.elapsed();
+                Some((slot_key.clone(), time_since))
+            })
+            .collect();
+
+        // sort so oldest are last
+        eviction_cands.sort_by_key(|(_, dur)| *dur);
+
+        for slot_key in slots {
+            // slot's already assigned to a row
+            if self.slot_id_map.contains_key(slot_key) {
+                continue;
+            }
+
+            if let Some(row_id) = free_rows.pop() {
+                // use the free row, no eviction needed
+
+                let new_state = SlotState::default();
+                self.slot_id_cache[row_id] = Some(slot_key.clone());
+                self.slot_id_map.insert(slot_key.clone(), row_id);
+                self.slot_state.insert(slot_key.clone(), new_state);
+
+                continue;
+            }
+
+            // otherwise try to evict an old row
+
+            let candidate = eviction_cands.pop();
+            let row_id = candidate
+                .as_ref()
+                .and_then(|(slot_key, _)| self.slot_id_map.get(slot_key))
+                .copied();
+
+            if let Some(((old_slot_key, _dur), row_id)) = candidate.zip(row_id)
+            {
+                let _old_state = self.slot_state.remove(&old_slot_key);
+                self.slot_id_map.remove(&old_slot_key);
+
+                let new_state = SlotState::default();
+                self.slot_id_cache[row_id] = Some(slot_key.clone());
+                self.slot_id_map.insert(slot_key.clone(), row_id);
+                self.slot_state.insert(slot_key.clone(), new_state);
+
+                continue;
+            }
+
+            // by this point we can't find a row for this slot, so return with an error
+            return Err(SlotCacheError::OutOfRows);
+        }
+
+        Ok(())
     }
 
     pub fn sample_and_update<I>(
@@ -209,50 +480,23 @@ impl SlotCache {
 
         let layout = layout.into_iter().collect::<HashMap<_, _>>();
 
-        if self.any_slot_id_collisions() {
-            log::error!("oh no!");
-        }
+        let should_update = self
+            .last_update
+            .map(|t| t.elapsed().as_micros() < 2_00_000)
+            .unwrap_or(true);
 
-        let time = self.last_update.elapsed().as_micros();
-        // log::warn!("Time since last slot update: {time} us");
-        self.last_update = std::time::Instant::now();
+        // TODO: this seems to break things (no sampling happens) if
+        // the first frame takes too long, in particular if
+        // annotations are used
+        // if !should_update {
+        //     return Ok(());
+        // }
 
-        {
-            // O(n^2) layout collision check
-            let mut count = 0;
-
-            for (k0, r0) in layout.iter() {
-                for (k1, r1) in layout.iter() {
-                    if k0 != k1 {
-                        if r0.intersects(*r1) {
-                            log::error!("collision!!!");
-                            count += 1;
-                        }
-                    }
-                }
-            }
-
-            if count > 0 {
-                log::error!(" detected {count} collisions!!!!");
-            }
-        }
-
-        {
-            let mut active = 0;
-            for state in self.slot_state.values() {
-                if state.task_handle.is_some() {
-                    active += 1;
-                }
-            }
-            // log::warn!("# of active tasks before update: {active}");
-            // log::warn!("last dispatched view: {:?}", self.last_dispatched_view);
-        }
+        self.last_update = Some(std::time::Instant::now());
 
         let mut vertices: Vec<SlotVertex> = Vec::new();
 
         let mut slot_id_count: HashMap<usize, usize> = HashMap::new();
-
-        // let mut unused_slots = HashSet<
 
         // add a vertex for each slot in the layout that has an up to date
         // row in the data buffer
@@ -281,13 +525,6 @@ impl SlotCache {
             }
         }
 
-        let mut slot_id_count = slot_id_count.into_iter().collect::<Vec<_>>();
-        slot_id_count.sort_by_key(|(k, _)| *k);
-
-        for (id, count) in slot_id_count {
-            // println!(" slot id: {id}\t count: {count}");
-        }
-
         {
             let mut active = 0;
             for state in self.slot_state.values() {
@@ -295,7 +532,6 @@ impl SlotCache {
                     active += 1;
                 }
             }
-            // log::warn!("# of active tasks after update: {active}");
         }
 
         // update the vertex buffer, reallocating if needed
@@ -391,7 +627,7 @@ impl SlotCache {
                     .map(|prev_gen| self.generation.abs_diff(prev_gen) < 120)
                     .unwrap_or(false)
                 {
-                    log::warn!("skipping new enough slot!");
+                    // log::warn!("skipping new enough slot!");
                     continue;
                 }
 
@@ -466,7 +702,7 @@ impl SlotCache {
                         offset as u64,
                         size,
                     );
-                    log::error!(
+                    log::debug!(
                         "writing buffer slot ({}, {}) -> {slot_id}",
                         key.0.ix(),
                         key.1
@@ -474,6 +710,7 @@ impl SlotCache {
 
                     slot_state.last_updated_view = Some(task_view);
                     slot_state.data_generation = Some(data_gen);
+                    slot_state.updated_at = Some(Instant::now());
 
                     // schedule an update to the corresponding row
                     write_view.copy_from_slice(&data);
@@ -483,10 +720,6 @@ impl SlotCache {
 
         self.prepare_vertex_buffer(state, &vertices)?;
         self.prepare_transform_buffer(state, &vertices, view)?;
-
-        if self.any_slot_id_collisions() {
-            log::error!("oh no!!!!");
-        }
 
         self.generation += 1;
 
@@ -509,6 +742,13 @@ impl SlotCache {
         let prefix_size = std::mem::size_of::<[u32; 4]>();
         prefix_size + self.rows * self.bin_count
     }
+
+    pub fn slot_task_running(&self, key: &SlotKey) -> bool {
+        self.slot_state
+            .get(key)
+            .map(|state| state.task_handle.is_some())
+            .unwrap_or(false)
+    }
 }
 
 impl SlotCache {
@@ -522,7 +762,7 @@ impl SlotCache {
         let t_stride = std::mem::size_of::<[f32; 2]>();
 
         let need_realloc = if let Some(buf) = self.transform_buffer.as_ref() {
-            buf.size < vertices.len() * t_stride
+            buf.size < self.rows * t_stride
         } else {
             true
         };
@@ -531,7 +771,7 @@ impl SlotCache {
             let usage =
                 wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST;
 
-            let buf_size = t_stride * vertices.len().next_power_of_two();
+            let buf_size = t_stride * self.rows.next_power_of_two();
 
             let buffer = state.device.create_buffer(&wgpu::BufferDescriptor {
                 label: Some("Slot Cache Fragment Transform Buffer"),
@@ -548,28 +788,30 @@ impl SlotCache {
 
         //
         if let Some(buf) = self.transform_buffer.as_ref() {
-            let data = vertices
-                .iter()
-                .filter_map(|vx| {
-                    let slot = vx.slot_id;
+            let mut data = vec![[1f32, 0f32]; self.rows];
+
+            for vx in vertices.iter() {
+                let slot = vx.slot_id;
+
+                let last_view = {
                     let key = self
                         .slot_id_cache
                         .get(slot as usize)
-                        .and_then(|s| s.as_ref())?;
+                        .and_then(|s| s.as_ref());
 
-                    let last_update =
-                        self.slot_state.get(key)?.last_updated_view;
+                    if let Some(state) =
+                        key.and_then(|key| self.slot_state.get(key))
+                    {
+                        state.last_updated_view
+                    } else {
+                        continue;
+                    }
+                };
 
-                    let transform =
-                        Self::view_transform(last_update, current_view);
-                    Some(transform)
-                })
-                .collect::<Vec<_>>();
+                let transform = Self::view_transform(last_view, current_view);
 
-            // {
-            //     let tdata: &[[f32; 2]] = bytemuck::cast_slice(&data);
-            //     println!("transform: {tdata:?}");
-            // }
+                data[slot as usize] = transform;
+            }
 
             state.queue.write_buffer(
                 &buf.buffer,
@@ -577,7 +819,6 @@ impl SlotCache {
                 bytemuck::cast_slice(&data),
             );
 
-            debug_assert_eq!(data.len(), vertices.len());
             Ok(())
         } else {
             unreachable!();
@@ -686,6 +927,8 @@ impl SlotCache {
         );
         let _ = msg_tx.try_send((key.clone(), msg));
 
+        let t0 = std::time::Instant::now();
+
         // let seconds = 3;
 
         // for sec in (0..seconds).rev() {
@@ -704,8 +947,10 @@ impl SlotCache {
         // load data source into cache & get data
         let data = data_cache.fetch_path_data(&data_key, path).await?;
 
+        let fetch_time = t0.elapsed().as_secs_f32();
+
         let msg = format!(
-            "Sampling (path {}, {}), [{}, {}]",
+            "Sampling (path {}, {}), [{}, {}] - data fetched in {fetch_time:.2} sec",
             path.ix(),
             &data_key,
             view[0].0,
@@ -771,3 +1016,20 @@ impl SlotCache {
         collision
     }
 }
+
+#[derive(Debug)]
+pub enum SlotCacheError {
+    OutOfRows,
+}
+
+impl std::fmt::Display for SlotCacheError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            SlotCacheError::OutOfRows => {
+                write!(f, "Cannot assign rows without reallocating")
+            }
+        }
+    }
+}
+
+impl std::error::Error for SlotCacheError {}

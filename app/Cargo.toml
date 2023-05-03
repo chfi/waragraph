@@ -26,12 +26,12 @@ egui_file = "0.5"
 wgpu = { version = "0.14.0", features = ["spirv"] }
 # naga = { version = "0.10", features = ["clone", "spv-in", "glsl-in", "spv-out"] }
 
-taffy = "0.2"
+taffy = { version = "0.3", features = ["grid"] }
 
 mint = "0.5"
 ultraviolet = { version = "0.9", features = ["bytemuck", "f64", "mint"]}
 
-# rstar = "0.9"
+rstar = "0.10"
 
 bytemuck = { version = "1.4", features = ["derive"] }
 
@@ -41,6 +41,7 @@ colorous = "1.0"
 # raving-wgpu = { path = "../../raving-wgpu" }
 raving-wgpu = { git = "https://github.com/chfi/raving-wgpu" }
 lyon = "1.0"
+rand = "0.8"
 
 anyhow = "1.0"
 
@@ -50,8 +51,10 @@ rhai = { version = "1.10.1", features = ["sync", "f32_float"]}
 roaring = "0.10"
 pico-args = "0.5.0"
 memchr = "2.5"
-noodles = { version = "0.29", features = ["sam", "bam", "fasta", "bed"]}
+noodles = { version = "0.29", features = ["sam", "bam", "fasta", "bed", "gff"]}
 btoi = "0.4.2"
+
+iset = "0.2"
 
 reunion = "0.1"
 sprs = "0.11"

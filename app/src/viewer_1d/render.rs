@@ -3,7 +3,6 @@ use crate::app::settings_menu::SettingsWindow;
 use crate::app::{AppWindow, SharedState, VizInteractions};
 use crate::color::widget::{ColorMapWidget, ColorMapWidgetShared};
 use crate::color::{ColorMap, ColorSchemeId};
-use crate::gui::list::DynamicListLayout;
 use crate::gui::FlexLayout;
 use crate::list::ListView;
 use crate::util::BufferDesc;

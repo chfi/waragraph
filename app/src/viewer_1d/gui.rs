@@ -3,13 +3,55 @@ use waragraph_core::graph::{Bp, PathId};
 
 use crate::gui::FlexLayout;
 
+use super::annotations::AnnotSlotId;
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) enum SlotElem {
     Empty,
     ViewRange,
-    PathData { slot_id: usize, data_id: String },
-    PathName { slot_id: usize },
-    Annotations { path: PathId, annotation_id: String },
+    PathData { path_id: PathId, data_id: String },
+    PathName { path_id: PathId },
+    Annotations { annotation_slot_id: AnnotSlotId },
+    // Annotations { path: PathId, annotation_id: String },
+}
+
+pub(super) fn fill_h_range_of_rect(
+    color: impl Into<egui::Color32>,
+    rect: egui::Rect,
+    range: std::ops::RangeInclusive<f32>,
+) -> egui::Shape {
+    let range_rect = egui::Rect::from_x_y_ranges(range, rect.y_range());
+    egui::Shape::rect_filled(range_rect, 0.0, color)
+
+    /*
+                            if range_rect.width() >= 1.0 {
+                                egui::Shape::rect_filled(range_rect, 0.0, color)
+                            } else {
+                                // this part looks a bit weird since there's a lot of subpixel ranges
+                                // that actually overlap, so leave it for later
+                                let rect = range_rect.expand(1.0);
+                                let color = egui::Rgba::RED;
+                                let stroke = egui::Stroke::new(1.0, color);
+                                let top = rect.center_top();
+                                let btm = rect.center_bottom();
+
+                                use egui::vec2;
+                                let mid = [top, btm];
+                                let ul = top + vec2(-1.0, -1.0);
+                                let ur = top + vec2(1.0, -1.0);
+                                let dl = btm + vec2(-1.0, 1.0);
+                                let dr = btm + vec2(1.0, 1.0);
+
+                                let upper = [ul, ur];
+                                let lower = [dl, dr];
+
+                                egui::Shape::Vec(vec![
+                                    egui::Shape::line_segment(upper, stroke),
+                                    egui::Shape::line_segment(mid, stroke),
+                                    egui::Shape::line_segment(lower, stroke),
+                                ])
+                            }
+    */
 }
 
 pub(super) fn view_range_shapes(

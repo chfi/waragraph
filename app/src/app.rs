@@ -16,7 +16,9 @@ use std::{collections::HashMap, path::PathBuf, sync::Arc};
 use anyhow::Result;
 
 use crate::{
+    annotations::{AnnotationSet, AnnotationStore},
     color::{ColorSchemeId, ColorStore},
+    context::{widget::ContextInspector, ContextState},
     viewer_1d::Viewer1D,
     viewer_2d::Viewer2D,
 };
@@ -45,6 +47,8 @@ pub struct SharedState {
     // pub shared: Arc<RwLock<AnyArcMap>>,
     pub graph_data_cache: Arc<GraphDataCache>,
 
+    pub annotations: Arc<RwLock<AnnotationStore>>,
+
     pub colors: Arc<RwLock<ColorStore>>,
 
     pub workspace: Arc<RwLock<Workspace>>,
@@ -52,14 +56,10 @@ pub struct SharedState {
     // tsv_path: Option<Arc<RwLock<PathBuf>>>,
     pub data_color_schemes: HashMap<String, ColorSchemeId>,
 
-    // TODO these cells are clunky and temporary
-    viewer_1d_interactions: Arc<AtomicCell<VizInteractions>>,
-    viewer_2d_interactions: Arc<AtomicCell<VizInteractions>>,
-
     pub app_msg_send: tokio::sync::mpsc::Sender<AppMsg>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum AppType {
     Viewer1D,
     Viewer2D,
@@ -70,6 +70,10 @@ pub enum AppType {
 pub struct App {
     pub tokio_rt: Arc<Runtime>,
     pub shared: SharedState,
+
+    context_state: ContextState,
+
+    context_inspector: ContextInspector,
 
     app_windows: AppWindows,
     // pub windows: HashMap<WindowId, AppType>,
@@ -142,11 +146,75 @@ impl App {
                 add_entry("strand", "black_red");
             }
 
+            let mut annotations = AnnotationStore::default();
+
+            for annot_path in args.annotations.iter() {
+                if let Some(ext) = annot_path.extension() {
+                    let result = if ext == "bed" {
+                        AnnotationSet::from_bed(
+                            &path_index,
+                            None,
+                            |name| name.to_string(),
+                            annot_path,
+                        )
+                    } else if ext == "gff" {
+                        let attr = args
+                            .gff_attr
+                            .as_ref()
+                            .map(|s| s.as_str())
+                            .unwrap_or("Name");
+
+                        // TODO the name and record functions should be configurable
+                        AnnotationSet::from_gff(
+                            &path_index,
+                            None,
+                            |name| name.to_string(),
+                            // |name| format!("S288C.{name}"),
+                            // |name| format!("SGDref#1#{name}"),
+                            |record| {
+                                let attrs = record.attributes();
+                                let label = attrs.iter().find_map(|entry| {
+                                    (entry.key() == attr)
+                                        .then_some(entry.value())
+                                })?;
+
+                                Some(label.to_string())
+                            },
+                            annot_path,
+                        )
+                    } else {
+                        log::error!("Unknown annotation file extension `{ext:?}`, ignoring");
+                        continue;
+                    };
+
+                    match result {
+                        Ok(set) => {
+                            log::warn!(
+                                "loaded annotation set with {} annotations",
+                                set.annotations.len()
+                            );
+
+                            annotations.insert_set(set);
+                        }
+                        Err(e) => {
+                            log::error!(
+                                "Error loading annotation file {:?}: {e:?}",
+                                annot_path.as_os_str()
+                            );
+                        }
+                    }
+                }
+            }
+
+            let annotations: Arc<RwLock<AnnotationStore>> =
+                Arc::new(RwLock::new(annotations));
+
             SharedState {
                 graph: path_index,
 
                 // shared: Arc::new(RwLock::new(AnyArcMap::default())),
                 graph_data_cache,
+                annotations,
 
                 colors,
 
@@ -154,20 +222,26 @@ impl App {
 
                 workspace,
 
-                viewer_1d_interactions: Arc::new(AtomicCell::new(
-                    Default::default(),
-                )),
-                viewer_2d_interactions: Arc::new(AtomicCell::new(
-                    Default::default(),
-                )),
-
                 app_msg_send,
             }
         };
 
+        let context_state = ContextState::default();
+
+        let context_inspector = ContextInspector::with_default_widgets(&shared);
+
+        settings.register_widget(
+            "Context",
+            "Context Inspector",
+            context_inspector.settings_widget().clone(),
+        );
+
         Ok(Self {
             tokio_rt,
             shared,
+
+            context_state,
+            context_inspector,
 
             app_windows,
             // windows: HashMap::default(),
@@ -222,10 +296,6 @@ impl App {
                 &mut self.settings,
             )?;
 
-            app.self_viz_interact = self.shared.viewer_1d_interactions.clone();
-            app.connected_viz_interact =
-                Some(self.shared.viewer_2d_interactions.clone());
-
             Ok(Box::new(app))
         })?;
 
@@ -260,10 +330,6 @@ impl App {
                 tsv,
                 &self.shared,
             )?;
-
-            app.self_viz_interact = self.shared.viewer_2d_interactions.clone();
-            app.connected_viz_interact =
-                Some(self.shared.viewer_1d_interactions.clone());
 
             Ok(Box::new(app))
         })?;
@@ -379,6 +445,8 @@ impl App {
                     let dt = prev_frame_t.elapsed().as_secs_f32();
                     prev_frame_t = std::time::Instant::now();
 
+                    self.context_state.start_frame();
+
                     while let Ok(msg) = self.app_msg_recv.try_recv() {
                         if let Err(e) =
                             self.process_msg(event_loop_tgt, &state, msg)
@@ -391,13 +459,30 @@ impl App {
                     // but good enough for now
                     self.app_windows.update_widget_state();
 
-                    for (_app_type, app) in self.app_windows.apps.iter_mut() {
-                        app.update(self.tokio_rt.handle(), &state, dt);
+                    let context_inspector_tgts =
+                        self.context_inspector.active_targets();
+
+                    for (app_type, app) in self.app_windows.apps.iter_mut() {
+                        app.update(
+                            self.tokio_rt.handle(),
+                            &state,
+                            &mut self.context_state,
+                            dt,
+                        );
 
                         if Some(app.window.window.id())
                             == self.settings_window_tgt
                         {
                             self.settings.show(app.egui.ctx());
+                        }
+
+                        if context_inspector_tgts.contains(app_type) {
+                            egui::Window::new("Context Inspector")
+                                .default_pos([100.0, 100.0])
+                                .show(app.egui.ctx(), |ui| {
+                                    self.context_inspector
+                                        .show(&self.context_state, ui);
+                                });
                         }
 
                         app.window.window.request_redraw();
@@ -461,6 +546,7 @@ pub trait AppWindow {
         state: &raving_wgpu::State,
         window: &raving_wgpu::WindowState,
         egui_ctx: &mut EguiCtx,
+        context_state: &mut ContextState,
         dt: f32,
     );
 
@@ -490,20 +576,37 @@ pub trait AppWindow {
 pub struct Args {
     pub gfa: PathBuf,
     pub tsv: Option<PathBuf>,
-    pub annotations: Option<PathBuf>,
+
+    pub annotations: Vec<PathBuf>,
+    pub gff_attr: Option<String>,
+    // pub annotations: Option<PathBuf>,
 }
 
 pub fn parse_args() -> std::result::Result<Args, pico_args::Error> {
     let mut pargs = pico_args::Arguments::from_env();
 
-    let annotations = pargs.opt_value_from_os_str("--bed", parse_path)?;
     // let init_range = pargs.opt_value_from_fn("--range", parse_range)?;
+
+    let mut annotations = Vec::new();
+
+    let bed = pargs.opt_value_from_os_str("--bed", parse_path)?;
+    if let Some(bed) = bed {
+        annotations.push(bed);
+    }
+
+    let gff = pargs.opt_value_from_os_str("--gff", parse_path)?;
+    if let Some(gff) = gff {
+        annotations.push(gff);
+    }
+
+    let gff_attr = pargs.opt_value_from_str("--gff-attr")?;
 
     let args = Args {
         gfa: pargs.free_from_os_str(parse_path)?,
         tsv: pargs.opt_free_from_os_str(parse_path)?,
 
         annotations,
+        gff_attr,
         // init_range,
     };
 

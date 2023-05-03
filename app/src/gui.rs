@@ -6,14 +6,387 @@
     The latter is powered by `taffy`
 */
 
-use std::collections::{BTreeMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
 
 use taffy::{error::TaffyError, prelude::*};
 use ultraviolet::Vec2;
 
-pub mod list;
-
 pub mod util;
+
+/*
+Each row can contain its own inline grid layout, subject to parameters shared
+by the entire layout -- or, if needed, a row can control its own size and grid
+*/
+pub struct RowGridLayout<T> {
+    pub taffy: Taffy,
+    pub node_data: BTreeMap<Node, T>,
+    pub root: Option<Node>,
+
+    root_style: Style,
+    row_base_style: Style,
+    // row_templates: HashMap<String, RowTemplate>,
+
+    // in logical pixels
+    computed_for_rect: Option<egui::Rect>,
+}
+
+pub struct RowEntry<T> {
+    pub desired_height: Option<f32>,
+    pub grid_template_columns: Vec<TrackSizingFunction>,
+    pub grid_template_rows: Vec<TrackSizingFunction>,
+    pub column_data: Vec<GridEntry<T>>,
+}
+
+impl<T> RowEntry<T> {
+    pub fn apply_style(&self, style: Style) -> Style {
+        let mut style = Style {
+            grid_template_columns: self.grid_template_columns.clone(),
+            grid_template_rows: self.grid_template_rows.clone(),
+            ..style
+        };
+
+        if let Some(height) = self.desired_height {
+            style.flex_basis = points(height);
+        }
+
+        style
+    }
+}
+
+impl<T> std::default::Default for RowEntry<T> {
+    fn default() -> Self {
+        Self {
+            desired_height: None,
+            grid_template_columns: vec![fr(1.0)],
+            grid_template_rows: vec![fr(1.0)],
+            column_data: Vec::new(),
+        }
+    }
+}
+
+pub struct GridEntry<T> {
+    style: Style,
+    pub data: T,
+}
+
+impl<T> GridEntry<T> {
+    /// Specify a specific grid coordinate with `[x, y]`, for nonzero
+    /// `x`, `y`, or use `0` to use a single span, and have layout
+    /// order depend on the data order.
+    pub fn new(
+        grid_pos: [i16; 2],
+        // grid_row: Option<i16>,
+        // grid_column: Option<i16>,
+        data: T,
+    ) -> Self {
+        let to_prop = |val| if val != 0 { line(val) } else { span(1) };
+        let style = Style {
+            size: Size {
+                width: auto(),
+                height: auto(),
+            },
+            // flex_basis: percent(1.0),
+            grid_row: to_prop(grid_pos[0]),
+            grid_column: to_prop(grid_pos[1]),
+            ..Default::default()
+        };
+
+        Self { style, data }
+    }
+
+    pub fn auto(data: T) -> Self {
+        Self::new([0, 0], data)
+    }
+
+    pub fn columns(
+        iter: impl IntoIterator<Item = T>,
+    ) -> impl Iterator<Item = GridEntry<T>> {
+        iter.into_iter()
+            .enumerate()
+            .map(|(i, data)| GridEntry::new([1, i as i16], data))
+    }
+}
+
+impl<T> RowGridLayout<T> {
+    //
+    pub fn new() -> Self {
+        let base_row_height = 20.0; // pixels
+
+        let root_style = Style {
+            display: Display::Flex,
+            flex_direction: FlexDirection::Column,
+
+            ..Default::default()
+        };
+
+        // TODO support custom styles
+        let row_base_style = Style {
+            display: Display::Grid,
+
+            flex_shrink: 0.0,
+            // flex_grow: 1.0,
+            ..Default::default()
+        };
+
+        Self {
+            taffy: Taffy::new(),
+            node_data: BTreeMap::default(),
+            root: None,
+
+            root_style,
+            row_base_style,
+
+            computed_for_rect: None,
+        }
+    }
+
+    pub fn clear(&mut self) {
+        self.taffy.clear();
+        self.node_data.clear();
+        self.root = None;
+        self.computed_for_rect = None;
+    }
+
+    pub fn compute_layout(&mut self, rect: egui::Rect) -> anyhow::Result<()> {
+        let root = if let Some(root) = self.root {
+            root
+        } else {
+            anyhow::bail!(RowGridLayoutError::ComputeEmptyLayout);
+        };
+
+        let sized_root_style = Style {
+            size: Size {
+                width: points(rect.width()),
+                height: points(rect.height()),
+            },
+            ..self.root_style.clone()
+        };
+        self.taffy.set_style(root, sized_root_style)?;
+
+        let container_space = Size {
+            width: AvailableSpace::from_points(rect.width()),
+            // height: AvailableSpace::MaxContent,
+            height: AvailableSpace::from_points(rect.height()),
+        };
+        self.taffy.compute_layout(root, container_space)?;
+
+        self.computed_for_rect = Some(rect);
+
+        Ok(())
+    }
+
+    /// Returns the range of row indices that fit inside the given
+    /// vertical space, optionally with a fixed header, and the
+    /// remaining space
+    pub fn fill_from_slice_index<U>(
+        &mut self,
+        // need to take screen size here though
+        available_height: f32,
+        header: impl IntoIterator<Item = RowEntry<T>>,
+        rows: &[U],
+        index: usize,
+        mut to_entry: impl FnMut(&U) -> RowEntry<T>,
+    ) -> Result<(std::ops::Range<usize>, f32), TaffyError> {
+        use crossbeam::atomic::AtomicCell;
+
+        // not exactly needed here, but a comfy way to get some state
+        // out of the closure below
+        let remaining_height = AtomicCell::new(available_height);
+
+        let mut children = Vec::new();
+
+        let mut handle_row =
+            |row_entry: RowEntry<T>| -> Result<bool, TaffyError> {
+                let mut row_children = Vec::new();
+
+                let row_style =
+                    row_entry.apply_style(self.row_base_style.clone());
+
+                for grid_entry in row_entry.column_data {
+                    let node = self.taffy.new_leaf(grid_entry.style)?;
+                    self.node_data.insert(node, grid_entry.data);
+                    row_children.push(node);
+                }
+
+                let row =
+                    self.taffy.new_with_children(row_style, &row_children)?;
+
+                self.taffy.compute_layout(
+                    row,
+                    Size {
+                        width: AvailableSpace::MaxContent,
+                        height: AvailableSpace::MaxContent,
+                    },
+                )?;
+
+                let est = self.taffy.layout(row)?;
+
+                let mut height = remaining_height.load();
+
+                if height - est.size.height < 0.0 {
+                    // adding this would overflow, so remove the last row and we're done
+                    self.taffy.remove(row)?;
+                    for child in row_children {
+                        self.node_data.remove(&child);
+                        self.taffy.remove(child)?;
+                    }
+                    return Ok(true);
+                }
+
+                // println!("estimated size: {:?}", est.size);
+
+                height -= est.size.height;
+                children.push(row);
+
+                remaining_height.store(height);
+
+                Ok(false)
+            };
+
+        // add the header, if any
+
+        let mut header_rows = 0;
+
+        for row in header {
+            // let row_entry = to_entry(row);
+            let full = handle_row(row)?;
+
+            if full {
+                break;
+            } else {
+                header_rows += 1;
+            }
+        }
+
+        // fill forward from the row index
+
+        for row in &rows[index..] {
+            let row_entry = to_entry(row);
+            let full = handle_row(row_entry)?;
+
+            if full {
+                break;
+            }
+        }
+
+        // if there's space left, prepend rows
+        let space_full = remaining_height.load() < 0.0;
+
+        let mut start_index = index;
+
+        if !space_full {
+            for row in rows[..index].iter().rev() {
+                let row_entry = to_entry(row);
+                let full = handle_row(row_entry)?;
+
+                if full {
+                    break;
+                } else {
+                    start_index -= 1;
+                }
+            }
+        }
+
+        // create root container with children
+        let root = self
+            .taffy
+            .new_with_children(self.root_style.clone(), &children)?;
+
+        self.root = Some(root);
+
+        let slice_row_count = children.len() - header_rows;
+        let end_index = start_index + slice_row_count;
+
+        let index_range = start_index..end_index;
+
+        Ok((index_range, remaining_height.load()))
+    }
+
+    pub fn build_layout_for_rows<Rows>(
+        &mut self,
+        rows: Rows,
+    ) -> Result<(), TaffyError>
+    where
+        Rows: IntoIterator<Item = RowEntry<T>>,
+    {
+        // create children
+        let mut children = Vec::new();
+
+        for row_entry in rows.into_iter() {
+            // create inner columns
+            let mut row_children = Vec::new();
+
+            let row_style = row_entry.apply_style(self.row_base_style.clone());
+
+            for grid_entry in row_entry.column_data {
+                let style = grid_entry.style;
+                let node = self.taffy.new_leaf(style)?;
+                self.node_data.insert(node, grid_entry.data);
+                row_children.push(node);
+            }
+
+            let row = self.taffy.new_with_children(row_style, &row_children)?;
+
+            children.push(row);
+        }
+
+        // create root container with children
+        let root = self
+            .taffy
+            .new_with_children(self.root_style.clone(), &children)?;
+
+        self.root = Some(root);
+
+        Ok(())
+    }
+
+    pub fn visit_layout(
+        &self,
+        mut visitor: impl FnMut(Layout, &T),
+    ) -> anyhow::Result<()> {
+        let mut stack: Vec<(Vec2, Node)> = Vec::new();
+
+        let container_offset = if let Some(rect) = self.computed_for_rect {
+            let lt = rect.left_top();
+            Vec2::new(lt.x, lt.y)
+        } else {
+            anyhow::bail!(RowGridLayoutError::VisitBeforeLayout);
+        };
+
+        if let Some(root) = self.root {
+            stack.push((container_offset, root));
+        }
+
+        let mut visited = HashSet::new();
+
+        while let Some((offset, node)) = stack.pop() {
+            // println!("visit! {}", visited.len());
+            visited.insert(node);
+            let mut this_layout = *self.taffy.layout(node)?;
+
+            let children = LayoutTree::children(&self.taffy, node);
+
+            let loc = this_layout.location;
+            let this_pos = Vec2::new(loc.x, loc.y);
+            let offset = offset + this_pos;
+
+            if let Some(data) = self.node_data.get(&node) {
+                this_layout.location.x = offset.x;
+                this_layout.location.y = offset.y;
+
+                visitor(this_layout, data);
+            }
+
+            for &inner in children {
+                if !visited.contains(&inner) {
+                    stack.push((offset, inner));
+                }
+            }
+        }
+
+        Ok(())
+    }
+}
 
 pub struct FlexLayout<T> {
     offset: Vec2,
@@ -49,24 +422,24 @@ impl<T> FlexLayout<T> {
                 height: Dimension::Auto,
             },
             margin: Rect {
-                left: Dimension::Points(0.0),
-                right: Dimension::Points(0.0),
-                top: Dimension::Points(10.0),
-                bottom: Dimension::Points(0.0),
+                left: LengthPercentageAuto::Points(0.0),
+                right: LengthPercentageAuto::Points(0.0),
+                top: LengthPercentageAuto::Points(10.0),
+                bottom: LengthPercentageAuto::Points(0.0),
             },
             size: Size {
                 width: Dimension::Auto,
                 height: Dimension::Auto,
             },
             gap: Size {
-                width: Dimension::Undefined,
-                height: Dimension::Points(10.0),
+                width: LengthPercentage::ZERO,
+                height: LengthPercentage::Points(10.0),
             },
             padding: Rect {
-                left: Dimension::Points(4.0),
-                right: Dimension::Points(4.0),
-                top: Dimension::Points(0.0),
-                bottom: Dimension::Points(0.0),
+                left: LengthPercentage::Points(4.0),
+                right: LengthPercentage::Points(4.0),
+                top: LengthPercentage::Points(0.0),
+                bottom: LengthPercentage::Points(0.0),
             },
             ..Default::default()
         }
@@ -79,18 +452,18 @@ impl<T> FlexLayout<T> {
                 height: Dimension::Auto,
             },
             margin: Rect {
-                left: Dimension::Points(4.0),
-                right: Dimension::Points(4.0),
-                top: Dimension::Points(0.0),
-                bottom: Dimension::Points(0.0),
+                left: LengthPercentageAuto::Points(4.0),
+                right: LengthPercentageAuto::Points(4.0),
+                top: LengthPercentageAuto::Points(0.0),
+                bottom: LengthPercentageAuto::Points(0.0),
             },
             padding: Rect {
-                left: Dimension::Points(4.0),
-                right: Dimension::Points(4.0),
-                top: Dimension::Points(0.0),
-                bottom: Dimension::Points(0.0),
+                left: LengthPercentage::Points(4.0),
+                right: LengthPercentage::Points(4.0),
+                top: LengthPercentage::Points(0.0),
+                bottom: LengthPercentage::Points(0.0),
             },
-            align_self: AlignSelf::Stretch,
+            align_self: Some(AlignItems::Stretch),
             // position_type: PositionType::Relative,
             ..Style::default()
         }
@@ -105,10 +478,10 @@ impl<T> FlexLayout<T> {
 
         Style {
             margin: Rect {
-                left: Dimension::Points(4.0),
-                right: Dimension::Points(4.0),
-                top: Dimension::Points(0.0),
-                bottom: Dimension::Points(0.0),
+                left: LengthPercentageAuto::Points(4.0),
+                right: LengthPercentageAuto::Points(4.0),
+                top: LengthPercentageAuto::Points(0.0),
+                bottom: LengthPercentageAuto::Points(0.0),
             },
             size: Size { width, height },
             ..Default::default()
@@ -146,6 +519,7 @@ impl<T> FlexLayout<T> {
         }
     }
 
+    /*
     pub fn prepend_rows<Rows, Row>(
         &mut self,
         rows: Rows,
@@ -195,6 +569,7 @@ impl<T> FlexLayout<T> {
 
         Ok(())
     }
+    */
 
     pub fn fill_with_rows<Rows, Row>(
         &mut self,
@@ -226,8 +601,9 @@ impl<T> FlexLayout<T> {
                 inner_children.push(inner);
             }
 
-            let row_node =
-                self.taffy.new_with_children(row_style, &inner_children)?;
+            let row_node = self
+                .taffy
+                .new_with_children(row_style.clone(), &inner_children)?;
             children.push(row_node);
         }
 
@@ -373,4 +749,231 @@ pub fn layout_egui_rect(layout: &Layout) -> egui::Rect {
     let bl = egui::pos2(btm_left.x, btm_left.y);
     let center = bl + egui::vec2(size.x / 2.0, size.y / 2.0);
     egui::Rect::from_center_size(center, size)
+}
+
+#[derive(Debug)]
+pub enum RowGridLayoutError {
+    ComputeEmptyLayout,
+    VisitBeforeLayout,
+}
+
+impl std::fmt::Display for RowGridLayoutError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            RowGridLayoutError::VisitBeforeLayout => {
+                write!(f, "Cannot visit layout before computing it")
+            }
+            RowGridLayoutError::ComputeEmptyLayout => {
+                write!(f, "Cannot compute an empty layout")
+            }
+        }
+    }
+}
+
+impl std::error::Error for RowGridLayoutError {}
+
+#[cfg(test)]
+mod tests {
+
+    use super::*;
+
+    use anyhow::Result;
+
+    #[test]
+    fn fill_from_slice_to_fit() -> Result<()> {
+        use taffy::prelude::*;
+
+        let mut layout: RowGridLayout<String> = RowGridLayout::new();
+
+        let rows = (0..10).collect::<Vec<_>>();
+        let row_map = |row: &usize| -> RowEntry<String> {
+            RowEntry {
+                grid_template_columns: vec![fr(1.0)],
+                grid_template_rows: vec![points(25.0 * (1.0 + *row as f32))],
+                column_data: vec![GridEntry::auto(format!("Entry {row}"))],
+                ..RowEntry::default()
+            }
+        };
+
+        let header_row = RowEntry {
+            grid_template_columns: vec![fr(1.0)],
+            grid_template_rows: vec![points(17.0)],
+            column_data: vec![GridEntry::auto(format!("Header"))],
+            ..RowEntry::default()
+        };
+
+        let available_height = 200.0;
+
+        let (range, height) = layout.fill_from_slice_index(
+            available_height,
+            [header_row],
+            &rows,
+            2,
+            &row_map,
+        )?;
+
+        // assert_eq!(range, 2..4);
+        // assert_eq!(height, 25.0);
+
+        let screen_rect = egui::Rect::from_x_y_ranges(0.0..=200.0, 0.0..=100.0);
+
+        layout.compute_layout(screen_rect)?;
+
+        let expected = [
+            ("Header", [0.0, 0.0], [200.0, 17.0]),
+            ("Entry 2", [0.0, 17.0], [200.0, 75.0]),
+            ("Entry 3", [0.0, 92.0], [200.0, 100.0]),
+        ]
+        .into_iter()
+        .map(|(val, [x, y], [width, height])| {
+            let pos = taffy::geometry::Point { x, y };
+            let size = Size { width, height };
+            (val, (pos, size))
+        })
+        .collect::<HashMap<_, _>>();
+
+        layout.visit_layout(|layout, val| {
+            let location = layout.location;
+            let size = layout.size;
+
+            // assert_eq!(&(location, size), expected.get(val.as_str()).unwrap());
+            println!("{val} - {location:?} \t {size:?}");
+        })?;
+
+        taffy::debug::print_tree(&layout.taffy, layout.root.unwrap());
+
+        println!("Filled range: {range:?}\tRemaining height: {height}");
+
+        Ok(())
+    }
+
+    #[test]
+    fn multi_row_grid_layout() -> Result<()> {
+        use taffy::prelude::*;
+
+        let mut layout: RowGridLayout<usize> = RowGridLayout::new();
+
+        let rows = (0..8).flat_map(|u| {
+            if u == 3 {
+                let column_data = vec![
+                    GridEntry::auto(u * 57),
+                    GridEntry::auto(1 + u * 57),
+                    GridEntry::auto(2 + u * 57),
+                    GridEntry::auto(3 + u * 57),
+                ];
+
+                let mut entry = RowEntry {
+                    grid_template_columns: vec![points(300.0), fr(1.0)],
+                    grid_template_rows: vec![points(100.0), points(70.0)],
+                    column_data,
+                    ..RowEntry::default()
+                };
+
+                vec![entry]
+            } else {
+                let column_data =
+                    vec![GridEntry::auto(u * 2), GridEntry::auto(1 + u * 2)];
+                let mut entry = RowEntry {
+                    grid_template_columns: vec![points(100.0), fr(1.0)],
+                    column_data,
+                    ..RowEntry::default()
+                };
+                if u % 2 == 0 {
+                    let u2 = u / 2;
+                    // entry.desired_height = Some(30.0 + 10.0 * u2 as f32);
+                }
+
+                vec![entry]
+            }
+        });
+
+        layout.build_layout_for_rows(rows)?;
+
+        let screen_rect =
+            egui::Rect::from_x_y_ranges(100.0..=900.0, 200.0..=700.0);
+
+        layout.compute_layout(screen_rect)?;
+
+        layout.visit_layout(|layout, val| {
+            let location = layout.location;
+            let size = layout.size;
+
+            println!("{val} - {location:?} \t {size:?}");
+        })?;
+
+        taffy::debug::print_tree(&layout.taffy, layout.root.unwrap());
+
+        Ok(())
+    }
+
+    #[test]
+    fn row_grid_layout() -> Result<()> {
+        use taffy::prelude::*;
+
+        let mut layout: RowGridLayout<usize> = RowGridLayout::new();
+
+        let rows = (0..8).map(|u| {
+            let column_data =
+                vec![GridEntry::auto(u * 2), GridEntry::auto(1 + u * 2)];
+
+            let mut entry = RowEntry {
+                grid_template_columns: vec![points(100.0), fr(1.0)],
+                column_data,
+                ..RowEntry::default()
+            };
+            if u % 2 == 0 {
+                let u2 = u / 2;
+                entry.desired_height = Some(30.0 + 10.0 * u2 as f32);
+            }
+            entry
+        });
+
+        layout.build_layout_for_rows(rows)?;
+
+        let screen_rect =
+            egui::Rect::from_x_y_ranges(100.0..=900.0, 200.0..=700.0);
+
+        layout.compute_layout(screen_rect)?;
+
+        let expected_results = [
+            (15, [200.0, 440.0], [700.0, 20.0]),
+            (14, [100.0, 440.0], [100.0, 20.0]),
+            (13, [200.0, 380.0], [700.0, 60.0]),
+            (12, [100.0, 380.0], [100.0, 60.0]),
+            (11, [200.0, 360.0], [700.0, 20.0]),
+            (10, [100.0, 360.0], [100.0, 20.0]),
+            (9, [200.0, 310.0], [700.0, 50.0]),
+            (8, [100.0, 310.0], [100.0, 50.0]),
+            (7, [200.0, 290.0], [700.0, 20.0]),
+            (6, [100.0, 290.0], [100.0, 20.0]),
+            (5, [200.0, 250.0], [700.0, 40.0]),
+            (4, [100.0, 250.0], [100.0, 40.0]),
+            (3, [200.0, 230.0], [700.0, 20.0]),
+            (2, [100.0, 230.0], [100.0, 20.0]),
+            (1, [200.0, 200.0], [700.0, 30.0]),
+            (0, [100.0, 200.0], [100.0, 30.0]),
+        ]
+        .into_iter()
+        .map(|(val, [x, y], [width, height])| {
+            let pos = taffy::geometry::Point { x, y };
+            let size = Size { width, height };
+            (val, (pos, size))
+        })
+        .collect::<HashMap<_, _>>();
+
+        layout.visit_layout(|layout, val| {
+            let location = layout.location;
+            let size = layout.size;
+
+            let expected = expected_results.get(val).unwrap();
+
+            assert_eq!(location, expected.0);
+            assert_eq!(size, expected.1);
+            println!("{val} - {location:?} \t {size:?}");
+        })?;
+
+        taffy::debug::print_tree(&layout.taffy, layout.root.unwrap());
+
+        Ok(())
+    }
 }

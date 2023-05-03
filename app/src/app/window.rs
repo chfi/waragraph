@@ -9,6 +9,8 @@ use winit::{
     window::{WindowBuilder, WindowId},
 };
 
+use crate::context::ContextState;
+
 use super::{
     settings_menu::{SettingsUiResponse, SettingsWidget},
     AppMsg, AppType, AppWindow,
@@ -73,10 +75,17 @@ impl AppWindowState {
         &mut self,
         tokio_handle: &tokio::runtime::Handle,
         state: &raving_wgpu::State,
+        context_state: &mut ContextState,
         dt: f32,
     ) {
-        self.app
-            .update(tokio_handle, state, &self.window, &mut self.egui, dt);
+        self.app.update(
+            tokio_handle,
+            state,
+            &self.window,
+            &mut self.egui,
+            context_state,
+            dt,
+        );
     }
 
     pub(super) fn render(

@@ -113,9 +113,7 @@ impl ColorStore {
             [r as f32 / max, g as f32 / max, b as f32 / max, 1.0]
         };
 
-        let spectral = [
-            rgba(128, 128, 128),
-            rgba(196, 196, 196),
+        let spectral_colors = [
             rgba(158, 1, 66),
             rgba(213, 62, 79),
             rgba(244, 109, 67),
@@ -128,6 +126,10 @@ impl ColorStore {
             rgba(50, 136, 189),
             rgba(94, 79, 162),
         ];
+        let mut spectral = vec![rgba(128, 128, 128), rgba(196, 196, 196)];
+
+        spectral.extend(spectral_colors);
+
         result.add_color_scheme("spectral", spectral);
 
         let black_red = (0..8).map(|i: i32| {
@@ -139,25 +141,6 @@ impl ColorStore {
         result.add_color_scheme("black_red", black_red);
 
         result
-    }
-
-    pub fn upload_egui_texture(
-        &mut self,
-        ctx: &egui::Context,
-        schema_name: &str,
-    ) {
-        let opts = egui::TextureOptions {
-            magnification: egui::TextureFilter::Linear,
-            minification: egui::TextureFilter::Linear,
-        };
-
-        let name = format!("Color Scheme: {schema_name}");
-
-        // let image_data = egui::ColorImage::from_rgb
-
-        // ctx.load_texture(name, image_data, opts);
-
-        todo!();
     }
 
     pub fn create_color_scheme_texture(
@@ -181,9 +164,13 @@ impl ColorStore {
         let pixel_data: Vec<_> = color_scheme
             .colors
             .iter()
-            .map(|&[r, g, b, _a]| {
-                let rgba = egui::Rgba::from_rgb(r, g, b);
-                egui::Color32::from(rgba).to_array()
+            .map(|&[r, g, b, a]| {
+                [
+                    (r * 255.0) as u8,
+                    (g * 255.0) as u8,
+                    (b * 255.0) as u8,
+                    (a * 255.0) as u8,
+                ]
             })
             .collect();
 

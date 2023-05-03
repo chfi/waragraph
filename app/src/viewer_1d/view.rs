@@ -1,3 +1,5 @@
+use waragraph_core::graph::Bp;
+
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct View1D {
     range: std::ops::Range<u64>,
@@ -33,7 +35,7 @@ impl View1D {
     fn make_valid(&mut self) {
         let len = self.len();
 
-        if len > self.max {
+        if self.range.end > self.max() {
             self.range.end = self.max();
         }
 
@@ -133,5 +135,56 @@ impl View1D {
 
         let range = (l.round() as u64)..(r.round() as u64);
         self.range = range;
+    }
+}
+
+// various useful view-related transformations
+impl View1D {
+    // to implement:
+    // View1D & Screen space range (e.g. slots)
+    //   => Bp -> Screen X;
+    //   => Screen X -> Bp
+
+    // View1D & View1D, treated as the view at t = 0 and t = 1 respectively (e.g. transforms)
+    //   => Bp -> Bp
+    //   => Screen space range -> Bp -> Bp
+
+    /// Maps the view (`self`) to `screen_interval`, and then returns
+    /// the intersection of the image of `pan_range` under this map
+    /// with the given `screen_interval`. Returns `None` if the
+    /// intersection is empty.
+    pub fn map_bp_interval_to_screen_x(
+        &self,
+        pan_range: &std::ops::Range<Bp>,
+        screen_interval: &std::ops::RangeInclusive<f32>,
+    ) -> Option<std::ops::RangeInclusive<f32>> {
+        let vrange = self.range();
+        let pleft = pan_range.start.0;
+        let pright = pan_range.end.0;
+
+        if pleft > vrange.end || pright < vrange.start {
+            return None;
+        }
+
+        let vl = vrange.start as f32;
+        let vr = vrange.end as f32;
+        let vlen = vr - vl;
+
+        let left = pleft.max(vrange.start);
+        let right = pright.min(vrange.end);
+
+        let l = left as f32;
+        let r = right as f32;
+
+        let lt = (l - vl) / vlen;
+        let rt = (r - vl) / vlen;
+
+        let (sleft, sright) = screen_interval.clone().into_inner();
+        let slen = sright - sleft;
+
+        let a_left = sleft + lt * slen;
+        let a_right = sleft + rt * slen;
+
+        Some(a_left..=a_right)
     }
 }

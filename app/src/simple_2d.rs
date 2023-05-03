@@ -14,6 +14,7 @@ use waragraph_core::graph::{matrix::MatGraph, Node, OrientedNode, PathIndex};
 
 use crate::{
     app::{AppWindow, SharedState},
+    context::ContextState,
     viewer_2d::view::View2D,
 };
 
@@ -293,6 +294,7 @@ impl AppWindow for Simple2D {
         state: &raving_wgpu::State,
         window: &raving_wgpu::WindowState,
         egui_ctx: &mut EguiCtx,
+        context_state: &mut ContextState,
         dt: f32,
     ) {
         egui_ctx.begin_frame(&window.window);
