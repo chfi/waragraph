@@ -734,6 +734,46 @@ impl AppWindow for Viewer1D {
             }
         }
 
+        // add ruler
+        {
+            /*
+            use waragraph_core::graph::Node;
+            let query = ContextQuery::from_source::<(Node, PathId, usize, Bp)>(
+                "Viewer1D",
+            );
+
+            let step_ctx =
+                context_state.get_cast::<_, (Node, PathId, usize, Bp)>(&query);
+
+            if let Some((node, path, _step, pos)) = step_ctx {
+                // well... need exact position, here!
+                //
+            }
+            */
+
+            let query =
+                ContextQuery::from_source_tags::<Bp>("Viewer1D", ["hover"]);
+
+            let pan_pos = context_state.get_cast::<_, Bp>(&query);
+            if let Some(pos) = pan_pos {
+                let p = pos.0 as f32;
+                let vrange = self.view.range();
+                let l = vrange.start as f32;
+                let r = vrange.end as f32;
+                let t = (p - l) / (r - l);
+
+                let (sl, sr) = path_slot_region.x_range().into_inner();
+                let x = sl + t * (sr - sl);
+
+                let (y0, y1) = path_slot_region.y_range().into_inner();
+
+                shapes.push(egui::Shape::line_segment(
+                    [egui::pos2(x, y0), egui::pos2(x, y1)],
+                    egui::Stroke::new(1.0, egui::Color32::RED),
+                ));
+            }
+        }
+
         // NB: disabling the color map widget for the time being
         /*
         {
@@ -868,20 +908,25 @@ impl AppWindow for Viewer1D {
                     );
 
                     if let Some((path, node)) = hovered_path.zip(hovered_node) {
-                        let (step, offset) = self
+                        let (n_start, _n_end) =
+                            self.shared.graph.node_offset_length(node);
+
+                        let add_offset =
+                            n_start.0.checked_sub(pan_pos).unwrap_or_default();
+
+                        let step_offset = self
                             .shared
                             .graph
                             .node_path_step_offsets(node, path)
-                            .and_then(|mut iter| iter.next())
-                            .unwrap();
+                            .and_then(|mut iter| iter.next());
 
-                        context_state.set(
-                            "Viewer1D",
-                            ["hover"],
-                            (node, path, step, offset),
-                        );
-
-                        // let path_pos = self.shared.graph.
+                        if let Some((step, offset)) = step_offset {
+                            context_state.set(
+                                "Viewer1D",
+                                ["hover"],
+                                (node, path, step, Bp(offset.0 + add_offset)),
+                            );
+                        }
                     }
                 }
 
