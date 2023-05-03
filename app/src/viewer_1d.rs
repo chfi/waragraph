@@ -936,10 +936,17 @@ impl AppWindow for Viewer1D {
                     let range = self.view.range();
                     let left = Bp(range.start);
                     let right = Bp(range.end);
+
+                    let interact_pos = context_state
+                        .query_get_cast::<_, Bp>(Some("Viewer1D"), ["hover"])
+                        .copied();
+
                     shapes.extend(gui::view_range_shapes(
-                        &fonts, rect, left, right,
-                        None,
-                        // interact.interact_pan_pos,
+                        &fonts,
+                        rect,
+                        left,
+                        right,
+                        interact_pos,
                     ));
                 }
 
