@@ -1,6 +1,7 @@
 use crate::app::{AppWindow, SharedState, VizInteractions};
 use crate::color::ColorMap;
 use crate::context::{ContextQuery, ContextState};
+use crate::util::BufferDesc;
 
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -8,6 +9,7 @@ use std::sync::Arc;
 
 use crossbeam::atomic::AtomicCell;
 use raving_wgpu::camera::DynamicCamera2d;
+use raving_wgpu::texture::Texture;
 use wgpu::BufferUsages;
 use winit::event::WindowEvent;
 
@@ -124,7 +126,7 @@ impl Viewer2D {
             ));
             let frag_src = include_bytes!(concat!(
                 env!("CARGO_MANIFEST_DIR"),
-                "/shaders/path_2d_color_map.frag.spv"
+                "/shaders/path_2d_color_map_g.frag.spv"
             ));
 
             let primitive = wgpu::PrimitiveState {
@@ -181,14 +183,17 @@ impl Viewer2D {
         graph.add_link_from_transient("vertices", draw_node, 0);
         graph.add_link_from_transient("swapchain", draw_node, 1);
 
-        graph.add_link_from_transient("transform", draw_node, 2);
-        graph.add_link_from_transient("vert_cfg", draw_node, 3);
+        graph.add_link_from_transient("node_id_fb", draw_node, 2);
+        graph.add_link_from_transient("node_uv_fb", draw_node, 3);
 
-        graph.add_link_from_transient("node_data", draw_node, 4);
+        graph.add_link_from_transient("transform", draw_node, 4);
+        graph.add_link_from_transient("vert_cfg", draw_node, 5);
 
-        graph.add_link_from_transient("sampler", draw_node, 5);
-        graph.add_link_from_transient("color_texture", draw_node, 6);
-        graph.add_link_from_transient("color_map", draw_node, 7);
+        graph.add_link_from_transient("node_data", draw_node, 6);
+
+        graph.add_link_from_transient("sampler", draw_node, 7);
+        graph.add_link_from_transient("color_texture", draw_node, 8);
+        graph.add_link_from_transient("color_map", draw_node, 9);
 
         // graph.add_link_from_transient("color", draw_node, 5);
         // graph.add_link_from_transient("color_mapping", draw_node, 6);
@@ -680,6 +685,121 @@ pub fn parse_args() -> std::result::Result<Args, pico_args::Error> {
     Ok(args)
 }
 
-fn parse_path(s: &std::ffi::OsStr) -> Result<std::path::PathBuf, &'static str> {
+fn parse_path(
+    s: &std::ffi::OsStr,
+) -> std::result::Result<std::path::PathBuf, &'static str> {
     Ok(s.into())
+}
+
+struct GeometryBuffers {
+    dims: [u32; 2],
+
+    node_id_tex: Texture,
+    node_uv_tex: Texture,
+
+    node_id_buf: BufferDesc,
+    node_uv_buf: BufferDesc,
+}
+
+impl GeometryBuffers {
+    fn allocate(
+        state: &mut raving_wgpu::State,
+        dims: [u32; 2],
+    ) -> Result<Self> {
+        use wgpu::TextureUsages;
+
+        let usage = TextureUsages::RENDER_ATTACHMENT | TextureUsages::COPY_SRC;
+
+        let width = dims[0] as usize;
+        let height = dims[1] as usize;
+
+        let node_id_tex = Texture::new(
+            &state.device,
+            &state.queue,
+            width,
+            height,
+            wgpu::TextureFormat::R32Uint,
+            usage,
+            Some("Viewer2D Node ID Attch."),
+        )?;
+
+        let node_uv_tex = Texture::new(
+            &state.device,
+            &state.queue,
+            width,
+            height,
+            wgpu::TextureFormat::Rg32Float,
+            usage,
+            Some("Viewer2D Node ID Attch."),
+        )?;
+
+        let usage = BufferUsages::COPY_DST | BufferUsages::MAP_READ;
+
+        let node_id_buf = {
+            let buf_size = width * height * std::mem::size_of::<u32>();
+
+            let buffer = state.device.create_buffer(&wgpu::BufferDescriptor {
+                label: Some("Viewer2D Node ID Output Buffer"),
+                usage,
+                size: buf_size as u64,
+                mapped_at_creation: false,
+            });
+
+            BufferDesc {
+                buffer,
+                size: buf_size,
+            }
+        };
+
+        let node_uv_buf = {
+            let buf_size = width * height * std::mem::size_of::<[f32; 2]>();
+
+            let buffer = state.device.create_buffer(&wgpu::BufferDescriptor {
+                label: Some("Viewer2D Node UV Output Buffer"),
+                usage,
+                size: buf_size as u64,
+                mapped_at_creation: false,
+            });
+
+            BufferDesc {
+                buffer,
+                size: buf_size,
+            }
+        };
+
+        Ok(Self {
+            dims,
+            node_id_tex,
+            node_uv_tex,
+            node_id_buf,
+            node_uv_buf,
+        })
+    }
+
+    fn use_as_resource<'a: 'b, 'b>(
+        &'a self,
+        transient_res_map: &mut HashMap<String, InputResource<'b>>,
+    ) {
+        transient_res_map.insert(
+            "node_id_fb".into(),
+            InputResource::Texture {
+                size: self.dims,
+                format: wgpu::TextureFormat::R32Uint,
+                texture: None,
+                view: Some(&self.node_id_tex.view),
+                sampler: None,
+            },
+        );
+
+        transient_res_map.insert(
+            "node_id_fb".into(),
+            InputResource::Texture {
+                size: self.dims,
+                format: wgpu::TextureFormat::Rg32Float,
+                texture: None,
+                view: Some(&self.node_uv_tex.view),
+                sampler: None,
+            },
+        );
+    }
 }
