@@ -114,10 +114,10 @@ pub struct WorkspaceWidgetState {
 
 impl WorkspaceWidgetState {
     pub fn load(ctx: &Context, id: Id) -> Option<Self> {
-        ctx.data().get_temp(id)
+        ctx.data_mut(|data| data.get_temp(id))
     }
 
     pub fn store(self, ctx: &Context, id: Id) {
-        ctx.data().insert_temp(id, self);
+        ctx.data_mut(|data| data.insert_temp(id, self))
     }
 }

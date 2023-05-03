@@ -320,7 +320,7 @@ impl SlotCache {
                     (elem_size * self.bin_count) as u64,
                 )
                 .unwrap();
-                let mut write_view = state.queue.write_buffer_with(
+                let write_view = state.queue.write_buffer_with(
                     &self.data_buffer.buffer,
                     offset as u64,
                     size,
@@ -336,7 +336,9 @@ impl SlotCache {
                 slot_state.updated_at = Some(Instant::now());
 
                 // schedule an update to the corresponding row
-                write_view.copy_from_slice(&data);
+                if let Some(mut write_view) = write_view {
+                    write_view.copy_from_slice(&data);
+                }
             }
         }
 
@@ -697,7 +699,7 @@ impl SlotCache {
                         (elem_size * self.bin_count) as u64,
                     )
                     .unwrap();
-                    let mut write_view = state.queue.write_buffer_with(
+                    let write_view = state.queue.write_buffer_with(
                         &self.data_buffer.buffer,
                         offset as u64,
                         size,
@@ -713,7 +715,9 @@ impl SlotCache {
                     slot_state.updated_at = Some(Instant::now());
 
                     // schedule an update to the corresponding row
-                    write_view.copy_from_slice(&data);
+                    if let Some(mut write_view) = write_view {
+                        write_view.copy_from_slice(&data);
+                    }
                 }
             }
         }

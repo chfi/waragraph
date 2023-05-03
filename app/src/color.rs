@@ -190,6 +190,7 @@ impl ColorStore {
             dimension,
             format,
             usage,
+            view_formats: &[],
         };
 
         let texture = state.device.create_texture_with_data(

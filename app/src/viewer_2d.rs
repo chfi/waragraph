@@ -1,4 +1,4 @@
-use crate::app::{AppWindow, SharedState, VizInteractions};
+use crate::app::{AppWindow, SharedState};
 use crate::color::ColorMap;
 use crate::context::{ContextQuery, ContextState};
 use crate::util::BufferDesc;
@@ -50,6 +50,8 @@ pub struct Viewer2D {
 
     transform_uniform: wgpu::Buffer,
     vert_config: wgpu::Buffer,
+
+    geometry_bufs: GeometryBuffers,
 
     render_graph: Graph,
     draw_node: NodeId,
@@ -126,7 +128,7 @@ impl Viewer2D {
             ));
             let frag_src = include_bytes!(concat!(
                 env!("CARGO_MANIFEST_DIR"),
-                "/shaders/path_2d_color_map_g.frag.spv"
+                "/shaders/path_2d_color_map.frag.spv"
             ));
 
             let primitive = wgpu::PrimitiveState {
@@ -150,6 +152,7 @@ impl Viewer2D {
                 ["vertex_in"],
                 None,
                 &[window.surface_format],
+                // &[window.surface_format, wgpu::TextureFormat::Rg32Float],
             )?
         };
 
@@ -183,17 +186,17 @@ impl Viewer2D {
         graph.add_link_from_transient("vertices", draw_node, 0);
         graph.add_link_from_transient("swapchain", draw_node, 1);
 
-        graph.add_link_from_transient("node_id_fb", draw_node, 2);
-        graph.add_link_from_transient("node_uv_fb", draw_node, 3);
+        // graph.add_link_from_transient("node_id_fb", draw_node, 2);
+        // graph.add_link_from_transient("node_uv_fb", draw_node, 2);
 
-        graph.add_link_from_transient("transform", draw_node, 4);
-        graph.add_link_from_transient("vert_cfg", draw_node, 5);
+        graph.add_link_from_transient("transform", draw_node, 2);
+        graph.add_link_from_transient("vert_cfg", draw_node, 3);
 
-        graph.add_link_from_transient("node_data", draw_node, 6);
+        graph.add_link_from_transient("node_data", draw_node, 4);
 
-        graph.add_link_from_transient("sampler", draw_node, 7);
-        graph.add_link_from_transient("color_texture", draw_node, 8);
-        graph.add_link_from_transient("color_map", draw_node, 9);
+        graph.add_link_from_transient("sampler", draw_node, 5);
+        graph.add_link_from_transient("color_texture", draw_node, 6);
+        graph.add_link_from_transient("color_map", draw_node, 7);
 
         // graph.add_link_from_transient("color", draw_node, 5);
         // graph.add_link_from_transient("color_mapping", draw_node, 6);
@@ -240,6 +243,11 @@ impl Viewer2D {
             },
         )?;
 
+        let geometry_bufs = GeometryBuffers::allocate(
+            state,
+            window.window.inner_size().into(),
+        )?;
+
         Ok(Self {
             node_positions: Arc::new(node_positions),
 
@@ -250,6 +258,8 @@ impl Viewer2D {
 
             transform_uniform,
             vert_config,
+
+            geometry_bufs,
 
             render_graph: graph,
             draw_node,
@@ -394,7 +404,7 @@ impl AppWindow for Viewer2D {
                 painter.extend(annot_shapes);
             });
 
-            let scroll = ctx.input().scroll_delta;
+            let scroll = ctx.input(|i| i.scroll_delta);
 
             if let Some(pos) = ctx.pointer_interact_pos() {
                 let min_scroll = 1.0;
@@ -496,6 +506,11 @@ impl AppWindow for Viewer2D {
     ) -> anyhow::Result<()> {
         let size: [u32; 2] = window.window.inner_size().into();
 
+        if size != self.geometry_bufs.dims {
+            log::info!("reallocating geometry buffers");
+            self.geometry_bufs = GeometryBuffers::allocate(state, size)?;
+        }
+
         let mut transient_res: HashMap<String, InputResource<'_>> =
             HashMap::default();
 
@@ -511,6 +526,8 @@ impl AppWindow for Viewer2D {
                 sampler: None,
             },
         );
+
+        self.geometry_bufs.use_as_resource(&mut transient_res);
 
         let v_stride = std::mem::size_of::<[f32; 5]>();
         transient_res.insert(
@@ -702,10 +719,7 @@ struct GeometryBuffers {
 }
 
 impl GeometryBuffers {
-    fn allocate(
-        state: &mut raving_wgpu::State,
-        dims: [u32; 2],
-    ) -> Result<Self> {
+    fn allocate(state: &raving_wgpu::State, dims: [u32; 2]) -> Result<Self> {
         use wgpu::TextureUsages;
 
         let usage = TextureUsages::RENDER_ATTACHMENT | TextureUsages::COPY_SRC;
@@ -792,7 +806,7 @@ impl GeometryBuffers {
         );
 
         transient_res_map.insert(
-            "node_id_fb".into(),
+            "node_uv_fb".into(),
             InputResource::Texture {
                 size: self.dims,
                 format: wgpu::TextureFormat::Rg32Float,
