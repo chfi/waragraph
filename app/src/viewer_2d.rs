@@ -381,6 +381,8 @@ impl AppWindow for Viewer2D {
 
         egui_ctx.begin_frame(&window.window);
 
+        let mut hover_pos: Option<[f32; 2]> = None;
+
         {
             let ctx = egui_ctx.ctx();
 
@@ -424,6 +426,10 @@ impl AppWindow for Viewer2D {
 
             let scroll = ctx.input(|i| i.scroll_delta);
 
+            if let Some(pos) = ctx.pointer_hover_pos() {
+                hover_pos = Some([pos.x, pos.y]);
+            }
+
             if let Some(pos) = ctx.pointer_interact_pos() {
                 let min_scroll = 1.0;
                 let factor = 0.01;
@@ -439,6 +445,12 @@ impl AppWindow for Viewer2D {
         }
 
         egui_ctx.end_frame(&window.window);
+
+        if let Some(hover_pos) = hover_pos {
+            // look up in geometry buffer
+            let node = self.geometry_bufs.lookup(&state.device, hover_pos);
+            log::error!("g-buffer lookup: {node:?}");
+        }
 
         let width = window.window.inner_size().width as f32;
         let height = window.window.inner_size().height as f32;
@@ -751,6 +763,44 @@ impl GeometryBuffers {
         [w, h]
     }
 
+    // fn lookup(&self, pos: [f32; 2]) -> Option<(Node, f32)> {
+    fn lookup(&self, device: &wgpu::Device, pos: [f32; 2]) -> Option<Node> {
+        let x = pos[0].round() as usize;
+        let y = pos[1].round() as usize;
+
+        // let dims = self.dims();
+        let [aligned_width, _] = self.aligned_dims();
+
+        let ix = x + y * aligned_width as usize;
+
+        self.node_id_buf
+            .buffer
+            .slice(..)
+            .map_async(wgpu::MapMode::Read, Result::unwrap);
+        // |result| {
+        // });
+        device.poll(wgpu::Maintain::Wait);
+
+        let node = {
+            let buf = self.node_id_buf.buffer.slice(..).get_mapped_range();
+            let nonzeros = buf.iter().filter(|&&v| v > 0).count();
+            log::error!("nonzeros in buffer: {nonzeros}");
+            let data = buf[ix];
+            Node::from(data as u32)
+        };
+
+        self.node_id_buf.buffer.unmap();
+        Some(node)
+
+        // self.node_id_buf.buffer.slice(..).map_async(
+        //     wgpu::MapMode::Read,
+        //     |result| {
+        //         if let Ok(
+        //         todo!();
+        //     },
+        // );
+    }
+
     fn download_textures(&self, encoder: &mut wgpu::CommandEncoder) {
         // first copy the attachments to the `copy_dst` textures
 
@@ -763,52 +813,68 @@ impl GeometryBuffers {
         };
 
         let aligned_width = Self::aligned_image_width(self.dims[0]);
-        let aligned_extent = wgpu::Extent3d {
-            width: aligned_width,
-            ..extent
-        };
 
-        let src1 = wgpu::ImageCopyTexture {
+        let src_tex = wgpu::ImageCopyTexture {
             texture: &self.node_id_tex.texture,
             mip_level: 0,
             origin,
             aspect: wgpu::TextureAspect::All,
         };
 
-        let dst1 = wgpu::ImageCopyTexture {
+        let dst_tex = wgpu::ImageCopyTexture {
             texture: &self.node_id_copy_dst_tex.texture,
             mip_level: 0,
             origin,
             aspect: wgpu::TextureAspect::All,
         };
 
-        encoder.copy_texture_to_texture(src1, dst1, extent);
+        encoder.copy_texture_to_texture(src_tex, dst_tex, extent);
 
-        let src2 = wgpu::ImageCopyTexture {
-            texture: &self.node_id_copy_dst_tex.texture,
-            ..dst1
+        let src_tex = wgpu::ImageCopyTexture {
+            texture: &self.node_uv_tex.texture,
+            ..src_tex
         };
 
-        let dst2 = wgpu::ImageCopyBuffer {
+        let dst_tex = wgpu::ImageCopyTexture {
+            texture: &self.node_uv_copy_dst_tex.texture,
+            ..dst_tex
+        };
+
+        encoder.copy_texture_to_texture(src_tex, dst_tex, extent);
+
+        // then copy the aligned textures to the destination buffers
+
+        let src_tex = wgpu::ImageCopyTexture {
+            texture: &self.node_id_copy_dst_tex.texture,
+            ..src_tex
+        };
+
+        let stride = std::mem::size_of::<u32>() as u32;
+        let dst_buf = wgpu::ImageCopyBuffer {
             buffer: &self.node_id_buf.buffer,
             layout: wgpu::ImageDataLayout {
-                offset: 0,
-                bytes_per_row: NonZeroU32::new(aligned_width),
-                rows_per_image: None,
+                bytes_per_row: NonZeroU32::new(aligned_width * stride),
+                ..wgpu::ImageDataLayout::default()
             },
         };
 
-        encoder.copy_texture_to_buffer(src2, dst2, extent);
-        // let src = wgpu::ImageCopyTexture {
-        //     texture: &self.node_id_tex.texture,
-        //     ..src
-        // };
+        encoder.copy_texture_to_buffer(src_tex, dst_buf, extent);
 
-        // let dst = wgpu::ImageCopyBuffer {
-        //     buffer: &self.node_id_buf.buffer,
-        //     ..dst
-        // };
-        // encoder.copy_texture_to_buffer(src, dst, extent);
+        let src_tex = wgpu::ImageCopyTexture {
+            texture: &self.node_uv_copy_dst_tex.texture,
+            ..src_tex
+        };
+
+        let stride = std::mem::size_of::<[f32; 2]>() as u32;
+        let dst_buf = wgpu::ImageCopyBuffer {
+            buffer: &self.node_uv_buf.buffer,
+            layout: wgpu::ImageDataLayout {
+                bytes_per_row: NonZeroU32::new(aligned_width * stride),
+                ..wgpu::ImageDataLayout::default()
+            },
+        };
+
+        encoder.copy_texture_to_buffer(src_tex, dst_buf, extent);
     }
 
     fn aligned_image_width(width: u32) -> u32 {
@@ -874,7 +940,7 @@ impl GeometryBuffers {
         let usage = BufferUsages::COPY_DST | BufferUsages::MAP_READ;
 
         let node_id_buf = {
-            let buf_size = width * height * std::mem::size_of::<u32>();
+            let buf_size = aligned_width * height * std::mem::size_of::<u32>();
 
             let buffer = state.device.create_buffer(&wgpu::BufferDescriptor {
                 label: Some("Viewer2D Node ID Output Buffer"),
@@ -890,7 +956,8 @@ impl GeometryBuffers {
         };
 
         let node_uv_buf = {
-            let buf_size = width * height * std::mem::size_of::<[f32; 2]>();
+            let buf_size =
+                aligned_width * height * std::mem::size_of::<[f32; 2]>();
 
             let buffer = state.device.create_buffer(&wgpu::BufferDescriptor {
                 label: Some("Viewer2D Node UV Output Buffer"),
@@ -926,7 +993,7 @@ impl GeometryBuffers {
                 size: self.dims,
                 format: wgpu::TextureFormat::R32Uint,
                 texture: None,
-                view: Some(&self.node_id_tex.view),
+                view: self.node_id_tex.view.as_ref(),
                 sampler: None,
             },
         );
@@ -937,7 +1004,7 @@ impl GeometryBuffers {
                 size: self.dims,
                 format: wgpu::TextureFormat::Rg32Float,
                 texture: None,
-                view: Some(&self.node_uv_tex.view),
+                view: self.node_uv_tex.view.as_ref(),
                 sampler: None,
             },
         );
