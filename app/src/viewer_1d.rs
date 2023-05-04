@@ -120,7 +120,11 @@ impl Viewer1D {
                 wgpu::VertexStepMode::Instance,
                 ["vertex_in"],
                 None,
-                &[window.surface_format],
+                &[wgpu::ColorTargetState {
+                    format: window.surface_format,
+                    blend: Some(wgpu::BlendState::REPLACE),
+                    write_mask: wgpu::ColorWrites::all(),
+                }],
             )?
         };
 

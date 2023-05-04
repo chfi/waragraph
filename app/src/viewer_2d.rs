@@ -128,7 +128,7 @@ impl Viewer2D {
             ));
             let frag_src = include_bytes!(concat!(
                 env!("CARGO_MANIFEST_DIR"),
-                "/shaders/path_2d_color_map.frag.spv"
+                "/shaders/path_2d_color_map_g.frag.spv"
             ));
 
             let primitive = wgpu::PrimitiveState {
@@ -143,6 +143,24 @@ impl Viewer2D {
                 conservative: false,
             };
 
+            let color_targets = [
+                wgpu::ColorTargetState {
+                    format: window.surface_format,
+                    blend: Some(wgpu::BlendState::REPLACE),
+                    write_mask: wgpu::ColorWrites::all(),
+                },
+                wgpu::ColorTargetState {
+                    format: wgpu::TextureFormat::R32Uint,
+                    blend: None,
+                    write_mask: wgpu::ColorWrites::all(),
+                },
+                wgpu::ColorTargetState {
+                    format: wgpu::TextureFormat::Rg32Float,
+                    blend: None,
+                    write_mask: wgpu::ColorWrites::all(),
+                },
+            ];
+
             graph.add_graphics_schema_custom(
                 state,
                 vert_src,
@@ -151,8 +169,7 @@ impl Viewer2D {
                 wgpu::VertexStepMode::Instance,
                 ["vertex_in"],
                 None,
-                &[window.surface_format],
-                // &[window.surface_format, wgpu::TextureFormat::Rg32Float],
+                color_targets.as_slice(),
             )?
         };
 
@@ -186,17 +203,17 @@ impl Viewer2D {
         graph.add_link_from_transient("vertices", draw_node, 0);
         graph.add_link_from_transient("swapchain", draw_node, 1);
 
-        // graph.add_link_from_transient("node_id_fb", draw_node, 2);
-        // graph.add_link_from_transient("node_uv_fb", draw_node, 2);
+        graph.add_link_from_transient("node_id_fb", draw_node, 2);
+        graph.add_link_from_transient("node_uv_fb", draw_node, 3);
 
-        graph.add_link_from_transient("transform", draw_node, 2);
-        graph.add_link_from_transient("vert_cfg", draw_node, 3);
+        graph.add_link_from_transient("transform", draw_node, 4);
+        graph.add_link_from_transient("vert_cfg", draw_node, 5);
 
-        graph.add_link_from_transient("node_data", draw_node, 4);
+        graph.add_link_from_transient("node_data", draw_node, 6);
 
-        graph.add_link_from_transient("sampler", draw_node, 5);
-        graph.add_link_from_transient("color_texture", draw_node, 6);
-        graph.add_link_from_transient("color_map", draw_node, 7);
+        graph.add_link_from_transient("sampler", draw_node, 7);
+        graph.add_link_from_transient("color_texture", draw_node, 8);
+        graph.add_link_from_transient("color_map", draw_node, 9);
 
         // graph.add_link_from_transient("color", draw_node, 5);
         // graph.add_link_from_transient("color_mapping", draw_node, 6);
@@ -494,6 +511,10 @@ impl AppWindow for Viewer2D {
     ) -> anyhow::Result<()> {
         let aspect = new_window_dims[0] as f32 / new_window_dims[1] as f32;
         self.view.set_aspect(aspect);
+
+        log::info!("reallocating geometry buffers");
+        self.geometry_bufs = GeometryBuffers::allocate(state, new_window_dims)?;
+
         Ok(())
     }
 
@@ -505,11 +526,6 @@ impl AppWindow for Viewer2D {
         encoder: &mut wgpu::CommandEncoder,
     ) -> anyhow::Result<()> {
         let size: [u32; 2] = window.window.inner_size().into();
-
-        if size != self.geometry_bufs.dims {
-            log::info!("reallocating geometry buffers");
-            self.geometry_bufs = GeometryBuffers::allocate(state, size)?;
-        }
 
         let mut transient_res: HashMap<String, InputResource<'_>> =
             HashMap::default();
