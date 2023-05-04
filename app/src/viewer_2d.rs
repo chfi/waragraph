@@ -4,6 +4,7 @@ use crate::context::{ContextQuery, ContextState};
 use crate::util::BufferDesc;
 
 use std::collections::HashMap;
+use std::num::NonZeroU32;
 use std::path::PathBuf;
 use std::sync::Arc;
 
@@ -679,6 +680,8 @@ impl AppWindow for Viewer2D {
             )
             .unwrap();
 
+        self.geometry_bufs.download_textures(encoder);
+
         Ok(())
     }
 }
@@ -730,11 +733,90 @@ struct GeometryBuffers {
     node_id_tex: Texture,
     node_uv_tex: Texture,
 
+    node_id_copy_dst_tex: Texture,
+    node_uv_copy_dst_tex: Texture,
+
     node_id_buf: BufferDesc,
     node_uv_buf: BufferDesc,
 }
 
 impl GeometryBuffers {
+    fn dims(&self) -> [u32; 2] {
+        self.dims
+    }
+
+    fn aligned_dims(&self) -> [u32; 2] {
+        let [w, h] = self.dims;
+        let w = Self::aligned_image_width(w);
+        [w, h]
+    }
+
+    fn download_textures(&self, encoder: &mut wgpu::CommandEncoder) {
+        // first copy the attachments to the `copy_dst` textures
+
+        let origin = wgpu::Origin3d::default();
+
+        let extent = wgpu::Extent3d {
+            width: self.dims[0],
+            height: self.dims[1],
+            depth_or_array_layers: 1,
+        };
+
+        let aligned_width = Self::aligned_image_width(self.dims[0]);
+        let aligned_extent = wgpu::Extent3d {
+            width: aligned_width,
+            ..extent
+        };
+
+        let src1 = wgpu::ImageCopyTexture {
+            texture: &self.node_id_tex.texture,
+            mip_level: 0,
+            origin,
+            aspect: wgpu::TextureAspect::All,
+        };
+
+        let dst1 = wgpu::ImageCopyTexture {
+            texture: &self.node_id_copy_dst_tex.texture,
+            mip_level: 0,
+            origin,
+            aspect: wgpu::TextureAspect::All,
+        };
+
+        encoder.copy_texture_to_texture(src1, dst1, extent);
+
+        let src2 = wgpu::ImageCopyTexture {
+            texture: &self.node_id_copy_dst_tex.texture,
+            ..dst1
+        };
+
+        let dst2 = wgpu::ImageCopyBuffer {
+            buffer: &self.node_id_buf.buffer,
+            layout: wgpu::ImageDataLayout {
+                offset: 0,
+                bytes_per_row: NonZeroU32::new(aligned_width),
+                rows_per_image: None,
+            },
+        };
+
+        encoder.copy_texture_to_buffer(src2, dst2, extent);
+        // let src = wgpu::ImageCopyTexture {
+        //     texture: &self.node_id_tex.texture,
+        //     ..src
+        // };
+
+        // let dst = wgpu::ImageCopyBuffer {
+        //     buffer: &self.node_id_buf.buffer,
+        //     ..dst
+        // };
+        // encoder.copy_texture_to_buffer(src, dst, extent);
+    }
+
+    fn aligned_image_width(width: u32) -> u32 {
+        let div = width / 256;
+        let rem = ((width % 256) != 0) as u32;
+        256 * (div + rem)
+    }
+
     fn allocate(state: &raving_wgpu::State, dims: [u32; 2]) -> Result<Self> {
         use wgpu::TextureUsages;
 
@@ -760,7 +842,33 @@ impl GeometryBuffers {
             height,
             wgpu::TextureFormat::Rg32Float,
             usage,
-            Some("Viewer2D Node ID Attch."),
+            Some("Viewer2D Node Position Attch."),
+        )?;
+
+        let usage = TextureUsages::COPY_DST | TextureUsages::COPY_SRC;
+
+        // wgpu requires image widths to be a multiple of 256 to be
+        // able to copy to a buffer
+        let aligned_width = Self::aligned_image_width(dims[0]) as usize;
+
+        let node_id_copy_dst_tex = Texture::new(
+            &state.device,
+            &state.queue,
+            aligned_width,
+            height,
+            wgpu::TextureFormat::R32Uint,
+            usage,
+            Some("Viewer2D Node ID Copy Dst"),
+        )?;
+
+        let node_uv_copy_dst_tex = Texture::new(
+            &state.device,
+            &state.queue,
+            aligned_width,
+            height,
+            wgpu::TextureFormat::Rg32Float,
+            usage,
+            Some("Viewer2D Node Position Copy Dst"),
         )?;
 
         let usage = BufferUsages::COPY_DST | BufferUsages::MAP_READ;
@@ -803,6 +911,8 @@ impl GeometryBuffers {
             node_uv_tex,
             node_id_buf,
             node_uv_buf,
+            node_id_copy_dst_tex,
+            node_uv_copy_dst_tex,
         })
     }
 
