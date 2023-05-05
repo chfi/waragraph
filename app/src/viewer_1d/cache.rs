@@ -722,13 +722,16 @@ impl SlotCache {
 
             let l = view[0].0;
             let r = view[1].0;
+            let view_len = (r - l) as usize;
+            let used_bins = view_len.min(bin_count);
+            let used_slice = &mut buf[..used_bins * 4];
 
             sampling::sample_data_into_buffer(
                 &path_index,
                 path,
                 &data.path_data,
                 l..r,
-                bytemuck::cast_slice_mut(&mut buf),
+                bytemuck::cast_slice_mut(used_slice),
             );
 
             buf
