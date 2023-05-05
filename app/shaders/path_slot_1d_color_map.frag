@@ -21,10 +21,14 @@ layout (set = 1, binding = 3) uniform ColorMap {
   float max_color;
 } u_color_map;
 
-layout (set = 1, binding = 4) readonly buffer Transform {
-  vec2 ab[];
-} u_transforms;
+struct SlotUniform {
+  vec2 ab;
+  uint bin_count;
+};
 
+layout (set = 1, binding = 4) readonly buffer Transform {
+  SlotUniform slot[];
+} u_slots;
 
 
 // TODO: pass in a uniform
@@ -36,12 +40,14 @@ void main() {
 
   float t = i_uv.x;
 
-  vec2 ab = u_transforms.ab[i_slot_id];
+  vec2 ab = u_slots.slot[i_slot_id].ab;
   t = ab.x * t + ab.y;
 
   float c_t = clamp(t, 0.0, 1.0);
 
-  uint data_ix = uint(round(c_t * float(u_data.row_size - 1)));
+  uint bin_count = u_slots.slot[i_slot_id].bin_count;
+  uint data_ix = uint(round(c_t * float(bin_count)));
+  data_ix = clamp(data_ix, 0, bin_count - 1);
 
   float v = u_data.values[row_offset + data_ix];
 
