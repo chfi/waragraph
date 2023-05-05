@@ -31,6 +31,8 @@ void main() {
 
   f_color = color;
 
-  f_node_id = i_node_id;
+  // increment because the background is all zero & changing that
+  // would require some engine changes that i'm too lazy to do rn
+  f_node_id = i_node_id + 1;
   f_uv = i_uv;
 }

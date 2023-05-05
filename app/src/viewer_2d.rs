@@ -24,7 +24,7 @@ use anyhow::Result;
 
 use ultraviolet::*;
 
-use waragraph_core::graph::{Node, PathIndex};
+use waragraph_core::graph::{Bp, Node, PathIndex};
 
 pub mod layout;
 pub mod view;
@@ -305,7 +305,7 @@ impl Viewer2D {
         window_dims: [f32; 2],
     ) {
         // not in pixels (not even sure what it is)
-        let node_width = 80.0;
+        let node_width = 120.0;
 
         let [w, h] = window_dims;
 
@@ -341,7 +341,8 @@ impl AppWindow for Viewer2D {
         let mut annot_shapes = Vec::new();
 
         let hovered_node_1d = context_state
-            .query_get_cast::<_, Node>(Some("Viewer1D"), ["hover"])
+            // .query_get_cast::<_, Node>(Some("Viewer1D"), ["hover"])
+            .query_get_cast::<_, Node>(None, ["hover"])
             .copied();
 
         let clicked_node_1d = context_state
@@ -449,7 +450,18 @@ impl AppWindow for Viewer2D {
         if let Some(hover_pos) = hover_pos {
             // look up in geometry buffer
             let node = self.geometry_bufs.lookup(&state.device, hover_pos);
-            log::error!("g-buffer lookup: {node:?}");
+            if let Some((node, u)) = node {
+                if node.ix() < self.shared.graph.node_count {
+                    let (node_offset, node_len) =
+                        self.shared.graph.node_offset_length(node);
+                    let local_pos =
+                        (u as f64 * node_len.0 as f64).round() as u64;
+                    let pos = Bp(node_offset.0 + local_pos);
+
+                    context_state.set("Viewer2D", ["hover"], node);
+                    context_state.set("Viewer2D", ["hover"], pos);
+                }
+            }
         }
 
         let width = window.window.inner_size().width as f32;
@@ -763,42 +775,76 @@ impl GeometryBuffers {
         [w, h]
     }
 
-    // fn lookup(&self, pos: [f32; 2]) -> Option<(Node, f32)> {
-    fn lookup(&self, device: &wgpu::Device, pos: [f32; 2]) -> Option<Node> {
+    fn lookup(
+        &self,
+        device: &wgpu::Device,
+        pos: [f32; 2],
+    ) -> Option<(Node, f32)> {
         let x = pos[0].round() as usize;
         let y = pos[1].round() as usize;
 
-        // let dims = self.dims();
-        let [aligned_width, _] = self.aligned_dims();
+        let dims = self.dims();
 
-        let ix = x + y * aligned_width as usize;
+        if x >= dims[0] as usize || y >= dims[1] as usize {
+            return None;
+        }
+
+        let [aligned_width, _] = self.aligned_dims();
 
         self.node_id_buf
             .buffer
             .slice(..)
             .map_async(wgpu::MapMode::Read, Result::unwrap);
-        // |result| {
-        // });
+        self.node_uv_buf
+            .buffer
+            .slice(..)
+            .map_async(wgpu::MapMode::Read, Result::unwrap);
         device.poll(wgpu::Maintain::Wait);
 
         let node = {
-            let buf = self.node_id_buf.buffer.slice(..).get_mapped_range();
-            let nonzeros = buf.iter().filter(|&&v| v > 0).count();
-            log::error!("nonzeros in buffer: {nonzeros}");
-            let data = buf[ix];
-            Node::from(data as u32)
+            let stride = std::mem::size_of::<u32>() as u64;
+            let row_size = aligned_width as u64 * stride;
+
+            let row_start = (y as u64 * row_size) as u64;
+            let row_end = row_start + row_size;
+
+            let row = self
+                .node_id_buf
+                .buffer
+                .slice(row_start..row_end)
+                .get_mapped_range();
+
+            let row_u32: &[u32] = bytemuck::cast_slice(&row);
+
+            let data = row_u32[x];
+
+            data.checked_sub(1).map(Node::from)
+        };
+
+        let pos = {
+            let stride = std::mem::size_of::<[f32; 2]>() as u64;
+            let row_size = aligned_width as u64 * stride;
+
+            let row_start = (y as u64 * row_size) as u64;
+            let row_end = row_start + row_size;
+
+            let row = self
+                .node_uv_buf
+                .buffer
+                .slice(row_start..row_end)
+                .get_mapped_range();
+
+            let row_u32: &[[f32; 2]] = bytemuck::cast_slice(&row);
+
+            let [pos, _] = row_u32[x];
+
+            pos
         };
 
         self.node_id_buf.buffer.unmap();
-        Some(node)
+        self.node_uv_buf.buffer.unmap();
 
-        // self.node_id_buf.buffer.slice(..).map_async(
-        //     wgpu::MapMode::Read,
-        //     |result| {
-        //         if let Ok(
-        //         todo!();
-        //     },
-        // );
+        node.map(|n| (n, pos))
     }
 
     fn download_textures(&self, encoder: &mut wgpu::CommandEncoder) {
@@ -813,6 +859,10 @@ impl GeometryBuffers {
         };
 
         let aligned_width = Self::aligned_image_width(self.dims[0]);
+        let aligned_extent = wgpu::Extent3d {
+            width: aligned_width,
+            ..extent
+        };
 
         let src_tex = wgpu::ImageCopyTexture {
             texture: &self.node_id_tex.texture,

@@ -753,7 +753,7 @@ impl AppWindow for Viewer1D {
 
                 shapes.push(egui::Shape::line_segment(
                     [egui::pos2(x, y0), egui::pos2(x, y1)],
-                    egui::Stroke::new(1.0, egui::Color32::RED),
+                    egui::Stroke::new(1.5, egui::Color32::RED),
                 ));
             }
         }
