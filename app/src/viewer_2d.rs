@@ -1,13 +1,16 @@
-use crate::app::{AppWindow, SharedState, VizInteractions};
+use crate::app::{AppWindow, SharedState};
 use crate::color::ColorMap;
 use crate::context::{ContextQuery, ContextState};
+use crate::util::BufferDesc;
 
 use std::collections::HashMap;
+use std::num::NonZeroU32;
 use std::path::PathBuf;
 use std::sync::Arc;
 
 use crossbeam::atomic::AtomicCell;
 use raving_wgpu::camera::DynamicCamera2d;
+use raving_wgpu::texture::Texture;
 use wgpu::BufferUsages;
 use winit::event::WindowEvent;
 
@@ -21,7 +24,7 @@ use anyhow::Result;
 
 use ultraviolet::*;
 
-use waragraph_core::graph::{Node, PathIndex};
+use waragraph_core::graph::{Bp, Node, PathIndex};
 
 pub mod layout;
 pub mod view;
@@ -48,6 +51,8 @@ pub struct Viewer2D {
 
     transform_uniform: wgpu::Buffer,
     vert_config: wgpu::Buffer,
+
+    geometry_bufs: GeometryBuffers,
 
     render_graph: Graph,
     draw_node: NodeId,
@@ -124,7 +129,7 @@ impl Viewer2D {
             ));
             let frag_src = include_bytes!(concat!(
                 env!("CARGO_MANIFEST_DIR"),
-                "/shaders/path_2d_color_map.frag.spv"
+                "/shaders/path_2d_color_map_g.frag.spv"
             ));
 
             let primitive = wgpu::PrimitiveState {
@@ -139,6 +144,24 @@ impl Viewer2D {
                 conservative: false,
             };
 
+            let color_targets = [
+                wgpu::ColorTargetState {
+                    format: window.surface_format,
+                    blend: Some(wgpu::BlendState::REPLACE),
+                    write_mask: wgpu::ColorWrites::all(),
+                },
+                wgpu::ColorTargetState {
+                    format: wgpu::TextureFormat::R32Uint,
+                    blend: None,
+                    write_mask: wgpu::ColorWrites::all(),
+                },
+                wgpu::ColorTargetState {
+                    format: wgpu::TextureFormat::Rg32Float,
+                    blend: None,
+                    write_mask: wgpu::ColorWrites::all(),
+                },
+            ];
+
             graph.add_graphics_schema_custom(
                 state,
                 vert_src,
@@ -147,7 +170,7 @@ impl Viewer2D {
                 wgpu::VertexStepMode::Instance,
                 ["vertex_in"],
                 None,
-                &[window.surface_format],
+                color_targets.as_slice(),
             )?
         };
 
@@ -181,14 +204,17 @@ impl Viewer2D {
         graph.add_link_from_transient("vertices", draw_node, 0);
         graph.add_link_from_transient("swapchain", draw_node, 1);
 
-        graph.add_link_from_transient("transform", draw_node, 2);
-        graph.add_link_from_transient("vert_cfg", draw_node, 3);
+        graph.add_link_from_transient("node_id_fb", draw_node, 2);
+        graph.add_link_from_transient("node_uv_fb", draw_node, 3);
 
-        graph.add_link_from_transient("node_data", draw_node, 4);
+        graph.add_link_from_transient("transform", draw_node, 4);
+        graph.add_link_from_transient("vert_cfg", draw_node, 5);
 
-        graph.add_link_from_transient("sampler", draw_node, 5);
-        graph.add_link_from_transient("color_texture", draw_node, 6);
-        graph.add_link_from_transient("color_map", draw_node, 7);
+        graph.add_link_from_transient("node_data", draw_node, 6);
+
+        graph.add_link_from_transient("sampler", draw_node, 7);
+        graph.add_link_from_transient("color_texture", draw_node, 8);
+        graph.add_link_from_transient("color_map", draw_node, 9);
 
         // graph.add_link_from_transient("color", draw_node, 5);
         // graph.add_link_from_transient("color_mapping", draw_node, 6);
@@ -235,6 +261,11 @@ impl Viewer2D {
             },
         )?;
 
+        let geometry_bufs = GeometryBuffers::allocate(
+            state,
+            window.window.inner_size().into(),
+        )?;
+
         Ok(Self {
             node_positions: Arc::new(node_positions),
 
@@ -245,6 +276,8 @@ impl Viewer2D {
 
             transform_uniform,
             vert_config,
+
+            geometry_bufs,
 
             render_graph: graph,
             draw_node,
@@ -272,7 +305,7 @@ impl Viewer2D {
         window_dims: [f32; 2],
     ) {
         // not in pixels (not even sure what it is)
-        let node_width = 80.0;
+        let node_width = 120.0;
 
         let [w, h] = window_dims;
 
@@ -308,7 +341,8 @@ impl AppWindow for Viewer2D {
         let mut annot_shapes = Vec::new();
 
         let hovered_node_1d = context_state
-            .query_get_cast::<_, Node>(Some("Viewer1D"), ["hover"])
+            // .query_get_cast::<_, Node>(Some("Viewer1D"), ["hover"])
+            .query_get_cast::<_, Node>(None, ["hover"])
             .copied();
 
         let clicked_node_1d = context_state
@@ -347,6 +381,8 @@ impl AppWindow for Viewer2D {
         }
 
         egui_ctx.begin_frame(&window.window);
+
+        let mut hover_pos: Option<[f32; 2]> = None;
 
         {
             let ctx = egui_ctx.ctx();
@@ -389,7 +425,11 @@ impl AppWindow for Viewer2D {
                 painter.extend(annot_shapes);
             });
 
-            let scroll = ctx.input().scroll_delta;
+            let scroll = ctx.input(|i| i.scroll_delta);
+
+            if let Some(pos) = ctx.pointer_hover_pos() {
+                hover_pos = Some([pos.x, pos.y]);
+            }
 
             if let Some(pos) = ctx.pointer_interact_pos() {
                 let min_scroll = 1.0;
@@ -406,6 +446,23 @@ impl AppWindow for Viewer2D {
         }
 
         egui_ctx.end_frame(&window.window);
+
+        if let Some(hover_pos) = hover_pos {
+            // look up in geometry buffer
+            let node = self.geometry_bufs.lookup(&state.device, hover_pos);
+            if let Some((node, u)) = node {
+                if node.ix() < self.shared.graph.node_count {
+                    let (node_offset, node_len) =
+                        self.shared.graph.node_offset_length(node);
+                    let local_pos =
+                        (u as f64 * node_len.0 as f64).round() as u64;
+                    let pos = Bp(node_offset.0 + local_pos);
+
+                    context_state.set("Viewer2D", ["hover"], node);
+                    context_state.set("Viewer2D", ["hover"], pos);
+                }
+            }
+        }
 
         let width = window.window.inner_size().width as f32;
         let height = window.window.inner_size().height as f32;
@@ -479,6 +536,10 @@ impl AppWindow for Viewer2D {
     ) -> anyhow::Result<()> {
         let aspect = new_window_dims[0] as f32 / new_window_dims[1] as f32;
         self.view.set_aspect(aspect);
+
+        log::info!("reallocating geometry buffers");
+        self.geometry_bufs = GeometryBuffers::allocate(state, new_window_dims)?;
+
         Ok(())
     }
 
@@ -506,6 +567,8 @@ impl AppWindow for Viewer2D {
                 sampler: None,
             },
         );
+
+        self.geometry_bufs.use_as_resource(&mut transient_res);
 
         let v_stride = std::mem::size_of::<[f32; 5]>();
         transient_res.insert(
@@ -641,6 +704,8 @@ impl AppWindow for Viewer2D {
             )
             .unwrap();
 
+        self.geometry_bufs.download_textures(encoder);
+
         Ok(())
     }
 }
@@ -680,6 +745,318 @@ pub fn parse_args() -> std::result::Result<Args, pico_args::Error> {
     Ok(args)
 }
 
-fn parse_path(s: &std::ffi::OsStr) -> Result<std::path::PathBuf, &'static str> {
+fn parse_path(
+    s: &std::ffi::OsStr,
+) -> std::result::Result<std::path::PathBuf, &'static str> {
     Ok(s.into())
+}
+
+struct GeometryBuffers {
+    dims: [u32; 2],
+
+    node_id_tex: Texture,
+    node_uv_tex: Texture,
+
+    node_id_copy_dst_tex: Texture,
+    node_uv_copy_dst_tex: Texture,
+
+    node_id_buf: BufferDesc,
+    node_uv_buf: BufferDesc,
+}
+
+impl GeometryBuffers {
+    fn dims(&self) -> [u32; 2] {
+        self.dims
+    }
+
+    fn aligned_dims(&self) -> [u32; 2] {
+        let [w, h] = self.dims;
+        let w = Self::aligned_image_width(w);
+        [w, h]
+    }
+
+    fn lookup(
+        &self,
+        device: &wgpu::Device,
+        pos: [f32; 2],
+    ) -> Option<(Node, f32)> {
+        let x = pos[0].round() as usize;
+        let y = pos[1].round() as usize;
+
+        let dims = self.dims();
+
+        if x >= dims[0] as usize || y >= dims[1] as usize {
+            return None;
+        }
+
+        let [aligned_width, _] = self.aligned_dims();
+
+        self.node_id_buf
+            .buffer
+            .slice(..)
+            .map_async(wgpu::MapMode::Read, Result::unwrap);
+        self.node_uv_buf
+            .buffer
+            .slice(..)
+            .map_async(wgpu::MapMode::Read, Result::unwrap);
+        device.poll(wgpu::Maintain::Wait);
+
+        let node = {
+            let stride = std::mem::size_of::<u32>() as u64;
+            let row_size = aligned_width as u64 * stride;
+
+            let row_start = (y as u64 * row_size) as u64;
+            let row_end = row_start + row_size;
+
+            let row = self
+                .node_id_buf
+                .buffer
+                .slice(row_start..row_end)
+                .get_mapped_range();
+
+            let row_u32: &[u32] = bytemuck::cast_slice(&row);
+
+            let data = row_u32[x];
+
+            data.checked_sub(1).map(Node::from)
+        };
+
+        let pos = {
+            let stride = std::mem::size_of::<[f32; 2]>() as u64;
+            let row_size = aligned_width as u64 * stride;
+
+            let row_start = (y as u64 * row_size) as u64;
+            let row_end = row_start + row_size;
+
+            let row = self
+                .node_uv_buf
+                .buffer
+                .slice(row_start..row_end)
+                .get_mapped_range();
+
+            let row_u32: &[[f32; 2]] = bytemuck::cast_slice(&row);
+
+            let [pos, _] = row_u32[x];
+
+            pos
+        };
+
+        self.node_id_buf.buffer.unmap();
+        self.node_uv_buf.buffer.unmap();
+
+        node.map(|n| (n, pos))
+    }
+
+    fn download_textures(&self, encoder: &mut wgpu::CommandEncoder) {
+        // first copy the attachments to the `copy_dst` textures
+
+        let origin = wgpu::Origin3d::default();
+
+        let extent = wgpu::Extent3d {
+            width: self.dims[0],
+            height: self.dims[1],
+            depth_or_array_layers: 1,
+        };
+
+        let aligned_width = Self::aligned_image_width(self.dims[0]);
+        let aligned_extent = wgpu::Extent3d {
+            width: aligned_width,
+            ..extent
+        };
+
+        let src_tex = wgpu::ImageCopyTexture {
+            texture: &self.node_id_tex.texture,
+            mip_level: 0,
+            origin,
+            aspect: wgpu::TextureAspect::All,
+        };
+
+        let dst_tex = wgpu::ImageCopyTexture {
+            texture: &self.node_id_copy_dst_tex.texture,
+            mip_level: 0,
+            origin,
+            aspect: wgpu::TextureAspect::All,
+        };
+
+        encoder.copy_texture_to_texture(src_tex, dst_tex, extent);
+
+        let src_tex = wgpu::ImageCopyTexture {
+            texture: &self.node_uv_tex.texture,
+            ..src_tex
+        };
+
+        let dst_tex = wgpu::ImageCopyTexture {
+            texture: &self.node_uv_copy_dst_tex.texture,
+            ..dst_tex
+        };
+
+        encoder.copy_texture_to_texture(src_tex, dst_tex, extent);
+
+        // then copy the aligned textures to the destination buffers
+
+        let src_tex = wgpu::ImageCopyTexture {
+            texture: &self.node_id_copy_dst_tex.texture,
+            ..src_tex
+        };
+
+        let stride = std::mem::size_of::<u32>() as u32;
+        let dst_buf = wgpu::ImageCopyBuffer {
+            buffer: &self.node_id_buf.buffer,
+            layout: wgpu::ImageDataLayout {
+                bytes_per_row: NonZeroU32::new(aligned_width * stride),
+                ..wgpu::ImageDataLayout::default()
+            },
+        };
+
+        encoder.copy_texture_to_buffer(src_tex, dst_buf, extent);
+
+        let src_tex = wgpu::ImageCopyTexture {
+            texture: &self.node_uv_copy_dst_tex.texture,
+            ..src_tex
+        };
+
+        let stride = std::mem::size_of::<[f32; 2]>() as u32;
+        let dst_buf = wgpu::ImageCopyBuffer {
+            buffer: &self.node_uv_buf.buffer,
+            layout: wgpu::ImageDataLayout {
+                bytes_per_row: NonZeroU32::new(aligned_width * stride),
+                ..wgpu::ImageDataLayout::default()
+            },
+        };
+
+        encoder.copy_texture_to_buffer(src_tex, dst_buf, extent);
+    }
+
+    fn aligned_image_width(width: u32) -> u32 {
+        let div = width / 256;
+        let rem = ((width % 256) != 0) as u32;
+        256 * (div + rem)
+    }
+
+    fn allocate(state: &raving_wgpu::State, dims: [u32; 2]) -> Result<Self> {
+        use wgpu::TextureUsages;
+
+        let usage = TextureUsages::RENDER_ATTACHMENT | TextureUsages::COPY_SRC;
+
+        let width = dims[0] as usize;
+        let height = dims[1] as usize;
+
+        let node_id_tex = Texture::new(
+            &state.device,
+            &state.queue,
+            width,
+            height,
+            wgpu::TextureFormat::R32Uint,
+            usage,
+            Some("Viewer2D Node ID Attch."),
+        )?;
+
+        let node_uv_tex = Texture::new(
+            &state.device,
+            &state.queue,
+            width,
+            height,
+            wgpu::TextureFormat::Rg32Float,
+            usage,
+            Some("Viewer2D Node Position Attch."),
+        )?;
+
+        let usage = TextureUsages::COPY_DST | TextureUsages::COPY_SRC;
+
+        // wgpu requires image widths to be a multiple of 256 to be
+        // able to copy to a buffer
+        let aligned_width = Self::aligned_image_width(dims[0]) as usize;
+
+        let node_id_copy_dst_tex = Texture::new(
+            &state.device,
+            &state.queue,
+            aligned_width,
+            height,
+            wgpu::TextureFormat::R32Uint,
+            usage,
+            Some("Viewer2D Node ID Copy Dst"),
+        )?;
+
+        let node_uv_copy_dst_tex = Texture::new(
+            &state.device,
+            &state.queue,
+            aligned_width,
+            height,
+            wgpu::TextureFormat::Rg32Float,
+            usage,
+            Some("Viewer2D Node Position Copy Dst"),
+        )?;
+
+        let usage = BufferUsages::COPY_DST | BufferUsages::MAP_READ;
+
+        let node_id_buf = {
+            let buf_size = aligned_width * height * std::mem::size_of::<u32>();
+
+            let buffer = state.device.create_buffer(&wgpu::BufferDescriptor {
+                label: Some("Viewer2D Node ID Output Buffer"),
+                usage,
+                size: buf_size as u64,
+                mapped_at_creation: false,
+            });
+
+            BufferDesc {
+                buffer,
+                size: buf_size,
+            }
+        };
+
+        let node_uv_buf = {
+            let buf_size =
+                aligned_width * height * std::mem::size_of::<[f32; 2]>();
+
+            let buffer = state.device.create_buffer(&wgpu::BufferDescriptor {
+                label: Some("Viewer2D Node UV Output Buffer"),
+                usage,
+                size: buf_size as u64,
+                mapped_at_creation: false,
+            });
+
+            BufferDesc {
+                buffer,
+                size: buf_size,
+            }
+        };
+
+        Ok(Self {
+            dims,
+            node_id_tex,
+            node_uv_tex,
+            node_id_buf,
+            node_uv_buf,
+            node_id_copy_dst_tex,
+            node_uv_copy_dst_tex,
+        })
+    }
+
+    fn use_as_resource<'a: 'b, 'b>(
+        &'a self,
+        transient_res_map: &mut HashMap<String, InputResource<'b>>,
+    ) {
+        transient_res_map.insert(
+            "node_id_fb".into(),
+            InputResource::Texture {
+                size: self.dims,
+                format: wgpu::TextureFormat::R32Uint,
+                texture: None,
+                view: self.node_id_tex.view.as_ref(),
+                sampler: None,
+            },
+        );
+
+        transient_res_map.insert(
+            "node_uv_fb".into(),
+            InputResource::Texture {
+                size: self.dims,
+                format: wgpu::TextureFormat::Rg32Float,
+                texture: None,
+                view: self.node_uv_tex.view.as_ref(),
+                sampler: None,
+            },
+        );
+    }
 }

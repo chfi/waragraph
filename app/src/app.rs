@@ -168,8 +168,8 @@ impl App {
                         AnnotationSet::from_gff(
                             &path_index,
                             None,
-                            |name| name.to_string(),
-                            // |name| format!("S288C.{name}"),
+                            // |name| name.to_string(),
+                            |name| format!("S288C.{name}"),
                             // |name| format!("SGDref#1#{name}"),
                             |record| {
                                 let attrs = record.attributes();
@@ -615,40 +615,6 @@ pub fn parse_args() -> std::result::Result<Args, pico_args::Error> {
 
 fn parse_path(s: &std::ffi::OsStr) -> Result<std::path::PathBuf, &'static str> {
     Ok(s.into())
-}
-
-#[derive(Debug, Default, Clone, PartialEq, Eq, Hash)]
-pub struct VizInteractions {
-    pub clicked: bool,
-    pub interact_path: Option<PathId>,
-    pub interact_node: Option<waragraph_core::graph::Node>,
-    pub interact_pan_pos: Option<Bp>,
-    pub interact_path_pos: Option<(PathId, Bp)>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub enum VizInteractMsg {
-    Click,
-    Path(PathId),
-    Node(waragraph_core::graph::Node),
-    PangenomePos(Bp),
-    PathPos { path: PathId, pos: Bp },
-}
-
-impl VizInteractions {
-    pub fn apply(&mut self, msg: VizInteractMsg) {
-        match msg {
-            VizInteractMsg::Click => self.clicked = true,
-            VizInteractMsg::Path(path) => self.interact_path = Some(path),
-            VizInteractMsg::Node(node) => self.interact_node = Some(node),
-            VizInteractMsg::PangenomePos(pos) => {
-                self.interact_pan_pos = Some(pos)
-            }
-            VizInteractMsg::PathPos { path, pos } => {
-                self.interact_path_pos = Some((path, pos))
-            }
-        }
-    }
 }
 
 #[derive(Debug, Clone)]

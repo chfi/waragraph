@@ -1,15 +1,12 @@
 use crate::annotations::GlobalAnnotationId;
 use crate::app::settings_menu::SettingsWindow;
-use crate::app::{AppWindow, SharedState, VizInteractions};
-use crate::color::widget::{ColorMapWidget, ColorMapWidgetShared};
+use crate::app::{AppWindow, SharedState};
 use crate::color::ColorMap;
 use crate::context::{ContextQuery, ContextState};
-use crate::gui::{FlexLayout, GridEntry, RowEntry, RowGridLayout};
+use crate::gui::{GridEntry, RowEntry, RowGridLayout};
 use crate::list::ListView;
-use crate::util::BufferDesc;
 use crate::viewer_1d::annotations::AnnotSlot;
 use crossbeam::atomic::AtomicCell;
-use taffy::style::Dimension;
 use tokio::sync::RwLock;
 use waragraph_core::graph::{Bp, PathId};
 use wgpu::BufferUsages;
@@ -123,7 +120,11 @@ impl Viewer1D {
                 wgpu::VertexStepMode::Instance,
                 ["vertex_in"],
                 None,
-                &[window.surface_format],
+                &[wgpu::ColorTargetState {
+                    format: window.surface_format,
+                    blend: Some(wgpu::BlendState::REPLACE),
+                    write_mask: wgpu::ColorWrites::all(),
+                }],
             )?
         };
 
@@ -378,7 +379,7 @@ impl AppWindow for Viewer1D {
     ) {
         egui_ctx.begin_frame(&window.window);
 
-        let time = egui_ctx.ctx().input().time;
+        let time = egui_ctx.ctx().input(|i| i.time);
 
         /* >> TODO <<
           [x] Prepare annotation slots for relevant paths
@@ -413,9 +414,10 @@ impl AppWindow for Viewer1D {
 
             let info_col_width = {
                 let id = egui::Id::new(Self::COLUMN_SEPARATOR_ID);
-                let mut memory = egui_ctx.ctx().memory();
-                let width = memory.data.get_temp_mut_or(id, 150f32);
-                *width
+                egui_ctx.ctx().memory_mut(|mem| {
+                    let width = mem.data.get_temp_mut_or(id, 150f32);
+                    *width
+                })
             };
 
             let header_row = {
@@ -539,9 +541,7 @@ impl AppWindow for Viewer1D {
         let mut path_name_region = egui::Rect::NOTHING;
         let mut path_slot_region = egui::Rect::NOTHING;
 
-        {
-            let fonts = egui_ctx.ctx().fonts();
-
+        egui_ctx.ctx().fonts(|fonts| {
             let _ = row_grid_layout.visit_layout(|layout, elem| {
                 let rect = crate::gui::layout_egui_rect(&layout);
 
@@ -636,7 +636,7 @@ impl AppWindow for Viewer1D {
                     }
                 }
             });
-        }
+        });
 
         for (data_key, path_rects) in data_slots {
             let result = self.slot_cache.sample_for_data(
@@ -753,7 +753,7 @@ impl AppWindow for Viewer1D {
 
                 shapes.push(egui::Shape::line_segment(
                     [egui::pos2(x, y0), egui::pos2(x, y1)],
-                    egui::Stroke::new(1.0, egui::Color32::RED),
+                    egui::Stroke::new(1.5, egui::Color32::RED),
                 ));
             }
         }
@@ -798,8 +798,7 @@ impl AppWindow for Viewer1D {
             );
         }
 
-        {
-            let fonts = egui_ctx.ctx().fonts();
+        egui_ctx.ctx().fonts(|fonts| {
             let show_state = |state: &SlotState| {
                 let msg = state.last_msg.as_ref()?;
                 let rect = state.last_rect?;
@@ -817,7 +816,7 @@ impl AppWindow for Viewer1D {
                 ))
             };
             self.slot_cache.update_displayed_messages(show_state);
-        }
+        });
 
         shapes.extend(self.slot_cache.msg_shapes.drain(..));
 
@@ -841,7 +840,7 @@ impl AppWindow for Viewer1D {
                     egui::Sense::click_and_drag(),
                 );
 
-                let scroll = ui.input().scroll_delta;
+                let scroll = ui.input(|i| i.scroll_delta);
 
                 if path_names.hovered() {
                     // hardcoded row height for now; should be stored/fetched
@@ -916,7 +915,6 @@ impl AppWindow for Viewer1D {
 
                 //
                 if let Some(rect) = view_range_rect {
-                    let fonts = ui.fonts();
                     let range = self.view.range();
                     let left = Bp(range.start);
                     let right = Bp(range.end);
@@ -925,13 +923,15 @@ impl AppWindow for Viewer1D {
                         .query_get_cast::<_, Bp>(Some("Viewer1D"), ["hover"])
                         .copied();
 
-                    shapes.extend(gui::view_range_shapes(
-                        &fonts,
-                        rect,
-                        left,
-                        right,
-                        interact_pos,
-                    ));
+                    ui.fonts(|fonts| {
+                        shapes.extend(gui::view_range_shapes(
+                            &fonts,
+                            rect,
+                            left,
+                            right,
+                            interact_pos,
+                        ));
+                    });
                 }
 
                 for &(slot_id, rect) in annot_slots.iter() {
@@ -939,7 +939,8 @@ impl AppWindow for Viewer1D {
                     {
                         let painter = ui.painter_at(rect);
 
-                        let cursor_pos = ui.input().pointer.hover_pos();
+                        let cursor_pos =
+                            ui.input(|input| input.pointer.hover_pos());
                         let interacted =
                             annot_slot.draw(&painter, &self.view, cursor_pos);
 
@@ -990,9 +991,10 @@ impl AppWindow for Viewer1D {
                     if column_separator.dragged_by(egui::PointerButton::Primary)
                     {
                         let id = egui::Id::new(Self::COLUMN_SEPARATOR_ID);
-                        let mut memory = ui.memory();
-                        let width = memory.data.get_temp_mut_or(id, 150f32);
-                        *width = (*width + dx).clamp(50.0, 400.0);
+                        ui.memory_mut(|mem| {
+                            let width = mem.data.get_temp_mut_or(id, 150f32);
+                            *width = (*width + dx).clamp(50.0, 400.0);
+                        });
                     }
                 };
             });

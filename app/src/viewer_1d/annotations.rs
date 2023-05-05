@@ -69,17 +69,18 @@ type ShapeFn = Box<dyn Fn(&egui::Painter, egui::Pos2) -> egui::Shape>;
 pub fn text_shape<L: ToString>(label: L) -> ShapeFn {
     let label = label.to_string();
     Box::new(move |painter, pos| {
-        let fonts = painter.fonts();
-        let font = egui::FontId::proportional(16.0);
-        let color = egui::Color32::WHITE;
-        egui::Shape::text(
-            &fonts,
-            pos,
-            egui::Align2::CENTER_CENTER,
-            label.clone(),
-            font,
-            color,
-        )
+        painter.fonts(|fonts| {
+            let font = egui::FontId::proportional(16.0);
+            let color = egui::Color32::WHITE;
+            egui::Shape::text(
+                &fonts,
+                pos,
+                egui::Align2::CENTER_CENTER,
+                label.clone(),
+                font,
+                color,
+            )
+        })
     })
 }
 

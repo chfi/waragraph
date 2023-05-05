@@ -1,36 +1,15 @@
-use crate::app::resource::GraphPathData;
 use crate::app::settings_menu::SettingsWindow;
-use crate::app::{AppWindow, SharedState, VizInteractions};
-use crate::color::widget::{ColorMapWidget, ColorMapWidgetShared};
 use crate::color::{ColorMap, ColorSchemeId};
-use crate::gui::FlexLayout;
-use crate::list::ListView;
 use crate::util::BufferDesc;
-use crossbeam::atomic::AtomicCell;
-use taffy::style::Dimension;
-use tokio::sync::RwLock;
-use waragraph_core::graph::{Bp, PathId};
-use wgpu::BufferUsages;
 
-use std::collections::HashMap;
-use std::path::PathBuf;
-use std::sync::Arc;
-
-use winit::event::WindowEvent;
-
-use raving_wgpu::graph::dfrog::{Graph, InputResource};
-use raving_wgpu::gui::EguiCtx;
+use raving_wgpu::graph::dfrog::Graph;
 use raving_wgpu::{NodeId, State, WindowState};
-use wgpu::util::{BufferInitDescriptor, DeviceExt};
 
 use anyhow::Result;
-
-use waragraph_core::graph::PathIndex;
 
 pub struct Renderer {
     render_graph: Graph,
     draw_path_slot: NodeId,
-    //
 }
 
 // contains all the config/info needed to render a data buffer
@@ -89,7 +68,11 @@ impl Renderer {
                 wgpu::VertexStepMode::Instance,
                 ["vertex_in"],
                 None,
-                &[window.surface_format],
+                &[wgpu::ColorTargetState {
+                    format: window.surface_format,
+                    blend: Some(wgpu::BlendState::REPLACE),
+                    write_mask: wgpu::ColorWrites::all(),
+                }],
             )?
         };
 
