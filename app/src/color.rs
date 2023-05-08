@@ -7,6 +7,7 @@ use wgpu::{
     BufferUsages,
 };
 
+pub mod util;
 pub mod widget;
 
 #[derive(

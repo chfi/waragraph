@@ -218,15 +218,6 @@ impl SlotCache {
         let vr = view.range().end;
         let current_view = [Bp(vl), Bp(vr)];
 
-        // spawn tasks for each of the out-of-date paths in the
-        // iterator (based on the current view)
-
-        // TODO limit the task spawn rate by storing the Instant each
-        // slot was last updated
-
-        // first i need to assign slot IDs/indices to the SlotKeys,
-        // which are created from the paths + the shared data_key
-
         let slots = paths
             .into_iter()
             .map(|path| (path, data_key.to_string()))

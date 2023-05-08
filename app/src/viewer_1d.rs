@@ -295,7 +295,7 @@ impl Viewer1D {
 
         log::error!("Initialized in {} seconds", t0.elapsed().as_secs_f32());
 
-        let row_count = 128;
+        let row_count = 512;
         let bin_count = 1024;
         let slot_cache = SlotCache::new(
             state,

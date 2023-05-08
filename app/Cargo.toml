@@ -60,3 +60,4 @@ reunion = "0.1"
 sprs = "0.11"
 
 three-edge-connected = "0.2"
+sha256 = "1.1.3"
