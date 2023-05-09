@@ -75,6 +75,8 @@ pub struct Viewer1D {
 
     // NB: very temporary, hopefully
     viz_mode_config: HashMap<String, VizModeConfig>,
+    viz_samplers:
+        HashMap<String, Arc<dyn sampler::Sampler + Send + Sync + 'static>>,
 
     annotations: annotations::Annots1D,
 }
@@ -263,6 +265,22 @@ impl Viewer1D {
             );
         }
 
+        let mut viz_samplers = HashMap::default();
+
+        {
+            let sampler = sampler::PathDataSampler::new(
+                shared.graph.clone(),
+                shared.graph_data_cache.clone(),
+                "depth",
+            );
+
+            viz_samplers.insert(
+                "depth".to_string(),
+                Arc::new(sampler)
+                    as Arc<dyn sampler::Sampler + Send + Sync + 'static>,
+            );
+        }
+
         let viz_mode_config = {
             let colors = shared.colors.blocking_read();
 
@@ -333,6 +351,7 @@ impl Viewer1D {
             color_mapping,
             // color_map_widget,
             viz_mode_config,
+            viz_samplers,
 
             annotations,
         })
@@ -641,13 +660,23 @@ impl AppWindow for Viewer1D {
         });
 
         for (data_key, path_rects) in data_slots {
-            let result = self.slot_cache.sample_for_data(
+            let sampler = self.viz_samplers.get(&data_key).unwrap().clone();
+            let result = self.slot_cache.sample_with(
                 state,
                 tokio_rt,
                 &self.view,
                 data_key.as_str(),
                 path_rects.iter().map(|(path, _)| *path),
+                sampler,
             );
+
+            // let result = self.slot_cache.sample_for_data(
+            //     state,
+            //     tokio_rt,
+            //     &self.view,
+            //     data_key.as_str(),
+            //     path_rects.iter().map(|(path, _)| *path),
+            // );
         }
 
         {

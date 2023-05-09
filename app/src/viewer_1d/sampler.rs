@@ -37,6 +37,20 @@ pub struct PathDataSampler {
     data_key: Arc<String>,
 }
 
+impl PathDataSampler {
+    pub fn new(
+        path_index: Arc<PathIndex>,
+        data_cache: Arc<GraphDataCache>,
+        data_key: &str,
+    ) -> Self {
+        Self {
+            path_index,
+            data_cache,
+            data_key: Arc::new(data_key.to_string()),
+        }
+    }
+}
+
 #[async_trait]
 impl Sampler for PathDataSampler {
     async fn sample_range(

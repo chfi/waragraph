@@ -207,14 +207,14 @@ impl SlotCache {
         }
     }
 
-    pub fn sample_with<S: super::sampler::Sampler + 'static>(
+    pub fn sample_with(
         &mut self,
         state: &raving_wgpu::State,
         rt: &tokio::runtime::Handle,
         view: &View1D,
         data_key: &str,
         paths: impl IntoIterator<Item = PathId>,
-        sampler: S,
+        sampler: Arc<dyn super::sampler::Sampler + Send + 'static>,
     ) -> Result<()> {
         let vl = view.range().start;
         let vr = view.range().end;
@@ -258,17 +258,13 @@ impl SlotCache {
                 }
             }
 
-            let data_cache = self.data_cache.clone();
-            let bin_count = self.bin_count;
-            let path_index = self.path_index.clone();
-
             let task = rt.spawn(Self::generic_slot_task(
                 self.generation,
-                bin_count,
+                self.bin_count,
                 current_view,
                 slot_key.0,
                 slot_key.clone(),
-                sampler,
+                sampler.clone(),
             ));
 
             // let task = rt.spawn(Self::slot_task(
@@ -743,19 +739,17 @@ impl SlotCache {
         Ok(BufferDesc { buffer, size })
     }
 
-    async fn generic_slot_task<F>(
+    // async fn generic_slot_task<F>(
+    async fn generic_slot_task(
         // msg_tx: crossbeam::channel::Sender<(SlotKey, SlotMsg)>,
         timestamp: u64,
         bin_count: usize,
         view: [Bp; 2],
-        path: PathId,
+        _path: PathId,
         key: SlotKey,
-        sampler: F,
-    ) -> Result<([Bp; 2], Vec<u8>, u64)>
-    where
-        F: super::sampler::Sampler + Send,
-    {
-        let (path, data_key) = key.clone();
+        sampler: Arc<dyn super::sampler::Sampler + Send + 'static>,
+    ) -> Result<([Bp; 2], Vec<u8>, u64)> {
+        let (path, _data_key) = key.clone();
 
         let sample_vec = sampler
             .sample_range(bin_count, path, view[0]..view[1])
