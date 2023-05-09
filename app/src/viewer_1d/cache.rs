@@ -1,5 +1,6 @@
 use std::{
     collections::{BTreeMap, HashMap, HashSet},
+    future::Future,
     ops::RangeInclusive,
     sync::Arc,
 };
@@ -204,6 +205,94 @@ impl SlotCache {
         } else {
             [1.0, 0.0]
         }
+    }
+
+    pub fn sample_with<S: super::sampler::Sampler + 'static>(
+        &mut self,
+        state: &raving_wgpu::State,
+        rt: &tokio::runtime::Handle,
+        view: &View1D,
+        data_key: &str,
+        paths: impl IntoIterator<Item = PathId>,
+        sampler: S,
+    ) -> Result<()> {
+        let vl = view.range().start;
+        let vr = view.range().end;
+        let current_view = [Bp(vl), Bp(vr)];
+
+        let slots = paths
+            .into_iter()
+            .map(|path| (path, data_key.to_string()))
+            .collect::<Vec<_>>();
+
+        let result = self.assign_rows_for_slots(slots.iter(), current_view);
+
+        if let Err(SlotCacheError::OutOfRows) = result {
+            // TODO reallocate
+            log::error!("Slot cache full! TODO reallocate");
+        }
+
+        for slot_key in &slots {
+            let state = if let Some(state) = self.slot_state.get_mut(slot_key) {
+                state
+            } else {
+                log::warn!(
+                    "Slot key (Path {}, {}) missing state",
+                    slot_key.0.ix(),
+                    slot_key.1
+                );
+                continue;
+            };
+
+            if state.task_handle.is_some()
+                || state.last_updated_view == Some(current_view)
+            {
+                continue;
+            }
+
+            if let Some(time_since_update) =
+                state.updated_at.map(|s| s.elapsed())
+            {
+                if time_since_update.as_secs_f32() < 0.1 {
+                    continue;
+                }
+            }
+
+            let data_cache = self.data_cache.clone();
+            let bin_count = self.bin_count;
+            let path_index = self.path_index.clone();
+
+            let task = rt.spawn(Self::generic_slot_task(
+                self.generation,
+                bin_count,
+                current_view,
+                slot_key.0,
+                slot_key.clone(),
+                sampler,
+            ));
+
+            // let task = rt.spawn(Self::slot_task(
+            //     self.slot_msg_tx.clone(),
+            //     self.generation,
+            //     path_index,
+            //     data_cache,
+            //     bin_count,
+            //     slot_key.clone(),
+            //     current_view,
+            // ));
+            state.task_handle = Some(task);
+        }
+
+        self.last_dispatched_view = Some(current_view);
+
+        // update messages on slots
+        while let Ok((key, msg)) = self.slot_msg_rx.try_recv() {
+            if let Some(state) = self.slot_state.get_mut(&key) {
+                state.last_msg = Some(msg);
+            }
+        }
+
+        Ok(())
     }
 
     pub fn sample_for_data(
@@ -652,6 +741,27 @@ impl SlotCache {
             .write_buffer(&buffer, 0, bytemuck::cast_slice(&prefix));
 
         Ok(BufferDesc { buffer, size })
+    }
+
+    async fn generic_slot_task<F>(
+        // msg_tx: crossbeam::channel::Sender<(SlotKey, SlotMsg)>,
+        timestamp: u64,
+        bin_count: usize,
+        view: [Bp; 2],
+        path: PathId,
+        key: SlotKey,
+        sampler: F,
+    ) -> Result<([Bp; 2], Vec<u8>, u64)>
+    where
+        F: super::sampler::Sampler + Send,
+    {
+        let (path, data_key) = key.clone();
+
+        let sample_vec = sampler
+            .sample_range(bin_count, path, view[0]..view[1])
+            .await?;
+
+        Ok((view, sample_vec, timestamp))
     }
 
     async fn slot_task(

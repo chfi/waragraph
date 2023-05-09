@@ -22,7 +22,7 @@ use crate::app::resource::GraphDataCache;
 // }
 
 #[async_trait]
-pub trait Sampler {
+pub trait Sampler: Send + Sync {
     async fn sample_range(
         &self,
         bin_count: usize,
