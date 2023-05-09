@@ -10,6 +10,7 @@ waragraph-core = { path = "../lib" }
 bimap = "0.6"
 
 tokio = { version = "1", features = ["full"] }
+async-trait = "0.1"
 
 crossbeam = "0.8"
 

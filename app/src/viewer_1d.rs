@@ -38,6 +38,8 @@ pub mod widgets;
 pub mod cache;
 pub mod render;
 
+pub mod sampler;
+
 pub mod view;
 
 pub mod annotations;
