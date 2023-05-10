@@ -144,6 +144,7 @@ impl App {
 
                 add_entry("depth", "spectral");
                 add_entry("strand", "black_red");
+                add_entry("path_name", "spectral");
             }
 
             let mut annotations = AnnotationStore::default();

@@ -93,16 +93,17 @@ impl Sampler for PathDataSampler {
 
 pub struct PathNodeSetSampler {
     path_index: Arc<PathIndex>,
+    map: Arc<dyn Fn(PathId, u32) -> f32 + Send + Sync + 'static>,
 }
 
 impl PathNodeSetSampler {
     pub fn new(
         path_index: Arc<PathIndex>,
-        // later add function to post-compose with
+        map: impl Fn(PathId, u32) -> f32 + Send + Sync + 'static,
     ) -> Self {
         Self {
             path_index,
-            // data_cache,
+            map: Arc::new(map),
         }
     }
 }
@@ -116,6 +117,7 @@ impl Sampler for PathNodeSetSampler {
         view: std::ops::Range<Bp>,
     ) -> Result<Vec<u8>> {
         let path_index = self.path_index.clone();
+        let map = self.map.clone();
 
         let sample_vec = tokio::task::spawn_blocking(move || {
             let mut buf = vec![0u8; 4 * bin_count];
@@ -125,9 +127,7 @@ impl Sampler for PathNodeSetSampler {
             let used_bins = view_len.min(bin_count);
             let used_slice = &mut buf[..used_bins * 4];
 
-            // TODO actually do stuff
-
-            let bins: &mut [u32] = bytemuck::cast_slice_mut(used_slice);
+            let bins: &mut [f32] = bytemuck::cast_slice_mut(used_slice);
 
             let path_nodes = &path_index.path_node_sets[path.ix()];
 
@@ -138,12 +138,10 @@ impl Sampler for PathNodeSetSampler {
                 // get range of nodes corresponding to the pangenome `range`
                 let (start, end) =
                     path_index.pos_range_nodes(range).into_inner();
-                // let start = node_range.start.0 as u32;
-                // let end = node_range.end.0 as u32;
                 let ix_range = (start.ix() as u32)..(end.ix() as u32 + 1);
 
                 if path_nodes.range_cardinality(ix_range) > 0 {
-                    *buf_val = 1;
+                    *buf_val = map(path, 1);
                 }
             }
 

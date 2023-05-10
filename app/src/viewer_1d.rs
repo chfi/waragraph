@@ -277,6 +277,21 @@ impl Viewer1D {
                 "depth".to_string(),
                 Arc::new(sampler) as Arc<dyn sampler::Sampler + 'static>,
             );
+
+            let path_count = shared.graph.path_names.len();
+            let sampler = sampler::PathNodeSetSampler::new(
+                shared.graph.clone(),
+                move |path, _| {
+                    let dx = 1.0 / path_count as f32;
+                    let x = path.ix() as f32 / path_count as f32;
+                    0.5 * dx + x
+                },
+            );
+
+            viz_samplers.insert(
+                "path_name".to_string(),
+                Arc::new(sampler) as Arc<dyn sampler::Sampler + 'static>,
+            );
         }
 
         let viz_mode_config = {
@@ -304,7 +319,17 @@ impl Viewer1D {
                 },
             };
 
-            for c in [depth, strand] {
+            let path_name = VizModeConfig {
+                name: "path_name".to_string(),
+                data_key: "path_name".to_string(),
+                color_scheme: colors.get_color_scheme_id("spectral").unwrap(),
+                default_color_map: ColorMap {
+                    value_range: [0.0, 1.0],
+                    color_range: [0.0, 1.0],
+                },
+            };
+
+            for c in [depth, strand, path_name] {
                 cfg.insert(c.name.clone(), c);
             }
 
