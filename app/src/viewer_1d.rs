@@ -38,9 +38,13 @@ pub mod widgets;
 pub mod cache;
 pub mod render;
 
+pub mod sampler;
+
 pub mod view;
 
 pub mod annotations;
+
+pub mod util;
 
 #[derive(Debug)]
 pub struct Args {
@@ -73,6 +77,7 @@ pub struct Viewer1D {
 
     // NB: very temporary, hopefully
     viz_mode_config: HashMap<String, VizModeConfig>,
+    viz_samplers: HashMap<String, Arc<dyn sampler::Sampler + 'static>>,
 
     annotations: annotations::Annots1D,
 }
@@ -181,10 +186,7 @@ impl Viewer1D {
         let path_list_view =
             ListView::new(paths.clone().map(PathId::from), Some(256));
 
-        let graph_data_cache = shared.graph_data_cache.clone();
-
-        // let active_viz_data_key = "strand".to_string();
-        let active_viz_data_key = "depth".to_string();
+        let active_viz_data_key = "path_name".to_string();
 
         graph.set_node_preprocess_fn(draw_node, move |_ctx, op_state| {
             op_state.vertices = Some(0..6);
@@ -261,7 +263,22 @@ impl Viewer1D {
             );
         }
 
-        let viz_mode_config = {
+        let mut viz_samplers = HashMap::default();
+
+        {
+            let sampler = sampler::PathDataSampler::new(
+                shared.graph.clone(),
+                shared.graph_data_cache.clone(),
+                "depth",
+            );
+
+            viz_samplers.insert(
+                "depth".to_string(),
+                Arc::new(sampler) as Arc<dyn sampler::Sampler + 'static>,
+            );
+        }
+
+        let mut viz_mode_config = {
             let colors = shared.colors.blocking_read();
 
             let mut cfg: HashMap<String, VizModeConfig> = HashMap::new();
@@ -295,7 +312,7 @@ impl Viewer1D {
 
         log::error!("Initialized in {} seconds", t0.elapsed().as_secs_f32());
 
-        let row_count = 128;
+        let row_count = 512;
         let bin_count = 1024;
         let slot_cache = SlotCache::new(
             state,
@@ -306,6 +323,13 @@ impl Viewer1D {
         )?;
 
         let annotations = annotations::Annots1D::default();
+
+        util::init_path_name_hash_viz_mode(
+            state,
+            shared,
+            &mut viz_samplers,
+            &mut viz_mode_config,
+        );
 
         Ok(Viewer1D {
             render_graph: graph,
@@ -331,6 +355,7 @@ impl Viewer1D {
             color_mapping,
             // color_map_widget,
             viz_mode_config,
+            viz_samplers,
 
             annotations,
         })
@@ -403,14 +428,14 @@ impl AppWindow for Viewer1D {
 
         let mut shapes = Vec::new();
 
+        let main_view_rect = screen_rect.shrink(2.0);
+
         let row_grid_layout = {
             use taffy::prelude::*;
             let data_id = self.active_viz_data_key.blocking_read().clone();
 
             let mut row_grid_layout: RowGridLayout<gui::SlotElem> =
                 RowGridLayout::new();
-
-            let main_view_rect = screen_rect.shrink(2.0);
 
             let info_col_width = {
                 let id = egui::Id::new(Self::COLUMN_SEPARATOR_ID);
@@ -447,7 +472,7 @@ impl AppWindow for Viewer1D {
                             points(info_col_width),
                             fr(1.0),
                         ],
-                        grid_template_rows: vec![points(30.0)],
+                        grid_template_rows: vec![points(20.0)],
                         column_data: vec![],
                         ..RowEntry::default()
                     };
@@ -460,7 +485,7 @@ impl AppWindow for Viewer1D {
                         // println!("adding annot slot");
                         // if annotation slot is present, change the grid_template_row field
                         // and append the extra column data
-                        row_entry.grid_template_rows.insert(0, points(33.0));
+                        row_entry.grid_template_rows.insert(0, points(50.0));
 
                         row_entry.column_data.push(GridEntry::new(
                             [1, 2],
@@ -639,13 +664,23 @@ impl AppWindow for Viewer1D {
         });
 
         for (data_key, path_rects) in data_slots {
-            let result = self.slot_cache.sample_for_data(
+            let sampler = self.viz_samplers.get(&data_key).unwrap().clone();
+            let result = self.slot_cache.sample_with(
                 state,
                 tokio_rt,
                 &self.view,
                 data_key.as_str(),
                 path_rects.iter().map(|(path, _)| *path),
+                sampler,
             );
+
+            // let result = self.slot_cache.sample_for_data(
+            //     state,
+            //     tokio_rt,
+            //     &self.view,
+            //     data_key.as_str(),
+            //     path_rects.iter().map(|(path, _)| *path),
+            // );
         }
 
         {
@@ -993,7 +1028,8 @@ impl AppWindow for Viewer1D {
                         let id = egui::Id::new(Self::COLUMN_SEPARATOR_ID);
                         ui.memory_mut(|mem| {
                             let width = mem.data.get_temp_mut_or(id, 150f32);
-                            *width = (*width + dx).clamp(50.0, 400.0);
+                            let max_width = main_view_rect.width() - 10.0;
+                            *width = (*width + dx).clamp(50.0, max_width);
                         });
                     }
                 };
@@ -1184,12 +1220,18 @@ impl AppWindow for Viewer1D {
 
             let data_key = self.active_viz_data_key.blocking_read().clone();
 
-            let id = self.shared.data_color_schemes.get(&data_key).unwrap();
+            let id = self
+                .shared
+                .data_color_schemes
+                .blocking_read()
+                .get(&data_key)
+                .copied()
+                .unwrap();
 
-            let scheme = colors.get_color_scheme(*id);
+            let scheme = colors.get_color_scheme(id);
             let size = [scheme.colors.len() as u32, 1];
 
-            (sampler, colors.get_color_scheme_texture(*id).unwrap(), size)
+            (sampler, colors.get_color_scheme_texture(id).unwrap(), size)
         };
 
         let texture = &tex.0;

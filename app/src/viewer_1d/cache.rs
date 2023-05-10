@@ -1,5 +1,6 @@
 use std::{
     collections::{BTreeMap, HashMap, HashSet},
+    future::Future,
     ops::RangeInclusive,
     sync::Arc,
 };
@@ -26,6 +27,22 @@ pub struct SlotVertex {
     slot_id: u32,
 }
 
+#[derive(
+    Default,
+    Clone,
+    Copy,
+    PartialEq,
+    PartialOrd,
+    bytemuck::Zeroable,
+    bytemuck::Pod,
+)]
+#[repr(C)]
+struct SlotUniform {
+    transform: [f32; 2],
+    bin_count: u32,
+    _pad: u32,
+}
+
 type SlotTaskHandle = JoinHandle<Result<([Bp; 2], Vec<u8>, u64)>>;
 
 pub type SlotMsg = String;
@@ -41,14 +58,6 @@ pub struct SlotState {
 }
 
 impl SlotState {
-    fn task_ready(&self) -> bool {
-        if let Some(handle) = self.task_handle.as_ref() {
-            handle.is_finished()
-        } else {
-            false
-        }
-    }
-
     fn task_results(
         &mut self,
         rt: &tokio::runtime::Handle,
@@ -198,6 +207,90 @@ impl SlotCache {
         }
     }
 
+    pub fn sample_with(
+        &mut self,
+        state: &raving_wgpu::State,
+        rt: &tokio::runtime::Handle,
+        view: &View1D,
+        data_key: &str,
+        paths: impl IntoIterator<Item = PathId>,
+        sampler: Arc<dyn super::sampler::Sampler + 'static>,
+    ) -> Result<()> {
+        let vl = view.range().start;
+        let vr = view.range().end;
+        let current_view = [Bp(vl), Bp(vr)];
+
+        let slots = paths
+            .into_iter()
+            .map(|path| (path, data_key.to_string()))
+            .collect::<Vec<_>>();
+
+        let result = self.assign_rows_for_slots(slots.iter(), current_view);
+
+        if let Err(SlotCacheError::OutOfRows) = result {
+            // TODO reallocate
+            log::error!("Slot cache full! TODO reallocate");
+        }
+
+        for slot_key in &slots {
+            let state = if let Some(state) = self.slot_state.get_mut(slot_key) {
+                state
+            } else {
+                log::warn!(
+                    "Slot key (Path {}, {}) missing state",
+                    slot_key.0.ix(),
+                    slot_key.1
+                );
+                continue;
+            };
+
+            if state.task_handle.is_some()
+                || state.last_updated_view == Some(current_view)
+            {
+                continue;
+            }
+
+            if let Some(time_since_update) =
+                state.updated_at.map(|s| s.elapsed())
+            {
+                if time_since_update.as_secs_f32() < 0.1 {
+                    continue;
+                }
+            }
+
+            let task = rt.spawn(Self::generic_slot_task(
+                self.generation,
+                self.bin_count,
+                current_view,
+                slot_key.0,
+                slot_key.clone(),
+                sampler.clone(),
+            ));
+
+            // let task = rt.spawn(Self::slot_task(
+            //     self.slot_msg_tx.clone(),
+            //     self.generation,
+            //     path_index,
+            //     data_cache,
+            //     bin_count,
+            //     slot_key.clone(),
+            //     current_view,
+            // ));
+            state.task_handle = Some(task);
+        }
+
+        self.last_dispatched_view = Some(current_view);
+
+        // update messages on slots
+        while let Ok((key, msg)) = self.slot_msg_rx.try_recv() {
+            if let Some(state) = self.slot_state.get_mut(&key) {
+                state.last_msg = Some(msg);
+            }
+        }
+
+        Ok(())
+    }
+
     pub fn sample_for_data(
         &mut self,
         state: &raving_wgpu::State,
@@ -209,15 +302,6 @@ impl SlotCache {
         let vl = view.range().start;
         let vr = view.range().end;
         let current_view = [Bp(vl), Bp(vr)];
-
-        // spawn tasks for each of the out-of-date paths in the
-        // iterator (based on the current view)
-
-        // TODO limit the task spawn rate by storing the Instant each
-        // slot was last updated
-
-        // first i need to assign slot IDs/indices to the SlotKeys,
-        // which are created from the paths + the shared data_key
 
         let slots = paths
             .into_iter()
@@ -374,7 +458,7 @@ impl SlotCache {
         self.vertex_count = vertices.len();
 
         self.prepare_vertex_buffer(state, &vertices)?;
-        self.prepare_transform_buffer(state, &vertices, view)?;
+        self.prepare_uniform_buffer(state, &vertices, view)?;
 
         Ok(())
     }
@@ -466,270 +550,6 @@ impl SlotCache {
         Ok(())
     }
 
-    pub fn sample_and_update<I>(
-        &mut self,
-        state: &raving_wgpu::State,
-        rt: &tokio::runtime::Handle,
-        view: &View1D,
-        layout: I,
-    ) -> Result<()>
-    where
-        I: IntoIterator<Item = (SlotKey, egui::Rect)>,
-    {
-        let vl = view.range().start;
-        let vr = view.range().end;
-        let cview = [Bp(vl), Bp(vr)];
-
-        let layout = layout.into_iter().collect::<HashMap<_, _>>();
-
-        let should_update = self
-            .last_update
-            .map(|t| t.elapsed().as_micros() < 2_00_000)
-            .unwrap_or(true);
-
-        // TODO: this seems to break things (no sampling happens) if
-        // the first frame takes too long, in particular if
-        // annotations are used
-        // if !should_update {
-        //     return Ok(());
-        // }
-
-        self.last_update = Some(std::time::Instant::now());
-
-        let mut vertices: Vec<SlotVertex> = Vec::new();
-
-        let mut slot_id_count: HashMap<usize, usize> = HashMap::new();
-
-        // add a vertex for each slot in the layout that has an up to date
-        // row in the data buffer
-        for (key, rect) in layout.iter().clone() {
-            if let Some(state) = self.slot_state.get(&key) {
-                // let last_dispatch = self.last_dispatched_view;
-                let last_update = state.last_updated_view;
-
-                // if last_update == last_dispatch && last_dispatch.is_some() {
-                if last_update.is_some() {
-                    let slot_id = *self
-                        .slot_id_map
-                        .get(&key)
-                        .expect("Slot was ready but unbound!");
-
-                    let vx = SlotVertex {
-                        position: [rect.left(), rect.bottom()],
-                        size: [rect.width(), rect.height()],
-                        slot_id: slot_id as u32,
-                    };
-
-                    *slot_id_count.entry(slot_id).or_default() += 1;
-
-                    vertices.push(vx);
-                }
-            }
-        }
-
-        {
-            let mut active = 0;
-            for state in self.slot_state.values() {
-                if state.task_handle.is_some() {
-                    active += 1;
-                }
-            }
-        }
-
-        // update the vertex buffer, reallocating if needed
-        self.vertex_count = vertices.len();
-
-        for state in self.slot_state.values_mut() {
-            state.last_rect = None;
-        }
-
-        // TODO: reallocate data buffer if `layout` contains more
-        // rows than are available
-
-        {
-            // simplifying so that slots are assigned to only the slot
-            // keys used in the layout, rather than try to cache slots
-            // when scrolling the list
-
-            // or just store the last frame's set as well? does it matter
-
-            let used_keys =
-                layout.iter().map(|(k, _)| k).collect::<HashSet<_>>();
-
-            let mut to_remove = Vec::new();
-
-            for (key, slot_id) in self.slot_id_map.iter() {
-                if used_keys.contains(key) {
-                    continue;
-                }
-
-                to_remove.push((key.clone(), *slot_id));
-            }
-
-            for (key, slot_id) in to_remove {
-                self.slot_id_map.remove(&key);
-                self.slot_id_cache[slot_id] = None;
-
-                self.slot_state.remove(&key);
-            }
-
-            let mut available_slot_ids = self
-                .slot_id_cache
-                .iter()
-                .enumerate()
-                .filter_map(|(ix, entry)| {
-                    if let Some(key) = entry {
-                        let is_active = layout.contains_key(key);
-                        (!is_active).then_some(ix)
-                    } else {
-                        Some(ix)
-                    }
-                })
-                .collect::<Vec<_>>();
-
-            let mut next_slot_id = available_slot_ids.into_iter();
-
-            for (key, rect) in layout.iter() {
-                if let Some(slot_id) = self.slot_id_map.get(key) {
-                    // if already assigned to a slot, don't need to do anything
-                } else {
-                    // we need to assign the slot,
-                    // assume we can, though; no realloc yet/here
-
-                    let slot_id = next_slot_id.next().unwrap();
-                    // log::error!("allocating new slot!!! id: {slot_id}");
-                    // let (slot_id, cache_entry) = cache_iter.next().unwrap();
-
-                    if let Some(old_key) =
-                        self.slot_id_cache.get(slot_id).and_then(|e| e.as_ref())
-                    {
-                        // make sure the old slot key is unassigned in the map
-                        self.slot_id_map.remove(old_key);
-                        self.slot_state.remove(old_key);
-                    }
-
-                    // update the slot key -> slot ID map in the cache
-                    self.slot_id_cache[slot_id] = Some(key.clone());
-                    self.slot_id_map.insert(key.clone(), slot_id);
-                }
-
-                let state = self.slot_state.entry(key.clone()).or_default();
-                state.last_rect = Some(*rect);
-
-                if state.task_handle.is_some() {
-                    continue;
-                }
-
-                if state.last_updated_view == Some(cview) {
-                    continue;
-                }
-
-                if state
-                    .data_generation
-                    .map(|prev_gen| self.generation.abs_diff(prev_gen) < 120)
-                    .unwrap_or(false)
-                {
-                    // log::warn!("skipping new enough slot!");
-                    continue;
-                }
-
-                let data_cache = self.data_cache.clone();
-                let bin_count = self.bin_count;
-                let path_index = self.path_index.clone();
-
-                let task = rt.spawn(Self::slot_task(
-                    self.slot_msg_tx.clone(),
-                    self.generation,
-                    path_index,
-                    data_cache,
-                    bin_count,
-                    key.clone(),
-                    cview,
-                ));
-                state.task_handle = Some(task);
-            }
-        }
-
-        self.last_dispatched_view = Some(cview);
-
-        // update messages on slots
-        while let Ok((key, msg)) = self.slot_msg_rx.try_recv() {
-            if let Some(state) = self.slot_state.get_mut(&key) {
-                state.last_msg = Some(msg);
-            }
-        }
-
-        // for each slot with a finished task, if the task contains data
-        // for the correct view, find the first row in the data buffer that
-        // has is not mapped to a slot key that has been used for a while
-        // (or use the slot ID if already in the cache)
-
-        {
-            let mut slot_index = 0usize;
-
-            for (key, slot_state) in self.slot_state.iter_mut() {
-                if let Some((task_view, data, data_gen)) =
-                    slot_state.task_results(rt)
-                {
-                    if slot_state
-                        .data_generation
-                        .map(|prev_gen| prev_gen > data_gen)
-                        .unwrap_or(false)
-                    {
-                        continue;
-                    }
-
-                    // get the slot ID, which is assigned on task dispatch above
-                    let slot_id = if let Some(id) = self.slot_id_map.get(key) {
-                        *id
-                    } else {
-                        // just discard if the slot has been unmapped
-                        // (e.g. the user scrolled far enough)
-                        continue;
-                    };
-
-                    // the slot_id can be used to derive the slice in the buffer
-                    // that this slot key is bound to
-                    let prefix_size = std::mem::size_of::<[u32; 2]>();
-                    let elem_size = std::mem::size_of::<f32>();
-                    let offset =
-                        prefix_size + slot_id * self.bin_count * elem_size;
-
-                    let size = std::num::NonZeroU64::new(
-                        (elem_size * self.bin_count) as u64,
-                    )
-                    .unwrap();
-                    let write_view = state.queue.write_buffer_with(
-                        &self.data_buffer.buffer,
-                        offset as u64,
-                        size,
-                    );
-                    log::debug!(
-                        "writing buffer slot ({}, {}) -> {slot_id}",
-                        key.0.ix(),
-                        key.1
-                    );
-
-                    slot_state.last_updated_view = Some(task_view);
-                    slot_state.data_generation = Some(data_gen);
-                    slot_state.updated_at = Some(Instant::now());
-
-                    // schedule an update to the corresponding row
-                    if let Some(mut write_view) = write_view {
-                        write_view.copy_from_slice(&data);
-                    }
-                }
-            }
-        }
-
-        self.prepare_vertex_buffer(state, &vertices)?;
-        self.prepare_transform_buffer(state, &vertices, view)?;
-
-        self.generation += 1;
-
-        Ok(())
-    }
-
     pub fn update_displayed_messages(
         &mut self,
         show_state: impl Fn(&SlotState) -> Option<egui::Shape>,
@@ -739,7 +559,7 @@ impl SlotCache {
         self.slot_state
             .values()
             .filter_map(|state| Some((state, show_state(state)?)))
-            .for_each(|(state, shape)| self.msg_shapes.push(shape));
+            .for_each(|(_state, shape)| self.msg_shapes.push(shape));
     }
 
     pub fn total_data_buffer_size(&self) -> usize {
@@ -756,14 +576,14 @@ impl SlotCache {
 }
 
 impl SlotCache {
-    fn prepare_transform_buffer(
+    fn prepare_uniform_buffer(
         &mut self,
         state: &raving_wgpu::State,
         vertices: &[SlotVertex],
         current_view: &View1D,
     ) -> Result<()> {
         // reallocate if needed
-        let t_stride = std::mem::size_of::<[f32; 2]>();
+        let t_stride = std::mem::size_of::<SlotUniform>();
 
         let need_realloc = if let Some(buf) = self.transform_buffer.as_ref() {
             buf.size < self.rows * t_stride
@@ -792,29 +612,39 @@ impl SlotCache {
 
         //
         if let Some(buf) = self.transform_buffer.as_ref() {
-            let mut data = vec![[1f32, 0f32]; self.rows];
+            let default_uniform = SlotUniform {
+                bin_count: self.bin_count as u32,
+                ..SlotUniform::default()
+            };
+            let mut data = vec![default_uniform; self.rows];
 
             for vx in vertices.iter() {
                 let slot = vx.slot_id;
 
-                let last_view = {
-                    let key = self
-                        .slot_id_cache
-                        .get(slot as usize)
-                        .and_then(|s| s.as_ref());
+                let key = self
+                    .slot_id_cache
+                    .get(slot as usize)
+                    .and_then(|s| s.as_ref());
 
-                    if let Some(state) =
-                        key.and_then(|key| self.slot_state.get(key))
-                    {
-                        state.last_updated_view
-                    } else {
-                        continue;
-                    }
+                let state = if let Some(state) =
+                    key.and_then(|key| self.slot_state.get(key))
+                {
+                    state
+                } else {
+                    continue;
+                };
+
+                let last_view = state.last_updated_view;
+
+                if let Some([l, r]) = last_view {
+                    let len = (r.0 - l.0) as u32;
+                    let bin_count = len.min(self.bin_count as u32);
+                    data[slot as usize].bin_count = bin_count;
                 };
 
                 let transform = Self::view_transform(last_view, current_view);
 
-                data[slot as usize] = transform;
+                data[slot as usize].transform = transform;
             }
 
             state.queue.write_buffer(
@@ -909,6 +739,25 @@ impl SlotCache {
         Ok(BufferDesc { buffer, size })
     }
 
+    // async fn generic_slot_task<F>(
+    async fn generic_slot_task(
+        // msg_tx: crossbeam::channel::Sender<(SlotKey, SlotMsg)>,
+        timestamp: u64,
+        bin_count: usize,
+        view: [Bp; 2],
+        _path: PathId,
+        key: SlotKey,
+        sampler: Arc<dyn super::sampler::Sampler + 'static>,
+    ) -> Result<([Bp; 2], Vec<u8>, u64)> {
+        let (path, _data_key) = key.clone();
+
+        let sample_vec = sampler
+            .sample_range(bin_count, path, view[0]..view[1])
+            .await?;
+
+        Ok((view, sample_vec, timestamp))
+    }
+
     async fn slot_task(
         msg_tx: crossbeam::channel::Sender<(SlotKey, SlotMsg)>,
         generation: u64,
@@ -968,13 +817,16 @@ impl SlotCache {
 
             let l = view[0].0;
             let r = view[1].0;
+            let view_len = (r - l) as usize;
+            let used_bins = view_len.min(bin_count);
+            let used_slice = &mut buf[..used_bins * 4];
 
             sampling::sample_data_into_buffer(
                 &path_index,
                 path,
                 &data.path_data,
                 l..r,
-                bytemuck::cast_slice_mut(&mut buf),
+                bytemuck::cast_slice_mut(used_slice),
             );
 
             buf

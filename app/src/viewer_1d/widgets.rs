@@ -37,16 +37,17 @@ impl SettingsWidget for VisualizationModesWidget {
     ) -> SettingsUiResponse {
         let mut current_key = self.active_viz_data_key.blocking_write();
 
-        let mut path_data_sources = self
-            .shared
-            .graph_data_cache
-            .path_data_source_names()
-            .collect::<Vec<_>>();
-        path_data_sources.sort();
+        let viz_modes = ["depth", "strand", "path_name"];
+        // let mut path_data_sources = self
+        //     .shared
+        //     .graph_data_cache
+        //     .path_data_source_names()
+        //     .collect::<Vec<_>>();
+        // path_data_sources.sort();
 
         let resp = ui.vertical(|ui| {
             let data_sources = ui.horizontal(|ui| {
-                for key in path_data_sources {
+                for key in viz_modes {
                     if ui
                         .add_enabled(
                             key != current_key.as_str(),
