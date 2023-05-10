@@ -1201,12 +1201,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "hex"
-version = "0.4.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7f24254aa9a54b5c858eaee2f5bccdb46aaf0e486a595ed5fd8f86ba55232a70"
-
-[[package]]
 name = "hexf-parse"
 version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2667,16 +2661,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "sha256"
-version = "1.1.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5f9f8b5de2bac3a4ae28e9b611072a8e326d9b26c8189c0972d4c321fa684f1f"
-dependencies = [
- "hex",
- "sha2",
-]
-
-[[package]]
 name = "signal-hook-registry"
 version = "1.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3156,7 +3140,7 @@ dependencies = [
  "rhai",
  "roaring",
  "rstar",
- "sha256",
+ "sha2",
  "sprs",
  "taffy",
  "three-edge-connected",
