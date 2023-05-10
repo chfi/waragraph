@@ -62,3 +62,4 @@ sprs = "0.11"
 
 three-edge-connected = "0.2"
 sha2 = "0.10.6"
+egui_dock = "0.5.0"
