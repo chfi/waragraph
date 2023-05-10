@@ -75,8 +75,7 @@ pub struct Viewer1D {
 
     // NB: very temporary, hopefully
     viz_mode_config: HashMap<String, VizModeConfig>,
-    viz_samplers:
-        HashMap<String, Arc<dyn sampler::Sampler + Send + Sync + 'static>>,
+    viz_samplers: HashMap<String, Arc<dyn sampler::Sampler + 'static>>,
 
     annotations: annotations::Annots1D,
 }
@@ -276,8 +275,7 @@ impl Viewer1D {
 
             viz_samplers.insert(
                 "depth".to_string(),
-                Arc::new(sampler)
-                    as Arc<dyn sampler::Sampler + Send + Sync + 'static>,
+                Arc::new(sampler) as Arc<dyn sampler::Sampler + 'static>,
             );
         }
 

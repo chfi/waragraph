@@ -214,7 +214,7 @@ impl SlotCache {
         view: &View1D,
         data_key: &str,
         paths: impl IntoIterator<Item = PathId>,
-        sampler: Arc<dyn super::sampler::Sampler + Send + 'static>,
+        sampler: Arc<dyn super::sampler::Sampler + 'static>,
     ) -> Result<()> {
         let vl = view.range().start;
         let vr = view.range().end;
@@ -747,7 +747,7 @@ impl SlotCache {
         view: [Bp; 2],
         _path: PathId,
         key: SlotKey,
-        sampler: Arc<dyn super::sampler::Sampler + Send + 'static>,
+        sampler: Arc<dyn super::sampler::Sampler + 'static>,
     ) -> Result<([Bp; 2], Vec<u8>, u64)> {
         let (path, _data_key) = key.clone();
 

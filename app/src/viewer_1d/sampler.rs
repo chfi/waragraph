@@ -91,18 +91,82 @@ impl Sampler for PathDataSampler {
     }
 }
 
-pub struct DataSampler {
-    // sample_range: Arc<
-    //     dyn Fn(PathId, std::ops::Range<Bp>, &mut [u8]) + Send + Sync + 'static,
-    // >,
+pub struct PathNodeSetSampler {
+    path_index: Arc<PathIndex>,
 }
 
-pub fn path_data_sampler_mean(
-    path_index: Arc<PathIndex>,
-    data_cache: Arc<GraphDataCache>,
-    data_key: &str,
-    // path: PathId,
-    // view: std::ops::Range<Bp>,
-) -> () {
-    todo!();
+impl PathNodeSetSampler {
+    pub fn new(
+        path_index: Arc<PathIndex>,
+        // later add function to post-compose with
+    ) -> Self {
+        Self {
+            path_index,
+            // data_cache,
+        }
+    }
+}
+
+#[async_trait]
+impl Sampler for PathNodeSetSampler {
+    async fn sample_range(
+        &self,
+        bin_count: usize,
+        path: PathId,
+        view: std::ops::Range<Bp>,
+    ) -> Result<Vec<u8>> {
+        let path_index = self.path_index.clone();
+
+        let sample_vec = tokio::task::spawn_blocking(move || {
+            let mut buf = vec![0u8; 4 * bin_count];
+            let l = view.start.0;
+            let r = view.end.0;
+            let view_len = (r - l) as usize;
+            let used_bins = view_len.min(bin_count);
+            let used_slice = &mut buf[..used_bins * 4];
+
+            // TODO actually do stuff
+
+            let bins: &mut [u32] = bytemuck::cast_slice_mut(used_slice);
+
+            let path_nodes = &path_index.path_node_sets[path.ix()];
+
+            for (bin_ix, buf_val) in bins.into_iter().enumerate() {
+                // pangenome space
+                let range = bin_range(bin_count, &view, bin_ix);
+
+                // get range of nodes corresponding to the pangenome `range`
+                let (start, end) =
+                    path_index.pos_range_nodes(range).into_inner();
+                // let start = node_range.start.0 as u32;
+                // let end = node_range.end.0 as u32;
+                let ix_range = (start.ix() as u32)..(end.ix() as u32 + 1);
+
+                if path_nodes.range_cardinality(ix_range) > 0 {
+                    *buf_val = 1;
+                }
+            }
+
+            buf
+        })
+        .await?;
+
+        Ok(sample_vec)
+    }
+}
+
+fn bin_range(
+    bin_count: usize,
+    view_range: &std::ops::Range<Bp>,
+    bin_ix: usize,
+) -> std::ops::Range<u64> {
+    let s = view_range.start.0;
+    let e = view_range.end.0;
+    let len = e - s;
+
+    let bin_size = len / bin_count as u64;
+
+    let start = s + bin_size * bin_ix as u64;
+    let end = start + bin_size;
+    start..end
 }
