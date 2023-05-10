@@ -472,7 +472,7 @@ impl AppWindow for Viewer1D {
                             points(info_col_width),
                             fr(1.0),
                         ],
-                        grid_template_rows: vec![points(30.0)],
+                        grid_template_rows: vec![points(20.0)],
                         column_data: vec![],
                         ..RowEntry::default()
                     };
@@ -485,7 +485,7 @@ impl AppWindow for Viewer1D {
                         // println!("adding annot slot");
                         // if annotation slot is present, change the grid_template_row field
                         // and append the extra column data
-                        row_entry.grid_template_rows.insert(0, points(33.0));
+                        row_entry.grid_template_rows.insert(0, points(50.0));
 
                         row_entry.column_data.push(GridEntry::new(
                             [1, 2],
