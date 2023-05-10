@@ -186,10 +186,7 @@ impl Viewer1D {
         let path_list_view =
             ListView::new(paths.clone().map(PathId::from), Some(256));
 
-        let graph_data_cache = shared.graph_data_cache.clone();
-
-        // let active_viz_data_key = "strand".to_string();
-        let active_viz_data_key = "depth".to_string();
+        let active_viz_data_key = "path_name".to_string();
 
         graph.set_node_preprocess_fn(draw_node, move |_ctx, op_state| {
             op_state.vertices = Some(0..6);
@@ -431,14 +428,14 @@ impl AppWindow for Viewer1D {
 
         let mut shapes = Vec::new();
 
+        let main_view_rect = screen_rect.shrink(2.0);
+
         let row_grid_layout = {
             use taffy::prelude::*;
             let data_id = self.active_viz_data_key.blocking_read().clone();
 
             let mut row_grid_layout: RowGridLayout<gui::SlotElem> =
                 RowGridLayout::new();
-
-            let main_view_rect = screen_rect.shrink(2.0);
 
             let info_col_width = {
                 let id = egui::Id::new(Self::COLUMN_SEPARATOR_ID);
@@ -1031,7 +1028,8 @@ impl AppWindow for Viewer1D {
                         let id = egui::Id::new(Self::COLUMN_SEPARATOR_ID);
                         ui.memory_mut(|mem| {
                             let width = mem.data.get_temp_mut_or(id, 150f32);
-                            *width = (*width + dx).clamp(50.0, 400.0);
+                            let max_width = main_view_rect.width() - 10.0;
+                            *width = (*width + dx).clamp(50.0, max_width);
                         });
                     }
                 };
