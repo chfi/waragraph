@@ -142,6 +142,8 @@ impl Sampler for PathNodeSetSampler {
 
                 if path_nodes.range_cardinality(ix_range) > 0 {
                     *buf_val = map(path, 1);
+                } else {
+                    *buf_val = std::f32::NEG_INFINITY;
                 }
             }
 

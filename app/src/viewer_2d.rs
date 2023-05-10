@@ -630,13 +630,15 @@ impl AppWindow for Viewer2D {
             let id = self
                 .shared
                 .data_color_schemes
+                .blocking_read()
                 .get(&self.active_viz_data_key)
+                .copied()
                 .unwrap();
 
-            let scheme = colors.get_color_scheme(*id);
+            let scheme = colors.get_color_scheme(id);
             let size = [scheme.colors.len() as u32, 1];
 
-            (sampler, colors.get_color_scheme_texture(*id).unwrap(), size)
+            (sampler, colors.get_color_scheme_texture(id).unwrap(), size)
         };
 
         let texture = &tex.0;

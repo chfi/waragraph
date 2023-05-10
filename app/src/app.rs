@@ -54,7 +54,7 @@ pub struct SharedState {
     pub workspace: Arc<RwLock<Workspace>>,
     // gfa_path: Arc<PathBuf>,
     // tsv_path: Option<Arc<RwLock<PathBuf>>>,
-    pub data_color_schemes: HashMap<String, ColorSchemeId>,
+    pub data_color_schemes: Arc<RwLock<HashMap<String, ColorSchemeId>>>,
 
     pub app_msg_send: tokio::sync::mpsc::Sender<AppMsg>,
 }
@@ -144,7 +144,6 @@ impl App {
 
                 add_entry("depth", "spectral");
                 add_entry("strand", "black_red");
-                add_entry("path_name", "spectral");
             }
 
             let mut annotations = AnnotationStore::default();
@@ -219,7 +218,7 @@ impl App {
 
                 colors,
 
-                data_color_schemes,
+                data_color_schemes: Arc::new(data_color_schemes.into()),
 
                 workspace,
 

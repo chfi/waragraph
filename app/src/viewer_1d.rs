@@ -44,6 +44,8 @@ pub mod view;
 
 pub mod annotations;
 
+pub mod util;
+
 #[derive(Debug)]
 pub struct Args {
     pub gfa: PathBuf,
@@ -277,24 +279,9 @@ impl Viewer1D {
                 "depth".to_string(),
                 Arc::new(sampler) as Arc<dyn sampler::Sampler + 'static>,
             );
-
-            let path_count = shared.graph.path_names.len();
-            let sampler = sampler::PathNodeSetSampler::new(
-                shared.graph.clone(),
-                move |path, _| {
-                    let dx = 1.0 / path_count as f32;
-                    let x = path.ix() as f32 / path_count as f32;
-                    0.5 * dx + x
-                },
-            );
-
-            viz_samplers.insert(
-                "path_name".to_string(),
-                Arc::new(sampler) as Arc<dyn sampler::Sampler + 'static>,
-            );
         }
 
-        let viz_mode_config = {
+        let mut viz_mode_config = {
             let colors = shared.colors.blocking_read();
 
             let mut cfg: HashMap<String, VizModeConfig> = HashMap::new();
@@ -319,17 +306,7 @@ impl Viewer1D {
                 },
             };
 
-            let path_name = VizModeConfig {
-                name: "path_name".to_string(),
-                data_key: "path_name".to_string(),
-                color_scheme: colors.get_color_scheme_id("spectral").unwrap(),
-                default_color_map: ColorMap {
-                    value_range: [0.0, 1.0],
-                    color_range: [0.0, 1.0],
-                },
-            };
-
-            for c in [depth, strand, path_name] {
+            for c in [depth, strand] {
                 cfg.insert(c.name.clone(), c);
             }
 
@@ -349,6 +326,13 @@ impl Viewer1D {
         )?;
 
         let annotations = annotations::Annots1D::default();
+
+        util::init_path_name_hash_viz_mode(
+            state,
+            shared,
+            &mut viz_samplers,
+            &mut viz_mode_config,
+        );
 
         Ok(Viewer1D {
             render_graph: graph,
@@ -1238,12 +1222,18 @@ impl AppWindow for Viewer1D {
 
             let data_key = self.active_viz_data_key.blocking_read().clone();
 
-            let id = self.shared.data_color_schemes.get(&data_key).unwrap();
+            let id = self
+                .shared
+                .data_color_schemes
+                .blocking_read()
+                .get(&data_key)
+                .copied()
+                .unwrap();
 
-            let scheme = colors.get_color_scheme(*id);
+            let scheme = colors.get_color_scheme(id);
             let size = [scheme.colors.len() as u32, 1];
 
-            (sampler, colors.get_color_scheme_texture(*id).unwrap(), size)
+            (sampler, colors.get_color_scheme_texture(id).unwrap(), size)
         };
 
         let texture = &tex.0;
