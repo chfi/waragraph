@@ -1103,6 +1103,7 @@ impl AppWindow for Viewer1D {
                                 .get_by_left(path)
                                 .map(|n| n.as_str())
                                 .unwrap_or("ERROR");
+                            ui.label(format!("Node {}", node.ix()));
                             ui.label(format!("Path {path_name}"));
                             ui.label(format!("Pos {} bp", pos.0));
                         },
