@@ -188,3 +188,25 @@ impl View1D {
         Some(a_left..=a_right)
     }
 }
+
+impl View1D {
+    pub fn try_center(&mut self, on: std::ops::Range<Bp>) {
+        let range_len = on.end.0 - on.start.0;
+
+        let mid = on.start.0 + range_len / 2;
+
+        let cur_mid = self.offset() + self.len() / 2;
+
+        if range_len > self.len() {
+            // if `on` is bigger than the current view, make the new view
+            // some fixed multiple of the input range in size, centered
+            // correctly
+            self.set(on.start.0, on.end.0);
+            self.zoom_around_norm_f32(0.5, 1.5);
+        } else {
+            // otherwise, do not resize the view, just translate it (if possible)
+            let delta = cur_mid as i64 - mid as i64;
+            self.translate(delta);
+        }
+    }
+}

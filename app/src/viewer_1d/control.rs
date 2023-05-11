@@ -33,7 +33,7 @@ impl ViewCmd {
                     range
                 };
 
-                view.set(range.start.0, range.end.0);
+                view.try_center(range);
             }
         }
     }
@@ -94,10 +94,10 @@ impl ViewControlWidget {
         }
 
         if goto_pos {
-            if let Some(range) = parse_pos_range(&self.pos_text) {
+            if let Some((path, range)) = parse_pos_range(&self.pos_text) {
                 let _ = self
                     .msg_tx
-                    .send(Msg::View(ViewCmd::GotoRange { path: None, range }));
+                    .send(Msg::View(ViewCmd::GotoRange { path, range }));
             }
         }
     }
@@ -107,6 +107,8 @@ fn parse_node(text: &str) -> Option<Node> {
     text.parse::<u32>().map(Node::from).ok()
 }
 
-fn parse_pos_range(text: &str) -> Option<std::ops::Range<Bp>> {
+fn parse_pos_range(
+    text: &str,
+) -> Option<(Option<PathId>, std::ops::Range<Bp>)> {
     todo!();
 }
