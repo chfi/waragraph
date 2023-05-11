@@ -408,7 +408,9 @@ impl AppWindow for Viewer1D {
     ) {
         while let Ok(msg) = self.msg_rx.try_recv() {
             match msg {
-                control::Msg::View(msg) => msg.apply(&mut self.view),
+                control::Msg::View(cmd) => {
+                    cmd.apply(&self.shared, &mut self.view)
+                }
             }
         }
 
