@@ -32,19 +32,15 @@ use self::render::VizModeConfig;
 use self::view::View1D;
 use self::widgets::VisualizationModesWidget;
 
-pub mod gui;
-pub mod widgets;
-
-pub mod cache;
-pub mod render;
-
-pub mod sampler;
-
-pub mod view;
-
 pub mod annotations;
-
+pub mod cache;
+pub mod control;
+pub mod gui;
+pub mod render;
+pub mod sampler;
 pub mod util;
+pub mod view;
+pub mod widgets;
 
 #[derive(Debug)]
 pub struct Args {
@@ -80,6 +76,9 @@ pub struct Viewer1D {
     viz_samplers: HashMap<String, Arc<dyn sampler::Sampler + 'static>>,
 
     annotations: annotations::Annots1D,
+
+    msg_tx: crossbeam::channel::Sender<control::Msg>,
+    msg_rx: crossbeam::channel::Receiver<control::Msg>,
 }
 
 impl Viewer1D {
@@ -331,6 +330,8 @@ impl Viewer1D {
             &mut viz_mode_config,
         );
 
+        let (msg_tx, msg_rx) = crossbeam::channel::unbounded();
+
         Ok(Viewer1D {
             render_graph: graph,
             draw_path_slot: draw_node,
@@ -358,6 +359,9 @@ impl Viewer1D {
             viz_samplers,
 
             annotations,
+
+            msg_tx,
+            msg_rx,
         })
     }
 
@@ -402,6 +406,12 @@ impl AppWindow for Viewer1D {
         context_state: &mut ContextState,
         dt: f32,
     ) {
+        while let Ok(msg) = self.msg_rx.try_recv() {
+            match msg {
+                control::Msg::View(msg) => msg.apply(&mut self.view),
+            }
+        }
+
         egui_ctx.begin_frame(&window.window);
 
         let time = egui_ctx.ctx().input(|i| i.time);
