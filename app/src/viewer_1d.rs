@@ -27,6 +27,7 @@ use anyhow::Result;
 use waragraph_core::graph::PathIndex;
 
 use self::cache::{SlotCache, SlotState};
+use self::control::ViewControlWidget;
 use self::render::VizModeConfig;
 // use self::util::path_sampled_data_viz_buffer;
 use self::view::View1D;
@@ -71,14 +72,17 @@ pub struct Viewer1D {
 
     color_mapping: crate::util::Uniform<Arc<AtomicCell<ColorMap>>, 16>,
 
-    // NB: very temporary, hopefully
+    annotations: annotations::Annots1D,
+
+    pub msg_tx: crossbeam::channel::Sender<control::Msg>,
+    msg_rx: crossbeam::channel::Receiver<control::Msg>,
+
+    // NB: very temporary, hopefully; bits are spread all over...
     viz_mode_config: HashMap<String, VizModeConfig>,
     viz_samplers: HashMap<String, Arc<dyn sampler::Sampler + 'static>>,
 
-    annotations: annotations::Annots1D,
-
-    msg_tx: crossbeam::channel::Sender<control::Msg>,
-    msg_rx: crossbeam::channel::Receiver<control::Msg>,
+    // NB: also temporary, hopefully
+    view_control_widget: ViewControlWidget,
 }
 
 impl Viewer1D {
@@ -332,6 +336,9 @@ impl Viewer1D {
 
         let (msg_tx, msg_rx) = crossbeam::channel::unbounded();
 
+        let view_control_widget =
+            ViewControlWidget::new(shared, msg_tx.clone());
+
         Ok(Viewer1D {
             render_graph: graph,
             draw_path_slot: draw_node,
@@ -350,18 +357,21 @@ impl Viewer1D {
             // sample_handle: None,
             shared: shared.clone(),
 
+            annotations,
+
+            msg_tx,
+            msg_rx,
+
+            view_control_widget,
+
+            viz_mode_config,
+            viz_samplers,
+
             active_viz_data_key,
             use_linear_sampler,
 
             color_mapping,
             // color_map_widget,
-            viz_mode_config,
-            viz_samplers,
-
-            annotations,
-
-            msg_tx,
-            msg_rx,
         })
     }
 
@@ -440,7 +450,30 @@ impl AppWindow for Viewer1D {
 
         let mut shapes = Vec::new();
 
-        let main_view_rect = screen_rect.shrink(2.0);
+        let (main_panel_rect, side_panel_rect) = {
+            // for now do the side panel stuff here, and use it to
+            // derive the main panel size
+
+            let y_range = screen_rect.y_range();
+            let (xl, _xr) = screen_rect.x_range().into_inner();
+
+            let side_panel = egui::SidePanel::right("Viewer1D-side-panel")
+                .show(egui_ctx.ctx(), |ui| {
+                    self.view_control_widget.show(ui);
+                });
+
+            let side_panel_rect = side_panel.response.rect;
+
+            let xmid = side_panel_rect.left();
+
+            let main_panel_rect =
+                egui::Rect::from_x_y_ranges(xl..=xmid, y_range);
+
+            (main_panel_rect, side_panel_rect)
+        };
+
+        // let main_view_rect = screen_rect.shrink(2.0);
+        let main_view_rect = main_panel_rect.shrink(2.0);
 
         let row_grid_layout = {
             use taffy::prelude::*;
