@@ -8,7 +8,7 @@ use crate::list::ListView;
 use crate::viewer_1d::annotations::AnnotSlot;
 use crossbeam::atomic::AtomicCell;
 use tokio::sync::RwLock;
-use waragraph_core::graph::{Bp, PathId};
+use waragraph_core::graph::{Bp, Node, PathId};
 use wgpu::BufferUsages;
 
 use std::collections::HashMap;
@@ -27,24 +27,21 @@ use anyhow::Result;
 use waragraph_core::graph::PathIndex;
 
 use self::cache::{SlotCache, SlotState};
+use self::control::ViewControlWidget;
 use self::render::VizModeConfig;
 // use self::util::path_sampled_data_viz_buffer;
 use self::view::View1D;
 use self::widgets::VisualizationModesWidget;
 
-pub mod gui;
-pub mod widgets;
-
-pub mod cache;
-pub mod render;
-
-pub mod sampler;
-
-pub mod view;
-
 pub mod annotations;
-
+pub mod cache;
+pub mod control;
+pub mod gui;
+pub mod render;
+pub mod sampler;
 pub mod util;
+pub mod view;
+pub mod widgets;
 
 #[derive(Debug)]
 pub struct Args {
@@ -75,11 +72,17 @@ pub struct Viewer1D {
 
     color_mapping: crate::util::Uniform<Arc<AtomicCell<ColorMap>>, 16>,
 
-    // NB: very temporary, hopefully
+    annotations: annotations::Annots1D,
+
+    pub msg_tx: crossbeam::channel::Sender<control::Msg>,
+    msg_rx: crossbeam::channel::Receiver<control::Msg>,
+
+    // NB: very temporary, hopefully; bits are spread all over...
     viz_mode_config: HashMap<String, VizModeConfig>,
     viz_samplers: HashMap<String, Arc<dyn sampler::Sampler + 'static>>,
 
-    annotations: annotations::Annots1D,
+    // NB: also temporary, hopefully
+    view_control_widget: ViewControlWidget,
 }
 
 impl Viewer1D {
@@ -331,6 +334,11 @@ impl Viewer1D {
             &mut viz_mode_config,
         );
 
+        let (msg_tx, msg_rx) = crossbeam::channel::unbounded();
+
+        let view_control_widget =
+            ViewControlWidget::new(shared, msg_tx.clone());
+
         Ok(Viewer1D {
             render_graph: graph,
             draw_path_slot: draw_node,
@@ -349,15 +357,21 @@ impl Viewer1D {
             // sample_handle: None,
             shared: shared.clone(),
 
+            annotations,
+
+            msg_tx,
+            msg_rx,
+
+            view_control_widget,
+
+            viz_mode_config,
+            viz_samplers,
+
             active_viz_data_key,
             use_linear_sampler,
 
             color_mapping,
             // color_map_widget,
-            viz_mode_config,
-            viz_samplers,
-
-            annotations,
         })
     }
 
@@ -402,6 +416,14 @@ impl AppWindow for Viewer1D {
         context_state: &mut ContextState,
         dt: f32,
     ) {
+        while let Ok(msg) = self.msg_rx.try_recv() {
+            match msg {
+                control::Msg::View(cmd) => {
+                    cmd.apply(&self.shared, &mut self.view)
+                }
+            }
+        }
+
         egui_ctx.begin_frame(&window.window);
 
         let time = egui_ctx.ctx().input(|i| i.time);
@@ -428,7 +450,31 @@ impl AppWindow for Viewer1D {
 
         let mut shapes = Vec::new();
 
-        let main_view_rect = screen_rect.shrink(2.0);
+        let (main_panel_rect, side_panel_rect) = {
+            // for now do the side panel stuff here, and use it to
+            // derive the main panel size
+
+            let y_range = screen_rect.y_range();
+            let (xl, _xr) = screen_rect.x_range().into_inner();
+
+            let side_panel = egui::SidePanel::right("Viewer1D-side-panel")
+                .max_width(screen_rect.width() * 0.5)
+                .show(egui_ctx.ctx(), |ui| {
+                    self.view_control_widget.show(ui);
+                });
+
+            let side_panel_rect = side_panel.response.rect;
+
+            let xmid = side_panel_rect.left();
+
+            let main_panel_rect =
+                egui::Rect::from_x_y_ranges(xl..=xmid, y_range);
+
+            (main_panel_rect, side_panel_rect)
+        };
+
+        // let main_view_rect = screen_rect.shrink(2.0);
+        let main_view_rect = main_panel_rect.shrink(2.0);
 
         let row_grid_layout = {
             use taffy::prelude::*;
@@ -545,6 +591,14 @@ impl AppWindow for Viewer1D {
 
             row_grid_layout
         };
+
+        // hacky 2D -> 1D interactivity
+        if let Some(&node) =
+            context_state.query_get_cast::<_, Node>(Some("Viewer2D"), ["goto"])
+        {
+            use control::{Msg, ViewCmd};
+            let _ = self.msg_tx.send(Msg::View(ViewCmd::GotoNode { node }));
+        }
 
         let mut data_slots: HashMap<_, Vec<_>> = HashMap::new();
         let mut viz_slot_rect_map = HashMap::new();
@@ -913,8 +967,12 @@ impl AppWindow for Viewer1D {
                     if let Some(node) = hovered_node {
                         context_state.set("Viewer1D", ["hover"], node);
 
-                        if path_slots.clicked() {
-                            context_state.set("Viewer1D", ["click"], node);
+                        if ui.input(|i| {
+                            i.pointer
+                                .button_down(egui::PointerButton::Secondary)
+                        }) {
+                            // if path_slots.clicked() {
+                            context_state.set("Viewer1D", ["goto"], node);
                         }
                     }
                     context_state.set("Viewer1D", ["hover"], Bp(pan_pos));
@@ -1058,6 +1116,7 @@ impl AppWindow for Viewer1D {
                                 .get_by_left(path)
                                 .map(|n| n.as_str())
                                 .unwrap_or("ERROR");
+                            ui.label(format!("Node {}", node.ix()));
                             ui.label(format!("Path {path_name}"));
                             ui.label(format!("Pos {} bp", pos.0));
                         },

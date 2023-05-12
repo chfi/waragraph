@@ -26,10 +26,14 @@ use ultraviolet::*;
 
 use waragraph_core::graph::{Bp, Node, PathIndex};
 
+pub mod control;
 pub mod layout;
+pub mod util;
 pub mod view;
 
 pub mod lyon_path_renderer;
+
+use control::ViewControlWidget;
 
 use layout::NodePositions;
 
@@ -62,6 +66,11 @@ pub struct Viewer2D {
     active_viz_data_key: String,
     color_mapping: crate::util::Uniform<ColorMap, 16>,
     data_buffer: wgpu::Buffer,
+
+    view_control_widget: control::ViewControlWidget,
+
+    pub msg_tx: crossbeam::channel::Sender<control::Msg>,
+    msg_rx: crossbeam::channel::Receiver<control::Msg>,
 }
 
 impl Viewer2D {
@@ -266,6 +275,11 @@ impl Viewer2D {
             window.window.inner_size().into(),
         )?;
 
+        let (msg_tx, msg_rx) = crossbeam::channel::unbounded();
+
+        let view_control_widget =
+            ViewControlWidget::new(shared, msg_tx.clone());
+
         Ok(Self {
             node_positions: Arc::new(node_positions),
 
@@ -287,6 +301,11 @@ impl Viewer2D {
             color_mapping,
             active_viz_data_key,
             data_buffer,
+
+            msg_tx,
+            msg_rx,
+
+            view_control_widget,
         })
     }
 
@@ -326,6 +345,18 @@ impl AppWindow for Viewer2D {
         context_state: &mut ContextState,
         dt: f32,
     ) {
+        while let Ok(msg) = self.msg_rx.try_recv() {
+            match msg {
+                control::Msg::View(cmd) => cmd.apply(
+                    &self.shared,
+                    &self.node_positions,
+                    &mut self.view,
+                ),
+            }
+        }
+
+        egui_ctx.begin_frame(&window.window);
+
         let [width, height]: [u32; 2] = window.window.inner_size().into();
         let dims = ultraviolet::Vec2::new(width as f32, height as f32);
 
@@ -336,6 +367,35 @@ impl AppWindow for Viewer2D {
             egui::pos2(dims.x, dims.y),
         );
 
+        let (main_panel_rect, side_panel_rect) = {
+            let y_range = screen_rect.y_range();
+            let (xl, _xr) = screen_rect.x_range().into_inner();
+
+            let side_panel = egui::SidePanel::right("Viewer2D-side-panel")
+                .max_width(screen_rect.width() * 0.5)
+                .show(egui_ctx.ctx(), |ui| {
+                    self.view_control_widget.show(ui);
+
+                    ui.separator();
+
+                    util::node_context_side_panel_info(
+                        &self.shared.graph,
+                        context_state,
+                        ui,
+                    );
+                });
+
+            let side_panel_rect = side_panel.response.rect;
+
+            let xmid = side_panel_rect.left();
+
+            let main_panel = egui::Rect::from_x_y_ranges(xl..=xmid, y_range);
+
+            // let main_panel = main_panel.shrink(2.0);
+
+            (main_panel, side_panel_rect)
+        };
+
         let dims = dims / egui_ctx.ctx().pixels_per_point();
 
         let mut annot_shapes = Vec::new();
@@ -345,8 +405,8 @@ impl AppWindow for Viewer2D {
             .query_get_cast::<_, Node>(None, ["hover"])
             .copied();
 
-        let clicked_node_1d = context_state
-            .query_get_cast::<_, Node>(Some("Viewer1D"), ["click"])
+        let goto_node_1d = context_state
+            .query_get_cast::<_, Node>(Some("Viewer1D"), ["goto"])
             .copied();
 
         if let Some(node) = hovered_node_1d {
@@ -354,7 +414,7 @@ impl AppWindow for Viewer2D {
             let mid = n0 + (n1 - n0) * 0.5;
 
             // a bit hacky but its fine
-            if clicked_node_1d.is_some() {
+            if goto_node_1d.is_some() {
                 self.view.center = mid;
             }
 
@@ -378,9 +438,15 @@ impl AppWindow for Viewer2D {
                 annot_shapes
                     .push(egui::Shape::circle_stroke(pmid, 5.0, stroke));
             }
-        }
 
-        egui_ctx.begin_frame(&window.window);
+            egui::containers::popup::show_tooltip(
+                egui_ctx.ctx(),
+                egui::Id::new("Viewer2D-Node-Tooltip"),
+                |ui| {
+                    ui.label(format!("Node {}", node.ix()));
+                },
+            );
+        }
 
         let mut hover_pos: Option<[f32; 2]> = None;
 
@@ -388,7 +454,8 @@ impl AppWindow for Viewer2D {
             let ctx = egui_ctx.ctx();
 
             let main_area = egui::Area::new("main_area_2d")
-                .fixed_pos([0f32, 0.0])
+                .order(egui::Order::Background)
+                .interactable(true)
                 .movable(false)
                 .constrain(true);
 
@@ -405,11 +472,13 @@ impl AppWindow for Viewer2D {
             }
 
             main_area.show(ctx, |ui| {
-                ui.set_width(screen_rect.width());
-                ui.set_height(screen_rect.height());
+                // ui.set_width(main_panel_rect.width());
+                // ui.set_height(main_panel_rect.height());
 
-                let area_rect = ui
-                    .allocate_rect(screen_rect, egui::Sense::click_and_drag());
+                let area_rect = ui.allocate_rect(
+                    main_panel_rect,
+                    egui::Sense::click_and_drag(),
+                );
 
                 if area_rect.dragged_by(egui::PointerButton::Primary)
                     && !multi_touch_active
@@ -457,6 +526,14 @@ impl AppWindow for Viewer2D {
                     let local_pos =
                         (u as f64 * node_len.0 as f64).round() as u64;
                     let pos = Bp(node_offset.0 + local_pos);
+
+                    let clicked = egui_ctx.ctx().input(|i| {
+                        i.pointer.button_down(egui::PointerButton::Secondary)
+                    });
+
+                    if clicked {
+                        context_state.set("Viewer2D", ["goto"], node);
+                    }
 
                     context_state.set("Viewer2D", ["hover"], node);
                     context_state.set("Viewer2D", ["hover"], pos);
