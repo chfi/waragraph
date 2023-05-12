@@ -38,55 +38,78 @@ impl ViewCmd {
                 view.center = mid;
             }
             ViewCmd::GotoRange { path, range } => {
+                use ultraviolet::Vec2;
+
                 let bounds = if let Some(path) = path {
-                    todo!();
-                } else {
-                    todo!();
-                };
-
-                todo!();
-                /*
-                let range = if let Some(path) = path {
-                    // TODO: this just reduces to the pangenome
-                    // interval containing the nodes in the path
-                    // range; it doesn't try to find the correct
-                    // position on the bp-level
-
                     let steps = shared.graph.path_step_range_iter(path, range);
 
-                    let node_bounds = steps
-                        .map(|steps| {
-                            steps.fold(
-                                (u32::MAX, u32::MIN),
-                                |(min, max), (_, step)| {
-                                    let min = min.min(step.node().ix() as u32);
-                                    let max = max.max(step.node().ix() as u32);
-                                    (min, max)
-                                },
-                            )
-                        })
-                        .filter(|&(min, max)| {
-                            min != u32::MAX && max != u32::MIN
-                        })
-                        .map(|(min, max)| (Node::from(min), Node::from(max)));
+                    if steps.is_none() {
+                        return;
+                    }
 
-                    if let Some((min_n, max_n)) = node_bounds {
-                        let (left, _) = shared.graph.node_offset_length(min_n);
-                        let (r_off, r_len) =
-                            shared.graph.node_offset_length(max_n);
-                        let right = Bp(r_off.0 + r_len.0);
+                    let steps = steps
+                        .unwrap()
+                        .map(|(_, step)| node_layout.node_pos(step.node()));
 
-                        left..right
+                    let bounds = steps.fold(
+                        (
+                            Vec2::broadcast(f32::INFINITY.into()),
+                            Vec2::broadcast(f32::NEG_INFINITY.into()),
+                        ),
+                        |(min, max), (p0, p1)| {
+                            let min =
+                                min.min_by_component(p0).min_by_component(p1);
+                            let max =
+                                max.max_by_component(p0).max_by_component(p1);
+                            (min, max)
+                        },
+                    );
+
+                    bounds
+                } else {
+                    let node0 = shared.graph.node_at_pangenome_pos(range.start);
+                    let node1 = shared.graph.node_at_pangenome_pos(range.end);
+
+                    let bounds = node0.zip(node1).and_then(|(n0, n1)| {
+                        let (a0, a1) = node_layout.node_pos(n0);
+                        let (b0, b1) = node_layout.node_pos(n1);
+
+                        let points = [a0, a1, b0, b1];
+
+                        let bounds = points.into_iter().fold(
+                            (
+                                Vec2::broadcast(f32::INFINITY.into()),
+                                Vec2::broadcast(f32::NEG_INFINITY.into()),
+                            ),
+                            |(min, max), p| {
+                                let min = min.min_by_component(p);
+                                let max = max.max_by_component(p);
+                                (min, max)
+                            },
+                        );
+
+                        if bounds.0.component_min().is_infinite()
+                            || bounds.1.component_max().is_infinite()
+                        {
+                            None
+                        } else {
+                            Some(bounds)
+                        }
+                    });
+
+                    if let Some(bounds) = bounds {
+                        bounds
                     } else {
                         return;
                     }
-                } else {
-                    // the pangenome range interval is exact
-                    range
                 };
 
-                view.try_center(range);
-                */
+                // TODO set scale as well
+
+                let (p0, p1) = bounds;
+
+                let mid = p0 + (p1 - p0) * 0.5;
+                view.center = mid;
             }
         }
     }
@@ -142,12 +165,8 @@ impl ViewControlWidget {
             let node =
                 crate::viewer_1d::control::parse_node(&self.node_id_text);
 
-            if let Some(range) =
-                node.map(|n| self.shared.graph.node_pangenome_range(n))
-            {
-                let _ = self
-                    .msg_tx
-                    .send(Msg::View(ViewCmd::GotoRange { path: None, range }));
+            if let Some(node) = node {
+                let _ = self.msg_tx.send(Msg::View(ViewCmd::GotoNode { node }));
             }
         }
 

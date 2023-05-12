@@ -366,13 +366,25 @@ impl AppWindow for Viewer2D {
             egui::pos2(dims.x, dims.y),
         );
 
-        {
+        let (main_panel_rect, side_panel_rect) = {
+            let y_range = screen_rect.y_range();
+            let (xl, _xr) = screen_rect.x_range().into_inner();
+
             let side_panel = egui::SidePanel::right("Viewer2D-side-panel")
                 .max_width(screen_rect.width() * 0.5)
                 .show(egui_ctx.ctx(), |ui| {
                     self.view_control_widget.show(ui);
                 });
-        }
+
+            let side_panel_rect = side_panel.response.rect;
+
+            let xmid = side_panel_rect.left();
+
+            let main_panel_rect =
+                egui::Rect::from_x_y_ranges(xl..=xmid, y_range);
+
+            (main_panel_rect, side_panel_rect)
+        };
 
         let dims = dims / egui_ctx.ctx().pixels_per_point();
 
@@ -424,7 +436,9 @@ impl AppWindow for Viewer2D {
             let ctx = egui_ctx.ctx();
 
             let main_area = egui::Area::new("main_area_2d")
-                .fixed_pos([0f32, 0.0])
+                // .fixed_pos([0f32, 0.0])
+                .order(egui::Order::Background)
+                .interactable(true)
                 .movable(false)
                 .constrain(true);
 
@@ -441,11 +455,13 @@ impl AppWindow for Viewer2D {
             }
 
             main_area.show(ctx, |ui| {
-                ui.set_width(screen_rect.width());
-                ui.set_height(screen_rect.height());
+                // ui.set_width(main_panel_rect.width());
+                // ui.set_height(main_panel_rect.height());
 
-                let area_rect = ui
-                    .allocate_rect(screen_rect, egui::Sense::click_and_drag());
+                let area_rect = ui.allocate_rect(
+                    main_panel_rect,
+                    egui::Sense::click_and_drag(),
+                );
 
                 if area_rect.dragged_by(egui::PointerButton::Primary)
                     && !multi_touch_active
