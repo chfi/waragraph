@@ -458,6 +458,7 @@ impl AppWindow for Viewer1D {
             let (xl, _xr) = screen_rect.x_range().into_inner();
 
             let side_panel = egui::SidePanel::right("Viewer1D-side-panel")
+                .max_width(screen_rect.width() * 0.5)
                 .show(egui_ctx.ctx(), |ui| {
                     self.view_control_widget.show(ui);
                 });

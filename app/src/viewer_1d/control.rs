@@ -13,10 +13,6 @@ struct ViewMsgParams {
 }
 
 pub enum ViewCmd {
-    // GotoPos {
-    //     path: Option<PathId>,
-    //     pos: Bp,
-    // },
     GotoRange {
         path: Option<PathId>,
         range: std::ops::Range<Bp>,
@@ -72,15 +68,12 @@ impl ViewCmd {
     }
 }
 
-// fn goto_pos(shared: &SharedState, path: Option<PathId>,
-
 pub struct ViewControlWidget {
     shared: SharedState,
     msg_tx: crossbeam::channel::Sender<Msg>,
 
     node_id_text: String,
     pos_text: String,
-    // node_id: Option<
 }
 
 impl ViewControlWidget {
@@ -99,7 +92,10 @@ impl ViewControlWidget {
 
     pub fn show(&mut self, ui: &mut egui::Ui) {
         ui.label("Node ID");
-        let node_id_entry = ui.text_edit_singleline(&mut self.node_id_text);
+        let node_id_entry = ui.add_sized(
+            [ui.available_size().x, 0f32],
+            egui::TextEdit::singleline(&mut self.node_id_text),
+        );
         let goto_node_b = ui.button("Go to node");
 
         let goto_node = goto_node_b.clicked()
@@ -107,7 +103,11 @@ impl ViewControlWidget {
                 && ui.input(|i| i.key_pressed(egui::Key::Enter)));
 
         ui.label("Position");
-        let pos_entry = ui.text_edit_singleline(&mut self.pos_text);
+        let pos_entry = ui.add_sized(
+            [ui.available_size().x, 0f32],
+            egui::TextEdit::singleline(&mut self.pos_text),
+        );
+
         let goto_pos_b = ui.button("Go to position");
 
         let goto_pos = goto_pos_b.clicked()
