@@ -26,6 +26,7 @@ use ultraviolet::*;
 
 use waragraph_core::graph::{Bp, Node, PathIndex};
 
+pub mod control;
 pub mod layout;
 pub mod view;
 
