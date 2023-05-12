@@ -205,7 +205,7 @@ impl View1D {
             self.zoom_around_norm_f32(0.5, 1.5);
         } else {
             // otherwise, do not resize the view, just translate it (if possible)
-            let delta = cur_mid as i64 - mid as i64;
+            let delta = mid as i64 - cur_mid as i64;
             self.translate(delta);
         }
     }

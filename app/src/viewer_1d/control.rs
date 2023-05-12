@@ -28,8 +28,41 @@ impl ViewCmd {
         match self {
             ViewCmd::GotoRange { path, range } => {
                 let range = if let Some(path) = path {
-                    todo!();
+                    // TODO: this just reduces to the pangenome
+                    // interval containing the nodes in the path
+                    // range; it doesn't try to find the correct
+                    // position on the bp-level
+
+                    let steps = shared.graph.path_step_range_iter(path, range);
+
+                    let node_bounds = steps
+                        .map(|steps| {
+                            steps.fold(
+                                (u32::MAX, u32::MIN),
+                                |(min, max), (_, step)| {
+                                    let min = min.min(step.node().ix() as u32);
+                                    let max = max.max(step.node().ix() as u32);
+                                    (min, max)
+                                },
+                            )
+                        })
+                        .filter(|&(min, max)| {
+                            min != u32::MAX && max != u32::MIN
+                        })
+                        .map(|(min, max)| (Node::from(min), Node::from(max)));
+
+                    if let Some((min_n, max_n)) = node_bounds {
+                        let (left, _) = shared.graph.node_offset_length(min_n);
+                        let (r_off, r_len) =
+                            shared.graph.node_offset_length(max_n);
+                        let right = Bp(r_off.0 + r_len.0);
+
+                        left..right
+                    } else {
+                        return;
+                    }
                 } else {
+                    // the pangenome range interval is exact
                     range
                 };
 
