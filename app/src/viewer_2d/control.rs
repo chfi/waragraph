@@ -2,7 +2,7 @@ use waragraph_core::graph::{Bp, Node, PathId};
 
 use crate::app::SharedState;
 
-use super::view::View2D;
+use super::{layout::NodePositions, view::View2D};
 
 pub enum Msg {
     View(ViewCmd),
@@ -31,11 +31,19 @@ impl ViewCmd {
     ) {
         match self {
             ViewCmd::GotoNode { node } => {
-                todo!();
-                // let range = shared.graph.node_pangenome_range(node);
-                // view.try_center(range);
+                // TODO improve; make sure the scale is correct (i.e.
+                // the node fits on the screen properly)
+                let (p0, p1) = node_layout.node_pos(node);
+                let mid = p0 + (p1 - p0) * 0.5;
+                view.center = mid;
             }
             ViewCmd::GotoRange { path, range } => {
+                let bounds = if let Some(path) = path {
+                    todo!();
+                } else {
+                    todo!();
+                };
+
                 todo!();
                 /*
                 let range = if let Some(path) = path {
