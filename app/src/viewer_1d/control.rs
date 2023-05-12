@@ -94,7 +94,13 @@ impl ViewControlWidget {
         }
 
         if goto_pos {
-            if let Some((path, range)) = parse_pos_range(&self.pos_text) {
+            if let Some((path_name, range)) = parse_pos_range(&self.pos_text) {
+                let path = path_name
+                    .and_then(|name| {
+                        self.shared.graph.path_names.get_by_right(name)
+                    })
+                    .copied();
+
                 let _ = self
                     .msg_tx
                     .send(Msg::View(ViewCmd::GotoRange { path, range }));
@@ -107,8 +113,23 @@ fn parse_node(text: &str) -> Option<Node> {
     text.parse::<u32>().map(Node::from).ok()
 }
 
-fn parse_pos_range(
-    text: &str,
-) -> Option<(Option<PathId>, std::ops::Range<Bp>)> {
-    todo!();
+fn parse_pos_range(text: &str) -> Option<(Option<&str>, std::ops::Range<Bp>)> {
+    fn parse_range(text: &str) -> Option<std::ops::Range<Bp>> {
+        if let Some((from, to)) = text.split_once("-") {
+            let from = from.parse::<u64>().ok()?;
+            let to = to.parse::<u64>().ok()?;
+            Some(Bp(from)..Bp(to))
+        } else {
+            let pos = text.parse::<u64>().ok()?;
+            Some(Bp(pos)..Bp(pos + 1))
+        }
+    }
+
+    if let Some((path_name, range_text)) = text.rsplit_once(":") {
+        let range = parse_range(range_text)?;
+        Some((Some(path_name), range))
+    } else {
+        let range = parse_range(text)?;
+        Some((None, range))
+    }
 }
