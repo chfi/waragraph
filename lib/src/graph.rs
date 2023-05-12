@@ -520,6 +520,14 @@ impl PathIndex {
             .map(|occs| occs.iter().map(|&i| i as usize))
     }
 
+    pub fn paths_on_node<'a>(
+        &'a self,
+        node: Node,
+    ) -> Option<impl Iterator<Item = PathId> + 'a> {
+        let node_occs = self.node_path_steps.get(node.ix())?;
+        Some(node_occs.keys().copied())
+    }
+
     pub fn node_path_step_offsets<'a>(
         &'a self,
         node: Node,

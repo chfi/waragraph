@@ -28,6 +28,7 @@ use waragraph_core::graph::{Bp, Node, PathIndex};
 
 pub mod control;
 pub mod layout;
+pub mod util;
 pub mod view;
 
 pub mod lyon_path_renderer;
@@ -374,16 +375,25 @@ impl AppWindow for Viewer2D {
                 .max_width(screen_rect.width() * 0.5)
                 .show(egui_ctx.ctx(), |ui| {
                     self.view_control_widget.show(ui);
+
+                    ui.separator();
+
+                    util::node_context_side_panel_info(
+                        &self.shared.graph,
+                        context_state,
+                        ui,
+                    );
                 });
 
             let side_panel_rect = side_panel.response.rect;
 
             let xmid = side_panel_rect.left();
 
-            let main_panel_rect =
-                egui::Rect::from_x_y_ranges(xl..=xmid, y_range);
+            let main_panel = egui::Rect::from_x_y_ranges(xl..=xmid, y_range);
 
-            (main_panel_rect, side_panel_rect)
+            // let main_panel = main_panel.shrink(2.0);
+
+            (main_panel, side_panel_rect)
         };
 
         let dims = dims / egui_ctx.ctx().pixels_per_point();
@@ -428,6 +438,14 @@ impl AppWindow for Viewer2D {
                 annot_shapes
                     .push(egui::Shape::circle_stroke(pmid, 5.0, stroke));
             }
+
+            egui::containers::popup::show_tooltip(
+                egui_ctx.ctx(),
+                egui::Id::new("Viewer2D-Node-Tooltip"),
+                |ui| {
+                    ui.label(format!("Node {}", node.ix()));
+                },
+            );
         }
 
         let mut hover_pos: Option<[f32; 2]> = None;
@@ -436,7 +454,6 @@ impl AppWindow for Viewer2D {
             let ctx = egui_ctx.ctx();
 
             let main_area = egui::Area::new("main_area_2d")
-                // .fixed_pos([0f32, 0.0])
                 .order(egui::Order::Background)
                 .interactable(true)
                 .movable(false)
