@@ -8,7 +8,7 @@ use crate::list::ListView;
 use crate::viewer_1d::annotations::AnnotSlot;
 use crossbeam::atomic::AtomicCell;
 use tokio::sync::RwLock;
-use waragraph_core::graph::{Bp, PathId};
+use waragraph_core::graph::{Bp, Node, PathId};
 use wgpu::BufferUsages;
 
 use std::collections::HashMap;
@@ -592,6 +592,14 @@ impl AppWindow for Viewer1D {
             row_grid_layout
         };
 
+        // hacky 2D -> 1D interactivity
+        if let Some(&node) =
+            context_state.query_get_cast::<_, Node>(Some("Viewer2D"), ["goto"])
+        {
+            use control::{Msg, ViewCmd};
+            let _ = self.msg_tx.send(Msg::View(ViewCmd::GotoNode { node }));
+        }
+
         let mut data_slots: HashMap<_, Vec<_>> = HashMap::new();
         let mut viz_slot_rect_map = HashMap::new();
 
@@ -959,8 +967,12 @@ impl AppWindow for Viewer1D {
                     if let Some(node) = hovered_node {
                         context_state.set("Viewer1D", ["hover"], node);
 
-                        if path_slots.clicked() {
-                            context_state.set("Viewer1D", ["click"], node);
+                        if ui.input(|i| {
+                            i.pointer
+                                .button_down(egui::PointerButton::Secondary)
+                        }) {
+                            // if path_slots.clicked() {
+                            context_state.set("Viewer1D", ["goto"], node);
                         }
                     }
                     context_state.set("Viewer1D", ["hover"], Bp(pan_pos));

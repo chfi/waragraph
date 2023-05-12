@@ -13,6 +13,9 @@ struct ViewMsgParams {
 }
 
 pub enum ViewCmd {
+    GotoNode {
+        node: Node,
+    },
     GotoRange {
         path: Option<PathId>,
         range: std::ops::Range<Bp>,
@@ -22,6 +25,10 @@ pub enum ViewCmd {
 impl ViewCmd {
     pub fn apply(self, shared: &SharedState, view: &mut View1D) {
         match self {
+            ViewCmd::GotoNode { node } => {
+                let range = shared.graph.node_pangenome_range(node);
+                view.try_center(range);
+            }
             ViewCmd::GotoRange { path, range } => {
                 let range = if let Some(path) = path {
                     // TODO: this just reduces to the pangenome

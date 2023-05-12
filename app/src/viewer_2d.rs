@@ -345,8 +345,8 @@ impl AppWindow for Viewer2D {
             .query_get_cast::<_, Node>(None, ["hover"])
             .copied();
 
-        let clicked_node_1d = context_state
-            .query_get_cast::<_, Node>(Some("Viewer1D"), ["click"])
+        let goto_node_1d = context_state
+            .query_get_cast::<_, Node>(Some("Viewer1D"), ["goto"])
             .copied();
 
         if let Some(node) = hovered_node_1d {
@@ -354,7 +354,7 @@ impl AppWindow for Viewer2D {
             let mid = n0 + (n1 - n0) * 0.5;
 
             // a bit hacky but its fine
-            if clicked_node_1d.is_some() {
+            if goto_node_1d.is_some() {
                 self.view.center = mid;
             }
 
@@ -457,6 +457,14 @@ impl AppWindow for Viewer2D {
                     let local_pos =
                         (u as f64 * node_len.0 as f64).round() as u64;
                     let pos = Bp(node_offset.0 + local_pos);
+
+                    let clicked = egui_ctx.ctx().input(|i| {
+                        i.pointer.button_down(egui::PointerButton::Secondary)
+                    });
+
+                    if clicked {
+                        context_state.set("Viewer2D", ["goto"], node);
+                    }
 
                     context_state.set("Viewer2D", ["hover"], node);
                     context_state.set("Viewer2D", ["hover"], pos);
