@@ -6,6 +6,7 @@ use crate::context::{ContextQuery, ContextState};
 use crate::gui::{GridEntry, RowEntry, RowGridLayout};
 use crate::list::ListView;
 use crate::viewer_1d::annotations::AnnotSlot;
+use crate::viewer_1d::config::Config;
 use crossbeam::atomic::AtomicCell;
 use tokio::sync::RwLock;
 use waragraph_core::graph::{Bp, Node, PathId};
@@ -35,6 +36,7 @@ use self::widgets::VisualizationModesWidget;
 
 pub mod annotations;
 pub mod cache;
+pub mod config;
 pub mod control;
 pub mod gui;
 pub mod render;
@@ -76,6 +78,8 @@ pub struct Viewer1D {
 
     pub msg_tx: crossbeam::channel::Sender<control::Msg>,
     msg_rx: crossbeam::channel::Receiver<control::Msg>,
+
+    cfg: Config,
 
     // NB: very temporary, hopefully; bits are spread all over...
     viz_mode_config: HashMap<String, VizModeConfig>,
@@ -266,6 +270,22 @@ impl Viewer1D {
             );
         }
 
+        let cfg = {
+            let cfg = Config {
+                filter_path_list_by_visibility: Arc::new(false.into()),
+            };
+
+            let widget = config::ConfigWidget { cfg: cfg.clone() };
+
+            settings_window.register_widget(
+                "1D Viewer",
+                "Configuration",
+                Arc::new(RwLock::new(widget)),
+            );
+
+            cfg
+        };
+
         let mut viz_samplers = HashMap::default();
 
         {
@@ -371,6 +391,8 @@ impl Viewer1D {
             use_linear_sampler,
 
             color_mapping,
+
+            cfg,
             // color_map_widget,
         })
     }
@@ -522,6 +544,8 @@ impl AppWindow for Viewer1D {
                 (left as u32)..(right as u32)
             };
 
+            let should_filter = self.cfg.filter_path_list_by_visibility.load();
+
             let layout_result = row_grid_layout.fill_from_slice_index(
                 main_view_rect.height(),
                 [header_row],
@@ -531,8 +555,10 @@ impl AppWindow for Viewer1D {
                     let path_nodes =
                         &self.shared.graph.path_node_sets[path_id.ix()];
 
-                    if path_nodes.range_cardinality(visible_node_range.clone())
-                        == 0
+                    if should_filter
+                        && path_nodes
+                            .range_cardinality(visible_node_range.clone())
+                            == 0
                     {
                         return None;
                     }
