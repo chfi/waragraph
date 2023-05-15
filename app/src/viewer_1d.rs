@@ -272,7 +272,7 @@ impl Viewer1D {
 
         let cfg = {
             let cfg = Config {
-                filter_path_list_by_visibility: Arc::new(false.into()),
+                filter_path_list_by_visibility: Arc::new(true.into()),
             };
 
             let widget = config::ConfigWidget { cfg: cfg.clone() };
@@ -985,8 +985,26 @@ impl AppWindow for Viewer1D {
                     // hardcoded row height for now; should be stored/fetched
                     let rows = (scroll.y / 20.0).round() as isize;
 
+                    let visible_node_range = {
+                        let range = self.visible_node_range();
+                        (range.start.ix() as u32)..(range.end.ix() as u32)
+                    };
+
+                    let filter_path_list = |path: &PathId| {
+                        let path_nodes =
+                            &self.shared.graph.path_node_sets[path.ix()];
+                        let should_filter_path_list =
+                            self.cfg.filter_path_list_by_visibility.load();
+
+                        !should_filter_path_list
+                            || path_nodes
+                                .range_cardinality(visible_node_range.clone())
+                                > 0
+                    };
+
                     if rows != 0 {
-                        self.path_list_view.scroll_relative(-rows);
+                        self.path_list_view
+                            .scroll_relative_filtered(-rows, filter_path_list);
                         self.force_resample = true;
                     }
                 }
@@ -1208,6 +1226,23 @@ impl AppWindow for Viewer1D {
                 use winit::event::VirtualKeyCode as Key;
                 let pressed = matches!(input.state, ElementState::Pressed);
 
+                let visible_node_range = {
+                    let range = self.visible_node_range();
+                    (range.start.ix() as u32)..(range.end.ix() as u32)
+                };
+
+                let filter_path_list = |path: &PathId| {
+                    let path_nodes =
+                        &self.shared.graph.path_node_sets[path.ix()];
+                    let should_filter_path_list =
+                        self.cfg.filter_path_list_by_visibility.load();
+
+                    !should_filter_path_list
+                        || path_nodes
+                            .range_cardinality(visible_node_range.clone())
+                            > 0
+                };
+
                 if pressed {
                     match key {
                         Key::Right => {
@@ -1217,11 +1252,13 @@ impl AppWindow for Viewer1D {
                             self.view.translate_norm_f32(-0.1);
                         }
                         Key::Up => {
-                            self.path_list_view.scroll_relative(-1);
+                            self.path_list_view
+                                .scroll_relative_filtered(-1, filter_path_list);
                             self.force_resample = true;
                         }
                         Key::Down => {
-                            self.path_list_view.scroll_relative(1);
+                            self.path_list_view
+                                .scroll_relative_filtered(1, filter_path_list);
                             self.force_resample = true;
                         }
                         Key::Space => {
@@ -1409,5 +1446,20 @@ impl AppWindow for Viewer1D {
             .unwrap();
 
         Ok(())
+    }
+}
+
+impl Viewer1D {
+    fn visible_node_range(&self) -> std::ops::Range<Node> {
+        let view = self.view.range();
+        let left_node = self.shared.graph.node_at_pangenome_pos(Bp(view.start));
+        let right_node = self.shared.graph.node_at_pangenome_pos(Bp(view.end));
+
+        let left = left_node.map(|n| n.ix()).unwrap_or(0);
+        let right = right_node
+            .map(|n| n.ix())
+            .unwrap_or(self.shared.graph.node_count - 1);
+
+        Node::from(left)..Node::from(right)
     }
 }
