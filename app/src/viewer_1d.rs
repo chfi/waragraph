@@ -507,12 +507,36 @@ impl AppWindow for Viewer1D {
             };
             let view_offset = self.path_list_view.offset();
 
+            let visible_node_range = {
+                let view = self.view.range();
+                let left_node =
+                    self.shared.graph.node_at_pangenome_pos(Bp(view.start));
+                let right_node =
+                    self.shared.graph.node_at_pangenome_pos(Bp(view.end));
+
+                let left = left_node.map(|n| n.ix()).unwrap_or(0);
+                let right = right_node
+                    .map(|n| n.ix())
+                    .unwrap_or(self.shared.graph.node_count - 1);
+
+                (left as u32)..(right as u32)
+            };
+
             let layout_result = row_grid_layout.fill_from_slice_index(
                 main_view_rect.height(),
                 [header_row],
                 &self.path_list_view.as_slice(),
                 view_offset,
                 |&(_list_ix, path_id)| {
+                    let path_nodes =
+                        &self.shared.graph.path_node_sets[path_id.ix()];
+
+                    if path_nodes.range_cardinality(visible_node_range.clone())
+                        == 0
+                    {
+                        return None;
+                    }
+
                     let mut row_entry = RowEntry {
                         grid_template_columns: vec![
                             points(info_col_width),
@@ -558,7 +582,7 @@ impl AppWindow for Viewer1D {
                         ),
                     ]);
 
-                    row_entry
+                    Some(row_entry)
                 },
             );
 

@@ -185,7 +185,7 @@ impl<T> RowGridLayout<T> {
         header: impl IntoIterator<Item = RowEntry<T>>,
         rows: &[U],
         index: usize,
-        mut to_entry: impl FnMut(&U) -> RowEntry<T>,
+        mut to_entry: impl FnMut(&U) -> Option<RowEntry<T>>,
     ) -> Result<(std::ops::Range<usize>, f32), TaffyError> {
         use crossbeam::atomic::AtomicCell;
 
@@ -261,8 +261,10 @@ impl<T> RowGridLayout<T> {
         // fill forward from the row index
 
         for row in &rows[index..] {
-            let row_entry = to_entry(row);
-            let full = handle_row(row_entry)?;
+            let mut full = false;
+            if let Some(row_entry) = to_entry(row) {
+                full = handle_row(row_entry)?;
+            }
 
             if full {
                 break;
@@ -276,8 +278,10 @@ impl<T> RowGridLayout<T> {
 
         if !space_full {
             for row in rows[..index].iter().rev() {
-                let row_entry = to_entry(row);
-                let full = handle_row(row_entry)?;
+                let mut full = false;
+                if let Some(row_entry) = to_entry(row) {
+                    full = handle_row(row_entry)?;
+                }
 
                 if full {
                     break;
