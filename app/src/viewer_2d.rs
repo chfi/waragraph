@@ -1,8 +1,10 @@
 use crate::annotations::{AnnotationId, GlobalAnnotationId};
+use crate::app::settings_menu::SettingsWindow;
 use crate::app::{AppWindow, SharedState};
 use crate::color::ColorMap;
 use crate::context::{ContextQuery, ContextState};
 use crate::util::BufferDesc;
+use crate::viewer_2d::config::Config;
 
 use std::collections::HashMap;
 use std::num::NonZeroU32;
@@ -12,6 +14,7 @@ use std::sync::Arc;
 use crossbeam::atomic::AtomicCell;
 use raving_wgpu::camera::DynamicCamera2d;
 use raving_wgpu::texture::Texture;
+use tokio::sync::RwLock;
 use wgpu::BufferUsages;
 use winit::event::WindowEvent;
 
@@ -28,6 +31,7 @@ use ultraviolet::*;
 use waragraph_core::graph::{Bp, Node, PathIndex};
 
 pub mod annotations;
+pub mod config;
 pub mod control;
 pub mod layout;
 pub mod util;
@@ -76,6 +80,8 @@ pub struct Viewer2D {
 
     pub msg_tx: crossbeam::channel::Sender<control::Msg>,
     msg_rx: crossbeam::channel::Receiver<control::Msg>,
+
+    cfg: Config,
 }
 
 impl Viewer2D {
@@ -85,6 +91,7 @@ impl Viewer2D {
         path_index: Arc<PathIndex>,
         layout_tsv: impl AsRef<std::path::Path>,
         shared: &SharedState,
+        settings_window: &mut SettingsWindow,
     ) -> Result<Self> {
         let (node_positions, vertex_buffer, instance_count) = {
             let pos = NodePositions::from_layout_tsv(layout_tsv)?;
@@ -308,6 +315,20 @@ impl Viewer2D {
             );
         }
 
+        let cfg = {
+            let cfg = Config::default();
+
+            let widget = config::ConfigWidget { cfg: cfg.clone() };
+
+            settings_window.register_widget(
+                "2D Viewer",
+                "Configuration",
+                Arc::new(RwLock::new(widget)),
+            );
+
+            cfg
+        };
+
         Ok(Self {
             node_positions: Arc::new(node_positions),
 
@@ -332,6 +353,8 @@ impl Viewer2D {
 
             msg_tx,
             msg_rx,
+
+            cfg,
 
             view_control_widget,
 
@@ -527,7 +550,9 @@ impl AppWindow for Viewer2D {
 
                 painter.extend(annot_shapes);
 
-                self.annotation_layer.draw(&self.view, dims, &painter);
+                if self.cfg.show_annotation_labels.load() {
+                    self.annotation_layer.draw(&self.view, dims, &painter);
+                }
             });
 
             let scroll = ctx.input(|i| i.scroll_delta);

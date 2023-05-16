@@ -329,6 +329,7 @@ impl App {
                 self.shared.graph.clone(),
                 tsv,
                 &self.shared,
+                &mut self.settings,
             )?;
 
             Ok(Box::new(app))
