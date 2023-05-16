@@ -469,11 +469,14 @@ impl AppWindow for Viewer2D {
                     .push(egui::Shape::circle_stroke(pmid, 5.0, stroke));
             }
 
+            let node_len = self.shared.graph.node_length(node);
+
             egui::containers::popup::show_tooltip(
                 egui_ctx.ctx(),
                 egui::Id::new("Viewer2D-Node-Tooltip"),
                 |ui| {
                     ui.label(format!("Node {}", node.ix()));
+                    ui.label(format!("Length {} bp", node_len.0));
                 },
             );
         }
