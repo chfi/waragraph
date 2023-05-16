@@ -150,7 +150,7 @@ impl AnnotationSet {
                         let annot = Annotation {
                             path: path_id,
                             range,
-                            label: Arc::new(name.to_string()),
+                            label: Arc::new(label.to_string()),
                         };
 
                         annotations.push(annot);

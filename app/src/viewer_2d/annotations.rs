@@ -116,7 +116,7 @@ impl AnnotationLayer {
         // shared: &SharedState,
         // node_positions: &NodePositions,
         view: &View2D,
-        painter: &mut egui::Painter,
+        painter: &egui::Painter,
     ) {
         let dims: Vec2 =
             mint::Vector2::<f32>::from(painter.clip_rect().size()).into();

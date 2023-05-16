@@ -1,3 +1,4 @@
+use crate::annotations::{AnnotationId, GlobalAnnotationId};
 use crate::app::{AppWindow, SharedState};
 use crate::color::ColorMap;
 use crate::context::{ContextQuery, ContextState};
@@ -38,6 +39,7 @@ use control::ViewControlWidget;
 
 use layout::NodePositions;
 
+use self::annotations::AnnotationLayer;
 use self::view::View2D;
 
 #[derive(Debug)]
@@ -63,6 +65,8 @@ pub struct Viewer2D {
     draw_node: NodeId,
 
     shared: SharedState,
+
+    annotation_layer: AnnotationLayer,
 
     active_viz_data_key: String,
     color_mapping: crate::util::Uniform<ColorMap, 16>,
@@ -281,6 +285,29 @@ impl Viewer2D {
         let view_control_widget =
             ViewControlWidget::new(shared, msg_tx.clone());
 
+        let mut annotation_layer = AnnotationLayer::default();
+
+        {
+            let annotations = shared
+                .annotations
+                .blocking_read()
+                .annotation_sets
+                .iter()
+                .flat_map(|(set_id, set)| {
+                    (0..set.annotations.len()).map(|i| GlobalAnnotationId {
+                        set: *set_id,
+                        annot_id: AnnotationId(i),
+                    })
+                })
+                .collect::<Vec<_>>();
+
+            annotation_layer.load_annotations(
+                shared,
+                &node_positions,
+                annotations,
+            );
+        }
+
         Ok(Self {
             node_positions: Arc::new(node_positions),
 
@@ -307,6 +334,8 @@ impl Viewer2D {
             msg_rx,
 
             view_control_widget,
+
+            annotation_layer,
         })
     }
 
@@ -492,7 +521,10 @@ impl AppWindow for Viewer2D {
                 }
 
                 let painter = ui.painter();
+
                 painter.extend(annot_shapes);
+
+                self.annotation_layer.draw(&self.view, &painter);
             });
 
             let scroll = ctx.input(|i| i.scroll_delta);

@@ -168,8 +168,8 @@ impl App {
                         AnnotationSet::from_gff(
                             &path_index,
                             None,
-                            // |name| name.to_string(),
-                            |name| format!("S288C.{name}"),
+                            |name| name.to_string(),
+                            // |name| format!("S288C.{name}"),
                             // |name| format!("SGDref#1#{name}"),
                             |record| {
                                 let attrs = record.attributes();
