@@ -1,4 +1,5 @@
 use std::collections::BTreeSet;
+use std::sync::Arc;
 
 use ultraviolet::{Rotor2, Vec2};
 use waragraph_core::graph::Node;
@@ -15,6 +16,7 @@ type AnnotObjId = usize;
 struct AnnotObj {
     obj_id: AnnotObjId,
     annot_id: GlobalAnnotationId,
+    label: Arc<String>,
 
     anchor_node: Node,
     anchor_pos: Vec2,
@@ -96,6 +98,7 @@ impl AnnotationLayer {
             let obj = AnnotObj {
                 obj_id,
                 annot_id,
+                label: annot.label.clone(),
                 anchor_node,
                 anchor_pos,
                 label_pos,
@@ -108,13 +111,39 @@ impl AnnotationLayer {
         }
     }
 
-    pub fn render(
+    pub fn draw(
         &mut self,
-        shared: &SharedState,
-        node_positions: &NodePositions,
+        // shared: &SharedState,
+        // node_positions: &NodePositions,
         view: &View2D,
         painter: &mut egui::Painter,
     ) {
-        todo!();
+        let dims: Vec2 =
+            mint::Vector2::<f32>::from(painter.clip_rect().size()).into();
+
+        let mat = view.to_viewport_matrix(dims);
+
+        for obj in self.annot_objs.iter_mut() {
+            let p = mat * obj.label_pos.into_homogeneous_point();
+            let pos = egui::pos2(p.x, p.y);
+
+            let shape = painter.fonts(|fonts| {
+                let font = egui::FontId::proportional(16.0);
+                let color = egui::Color32::WHITE;
+                egui::Shape::text(
+                    &fonts,
+                    pos,
+                    egui::Align2::CENTER_CENTER,
+                    &obj.label,
+                    font,
+                    color,
+                )
+            });
+
+            let size = shape.visual_bounding_rect().size();
+            obj.shape_size = Some(mint::Vector2::<f32>::from(size).into());
+
+            painter.add(shape);
+        }
     }
 }
