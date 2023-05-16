@@ -4,9 +4,16 @@ use std::sync::Arc;
 
 use waragraph_core::graph::{Bp, PathId, PathIndex};
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Annotation {
+    pub path: PathId,
+    pub range: std::ops::Range<Bp>,
+    pub label: Arc<String>,
+}
+
 pub struct AnnotationSet {
     pub name: String,
-    pub annotations: Vec<(std::ops::Range<Bp>, String)>,
+    pub annotations: Vec<Annotation>,
     pub path_annotations: HashMap<PathId, Vec<usize>>,
 }
 
@@ -27,10 +34,7 @@ fn annotation_set_name(
 }
 
 impl AnnotationSet {
-    pub fn get(
-        &self,
-        annot_id: AnnotationId,
-    ) -> Option<&(std::ops::Range<Bp>, String)> {
+    pub fn get(&self, annot_id: AnnotationId) -> Option<&Annotation> {
         self.annotations.get(annot_id.0)
     }
 
@@ -75,7 +79,14 @@ impl AnnotationSet {
                             })?;
 
                         let a_id = annotations.len();
-                        annotations.push((range, name.to_string()));
+
+                        let annot = Annotation {
+                            path: path_id,
+                            range,
+                            label: Arc::new(name.to_string()),
+                        };
+
+                        annotations.push(annot);
                         path_annotations.entry(path_id).or_default().push(a_id);
                     }
                 }
@@ -135,7 +146,14 @@ impl AnnotationSet {
                             })?;
 
                         let a_id = annotations.len();
-                        annotations.push((range, label));
+
+                        let annot = Annotation {
+                            path: path_id,
+                            range,
+                            label: Arc::new(name.to_string()),
+                        };
+
+                        annotations.push(annot);
                         path_annotations.entry(path_id).or_default().push(a_id);
                     }
                 }

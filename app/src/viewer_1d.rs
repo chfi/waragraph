@@ -835,10 +835,10 @@ impl AppWindow for Viewer1D {
                             let annot_items = annots
                                 .iter()
                                 .filter_map(|&i| set.annotations.get(i))
-                                .map(|(range, label)| {
+                                .map(|annot| {
                                     let shape_fn =
-                                        annotations::text_shape(&label);
-                                    (path, range.clone(), shape_fn)
+                                        annotations::text_shape(&annot.label);
+                                    (path, annot.range.clone(), shape_fn)
                                 });
 
                             let annot_slot = AnnotSlot::new_from_path_space(
