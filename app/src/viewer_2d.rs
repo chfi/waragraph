@@ -527,7 +527,7 @@ impl AppWindow for Viewer2D {
 
                 painter.extend(annot_shapes);
 
-                self.annotation_layer.draw(&self.view, &painter);
+                self.annotation_layer.draw(&self.view, dims, &painter);
             });
 
             let scroll = ctx.input(|i| i.scroll_delta);

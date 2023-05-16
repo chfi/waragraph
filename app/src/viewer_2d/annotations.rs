@@ -54,8 +54,8 @@ impl AnnotationLayer {
                 .and_then(|set| set.get(annot_id.annot_id))
         };
 
-        use rand::prelude::*;
-        let mut rng = rand::thread_rng();
+        // use rand::prelude::*;
+        // let mut rng = rand::thread_rng();
 
         for annot_id in annot_ids {
             let obj_id = self.annot_objs.len();
@@ -69,14 +69,24 @@ impl AnnotationLayer {
                 .unwrap()
                 .map(|(_pos, step)| step.node());
 
+            let midpoint = annot.range.start.0
+                + (annot.range.end.0 - annot.range.start.0) / 2;
+
             let anchor_set = AnchorSet {
                 nodes: anchor_nodes.collect(),
             };
 
+            let anchor_node = shared
+                .graph
+                .step_at_pos(annot.path, midpoint)
+                .map(|s| s.node())
+                .or(anchor_set.nodes.first().copied())
+                .unwrap();
+
             // initialize anchor pos to middle of random node in set
 
-            let anchor_node =
-                anchor_set.nodes.iter().choose(&mut rng).copied().unwrap();
+            // let anchor_node =
+            //     anchor_set.nodes.iter().choose(&mut rng).copied().unwrap();
             let (a0, a1) = node_positions.node_pos(anchor_node);
             let da = a1 - a0;
             let anchor_pos = a0 + 0.5 * da;
@@ -116,11 +126,9 @@ impl AnnotationLayer {
         // shared: &SharedState,
         // node_positions: &NodePositions,
         view: &View2D,
+        dims: Vec2,
         painter: &egui::Painter,
     ) {
-        let dims: Vec2 =
-            mint::Vector2::<f32>::from(painter.clip_rect().size()).into();
-
         let mat = view.to_viewport_matrix(dims);
 
         for obj in self.annot_objs.iter_mut() {
