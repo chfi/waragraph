@@ -55,8 +55,8 @@ impl AnnotationLayer {
                 .and_then(|set| set.get(annot_id.annot_id))
         };
 
-        // use rand::prelude::*;
-        // let mut rng = rand::thread_rng();
+        use rand::prelude::*;
+        let mut rng = rand::thread_rng();
 
         for annot_id in annot_ids {
             let obj_id = self.annot_objs.len();
@@ -86,19 +86,28 @@ impl AnnotationLayer {
 
             // initialize anchor pos to middle of random node in set
 
-            // let anchor_node =
-            //     anchor_set.nodes.iter().choose(&mut rng).copied().unwrap();
-            let (a0, a1) = node_positions.node_pos(anchor_node);
-            let da = a1 - a0;
-            let anchor_pos = a0 + 0.5 * da;
+            let (anchor_node, anchor_pos, da) = {
+                let node =
+                    anchor_set.nodes.iter().choose(&mut rng).copied().unwrap();
+
+                let (a0, a1) = node_positions.node_pos(anchor_node);
+
+                let t = rng.gen_range(0f32..=1f32);
+                let pos = a0 + t * (a1 - a0);
+
+                (node, pos, a1 - a0)
+            };
+            // let (a0, a1) = node_positions.node_pos(anchor_node);
+            // let da = a1 - a0;
+            // let anchor_pos = a0 + 0.5 * da;
 
             // initialize label pos some distance out from the anchor
             // pos, along the node's normal
 
             let label_pos = {
                 let rotor = Rotor2::from_rotation_between(
-                    Vec2::unit_x(),
                     Vec2::unit_y(),
+                    Vec2::unit_x(),
                 )
                 .normalized();
                 let normal = da.normalized().rotated_by(rotor);
@@ -127,49 +136,45 @@ impl AnnotationLayer {
         view: &View2D,
         dims: Vec2,
     ) -> ahash::HashSet<AnnotObjId> {
-        // use reunion::{UnionFind, UnionFindTrait};
-        use parry2d::bounding_volume::Aabb;
-        use parry2d::partitioning::Qbvh;
-
+        // use kiddo::KdTree;
+        use kiddo::float::kdtree::KdTree;
         let mat = view.to_viewport_matrix(dims);
 
-        let mut qbvh: Qbvh<AnnotObjId> = Qbvh::new();
+        let mut kdtree: KdTree<_, usize, 2, 64, u32> = KdTree::new();
 
-        let obj_aabb = |obj: &AnnotObj| -> Aabb {
-            let pos = (mat * obj.label_pos.into_homogeneous_point()).xy();
+        for obj in &self.annot_objs {
+            let pos = (mat * obj.anchor_pos.into_homogeneous_point()).xy();
+            kdtree.add(pos.as_array(), obj.obj_id);
+        }
 
-            let size = obj.shape_size.unwrap_or(Vec2::new(1.0, 1.0));
+        // annotations whose anchor points are "close enough"
+        // (probably within a few, maybe 10 pixels) should be combined
+        // into a single cluster for drawing (possibly not drawing any
+        // labels, instead an icon or marker)
 
-            let dx = size.x / 2.0;
-            let dy = size.y / 2.0;
+        let mut obj_cluster_map: ahash::HashMap<AnnotObjId, usize> =
+            Default::default();
+        let mut clusters: Vec<([f32; 2], ahash::HashSet<AnnotObjId>)> =
+            Vec::new();
 
-            Aabb::from_half_extents([pos.x, pos.y].into(), [dx, dy].into())
-        };
-
-        let aabbs = self.annot_objs.iter().map(|obj| {
-            let data = obj.obj_id;
-            let aabb = obj_aabb(obj);
-            (data, aabb)
-        });
-
-        qbvh.clear_and_rebuild(aabbs, 0.5);
-
-        let mut intersects = Vec::new();
+        let radius = 1f32;
 
         let mut noncolliding = roaring::RoaringBitmap::new();
         noncolliding.insert_range(0..self.annot_objs.len() as u32);
 
-        for obj in self.annot_objs.iter() {
-            let aabb = obj_aabb(obj);
-            intersects.clear();
-            qbvh.intersect_aabb(&aabb, &mut intersects);
+        for obj in &self.annot_objs {
+            let pos = (mat * obj.anchor_pos.into_homogeneous_point()).xy();
+            let neighbors = kdtree.within_unsorted(
+                pos.as_array(),
+                radius,
+                &kiddo::distance::squared_euclidean,
+            );
 
-            for &other_id in intersects.iter() {
-                if obj.obj_id == other_id {
-                    continue;
+            for n in neighbors {
+                let other_obj_id = n.item;
+                if obj.obj_id != other_obj_id {
+                    noncolliding.remove(other_obj_id as u32);
                 }
-
-                noncolliding.remove(other_id as u32);
             }
         }
 
