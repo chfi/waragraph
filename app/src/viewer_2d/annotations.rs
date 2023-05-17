@@ -1,6 +1,7 @@
-use std::collections::BTreeSet;
+use std::collections::{BTreeSet, HashMap};
 use std::sync::Arc;
 
+use egui::epaint::ahash;
 use ultraviolet::{Rotor2, Vec2};
 use waragraph_core::graph::Node;
 
@@ -121,6 +122,61 @@ impl AnnotationLayer {
         }
     }
 
+    fn cluster_for_draw(
+        &self,
+        view: &View2D,
+        dims: Vec2,
+    ) -> ahash::HashSet<AnnotObjId> {
+        use broccoli::aabb::Rect;
+        // use reunion::{UnionFind, UnionFindTrait};
+
+        let mat = view.to_viewport_matrix(dims);
+
+        let mut label_aabbs: Vec<_> = self
+            .annot_objs
+            .iter()
+            .enumerate()
+            .map(|(obj_id, obj)| {
+                let pos = (mat * obj.label_pos.into_homogeneous_point()).xy();
+
+                // let size = obj.shape_size?;
+                let size = obj.shape_size.unwrap_or(Vec2::new(1.0, 1.0));
+
+                let dx = size.x / 2.0;
+                let dy = size.y / 2.0;
+
+                let rect = broccoli::rect(
+                    pos.x - dx,
+                    pos.y - dy,
+                    pos.x + dx,
+                    pos.y + dy,
+                );
+
+                (rect, obj_id)
+            })
+            .collect();
+
+        let mut tree: broccoli::Tree<(Rect<f32>, AnnotObjId)> =
+            broccoli::Tree::new(&mut label_aabbs);
+
+        // let mut clusters = UnionFind::default();
+
+        let mut noncolliding = roaring::RoaringBitmap::new();
+        noncolliding.insert_range(0..self.annot_objs.len() as u32);
+
+        tree.find_colliding_pairs(|a, b| {
+            let obj_a = *a.unpack_inner();
+            let obj_b = *b.unpack_inner();
+
+            noncolliding.remove(obj_a as u32);
+            noncolliding.remove(obj_b as u32);
+
+            // clusters.union(obj_a, obj_b);
+        });
+
+        noncolliding.into_iter().map(|i| i as usize).collect()
+    }
+
     pub fn draw(
         &mut self,
         // shared: &SharedState,
@@ -130,6 +186,8 @@ impl AnnotationLayer {
         painter: &egui::Painter,
     ) {
         let mat = view.to_viewport_matrix(dims);
+
+        let to_draw = self.cluster_for_draw(view, dims);
 
         for obj in self.annot_objs.iter_mut() {
             let p = mat * obj.label_pos.into_homogeneous_point();
@@ -151,7 +209,10 @@ impl AnnotationLayer {
             let size = shape.visual_bounding_rect().size();
             obj.shape_size = Some(mint::Vector2::<f32>::from(size).into());
 
-            painter.add(shape);
+            // add only if no collision, for now
+            if to_draw.contains(&obj.obj_id) {
+                painter.add(shape);
+            }
         }
     }
 }

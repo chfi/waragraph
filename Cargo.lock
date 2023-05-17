@@ -241,6 +241,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d468802bab17cbc0cc575e9b053f41e72aa36bfa6b7f55e3529ffa43161b97fa"
 
 [[package]]
+name = "axgeom"
+version = "1.12.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "db217c826c3f4cb10bb278b0fe0c6e17483bb1e9213709d229d2f18fa90cdca5"
+dependencies = [
+ "num-traits",
+ "partial-min-max",
+ "serde",
+]
+
+[[package]]
 name = "backtrace"
 version = "0.3.67"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -320,6 +331,19 @@ checksum = "8dd9e63c1744f755c2f60332b88de39d341e5e86239014ad839bd71c106dec42"
 dependencies = [
  "block-sys",
  "objc2-encode",
+]
+
+[[package]]
+name = "broccoli"
+version = "6.0.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ec03537b2d14270baddbd1c4a2ad1df5aa051e6776c920b5b7a994a929ae54ca"
+dependencies = [
+ "axgeom",
+ "compt",
+ "revec",
+ "slice-group-by",
+ "twounordered",
 ]
 
 [[package]]
@@ -468,6 +492,12 @@ dependencies = [
  "bytes",
  "memchr",
 ]
+
+[[package]]
+name = "compt"
+version = "2.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e76b03e56db9abaa17c0df498682806499690473fc2b4b035a018d9b75053e3e"
 
 [[package]]
 name = "const-random"
@@ -2185,6 +2215,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "partial-min-max"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6448add382c60bbbc64f9dab41309a12ec530c05191601042f911356ac09758c"
+
+[[package]]
 name = "paste"
 version = "1.0.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2557,6 +2593,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "revec"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f64dfec684e04cbb4a5f03ed70ac988c8d9d96db894c8e7d2ac42bbf3f91ea5b"
+
+[[package]]
 name = "rhai"
 version = "1.12.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2737,6 +2779,12 @@ name = "siphasher"
 version = "0.3.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7bd3e3206899af3f8b12af284fafc038cc1dc2b41d1b89dd17297221c5d225de"
+
+[[package]]
+name = "slice-group-by"
+version = "0.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "826167069c09b99d56f31e9ae5c99049e932a98c9dc2dac47645b08dbbf76ba7"
 
 [[package]]
 name = "slotmap"
@@ -3074,6 +3122,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0609f771ad9c6155384897e1df4d948e692667cc0588548b68eb44d052b27633"
 
 [[package]]
+name = "twounordered"
+version = "0.7.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0f40128da4fef8c4bf9cc1ab73d8126cb1148660d37a93d4a5110002a80657ba"
+
+[[package]]
 name = "type-map"
 version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3173,6 +3227,7 @@ dependencies = [
  "anyhow",
  "async-trait",
  "bimap",
+ "broccoli",
  "btoi",
  "bytemuck",
  "colorous",
