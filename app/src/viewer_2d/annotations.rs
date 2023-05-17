@@ -127,52 +127,51 @@ impl AnnotationLayer {
         view: &View2D,
         dims: Vec2,
     ) -> ahash::HashSet<AnnotObjId> {
-        use broccoli::aabb::Rect;
         // use reunion::{UnionFind, UnionFindTrait};
+        use parry2d::bounding_volume::Aabb;
+        use parry2d::partitioning::Qbvh;
 
         let mat = view.to_viewport_matrix(dims);
 
-        let mut label_aabbs: Vec<_> = self
-            .annot_objs
-            .iter()
-            .enumerate()
-            .map(|(obj_id, obj)| {
-                let pos = (mat * obj.label_pos.into_homogeneous_point()).xy();
+        let mut qbvh: Qbvh<AnnotObjId> = Qbvh::new();
 
-                // let size = obj.shape_size?;
-                let size = obj.shape_size.unwrap_or(Vec2::new(1.0, 1.0));
+        let obj_aabb = |obj: &AnnotObj| -> Aabb {
+            let pos = (mat * obj.label_pos.into_homogeneous_point()).xy();
 
-                let dx = size.x / 2.0;
-                let dy = size.y / 2.0;
+            let size = obj.shape_size.unwrap_or(Vec2::new(1.0, 1.0));
 
-                let rect = broccoli::rect(
-                    pos.x - dx,
-                    pos.y - dy,
-                    pos.x + dx,
-                    pos.y + dy,
-                );
+            let dx = size.x / 2.0;
+            let dy = size.y / 2.0;
 
-                (rect, obj_id)
-            })
-            .collect();
+            Aabb::from_half_extents([pos.x, pos.y].into(), [dx, dy].into())
+        };
 
-        let mut tree: broccoli::Tree<(Rect<f32>, AnnotObjId)> =
-            broccoli::Tree::new(&mut label_aabbs);
+        let aabbs = self.annot_objs.iter().map(|obj| {
+            let data = obj.obj_id;
+            let aabb = obj_aabb(obj);
+            (data, aabb)
+        });
 
-        // let mut clusters = UnionFind::default();
+        qbvh.clear_and_rebuild(aabbs, 0.5);
+
+        let mut intersects = Vec::new();
 
         let mut noncolliding = roaring::RoaringBitmap::new();
         noncolliding.insert_range(0..self.annot_objs.len() as u32);
 
-        tree.find_colliding_pairs(|a, b| {
-            let obj_a = *a.unpack_inner();
-            let obj_b = *b.unpack_inner();
+        for obj in self.annot_objs.iter() {
+            let aabb = obj_aabb(obj);
+            intersects.clear();
+            qbvh.intersect_aabb(&aabb, &mut intersects);
 
-            noncolliding.remove(obj_a as u32);
-            noncolliding.remove(obj_b as u32);
+            for &other_id in intersects.iter() {
+                if obj.obj_id == other_id {
+                    continue;
+                }
 
-            // clusters.union(obj_a, obj_b);
-        });
+                noncolliding.remove(other_id as u32);
+            }
+        }
 
         noncolliding.into_iter().map(|i| i as usize).collect()
     }
