@@ -21,8 +21,7 @@ struct AnnotObj {
 
     anchor_node: Node,
     anchor_pos: Vec2,
-    label_pos: Vec2,
-
+    // label_pos: Vec2,
     shape_size: Option<Vec2>,
 }
 
@@ -86,7 +85,7 @@ impl AnnotationLayer {
 
             // initialize anchor pos to middle of random node in set
 
-            let (anchor_node, anchor_pos, da) = {
+            let (anchor_node, anchor_pos) = {
                 let node =
                     anchor_set.nodes.iter().choose(&mut rng).copied().unwrap();
 
@@ -95,7 +94,7 @@ impl AnnotationLayer {
                 let t = rng.gen_range(0f32..=1f32);
                 let pos = a0 + t * (a1 - a0);
 
-                (node, pos, a1 - a0)
+                (node, pos)
             };
             // let (a0, a1) = node_positions.node_pos(anchor_node);
             // let da = a1 - a0;
@@ -104,24 +103,13 @@ impl AnnotationLayer {
             // initialize label pos some distance out from the anchor
             // pos, along the node's normal
 
-            let label_pos = {
-                let rotor = Rotor2::from_rotation_between(
-                    Vec2::unit_y(),
-                    Vec2::unit_x(),
-                )
-                .normalized();
-                let normal = da.normalized().rotated_by(rotor);
-
-                anchor_pos + normal * 80.0
-            };
-
             let obj = AnnotObj {
                 obj_id,
                 annot_id,
                 label: annot.label.clone(),
                 anchor_node,
                 anchor_pos,
-                label_pos,
+                // label_pos,
                 // shape size can't be set before rendering
                 shape_size: None,
             };
@@ -135,6 +123,7 @@ impl AnnotationLayer {
 
     fn cluster_for_draw(
         &self,
+        node_positions: &NodePositions,
         view: &View2D,
         dims: Vec2,
     ) -> Vec<(AnnotObjId, [f32; 2])> {
@@ -177,8 +166,22 @@ impl AnnotationLayer {
         for (_cl_id, objs) in clusters.into_iter().enumerate() {
             for obj_id in objs.into_iter().take(1) {
                 let obj = &self.annot_objs[obj_id];
-                let pos = (mat * obj.label_pos.into_homogeneous_point()).xy();
-                to_draw.push((obj_id, *pos.as_array()))
+
+                let label_pos = {
+                    let rotor = Rotor2::from_rotation_between(
+                        Vec2::unit_y(),
+                        Vec2::unit_x(),
+                    )
+                    .normalized();
+
+                    let (a0, a1) = node_positions.node_pos(obj.anchor_node);
+                    let normal = (a1 - a0).normalized().rotated_by(rotor);
+
+                    mat * (obj.anchor_pos + normal * 100.0)
+                        .into_homogeneous_point()
+                };
+
+                to_draw.push((obj_id, *label_pos.xy().as_array()))
             }
         }
 
@@ -190,12 +193,12 @@ impl AnnotationLayer {
     pub fn draw(
         &mut self,
         // shared: &SharedState,
-        // node_positions: &NodePositions,
+        node_positions: &NodePositions,
         view: &View2D,
         dims: Vec2,
         painter: &egui::Painter,
     ) {
-        let to_draw = self.cluster_for_draw(view, dims);
+        let to_draw = self.cluster_for_draw(node_positions, view, dims);
 
         for (obj_id, pos) in to_draw {
             let obj = &mut self.annot_objs[obj_id];

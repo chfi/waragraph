@@ -551,7 +551,12 @@ impl AppWindow for Viewer2D {
                 painter.extend(annot_shapes);
 
                 if self.cfg.show_annotation_labels.load() {
-                    self.annotation_layer.draw(&self.view, dims, &painter);
+                    self.annotation_layer.draw(
+                        &self.node_positions,
+                        &self.view,
+                        dims,
+                        &painter,
+                    );
                 }
             });
 
