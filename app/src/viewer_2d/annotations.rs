@@ -2,6 +2,8 @@ use std::collections::{BTreeSet, HashMap};
 use std::sync::Arc;
 
 use egui::epaint::ahash;
+use rstar::primitives::{GeomWithData, Line};
+use rstar::RTree;
 use ultraviolet::{Rotor2, Vec2};
 use waragraph_core::graph::Node;
 
@@ -27,9 +29,13 @@ struct AnchorSet {
     nodes: BTreeSet<Node>,
 }
 
+type AnchorTreeObj = GeomWithData<Line<[f32; 2]>, (Node, AnnotObjId)>;
+
 #[derive(Default)]
 pub struct AnnotationLayer {
     annot_objs: Vec<AnnotObj>,
+
+    anchor_rtree: Option<RTree<AnchorTreeObj>>,
 
     // indexed by AnnotObjId
     anchor_sets: Vec<AnchorSet>,
@@ -56,6 +62,8 @@ impl AnnotationLayer {
         use rand::prelude::*;
         let mut rng = rand::thread_rng();
 
+        let mut rtree_objs: Vec<AnchorTreeObj> = Vec::new();
+
         for annot_id in annot_ids {
             let obj_id = self.annot_objs.len();
 
@@ -75,25 +83,27 @@ impl AnnotationLayer {
                 nodes: anchor_nodes.collect(),
             };
 
-            let anchor_node = shared
-                .graph
-                .step_at_pos(annot.path, midpoint)
-                .map(|s| s.node())
-                .or(anchor_set.nodes.first().copied())
-                .unwrap();
+            for &node in anchor_set.nodes.iter() {
+                let (p0, p1) = node_positions.node_pos(node);
+                let data = (node, obj_id);
+                rtree_objs.push(GeomWithData::new(
+                    Line::new(p0.into(), p1.into()),
+                    data,
+                ));
+            }
 
             // initialize anchor pos to random pos of random node in set
             // (if kept, should be uniform across the length of the range)
-            let (anchor_node, anchor_pos) = {
+            let (anchor_node, anchor_pos, [a0, a1]) = {
                 let node =
                     anchor_set.nodes.iter().choose(&mut rng).copied().unwrap();
 
-                let (a0, a1) = node_positions.node_pos(anchor_node);
+                let (a0, a1) = node_positions.node_pos(node);
 
                 let t = rng.gen_range(0f32..=1f32);
                 let pos = a0 + t * (a1 - a0);
 
-                (node, pos)
+                (node, pos, [a0, a1])
             };
 
             let obj = AnnotObj {
@@ -106,6 +116,14 @@ impl AnnotationLayer {
 
             self.annot_objs.push(obj);
             self.anchor_sets.push(anchor_set);
+        }
+
+        if let Some(tree) = self.anchor_rtree.as_mut() {
+            for obj in rtree_objs {
+                tree.insert(obj);
+            }
+        } else {
+            self.anchor_rtree = Some(RTree::bulk_load(rtree_objs));
         }
     }
 
@@ -142,6 +160,73 @@ impl AnnotationLayer {
     }
 
     const CLUSTER_RADIUS: f32 = 100.0;
+
+    fn reset_anchors(
+        &mut self,
+        node_positions: &NodePositions,
+        view: &View2D,
+        dims: Vec2,
+    ) {
+        use rand::prelude::*;
+        use rstar::AABB;
+        let mut rng = rand::thread_rng();
+
+        let mat = view.to_viewport_matrix(dims);
+
+        if self.anchor_rtree.is_none() {
+            panic!("`reset_anchors` must be called after `load_annotations`");
+        }
+
+        let (x0, x1) = view.x_range();
+        let (y0, y1) = view.y_range();
+
+        let p0 = mat * Vec2::new(x0, y0).into_homogeneous_point();
+        let p1 = mat * Vec2::new(x1, y1).into_homogeneous_point();
+
+        let view_rect = AABB::from_corners(p0.xy().into(), p1.xy().into());
+
+        // step through all the anchor nodes that intersect the view rect
+
+        // for anchor nodes whose anchor object is currently anchored
+        // to a node that is *not* visible*,
+
+        // move set the annot obj's anchor to one of the visible nodes
+
+        // *(which means we probably need to do a second iteration
+        // after, when we've gone through all the visible elements and
+        // can know what's not visible)
+
+        let rtree = self.anchor_rtree.as_ref().unwrap();
+
+        let in_view = rtree.locate_in_envelope_intersecting(&view_rect);
+
+        let mut visible_nodes = roaring::RoaringBitmap::new();
+
+        let mut visible_annots: ahash::HashMap<
+            AnnotObjId,
+            ahash::HashSet<Node>,
+        > = Default::default();
+
+        for line in in_view {
+            let (node, obj_id) = line.data;
+            visible_annots.entry(obj_id).or_default().insert(node);
+            visible_nodes.insert(node.ix() as u32);
+        }
+
+        for (obj_id, anchor_cands) in visible_annots {
+            let obj = &mut self.annot_objs[obj_id];
+
+            if !visible_nodes.contains(obj.anchor_node.ix() as u32) {
+                // reset this node
+                let node = *anchor_cands.iter().next().unwrap();
+                obj.anchor_node = node;
+
+                let (a0, a1) = node_positions.node_pos(node);
+                let t = rng.gen_range(0f32..=1f32);
+                obj.anchor_pos = a0 + t * (a1 - a0);
+            }
+        }
+    }
 
     fn cluster_for_draw(
         &self,
@@ -232,6 +317,8 @@ impl AnnotationLayer {
             }
         }
 
+        println!("to_draw.len() {}", to_draw.len());
+
         to_draw
     }
 
@@ -244,6 +331,8 @@ impl AnnotationLayer {
         painter: &egui::Painter,
     ) {
         painter.fonts(|fonts| self.prepare_labels(fonts));
+
+        self.reset_anchors(node_positions, view, dims);
 
         let to_draw = self.cluster_for_draw(node_positions, view, dims);
 
