@@ -21,8 +21,6 @@ struct AnnotObj {
 
     anchor_node: Node,
     anchor_pos: Vec2,
-    // label_pos: Vec2,
-    shape_size: Option<Vec2>,
 }
 
 struct AnchorSet {
@@ -36,6 +34,7 @@ pub struct AnnotationLayer {
     // indexed by AnnotObjId
     anchor_sets: Vec<AnchorSet>,
     // active_sets: BTreeSet<AnnotationSetId>,
+    annot_shape_sizes: Vec<Vec2>,
 }
 
 impl AnnotationLayer {
@@ -83,8 +82,8 @@ impl AnnotationLayer {
                 .or(anchor_set.nodes.first().copied())
                 .unwrap();
 
-            // initialize anchor pos to middle of random node in set
-
+            // initialize anchor pos to random pos of random node in set
+            // (if kept, should be uniform across the length of the range)
             let (anchor_node, anchor_pos) = {
                 let node =
                     anchor_set.nodes.iter().choose(&mut rng).copied().unwrap();
@@ -96,12 +95,6 @@ impl AnnotationLayer {
 
                 (node, pos)
             };
-            // let (a0, a1) = node_positions.node_pos(anchor_node);
-            // let da = a1 - a0;
-            // let anchor_pos = a0 + 0.5 * da;
-
-            // initialize label pos some distance out from the anchor
-            // pos, along the node's normal
 
             let obj = AnnotObj {
                 obj_id,
@@ -109,13 +102,42 @@ impl AnnotationLayer {
                 label: annot.label.clone(),
                 anchor_node,
                 anchor_pos,
-                // label_pos,
-                // shape size can't be set before rendering
-                shape_size: None,
             };
 
             self.annot_objs.push(obj);
             self.anchor_sets.push(anchor_set);
+        }
+    }
+
+    pub fn prepare_labels(&mut self, fonts: &egui::text::Fonts) {
+        let obj_count = self.annot_objs.len();
+        let size_count = self.annot_shape_sizes.len();
+
+        if obj_count == size_count {
+            // all annotation objects already have sizes
+            return;
+        } else if obj_count < size_count {
+            unreachable!();
+        }
+
+        // let to_add = obj_count - size_count;
+
+        for obj in &self.annot_objs[size_count..] {
+            let shape = {
+                let font = egui::FontId::proportional(16.0);
+                let color = egui::Color32::WHITE;
+                egui::Shape::text(
+                    &fonts,
+                    [0., 0.].into(),
+                    egui::Align2::CENTER_CENTER,
+                    &obj.label,
+                    font,
+                    color,
+                )
+            };
+
+            let size: [f32; 2] = shape.visual_bounding_rect().size().into();
+            self.annot_shape_sizes.push(size.into());
         }
     }
 
@@ -177,15 +199,15 @@ impl AnnotationLayer {
                     let (a0, a1) = node_positions.node_pos(obj.anchor_node);
                     let normal = (a1 - a0).normalized().rotated_by(rotor);
 
-                    mat * (obj.anchor_pos + normal * 100.0)
-                        .into_homogeneous_point()
+                    let pos =
+                        (mat * obj.anchor_pos.into_homogeneous_point()).xy();
+
+                    pos + normal * 70.0
                 };
 
-                to_draw.push((obj_id, *label_pos.xy().as_array()))
+                to_draw.push((obj_id, *label_pos.as_array()))
             }
         }
-
-        println!("to_draw.len() {}", to_draw.len());
 
         to_draw
     }
@@ -198,6 +220,8 @@ impl AnnotationLayer {
         dims: Vec2,
         painter: &egui::Painter,
     ) {
+        painter.fonts(|fonts| self.prepare_labels(fonts));
+
         let to_draw = self.cluster_for_draw(node_positions, view, dims);
 
         for (obj_id, pos) in to_draw {
@@ -215,9 +239,6 @@ impl AnnotationLayer {
                     color,
                 )
             });
-
-            let size = shape.visual_bounding_rect().size();
-            obj.shape_size = Some(mint::Vector2::<f32>::from(size).into());
 
             // add only if no collision, for now
             // if to_draw.contains(&obj.obj_id) {
