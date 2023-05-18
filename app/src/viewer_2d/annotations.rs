@@ -183,6 +183,26 @@ impl AnnotationLayer {
             }
         }
 
+        /*
+        use parry2d::partitioning::{Qbvh, QbvhUpdateWorkspace};
+
+        let mut qbvh: Qbvh<usize> = Qbvh::new();
+
+        for (cl_id, objs) in clusters.iter().enumerate() {
+            // let pos = objs
+            //     .first()
+            //     .map(|&i| self.annot_objs[i].anchor_pos)
+            //     .unwrap();
+            qbvh.pre_update_or_insert(cl_id);
+        }
+
+        qbvh.refit(1.0, &mut QbvhUpdateWorkspace::default(), |cl_id| {
+            use parry2d::bounding_volume::Aabb;
+
+            // let
+        });
+        */
+
         let mut to_draw = Vec::new();
 
         for (_cl_id, objs) in clusters.into_iter().enumerate() {
@@ -202,7 +222,10 @@ impl AnnotationLayer {
                     let pos =
                         (mat * obj.anchor_pos.into_homogeneous_point()).xy();
 
-                    pos + normal * 70.0
+                    let label_size = self.annot_shape_sizes[obj_id];
+
+                    pos + normal * normal.dot(label_size) * 2.0
+                    // pos + normal * 70.0
                 };
 
                 to_draw.push((obj_id, *label_pos.as_array()))
