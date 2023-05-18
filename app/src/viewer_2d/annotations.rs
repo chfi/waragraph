@@ -131,54 +131,60 @@ impl AnnotationLayer {
         }
     }
 
+    const CLUSTER_RADIUS: f32 = 100.0;
+
     fn cluster_for_draw(
         &self,
         view: &View2D,
         dims: Vec2,
-    ) -> ahash::HashSet<AnnotObjId> {
-        // use kiddo::KdTree;
-        use kiddo::float::kdtree::KdTree;
+    ) -> Vec<(AnnotObjId, [f32; 2])> {
+        use kiddo::distance::squared_euclidean;
+        use kiddo::KdTree;
+
         let mat = view.to_viewport_matrix(dims);
 
-        let mut kdtree: KdTree<_, usize, 2, 64, u32> = KdTree::new();
+        let mut kdtree: KdTree<f32, 2> = KdTree::new();
+
+        let mut clusters: Vec<Vec<AnnotObjId>> = Vec::new();
 
         for obj in &self.annot_objs {
             let pos = (mat * obj.anchor_pos.into_homogeneous_point()).xy();
-            kdtree.add(pos.as_array(), obj.obj_id);
-        }
 
-        // annotations whose anchor points are "close enough"
-        // (probably within a few, maybe 10 pixels) should be combined
-        // into a single cluster for drawing (possibly not drawing any
-        // labels, instead an icon or marker)
+            // nearest_one doesn't return Option so need to check here
+            if kdtree.size() == 0 {
+                // just add the cluster and continue
+                let cl_id = clusters.len();
+                clusters.push(vec![obj.obj_id]);
+                kdtree.add(pos.as_array(), cl_id);
+            }
 
-        let mut obj_cluster_map: ahash::HashMap<AnnotObjId, usize> =
-            Default::default();
-        let mut clusters: Vec<([f32; 2], ahash::HashSet<AnnotObjId>)> =
-            Vec::new();
+            let (dist, cl_id) =
+                kdtree.nearest_one(pos.as_array(), &squared_euclidean);
 
-        let radius = 1f32;
-
-        let mut noncolliding = roaring::RoaringBitmap::new();
-        noncolliding.insert_range(0..self.annot_objs.len() as u32);
-
-        for obj in &self.annot_objs {
-            let pos = (mat * obj.anchor_pos.into_homogeneous_point()).xy();
-            let neighbors = kdtree.within_unsorted(
-                pos.as_array(),
-                radius,
-                &kiddo::distance::squared_euclidean,
-            );
-
-            for n in neighbors {
-                let other_obj_id = n.item;
-                if obj.obj_id != other_obj_id {
-                    noncolliding.remove(other_obj_id as u32);
-                }
+            if dist > Self::CLUSTER_RADIUS {
+                // create a new cluster
+                let cl_id = clusters.len();
+                clusters.push(vec![obj.obj_id]);
+                kdtree.add(pos.as_array(), cl_id);
+            } else {
+                // append to the existing cluster
+                clusters[cl_id].push(obj.obj_id);
             }
         }
 
-        noncolliding.into_iter().map(|i| i as usize).collect()
+        let mut to_draw = Vec::new();
+
+        for (_cl_id, objs) in clusters.into_iter().enumerate() {
+            for obj_id in objs.into_iter().take(1) {
+                let obj = &self.annot_objs[obj_id];
+                let pos = (mat * obj.label_pos.into_homogeneous_point()).xy();
+                to_draw.push((obj_id, *pos.as_array()))
+            }
+        }
+
+        println!("to_draw.len() {}", to_draw.len());
+
+        to_draw
     }
 
     pub fn draw(
@@ -189,20 +195,17 @@ impl AnnotationLayer {
         dims: Vec2,
         painter: &egui::Painter,
     ) {
-        let mat = view.to_viewport_matrix(dims);
-
         let to_draw = self.cluster_for_draw(view, dims);
 
-        for obj in self.annot_objs.iter_mut() {
-            let p = mat * obj.label_pos.into_homogeneous_point();
-            let pos = egui::pos2(p.x, p.y);
+        for (obj_id, pos) in to_draw {
+            let obj = &mut self.annot_objs[obj_id];
 
             let shape = painter.fonts(|fonts| {
                 let font = egui::FontId::proportional(16.0);
                 let color = egui::Color32::WHITE;
                 egui::Shape::text(
                     &fonts,
-                    pos,
+                    pos.into(),
                     egui::Align2::CENTER_CENTER,
                     &obj.label,
                     font,
@@ -214,9 +217,8 @@ impl AnnotationLayer {
             obj.shape_size = Some(mint::Vector2::<f32>::from(size).into());
 
             // add only if no collision, for now
-            if to_draw.contains(&obj.obj_id) {
-                painter.add(shape);
-            }
+            // if to_draw.contains(&obj.obj_id) {
+            painter.add(shape);
         }
     }
 }
