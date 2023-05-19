@@ -33,6 +33,7 @@ use waragraph_core::graph::{Bp, Node, PathIndex};
 pub mod annotations;
 pub mod config;
 pub mod control;
+pub mod gui;
 pub mod layout;
 pub mod util;
 pub mod view;

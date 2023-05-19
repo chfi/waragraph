@@ -1,5 +1,5 @@
 use anyhow::{anyhow, Result};
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::sync::Arc;
 
 use waragraph_core::graph::{Bp, PathId, PathIndex};
@@ -184,14 +184,14 @@ pub struct GlobalAnnotationId {
 }
 
 pub struct AnnotationStore {
-    pub annotation_sets: HashMap<AnnotationSetId, Arc<AnnotationSet>>,
+    pub annotation_sets: BTreeMap<AnnotationSetId, Arc<AnnotationSet>>,
     next_set_id: AnnotationSetId,
 }
 
 impl std::default::Default for AnnotationStore {
     fn default() -> Self {
         Self {
-            annotation_sets: HashMap::default(),
+            annotation_sets: BTreeMap::default(),
             next_set_id: AnnotationSetId(0),
         }
     }
@@ -216,5 +216,12 @@ impl AnnotationStore {
                     .contains_key(&path)
                     .then_some((*set_id, set))
             })
+    }
+
+    pub fn total_annotation_count(&self) -> usize {
+        self.annotation_sets
+            .values()
+            .map(|set| set.annotations.len())
+            .sum()
     }
 }

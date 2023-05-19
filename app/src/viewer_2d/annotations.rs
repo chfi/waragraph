@@ -1,9 +1,10 @@
-use std::collections::{BTreeSet, HashMap};
+use std::collections::{BTreeSet, HashMap, HashSet};
 use std::sync::Arc;
 
 use egui::epaint::ahash;
 use rstar::primitives::{GeomWithData, Line, Rectangle};
 use rstar::RTree;
+use tokio::sync::RwLock;
 use ultraviolet::{Rotor2, Vec2};
 use waragraph_core::graph::Node;
 
@@ -41,6 +42,7 @@ pub struct AnnotationLayer {
     anchor_sets: Vec<AnchorSet>,
     // active_sets: BTreeSet<AnnotationSetId>,
     annot_shape_sizes: Vec<Vec2>,
+    // pub(super) pinned_annots: Arc<RwLock<HashSet<GlobalAnnotationId>>>,
 }
 
 impl AnnotationLayer {
