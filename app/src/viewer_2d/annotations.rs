@@ -94,7 +94,7 @@ impl AnnotationLayer {
 
             // initialize anchor pos to random pos of random node in set
             // (if kept, should be uniform across the length of the range)
-            let (anchor_node, anchor_pos, [a0, a1]) = {
+            let (anchor_node, anchor_pos) = {
                 let node =
                     anchor_set.nodes.iter().choose(&mut rng).copied().unwrap();
 
@@ -103,7 +103,7 @@ impl AnnotationLayer {
                 let t = rng.gen_range(0f32..=1f32);
                 let pos = a0 + t * (a1 - a0);
 
-                (node, pos, [a0, a1])
+                (node, pos)
             };
 
             let obj = AnnotObj {
@@ -201,8 +201,6 @@ impl AnnotationLayer {
 
         let in_view = rtree.locate_in_envelope_intersecting(&view_rect);
 
-        let mut visible_nodes = roaring::RoaringBitmap::new();
-
         let mut visible_annots: ahash::HashMap<
             AnnotObjId,
             ahash::HashSet<Node>,
@@ -211,13 +209,18 @@ impl AnnotationLayer {
         for line in in_view {
             let (node, obj_id) = line.data;
             visible_annots.entry(obj_id).or_default().insert(node);
-            visible_nodes.insert(node.ix() as u32);
         }
 
+        let mut visible_objs = roaring::RoaringBitmap::new();
+
+        let t0 = std::time::Instant::now();
         for (obj_id, anchor_cands) in visible_annots {
             let obj = &mut self.annot_objs[obj_id];
 
-            if !visible_nodes.contains(obj.anchor_node.ix() as u32) {
+            visible_objs.insert(obj_id as u32);
+
+            // if !visible_nodes.contains(obj.anchor_node.ix() as u32) {
+            if !anchor_cands.contains(&obj.anchor_node) {
                 // reset this node
                 let node = *anchor_cands.iter().next().unwrap();
                 obj.anchor_node = node;
@@ -228,9 +231,7 @@ impl AnnotationLayer {
             }
         }
 
-        println!("visible_nodes.len(): {}", visible_nodes.len());
-
-        visible_nodes
+        visible_objs
     }
 
     fn cluster_for_draw(
@@ -238,7 +239,7 @@ impl AnnotationLayer {
         node_positions: &NodePositions,
         view: &View2D,
         dims: Vec2,
-        visible_nodes: &roaring::RoaringBitmap,
+        visible_objs: &roaring::RoaringBitmap,
     ) -> Vec<(AnnotObjId, [f32; 2])> {
         use kiddo::distance::squared_euclidean;
         use kiddo::KdTree;
@@ -304,7 +305,7 @@ impl AnnotationLayer {
             for obj_id in objs.into_iter().take(1) {
                 let obj = &self.annot_objs[obj_id];
 
-                if !visible_nodes.contains(obj.anchor_node.ix() as u32) {
+                if !visible_objs.contains(obj_id as u32) {
                     continue;
                 }
 
@@ -346,10 +347,10 @@ impl AnnotationLayer {
     ) {
         painter.fonts(|fonts| self.prepare_labels(fonts));
 
-        let visible_nodes = self.reset_anchors(node_positions, view, dims);
+        let visible_objs = self.reset_anchors(node_positions, view, dims);
 
         let to_draw =
-            self.cluster_for_draw(node_positions, view, dims, &visible_nodes);
+            self.cluster_for_draw(node_positions, view, dims, &visible_objs);
 
         for (obj_id, pos) in to_draw {
             let obj = &mut self.annot_objs[obj_id];
@@ -367,8 +368,6 @@ impl AnnotationLayer {
                 )
             });
 
-            // add only if no collision, for now
-            // if to_draw.contains(&obj.obj_id) {
             painter.add(shape);
         }
     }
