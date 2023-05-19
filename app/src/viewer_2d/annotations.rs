@@ -252,6 +252,10 @@ impl AnnotationLayer {
         for obj in &self.annot_objs {
             let pos = (mat * obj.anchor_pos.into_homogeneous_point()).xy();
 
+            if pos.x.is_nan() || pos.y.is_nan() {
+                continue;
+            }
+
             // nearest_one doesn't return Option so need to check here
             if kdtree.size() == 0 {
                 // just add the cluster and continue
