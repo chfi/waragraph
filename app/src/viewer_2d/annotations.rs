@@ -166,7 +166,7 @@ impl AnnotationLayer {
         node_positions: &NodePositions,
         view: &View2D,
         dims: Vec2,
-    ) {
+    ) -> roaring::RoaringBitmap {
         use rand::prelude::*;
         use rstar::AABB;
         let mut rng = rand::thread_rng();
@@ -180,10 +180,11 @@ impl AnnotationLayer {
         let (x0, x1) = view.x_range();
         let (y0, y1) = view.y_range();
 
-        let p0 = mat * Vec2::new(x0, y0).into_homogeneous_point();
-        let p1 = mat * Vec2::new(x1, y1).into_homogeneous_point();
+        // let p0 = mat * Vec2::new(x0, y0).into_homogeneous_point();
+        // let p1 = mat * Vec2::new(x1, y1).into_homogeneous_point();
 
-        let view_rect = AABB::from_corners(p0.xy().into(), p1.xy().into());
+        // println!("p0: {p0:?}, p1: {p1:?}");
+        let view_rect = AABB::from_corners([x0, y0], [x1, y1]);
 
         // step through all the anchor nodes that intersect the view rect
 
@@ -226,6 +227,10 @@ impl AnnotationLayer {
                 obj.anchor_pos = a0 + t * (a1 - a0);
             }
         }
+
+        println!("visible_nodes.len(): {}", visible_nodes.len());
+
+        visible_nodes
     }
 
     fn cluster_for_draw(
@@ -233,6 +238,7 @@ impl AnnotationLayer {
         node_positions: &NodePositions,
         view: &View2D,
         dims: Vec2,
+        visible_nodes: &roaring::RoaringBitmap,
     ) -> Vec<(AnnotObjId, [f32; 2])> {
         use kiddo::distance::squared_euclidean;
         use kiddo::KdTree;
@@ -294,6 +300,10 @@ impl AnnotationLayer {
             for obj_id in objs.into_iter().take(1) {
                 let obj = &self.annot_objs[obj_id];
 
+                if !visible_nodes.contains(obj.anchor_node.ix() as u32) {
+                    continue;
+                }
+
                 let label_pos = {
                     let rotor = Rotor2::from_rotation_between(
                         Vec2::unit_y(),
@@ -332,9 +342,10 @@ impl AnnotationLayer {
     ) {
         painter.fonts(|fonts| self.prepare_labels(fonts));
 
-        self.reset_anchors(node_positions, view, dims);
+        let visible_nodes = self.reset_anchors(node_positions, view, dims);
 
-        let to_draw = self.cluster_for_draw(node_positions, view, dims);
+        let to_draw =
+            self.cluster_for_draw(node_positions, view, dims, &visible_nodes);
 
         for (obj_id, pos) in to_draw {
             let obj = &mut self.annot_objs[obj_id];
