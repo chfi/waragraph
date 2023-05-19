@@ -303,7 +303,7 @@ impl Viewer2D {
                 .iter()
                 .flat_map(|(set_id, set)| {
                     (0..set.annotations.len()).map(|i| GlobalAnnotationId {
-                        set: *set_id,
+                        set_id: *set_id,
                         annot_id: AnnotationId(i),
                     })
                 })

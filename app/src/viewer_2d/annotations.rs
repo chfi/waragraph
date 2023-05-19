@@ -57,7 +57,7 @@ impl AnnotationLayer {
         let get_annotation = |annot_id: GlobalAnnotationId| {
             annotations
                 .annotation_sets
-                .get(&annot_id.set)
+                .get(&annot_id.set_id)
                 .and_then(|set| set.get(annot_id.annot_id))
         };
 

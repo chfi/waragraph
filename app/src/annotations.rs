@@ -179,7 +179,7 @@ pub struct AnnotationId(pub usize);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct GlobalAnnotationId {
-    pub set: AnnotationSetId,
+    pub set_id: AnnotationSetId,
     pub annot_id: AnnotationId,
 }
 

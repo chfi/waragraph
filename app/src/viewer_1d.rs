@@ -1106,9 +1106,9 @@ impl AppWindow for Viewer1D {
                             annot_slot.draw(&painter, &self.view, cursor_pos);
 
                         if let Some(annot_id) = interacted {
-                            let set = annot_slot.set_id;
+                            let set_id = annot_slot.set_id;
                             let global_id =
-                                GlobalAnnotationId { set, annot_id };
+                                GlobalAnnotationId { set_id, annot_id };
 
                             let path = self
                                 .annotations
