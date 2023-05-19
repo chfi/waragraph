@@ -2,7 +2,7 @@ use std::collections::{BTreeSet, HashMap};
 use std::sync::Arc;
 
 use egui::epaint::ahash;
-use rstar::primitives::{GeomWithData, Line};
+use rstar::primitives::{GeomWithData, Line, Rectangle};
 use rstar::RTree;
 use ultraviolet::{Rotor2, Vec2};
 use waragraph_core::graph::Node;
@@ -180,22 +180,7 @@ impl AnnotationLayer {
         let (x0, x1) = view.x_range();
         let (y0, y1) = view.y_range();
 
-        // let p0 = mat * Vec2::new(x0, y0).into_homogeneous_point();
-        // let p1 = mat * Vec2::new(x1, y1).into_homogeneous_point();
-
-        // println!("p0: {p0:?}, p1: {p1:?}");
         let view_rect = AABB::from_corners([x0, y0], [x1, y1]);
-
-        // step through all the anchor nodes that intersect the view rect
-
-        // for anchor nodes whose anchor object is currently anchored
-        // to a node that is *not* visible*,
-
-        // move set the annot obj's anchor to one of the visible nodes
-
-        // *(which means we probably need to do a second iteration
-        // after, when we've gone through all the visible elements and
-        // can know what's not visible)
 
         let rtree = self.anchor_rtree.as_ref().unwrap();
 
@@ -243,6 +228,7 @@ impl AnnotationLayer {
     ) -> Vec<(AnnotObjId, [f32; 2])> {
         use kiddo::distance::squared_euclidean;
         use kiddo::KdTree;
+        use rstar::AABB;
 
         let mat = view.to_viewport_matrix(dims);
 
@@ -279,27 +265,9 @@ impl AnnotationLayer {
             }
         }
 
-        /*
-        use parry2d::partitioning::{Qbvh, QbvhUpdateWorkspace};
-
-        let mut qbvh: Qbvh<usize> = Qbvh::new();
-
-        for (cl_id, objs) in clusters.iter().enumerate() {
-            // let pos = objs
-            //     .first()
-            //     .map(|&i| self.annot_objs[i].anchor_pos)
-            //     .unwrap();
-            qbvh.pre_update_or_insert(cl_id);
-        }
-
-        qbvh.refit(1.0, &mut QbvhUpdateWorkspace::default(), |cl_id| {
-            use parry2d::bounding_volume::Aabb;
-
-            // let
-        });
-        */
-
         let mut to_draw = Vec::new();
+
+        let mut label_rtree: RTree<Rectangle<[f32; 2]>> = RTree::new();
 
         for (_cl_id, objs) in clusters.into_iter().enumerate() {
             for obj_id in objs.into_iter().take(1) {
@@ -325,10 +293,24 @@ impl AnnotationLayer {
                     let label_size = self.annot_shape_sizes[obj_id];
 
                     pos + normal * normal.dot(label_size) * 2.0
-                    // pos + normal * 70.0
                 };
 
-                to_draw.push((obj_id, *label_pos.as_array()))
+                let label_size = self.annot_shape_sizes[obj_id];
+
+                let p0 = label_pos - label_size / 2.0;
+                let p1 = label_pos + label_size / 2.0;
+
+                let aabb = AABB::from_corners(p0.into(), p1.into());
+
+                if label_rtree
+                    .locate_in_envelope_intersecting(&aabb)
+                    .next()
+                    .is_none()
+                {
+                    to_draw.push((obj_id, *label_pos.as_array()));
+                    let rect = Rectangle::from_corners(p0.into(), p1.into());
+                    label_rtree.insert(rect);
+                }
             }
         }
 
