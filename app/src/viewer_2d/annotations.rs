@@ -42,7 +42,7 @@ pub struct AnnotationLayer {
     anchor_sets: Vec<AnchorSet>,
     // active_sets: BTreeSet<AnnotationSetId>,
     annot_shape_sizes: Vec<Vec2>,
-    // pub(super) pinned_annots: Arc<RwLock<HashSet<GlobalAnnotationId>>>,
+    pub(super) pinned_annots: Arc<RwLock<HashSet<GlobalAnnotationId>>>,
 }
 
 impl AnnotationLayer {
@@ -287,10 +287,14 @@ impl AnnotationLayer {
                     .normalized();
 
                     let (a0, a1) = node_positions.node_pos(obj.anchor_node);
+                    let p0 = (mat * a0.into_homogeneous_point()).xy();
+                    let p1 = (mat * a1.into_homogeneous_point()).xy();
                     let normal = (a1 - a0).normalized().rotated_by(rotor);
+                    let normal = (mat * normal.into_homogeneous_vector())
+                        .normalized()
+                        .xy();
 
-                    let pos =
-                        (mat * obj.anchor_pos.into_homogeneous_point()).xy();
+                    let pos = p0 + 0.5 * (p1 - p0);
 
                     let label_size = self.annot_shape_sizes[obj_id];
 
