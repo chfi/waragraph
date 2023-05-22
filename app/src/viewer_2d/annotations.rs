@@ -236,6 +236,8 @@ impl AnnotationLayer {
 
         let mut kdtree: KdTree<f32, 2> = KdTree::new();
 
+        let pinned_annots = self.pinned_annots.blocking_read().clone();
+
         let mut clusters: Vec<Vec<AnnotObjId>> = Vec::new();
 
         for obj in &self.annot_objs {
@@ -269,9 +271,24 @@ impl AnnotationLayer {
 
         let mut to_draw = Vec::new();
 
-        let mut label_rtree: RTree<Rectangle<[f32; 2]>> = RTree::new();
+        // let mut label_rtree: RTree<Rectangle<[f32; 2]>> = RTree::new();
+        let mut label_rtree: RTree<GeomWithData<Rectangle<[f32; 2]>, usize>> =
+            RTree::new();
 
-        for (_cl_id, objs) in clusters.into_iter().enumerate() {
+        let mut combined_clusters: RTree<
+            GeomWithData<Rectangle<[f32; 2]>, usize>,
+        > = RTree::new();
+
+        for (cl_id, objs) in clusters.into_iter().enumerate() {
+            // we really want to iterate through all objects here?
+            // i guess we *have* to?
+            for obj_id in objs {
+                //
+            }
+        }
+
+        /*
+        for (cl_id, objs) in clusters.into_iter().enumerate() {
             for obj_id in objs.into_iter().take(1) {
                 let obj = &self.annot_objs[obj_id];
 
@@ -308,17 +325,23 @@ impl AnnotationLayer {
 
                 let aabb = AABB::from_corners(p0.into(), p1.into());
 
-                if label_rtree
+                let overlapping_cluster = label_rtree
                     .locate_in_envelope_intersecting(&aabb)
                     .next()
-                    .is_none()
-                {
+                    .copied();
+
+                if let Some(other) = overlapping_cluster {
+                    // add to existing cluster
+                } else {
+                    // todo don't push to to_draw here; do it one in a final stage after this loop
                     to_draw.push((obj_id, *label_pos.as_array()));
                     let rect = Rectangle::from_corners(p0.into(), p1.into());
-                    label_rtree.insert(rect);
+                    let value = GeomWithData::new(rect, cl_id);
+                    label_rtree.insert(value);
                 }
             }
         }
+        */
 
         println!("to_draw.len() {}", to_draw.len());
 
@@ -358,5 +381,105 @@ impl AnnotationLayer {
 
             painter.add(shape);
         }
+    }
+}
+
+type ClusterId = usize;
+
+struct Clusters {
+    anchor_kdtree: kiddo::KdTree<f32, 2>,
+    label_rtree: RTree<GeomWithData<Rectangle<[f32; 2]>, ClusterId>>,
+
+    clusters: Vec<Cluster>,
+
+    cluster_radius: f32,
+}
+
+struct Cluster {
+    annotations: Vec<AnnotObjId>,
+}
+
+impl Clusters {
+    fn cluster_for_view<'a>(
+        &mut self,
+        node_positions: &NodePositions,
+        view: &View2D,
+        dims: Vec2,
+        // object with size, kinda messy but refactor later
+        annot_objs: impl Iterator<Item = (&'a AnnotObj, Vec2)>,
+        force_visible: bool,
+    ) {
+        let mat = view.to_viewport_matrix(dims);
+
+        let mut seen_annot_objs: ahash::HashSet<AnnotObjId> =
+            ahash::HashSet::default();
+
+        // self.anchor_kdtree.clear();
+
+        for (obj, size) in annot_objs {
+            let pos = (mat * obj.anchor_pos.into_homogeneous_point()).xy();
+
+            if pos.x.is_nan() || pos.y.is_nan() {
+                continue;
+            }
+
+            seen_annot_objs.insert(obj.obj_id);
+
+            // nearest_one doesn't return Option so need to check here
+            if self.anchor_kdtree.size() == 0 {
+                // just add the cluster and continue
+                self.add_cluster(obj.obj_id, pos);
+            }
+
+            let (dist, cl_id) = self.anchor_kdtree.nearest_one(
+                pos.as_array(),
+                &kiddo::distance::squared_euclidean,
+            );
+
+            if dist > self.cluster_radius {
+                // create a new cluster
+                self.add_cluster(obj.obj_id, pos);
+            } else {
+                // append to the existing cluster
+
+                self.clusters[cl_id].annotations.push(obj.obj_id);
+            }
+        }
+
+        self.label_rtree = RTree::new();
+
+        for cl_id in 0..self.clusters.len() {
+            // let cluster = &self.clusters[cl_id];
+
+            // we need to create the AABBs for the cluster, but we
+            // can't know how many labels we actually want to draw yet...
+            //
+
+            //
+
+            // maybe do this bit later, but:
+            // sort annot objs in cluster by global annot id,
+            // except if force_visible is on, sort the annot objs present
+            // in seen_annot_objs such that they are first in each cluster
+            // (and make sure they are visible)
+        }
+
+        todo!();
+    }
+
+    // or maybe return galleys? or shapes, idk
+    // fn to_draw<'a>(
+    //     &'a self,
+    // ) -> impl Iterator<Item = (AnnotObjId, egui::Pos2)> + 'a {
+    //     todo!();
+    // }
+
+    fn add_cluster(&mut self, obj_id: AnnotObjId, pos: Vec2) -> ClusterId {
+        let cl_id = self.clusters.len();
+        self.clusters.push(Cluster {
+            annotations: vec![obj_id],
+        });
+        self.anchor_kdtree.add(pos.as_array(), cl_id);
+        cl_id
     }
 }
