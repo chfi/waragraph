@@ -396,10 +396,105 @@ struct Clusters {
 }
 
 struct Cluster {
+    // aabb:
     annotations: Vec<AnnotObjId>,
 }
 
 impl Clusters {
+    fn cluster_for_view_<'a>(
+        &mut self,
+        node_positions: &NodePositions,
+        view: &View2D,
+        dims: Vec2,
+        // object with size, kinda messy but refactor later
+        annot_objs: impl Iterator<Item = (&'a AnnotObj, Vec2)>,
+        force_visible: bool,
+    ) {
+        use rstar::AABB;
+
+        let mat = view.to_viewport_matrix(dims);
+
+        for (obj, label_size) in annot_objs {
+            let label_pos = {
+                let rotor = Rotor2::from_rotation_between(
+                    Vec2::unit_y(),
+                    Vec2::unit_x(),
+                )
+                .normalized();
+
+                let (a0, a1) = node_positions.node_pos(obj.anchor_node);
+                let p0 = (mat * a0.into_homogeneous_point()).xy();
+                let p1 = (mat * a1.into_homogeneous_point()).xy();
+                let normal = (a1 - a0).normalized().rotated_by(rotor);
+                let normal =
+                    (mat * normal.into_homogeneous_vector()).normalized().xy();
+
+                let pos = p0 + 0.5 * (p1 - p0);
+
+                pos + normal * normal.dot(label_size) * 2.0
+            };
+
+            let p0 = label_pos - label_size / 2.0;
+            let p1 = label_pos + label_size / 2.0;
+
+            let aabb = AABB::from_corners(p0.into(), p1.into());
+
+            // let overlaps = self.label_rtree.pop_nearest_neighbor(
+            // let overlaps = self.label_rtree.drain_in_envelope(
+
+            // let mut overlaps_iter =
+
+            let overlapping = self
+                .label_rtree
+                .locate_in_envelope_intersecting(&aabb)
+                .next()
+                .copied();
+
+            if let Some(cl_id) = overlapping {
+                // if this overlaps with any existing label, try to insert
+                // this label as a rectangle with the same cluster ID in
+                // the appropriate location
+            } else {
+                // if there's no overlap create a new cluster at this position
+                let cl_id = self.clusters.len();
+                self.clusters.push(Cluster {
+                    annotations: vec![obj.obj_id],
+                });
+                let rect = Rectangle::from_aabb(aabb);
+                self.label_rtree.insert(GeomWithData::new(rect, cl_id));
+            }
+
+            //// if the *new* label location, as a child of a new or
+            //// existing cluster, would overlap with any inserted label,
+            //// we can try to remove either one of them
+
+            // also store the label and position in the cluster (we
+            // want to be able to go both ways)
+        }
+
+        todo!();
+    }
+
+    fn add_label(
+        &mut self,
+        mat: ultraviolet::Mat3,
+        obj: AnnotObj,
+        size: Vec2,
+        pinned: bool,
+    ) {
+        //
+
+        //
+
+        //
+
+        //
+
+        //
+
+        todo!();
+    }
+
     fn cluster_for_view<'a>(
         &mut self,
         node_positions: &NodePositions,
@@ -450,6 +545,8 @@ impl Clusters {
 
         for cl_id in 0..self.clusters.len() {
             // let cluster = &self.clusters[cl_id];
+
+            //
 
             // we need to create the AABBs for the cluster, but we
             // can't know how many labels we actually want to draw yet...

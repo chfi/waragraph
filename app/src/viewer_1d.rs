@@ -1045,8 +1045,7 @@ impl AppWindow for Viewer1D {
                     }
                     context_state.set("Viewer1D", ["hover"], Bp(pan_pos));
 
-                    // searches through all the slots, which probably isn't a problem,
-                    // but it's annoying
+                    // this is Some even when the mouse is over a gap in the path
                     let hovered_path = viz_slot_rect_map.iter().find_map(
                         |((path, _), rect)| rect.contains(pos).then_some(*path),
                     );
