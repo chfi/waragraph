@@ -561,6 +561,23 @@ impl AppWindow for Viewer2D {
                     self.view.translate_size_rel(norm_delta);
                 }
 
+                if let Some(pos) = area_rect.hover_pos() {
+                    hover_pos = Some([pos.x, pos.y]);
+
+                    let scroll = ctx.input(|i| i.scroll_delta);
+
+                    let min_scroll = 1.0;
+                    let factor = 0.01;
+
+                    if scroll.y.abs() > min_scroll {
+                        let dz = 1.0 - scroll.y * factor;
+                        let uvp = Vec2::new(pos.x, pos.y);
+                        let mut norm = uvp / dims;
+                        norm.y = 1.0 - norm.y;
+                        self.view.zoom_with_focus(norm, dz);
+                    }
+                }
+
                 let painter = ui.painter();
 
                 painter.extend(annot_shapes);
@@ -574,25 +591,6 @@ impl AppWindow for Viewer2D {
                     );
                 }
             });
-
-            let scroll = ctx.input(|i| i.scroll_delta);
-
-            if let Some(pos) = ctx.pointer_hover_pos() {
-                hover_pos = Some([pos.x, pos.y]);
-            }
-
-            if let Some(pos) = ctx.pointer_interact_pos() {
-                let min_scroll = 1.0;
-                let factor = 0.01;
-
-                if scroll.y.abs() > min_scroll {
-                    let dz = 1.0 - scroll.y * factor;
-                    let uvp = Vec2::new(pos.x, pos.y);
-                    let mut norm = uvp / dims;
-                    norm.y = 1.0 - norm.y;
-                    self.view.zoom_with_focus(norm, dz);
-                }
-            }
         }
 
         egui_ctx.end_frame(&window.window);
