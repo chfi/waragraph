@@ -449,7 +449,31 @@ impl AppWindow for Viewer2D {
                     ui.separator();
 
                     self.annotation_list_widget.show(ui, |ui, annotation| {
-                        ui.label(annotation.label.as_str());
+                        let label = ui.add(
+                            egui::Label::new(annotation.label.as_str())
+                                .sense(egui::Sense::click()),
+                        );
+
+                        if label.clicked_by(egui::PointerButton::Primary) {
+                            // pan to annotation
+                            let nodes = self.shared.graph.path_step_range_iter(
+                                annotation.path,
+                                annotation.range.clone(),
+                            );
+                            let node_centers =
+                                nodes.unwrap().map(|(_, step)| {
+                                    let (n0, n1) = self
+                                        .node_positions
+                                        .node_pos(step.node());
+                                    let mid = n0 + (n1 - n0) * 0.5;
+                                    mid
+                                });
+
+                            let pos =
+                                crate::util::geometry::centroid(node_centers);
+
+                            self.view.center = pos;
+                        }
                     });
                 });
 
