@@ -201,6 +201,13 @@ impl std::default::Default for AnnotationStore {
 }
 
 impl AnnotationStore {
+    pub fn get(&self, id: GlobalAnnotationId) -> &Annotation {
+        self.annotation_sets
+            .get(&id.set_id)
+            .and_then(|set| set.get(id.annot_id))
+            .unwrap()
+    }
+
     pub fn insert_set(&mut self, set: AnnotationSet) -> AnnotationSetId {
         let set_id = self.next_set_id;
         self.next_set_id = AnnotationSetId(set_id.0 + 1);

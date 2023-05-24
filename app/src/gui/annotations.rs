@@ -49,7 +49,11 @@ impl AnnotationListWidget {
     pub fn show(
         &mut self,
         ui: &mut egui::Ui,
-        mut show_annotation: impl FnMut(&mut egui::Ui, &Annotation),
+        mut show_annotation: impl FnMut(
+            &mut egui::Ui,
+            GlobalAnnotationId,
+            &Annotation,
+        ),
     ) {
         let row_height = ui.text_style_height(&egui::TextStyle::Body);
         let total_rows = self.list.len();
@@ -72,16 +76,14 @@ impl AnnotationListWidget {
             total_rows,
             |ui, range| {
                 for ix in range {
-                    let annotation = self
-                        .list
-                        .get(ix)
-                        .and_then(|annot_id| {
-                            let set = annotation_sets.get(&annot_id.set_id)?;
-                            set.get(annot_id.annot_id)
-                        })
-                        .unwrap();
+                    let annot = self.list.get(ix).and_then(|annot_id| {
+                        let set = annotation_sets.get(&annot_id.set_id)?;
+                        Some((*annot_id, set.get(annot_id.annot_id)?))
+                    });
 
-                    show_annotation(ui, annotation);
+                    if let Some((id, annotation)) = annot {
+                        show_annotation(ui, id, annotation);
+                    }
                 }
             },
         );

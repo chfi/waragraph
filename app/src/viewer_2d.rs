@@ -448,33 +448,46 @@ impl AppWindow for Viewer2D {
 
                     ui.separator();
 
-                    self.annotation_list_widget.show(ui, |ui, annotation| {
-                        let label = ui.add(
-                            egui::Label::new(annotation.label.as_str())
-                                .sense(egui::Sense::click()),
-                        );
-
-                        if label.clicked_by(egui::PointerButton::Primary) {
-                            // pan to annotation
-                            let nodes = self.shared.graph.path_step_range_iter(
-                                annotation.path,
-                                annotation.range.clone(),
+                    self.annotation_list_widget.show(
+                        ui,
+                        |ui, annot_id, annotation| {
+                            let label = ui.add(
+                                egui::Label::new(annotation.label.as_str())
+                                    .sense(egui::Sense::click()),
                             );
-                            let node_centers =
-                                nodes.unwrap().map(|(_, step)| {
-                                    let (n0, n1) = self
-                                        .node_positions
-                                        .node_pos(step.node());
-                                    let mid = n0 + (n1 - n0) * 0.5;
-                                    mid
-                                });
 
-                            let pos =
-                                crate::util::geometry::centroid(node_centers);
+                            if label.hovered() {
+                                context_state.set(
+                                    "Viewer2D",
+                                    ["hover"],
+                                    annot_id,
+                                );
+                            }
 
-                            self.view.center = pos;
-                        }
-                    });
+                            if label.clicked_by(egui::PointerButton::Primary) {
+                                // pan to annotation
+                                let nodes =
+                                    self.shared.graph.path_step_range_iter(
+                                        annotation.path,
+                                        annotation.range.clone(),
+                                    );
+                                let node_centers =
+                                    nodes.unwrap().map(|(_, step)| {
+                                        let (n0, n1) = self
+                                            .node_positions
+                                            .node_pos(step.node());
+                                        let mid = n0 + (n1 - n0) * 0.5;
+                                        mid
+                                    });
+
+                                let pos = crate::util::geometry::centroid(
+                                    node_centers,
+                                );
+
+                                self.view.center = pos;
+                            }
+                        },
+                    );
                 });
 
             let side_panel_rect = side_panel.response.rect;
@@ -541,6 +554,42 @@ impl AppWindow for Viewer2D {
                     ui.label(format!("Length {} bp", node_len.0));
                 },
             );
+        }
+
+        if let Some(annot_id) = context_state
+            .query_get_cast::<_, GlobalAnnotationId>(None, ["hover"])
+        {
+            let mat = self.view.to_viewport_matrix(dims);
+
+            let annot = self
+                .shared
+                .annotations
+                .blocking_read()
+                .get(*annot_id)
+                .clone();
+
+            if let Some(nodes) = self
+                .shared
+                .graph
+                .path_step_range_iter(annot.path, annot.range.clone())
+            {
+                // TODO: use annotation color if present
+                let stroke = egui::Stroke::new(5.0, egui::Color32::RED);
+
+                let mut points: Vec<egui::Pos2> = Vec::new();
+
+                for (_offset, step) in nodes {
+                    let (n0, n1) = self.node_positions.node_pos(step.node());
+
+                    let p0 = (mat * n0.into_homogeneous_point()).xy();
+                    let p1 = (mat * n1.into_homogeneous_point()).xy();
+
+                    points.push(p0.as_array().into());
+                    points.push(p1.as_array().into());
+                }
+
+                annot_shapes.push(egui::Shape::line(points, stroke));
+            }
         }
 
         let mut hover_pos: Option<[f32; 2]> = None;
