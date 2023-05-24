@@ -3,6 +3,7 @@ use crate::app::settings_menu::SettingsWindow;
 use crate::app::{AppWindow, SharedState};
 use crate::color::ColorMap;
 use crate::context::{ContextQuery, ContextState};
+use crate::gui::annotations::AnnotationListWidget;
 use crate::util::BufferDesc;
 use crate::viewer_2d::config::Config;
 
@@ -83,6 +84,8 @@ pub struct Viewer2D {
     msg_rx: crossbeam::channel::Receiver<control::Msg>,
 
     cfg: Config,
+
+    annotation_list_widget: AnnotationListWidget,
 }
 
 impl Viewer2D {
@@ -330,6 +333,9 @@ impl Viewer2D {
             cfg
         };
 
+        let annotation_list_widget =
+            AnnotationListWidget::new(shared.annotations.clone());
+
         Ok(Self {
             node_positions: Arc::new(node_positions),
 
@@ -360,6 +366,8 @@ impl Viewer2D {
             view_control_widget,
 
             annotation_layer,
+
+            annotation_list_widget,
         })
     }
 
@@ -437,6 +445,12 @@ impl AppWindow for Viewer2D {
                         context_state,
                         ui,
                     );
+
+                    ui.separator();
+
+                    self.annotation_list_widget.show(ui, |ui, annotation| {
+                        ui.label(annotation.label.as_str());
+                    });
                 });
 
             let side_panel_rect = side_panel.response.rect;

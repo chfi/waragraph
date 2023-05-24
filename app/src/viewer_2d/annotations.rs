@@ -275,19 +275,18 @@ impl AnnotationLayer {
         let mut label_rtree: RTree<GeomWithData<Rectangle<[f32; 2]>, usize>> =
             RTree::new();
 
-        let mut combined_clusters: RTree<
-            GeomWithData<Rectangle<[f32; 2]>, usize>,
-        > = RTree::new();
+        // let mut combined_clusters: RTree<
+        //     GeomWithData<Rectangle<[f32; 2]>, usize>,
+        // > = RTree::new();
 
-        for (cl_id, objs) in clusters.into_iter().enumerate() {
-            // we really want to iterate through all objects here?
-            // i guess we *have* to?
-            for obj_id in objs {
-                //
-            }
-        }
+        // for (cl_id, objs) in clusters.into_iter().enumerate() {
+        //     // we really want to iterate through all objects here?
+        //     // i guess we *have* to?
+        //     for obj_id in objs {
+        //         //
+        //     }
+        // }
 
-        /*
         for (cl_id, objs) in clusters.into_iter().enumerate() {
             for obj_id in objs.into_iter().take(1) {
                 let obj = &self.annot_objs[obj_id];
@@ -341,9 +340,8 @@ impl AnnotationLayer {
                 }
             }
         }
-        */
 
-        println!("to_draw.len() {}", to_draw.len());
+        // println!("to_draw.len() {}", to_draw.len());
 
         to_draw
     }
