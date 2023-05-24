@@ -9,6 +9,7 @@ pub struct Annotation {
     pub path: PathId,
     pub range: std::ops::Range<Bp>,
     pub label: Arc<String>,
+    pub color: Option<egui::Color32>,
 }
 
 pub struct AnnotationSet {
@@ -84,6 +85,7 @@ impl AnnotationSet {
                             path: path_id,
                             range,
                             label: Arc::new(name.to_string()),
+                            color: None,
                         };
 
                         annotations.push(annot);
@@ -151,6 +153,7 @@ impl AnnotationSet {
                             path: path_id,
                             range,
                             label: Arc::new(label.to_string()),
+                            color: None,
                         };
 
                         annotations.push(annot);
