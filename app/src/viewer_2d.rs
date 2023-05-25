@@ -7,7 +7,7 @@ use crate::gui::annotations::AnnotationListWidget;
 use crate::util::BufferDesc;
 use crate::viewer_2d::config::Config;
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::num::NonZeroU32;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -453,10 +453,36 @@ impl AppWindow for Viewer2D {
                     self.annotation_list_widget.show(
                         ui,
                         |ui, annot_id, annotation| {
-                            let label = ui.add(
-                                egui::Label::new(annotation.label.as_str())
-                                    .sense(egui::Sense::click()),
-                            );
+                            use egui::mutex::Mutex;
+
+                            let mut widget_text =
+                                egui::RichText::new(annotation.label.as_str());
+
+                            let is_pinned = ui.data(|data| {
+                                let pinned = data.get_temp::<Arc<
+                                    Mutex<HashSet<GlobalAnnotationId>>,
+                                >>(
+                                    egui::Id::null()
+                                );
+
+                                pinned
+                                    .map(|pinned| {
+                                        let pinned = pinned.lock();
+                                        pinned.contains(&annot_id)
+                                    })
+                                    .unwrap_or(false)
+                            });
+
+                            if is_pinned {
+                                let color = ui.style().visuals.extreme_bg_color;
+                                widget_text =
+                                    widget_text.background_color(color);
+                            }
+
+                            let widget = egui::Label::new(widget_text)
+                                .sense(egui::Sense::click());
+
+                            let label = ui.add(widget);
 
                             if label.hovered() {
                                 context_state.set(
@@ -487,6 +513,11 @@ impl AppWindow for Viewer2D {
                                 );
 
                                 self.view.center = pos;
+                            }
+
+                            if label.clicked_by(egui::PointerButton::Secondary)
+                            {
+                                gui::toggle_pinned_annotation(ui, annot_id);
                             }
                         },
                     );
@@ -593,6 +624,53 @@ impl AppWindow for Viewer2D {
                 annot_shapes.push(egui::Shape::line(points, stroke));
             }
         }
+
+        egui_ctx.ctx().data(|data| {
+            let mat = self.view.to_viewport_matrix(dims);
+            use egui::mutex::Mutex;
+
+            let pinned = data
+                .get_temp::<Arc<Mutex<HashSet<GlobalAnnotationId>>>>(
+                    egui::Id::null(),
+                );
+
+            if let Some(pinned) = pinned {
+                let pinned = pinned.lock();
+                for annot_id in pinned.iter() {
+                    //
+                    let annot = self
+                        .shared
+                        .annotations
+                        .blocking_read()
+                        .get(*annot_id)
+                        .clone();
+
+                    if let Some(nodes) = self
+                        .shared
+                        .graph
+                        .path_step_range_iter(annot.path, annot.range.clone())
+                    {
+                        // TODO: use annotation color if present
+                        let stroke = egui::Stroke::new(5.0, egui::Color32::RED);
+
+                        let mut points: Vec<egui::Pos2> = Vec::new();
+
+                        for (_offset, step) in nodes {
+                            let (n0, n1) =
+                                self.node_positions.node_pos(step.node());
+
+                            let p0 = (mat * n0.into_homogeneous_point()).xy();
+                            let p1 = (mat * n1.into_homogeneous_point()).xy();
+
+                            points.push(p0.as_array().into());
+                            points.push(p1.as_array().into());
+                        }
+
+                        annot_shapes.push(egui::Shape::line(points, stroke));
+                    }
+                }
+            }
+        });
 
         let mut hover_pos: Option<[f32; 2]> = None;
 
