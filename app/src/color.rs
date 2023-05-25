@@ -50,8 +50,9 @@ fn create_linear_sampler(device: &wgpu::Device) -> wgpu::Sampler {
         lod_min_clamp: 1.0,
         lod_max_clamp: 1.0,
         compare: None,
-        anisotropy_clamp: None,
+        // anisotropy_clamp: 0,
         border_color: None,
+        ..Default::default()
     };
 
     device.create_sampler(&sampler_desc)
@@ -71,8 +72,8 @@ fn create_nearest_sampler(device: &wgpu::Device) -> wgpu::Sampler {
         lod_min_clamp: 1.0,
         lod_max_clamp: 1.0,
         compare: None,
-        anisotropy_clamp: None,
         border_color: None,
+        ..Default::default()
     };
 
     device.create_sampler(&sampler_desc)

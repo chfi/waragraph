@@ -1134,7 +1134,7 @@ impl GeometryBuffers {
         let dst_buf = wgpu::ImageCopyBuffer {
             buffer: &self.node_id_buf.buffer,
             layout: wgpu::ImageDataLayout {
-                bytes_per_row: NonZeroU32::new(aligned_width * stride),
+                bytes_per_row: Some(aligned_width * stride),
                 ..wgpu::ImageDataLayout::default()
             },
         };
@@ -1150,7 +1150,7 @@ impl GeometryBuffers {
         let dst_buf = wgpu::ImageCopyBuffer {
             buffer: &self.node_uv_buf.buffer,
             layout: wgpu::ImageDataLayout {
-                bytes_per_row: NonZeroU32::new(aligned_width * stride),
+                bytes_per_row: Some(aligned_width * stride),
                 ..wgpu::ImageDataLayout::default()
             },
         };

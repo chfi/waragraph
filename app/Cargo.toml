@@ -18,13 +18,12 @@ winit = "0.28"
 env_logger = "0.9"
 log = "0.4"
 
-egui = { version = "0.21", features = ["mint"] }
-egui-wgpu = { version = "0.21" }
-egui-winit = { version = "0.21" }
+egui = { version = "0.22", features = ["mint"] }
+egui-wgpu = { version = "0.22" }
+egui-winit = { version = "0.22" }
+egui_file = "0.9"
 
-egui_file = "0.8"
-
-wgpu = { version = "0.15", features = ["spirv"] }
+wgpu = { version = "0.16", features = ["spirv"] }
 # naga = { version = "0.10", features = ["clone", "spv-in", "glsl-in", "spv-out"] }
 
 taffy = { version = "0.3", features = ["grid"] }
@@ -62,6 +61,5 @@ sprs = "0.11"
 
 three-edge-connected = "0.2"
 sha2 = "0.10.6"
-egui_dock = "0.5.0"
 kiddo = "2.0.2"
 parry2d = "0.13.4"
