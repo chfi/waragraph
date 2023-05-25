@@ -39,8 +39,9 @@ pub struct AnnotationLayer {
 
     last_view: Option<View2D>,
 
-    to_draw_task: Option<JoinHandle<(View2D, Vec<(Arc<String>, [f32; 2])>)>>,
-    to_draw_cache: Vec<(Arc<String>, [f32; 2])>,
+    to_draw_task:
+        Option<JoinHandle<(View2D, Vec<(GlobalAnnotationId, [f32; 2])>)>>,
+    to_draw_cache: Vec<(GlobalAnnotationId, [f32; 2])>,
 }
 
 impl AnnotationLayer {
@@ -55,19 +56,16 @@ impl AnnotationLayer {
     }
 
     pub fn draw(
-        &self,
-        // shared: &SharedState,
+        &mut self,
         tokio_rt: &tokio::runtime::Handle,
+        shared: &SharedState,
         node_positions: &Arc<NodePositions>,
         view: &View2D,
         dims: Vec2,
         painter: &egui::Painter,
     ) {
-        {
-            let state = self.state.blocking_read();
+        if let Ok(mut state) = self.state.try_write() {
             if state.annot_shape_sizes.len() < state.annot_objs.len() {
-                let _ = state;
-                let state = self.state.blocking_write();
                 painter.fonts(|fonts| state.prepare_labels(fonts));
             }
         }
@@ -78,36 +76,78 @@ impl AnnotationLayer {
             let view = view.clone();
 
             let state = self.state.clone();
-            let node_pos = node_positions.clone();
+            let node_pos: Arc<_> = node_positions.clone();
 
-            self.to_draw_task = tokio_rt.spawn(async move {
-                let visible_objs =
-                    Self::reset_anchors(&state, &node_pos, view, dims).await;
-
-                let to_draw = Self::cluster_for_draw(
-                    &state,
-                    &node_pos,
-                    view,
-                    dims,
-                    &visible_objs,
+            self.to_draw_task = Some(tokio_rt.spawn(async move {
+                let visible_objs = AnnotationLayerState::reset_anchors(
+                    &state, &node_pos, &view, dims,
                 )
                 .await;
 
-                (view, to_draw)
-            });
+                let to_draw_objs: Vec<(AnnotObjId, _)> =
+                    AnnotationLayerState::cluster_for_draw(
+                        &state,
+                        &node_pos,
+                        &view,
+                        dims,
+                        &visible_objs,
+                    )
+                    .await;
 
-            // tokio_rt.
-            // let visible_objs = self.reset_anchors(node_positions, view, dims);
+                // the above two calls are the only bits that use write access
 
-            // let to_draw =
-            //     self.cluster_for_draw(node_positions, view, dims, &visible_objs);
+                let state = state.read().await;
+
+                let to_draw_annots = to_draw_objs
+                    .into_iter()
+                    .map(|(obj_id, pos)| {
+                        let obj = &state.annot_objs[obj_id];
+                        (obj.annot_id, pos)
+                    })
+                    .collect();
+
+                (view, to_draw_annots)
+            }));
         }
 
         // get task results if ready
+        if self
+            .to_draw_task
+            .as_ref()
+            .map(|h| h.is_finished())
+            .unwrap_or(false)
+        {
+            let handle = self.to_draw_task.take().unwrap();
+
+            if let Some((task_view, to_draw)) = tokio_rt.block_on(handle).ok() {
+                self.last_view = Some(task_view);
+                self.to_draw_cache = to_draw;
+            }
+        }
+
+        let annots = shared.annotations.blocking_read();
 
         // use latest task results to draw labels
+        for (annot_id, pos) in &self.to_draw_cache {
+            let text = &annots.get(*annot_id).label;
 
-        todo!();
+            let shape = painter.fonts(|fonts| {
+                let font = egui::FontId::proportional(16.0);
+                let color = egui::Color32::WHITE;
+                egui::Shape::text(
+                    &fonts,
+                    pos.into(),
+                    egui::Align2::CENTER_CENTER,
+                    &text,
+                    font,
+                    color,
+                )
+            });
+
+            painter.add(shape);
+        }
+
+        // todo!();
         /*
         painter.fonts(|fonts| self.prepare_labels(fonts));
 
@@ -270,7 +310,7 @@ impl AnnotationLayerState {
     const CLUSTER_RADIUS: f32 = 100.0;
 
     async fn reset_anchors(
-        state_lock: &RwLock<Self>,
+        state: &RwLock<Self>,
         // &mut self,
         node_positions: &NodePositions,
         view: &View2D,
@@ -278,41 +318,42 @@ impl AnnotationLayerState {
     ) -> roaring::RoaringBitmap {
         use rand::prelude::*;
         use rstar::AABB;
-        let mut rng = rand::thread_rng();
 
-        let mat = view.to_viewport_matrix(dims);
+        let visible_annots = {
+            let mut visible_annots: ahash::HashMap<
+                AnnotObjId,
+                ahash::HashSet<Node>,
+            > = Default::default();
 
-        let state = state_lock.read().await;
+            if state.read().await.anchor_rtree.is_none() {
+                panic!(
+                    "`reset_anchors` must be called after `load_annotations`"
+                );
+            }
 
-        if state.anchor_rtree.is_none() {
-            panic!("`reset_anchors` must be called after `load_annotations`");
-        }
+            let (x0, x1) = view.x_range();
+            let (y0, y1) = view.y_range();
 
-        let (x0, x1) = view.x_range();
-        let (y0, y1) = view.y_range();
+            let view_rect = AABB::from_corners([x0, y0], [x1, y1]);
 
-        let view_rect = AABB::from_corners([x0, y0], [x1, y1]);
+            let state = state.read().await;
+            let rtree = state.anchor_rtree.as_ref().unwrap();
 
-        let rtree = state.anchor_rtree.as_ref().unwrap();
+            let in_view = rtree.locate_in_envelope_intersecting(&view_rect);
 
-        let in_view = rtree.locate_in_envelope_intersecting(&view_rect);
+            for line in in_view {
+                let (node, obj_id) = line.data;
+                visible_annots.entry(obj_id).or_default().insert(node);
+            }
 
-        let mut visible_annots: ahash::HashMap<
-            AnnotObjId,
-            ahash::HashSet<Node>,
-        > = Default::default();
-
-        for line in in_view {
-            let (node, obj_id) = line.data;
-            visible_annots.entry(obj_id).or_default().insert(node);
-        }
+            visible_annots
+        };
 
         let mut visible_objs = roaring::RoaringBitmap::new();
 
-        let _ = state;
-        let mut state = state_lock.write().await;
+        let mut state = state.write().await;
 
-        let t0 = std::time::Instant::now();
+        let mut rng = rand::thread_rng();
         for (obj_id, anchor_cands) in visible_annots {
             let obj = &mut state.annot_objs[obj_id];
 

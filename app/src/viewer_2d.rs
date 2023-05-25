@@ -298,6 +298,8 @@ impl Viewer2D {
 
         let mut annotation_layer = AnnotationLayer::default();
 
+        let node_positions = Arc::new(node_positions);
+
         {
             let annotations = shared
                 .annotations
@@ -337,7 +339,7 @@ impl Viewer2D {
             AnnotationListWidget::new(shared.annotations.clone());
 
         Ok(Self {
-            node_positions: Arc::new(node_positions),
+            node_positions,
 
             vertex_buffer,
             instance_count,
@@ -658,6 +660,7 @@ impl AppWindow for Viewer2D {
                 if self.cfg.show_annotation_labels.load() {
                     self.annotation_layer.draw(
                         tokio_handle,
+                        &self.shared,
                         &self.node_positions,
                         &self.view,
                         dims,
