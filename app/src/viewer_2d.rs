@@ -314,7 +314,7 @@ impl Viewer2D {
 
             annotation_layer.load_annotations(
                 shared,
-                &node_positions,
+                node_positions.clone(),
                 annotations,
             );
         }
@@ -657,6 +657,7 @@ impl AppWindow for Viewer2D {
 
                 if self.cfg.show_annotation_labels.load() {
                     self.annotation_layer.draw(
+                        tokio_handle,
                         &self.node_positions,
                         &self.view,
                         dims,

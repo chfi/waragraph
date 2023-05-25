@@ -5,6 +5,7 @@ use egui::epaint::ahash;
 use rstar::primitives::{GeomWithData, Line, Rectangle};
 use rstar::RTree;
 use tokio::sync::RwLock;
+use tokio::task::JoinHandle;
 use ultraviolet::{Rotor2, Vec2};
 use waragraph_core::graph::Node;
 
@@ -34,6 +35,111 @@ type AnchorTreeObj = GeomWithData<Line<[f32; 2]>, (Node, AnnotObjId)>;
 
 #[derive(Default)]
 pub struct AnnotationLayer {
+    state: Arc<RwLock<AnnotationLayerState>>,
+
+    last_view: Option<View2D>,
+
+    to_draw_task: Option<JoinHandle<(View2D, Vec<(Arc<String>, [f32; 2])>)>>,
+    to_draw_cache: Vec<(Arc<String>, [f32; 2])>,
+}
+
+impl AnnotationLayer {
+    pub fn load_annotations(
+        &self,
+        shared: &SharedState,
+        node_positions: Arc<NodePositions>,
+        annot_ids: impl IntoIterator<Item = GlobalAnnotationId>,
+    ) {
+        let mut state = self.state.blocking_write();
+        state.load_annotations(shared, &node_positions, annot_ids);
+    }
+
+    pub fn draw(
+        &self,
+        // shared: &SharedState,
+        tokio_rt: &tokio::runtime::Handle,
+        node_positions: &Arc<NodePositions>,
+        view: &View2D,
+        dims: Vec2,
+        painter: &egui::Painter,
+    ) {
+        {
+            let state = self.state.blocking_read();
+            if state.annot_shape_sizes.len() < state.annot_objs.len() {
+                let _ = state;
+                let state = self.state.blocking_write();
+                painter.fonts(|fonts| state.prepare_labels(fonts));
+            }
+        }
+
+        if self.last_view.as_ref() != Some(view) && self.to_draw_task.is_none()
+        {
+            // spawn task
+            let view = view.clone();
+
+            let state = self.state.clone();
+            let node_pos = node_positions.clone();
+
+            self.to_draw_task = tokio_rt.spawn(async move {
+                let visible_objs =
+                    Self::reset_anchors(&state, &node_pos, view, dims).await;
+
+                let to_draw = Self::cluster_for_draw(
+                    &state,
+                    &node_pos,
+                    view,
+                    dims,
+                    &visible_objs,
+                )
+                .await;
+
+                (view, to_draw)
+            });
+
+            // tokio_rt.
+            // let visible_objs = self.reset_anchors(node_positions, view, dims);
+
+            // let to_draw =
+            //     self.cluster_for_draw(node_positions, view, dims, &visible_objs);
+        }
+
+        // get task results if ready
+
+        // use latest task results to draw labels
+
+        todo!();
+        /*
+        painter.fonts(|fonts| self.prepare_labels(fonts));
+
+        let visible_objs = self.reset_anchors(node_positions, view, dims);
+
+        let to_draw =
+            self.cluster_for_draw(node_positions, view, dims, &visible_objs);
+
+        for (obj_id, pos) in to_draw {
+            let obj = &self.annot_objs[obj_id];
+
+            let shape = painter.fonts(|fonts| {
+                let font = egui::FontId::proportional(16.0);
+                let color = egui::Color32::WHITE;
+                egui::Shape::text(
+                    &fonts,
+                    pos.into(),
+                    egui::Align2::CENTER_CENTER,
+                    &obj.label,
+                    font,
+                    color,
+                )
+            });
+
+            painter.add(shape);
+        }
+        */
+    }
+}
+
+#[derive(Default)]
+pub struct AnnotationLayerState {
     annot_objs: Vec<AnnotObj>,
 
     anchor_rtree: Option<RTree<AnchorTreeObj>>,
@@ -42,10 +148,10 @@ pub struct AnnotationLayer {
     anchor_sets: Vec<AnchorSet>,
     // active_sets: BTreeSet<AnnotationSetId>,
     annot_shape_sizes: Vec<Vec2>,
-    pub(super) pinned_annots: Arc<RwLock<HashSet<GlobalAnnotationId>>>,
+    // pub(super) pinned_annots: Arc<RwLock<HashSet<GlobalAnnotationId>>>,
 }
 
-impl AnnotationLayer {
+impl AnnotationLayerState {
     pub fn load_annotations(
         &mut self,
         shared: &SharedState,
@@ -163,8 +269,9 @@ impl AnnotationLayer {
 
     const CLUSTER_RADIUS: f32 = 100.0;
 
-    fn reset_anchors(
-        &mut self,
+    async fn reset_anchors(
+        state_lock: &RwLock<Self>,
+        // &mut self,
         node_positions: &NodePositions,
         view: &View2D,
         dims: Vec2,
@@ -175,7 +282,9 @@ impl AnnotationLayer {
 
         let mat = view.to_viewport_matrix(dims);
 
-        if self.anchor_rtree.is_none() {
+        let state = state_lock.read().await;
+
+        if state.anchor_rtree.is_none() {
             panic!("`reset_anchors` must be called after `load_annotations`");
         }
 
@@ -184,7 +293,7 @@ impl AnnotationLayer {
 
         let view_rect = AABB::from_corners([x0, y0], [x1, y1]);
 
-        let rtree = self.anchor_rtree.as_ref().unwrap();
+        let rtree = state.anchor_rtree.as_ref().unwrap();
 
         let in_view = rtree.locate_in_envelope_intersecting(&view_rect);
 
@@ -200,9 +309,12 @@ impl AnnotationLayer {
 
         let mut visible_objs = roaring::RoaringBitmap::new();
 
+        let _ = state;
+        let mut state = state_lock.write().await;
+
         let t0 = std::time::Instant::now();
         for (obj_id, anchor_cands) in visible_annots {
-            let obj = &mut self.annot_objs[obj_id];
+            let obj = &mut state.annot_objs[obj_id];
 
             visible_objs.insert(obj_id as u32);
 
@@ -221,8 +333,8 @@ impl AnnotationLayer {
         visible_objs
     }
 
-    fn cluster_for_draw(
-        &self,
+    async fn cluster_for_draw(
+        state_lock: &RwLock<Self>,
         node_positions: &NodePositions,
         view: &View2D,
         dims: Vec2,
@@ -236,11 +348,13 @@ impl AnnotationLayer {
 
         let mut kdtree: KdTree<f32, 2> = KdTree::new();
 
-        let pinned_annots = self.pinned_annots.blocking_read().clone();
+        // let pinned_annots = self.pinned_annots.blocking_read().clone();
 
         let mut clusters: Vec<Vec<AnnotObjId>> = Vec::new();
 
-        for obj in &self.annot_objs {
+        let state = state_lock.read().await;
+
+        for obj in &state.annot_objs {
             let pos = (mat * obj.anchor_pos.into_homogeneous_point()).xy();
 
             if pos.x.is_nan() || pos.y.is_nan() {
@@ -289,7 +403,7 @@ impl AnnotationLayer {
 
         for (cl_id, objs) in clusters.into_iter().enumerate() {
             for obj_id in objs.into_iter().take(1) {
-                let obj = &self.annot_objs[obj_id];
+                let obj = &state.annot_objs[obj_id];
 
                 if !visible_objs.contains(obj_id as u32) {
                     continue;
@@ -312,12 +426,12 @@ impl AnnotationLayer {
 
                     let pos = p0 + 0.5 * (p1 - p0);
 
-                    let label_size = self.annot_shape_sizes[obj_id];
+                    let label_size = state.annot_shape_sizes[obj_id];
 
                     pos + normal * normal.dot(label_size) * 2.0
                 };
 
-                let label_size = self.annot_shape_sizes[obj_id];
+                let label_size = state.annot_shape_sizes[obj_id];
 
                 let p0 = label_pos - label_size / 2.0;
                 let p1 = label_pos + label_size / 2.0;
@@ -344,41 +458,6 @@ impl AnnotationLayer {
         // println!("to_draw.len() {}", to_draw.len());
 
         to_draw
-    }
-
-    pub fn draw(
-        &mut self,
-        // shared: &SharedState,
-        node_positions: &NodePositions,
-        view: &View2D,
-        dims: Vec2,
-        painter: &egui::Painter,
-    ) {
-        painter.fonts(|fonts| self.prepare_labels(fonts));
-
-        let visible_objs = self.reset_anchors(node_positions, view, dims);
-
-        let to_draw =
-            self.cluster_for_draw(node_positions, view, dims, &visible_objs);
-
-        for (obj_id, pos) in to_draw {
-            let obj = &mut self.annot_objs[obj_id];
-
-            let shape = painter.fonts(|fonts| {
-                let font = egui::FontId::proportional(16.0);
-                let color = egui::Color32::WHITE;
-                egui::Shape::text(
-                    &fonts,
-                    pos.into(),
-                    egui::Align2::CENTER_CENTER,
-                    &obj.label,
-                    font,
-                    color,
-                )
-            });
-
-            painter.add(shape);
-        }
     }
 }
 
