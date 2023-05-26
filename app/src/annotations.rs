@@ -81,11 +81,20 @@ impl AnnotationSet {
 
                         let a_id = annotations.len();
 
+                        let (label, color) = if let Some((name, color_str)) =
+                            name.rsplit_once(' ')
+                        {
+                            // if `color_str` is a hex-encoded color string #RRGGBB, use that
+                            (Arc::new(name.to_string()), parse_color(color_str))
+                        } else {
+                            (Arc::new(name.to_string()), None)
+                        };
+
                         let annot = Annotation {
                             path: path_id,
                             range,
-                            label: Arc::new(name.to_string()),
-                            color: None,
+                            label,
+                            color,
                         };
 
                         annotations.push(annot);
@@ -233,4 +242,22 @@ impl AnnotationStore {
             .map(|set| set.annotations.len())
             .sum()
     }
+}
+
+fn parse_color(color_str: &str) -> Option<egui::Color32> {
+    use btoi::btou_radix;
+
+    let color_str = color_str.trim();
+
+    if color_str.len() != 7 {
+        return None;
+    }
+
+    let rest = color_str.strip_prefix("#")?.as_bytes();
+
+    let r: u8 = btou_radix(&rest[0..=1], 16).ok()?;
+    let g: u8 = btou_radix(&rest[2..=3], 16).ok()?;
+    let b: u8 = btou_radix(&rest[4..=5], 16).ok()?;
+
+    Some(egui::Color32::from_rgb(r, g, b))
 }
