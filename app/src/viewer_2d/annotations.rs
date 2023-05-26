@@ -469,7 +469,7 @@ impl AnnotationLayerState {
 
                     let label_size = state.annot_shape_sizes[obj_id];
 
-                    pos + normal * normal.dot(label_size) * 2.0
+                    pos + normal * normal.dot(label_size) * 1.0
                 };
 
                 let label_size = state.annot_shape_sizes[obj_id];

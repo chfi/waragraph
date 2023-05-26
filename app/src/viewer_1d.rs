@@ -536,9 +536,10 @@ impl AppWindow for Viewer1D {
                 let right_node =
                     self.shared.graph.node_at_pangenome_pos(Bp(view.end));
 
-                let left = left_node.map(|n| n.ix()).unwrap_or(0);
+                let left =
+                    left_node.and_then(|n| n.ix().checked_sub(1)).unwrap_or(0);
                 let right = right_node
-                    .map(|n| n.ix())
+                    .map(|n| (n.ix() + 1).min(self.shared.graph.node_count - 1))
                     .unwrap_or(self.shared.graph.node_count - 1);
 
                 (left as u32)..(right as u32)
