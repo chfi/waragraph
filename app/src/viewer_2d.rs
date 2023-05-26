@@ -589,41 +589,14 @@ impl AppWindow for Viewer2D {
             );
         }
 
-        if let Some(annot_id) = context_state
-            .query_get_cast::<_, GlobalAnnotationId>(None, ["hover"])
-        {
-            let mat = self.view.to_viewport_matrix(dims);
+        let mut highlight_annots: HashSet<GlobalAnnotationId> =
+            HashSet::default();
 
-            let annot = self
-                .shared
-                .annotations
-                .blocking_read()
-                .get(*annot_id)
-                .clone();
-
-            if let Some(nodes) = self
-                .shared
-                .graph
-                .path_step_range_iter(annot.path, annot.range.clone())
-            {
-                // TODO: use annotation color if present
-                let stroke = egui::Stroke::new(5.0, egui::Color32::RED);
-
-                let mut points: Vec<egui::Pos2> = Vec::new();
-
-                for (_offset, step) in nodes {
-                    let (n0, n1) = self.node_positions.node_pos(step.node());
-
-                    let p0 = (mat * n0.into_homogeneous_point()).xy();
-                    let p1 = (mat * n1.into_homogeneous_point()).xy();
-
-                    points.push(p0.as_array().into());
-                    points.push(p1.as_array().into());
-                }
-
-                annot_shapes.push(egui::Shape::line(points, stroke));
-            }
-        }
+        highlight_annots.extend(
+            context_state
+                .query_get_cast::<_, GlobalAnnotationId>(None, ["hover"])
+                .copied(),
+        );
 
         egui_ctx.ctx().data(|data| {
             let mat = self.view.to_viewport_matrix(dims);
@@ -636,41 +609,46 @@ impl AppWindow for Viewer2D {
 
             if let Some(pinned) = pinned {
                 let pinned = pinned.lock();
-                for annot_id in pinned.iter() {
-                    //
-                    let annot = self
-                        .shared
-                        .annotations
-                        .blocking_read()
-                        .get(*annot_id)
-                        .clone();
-
-                    if let Some(nodes) = self
-                        .shared
-                        .graph
-                        .path_step_range_iter(annot.path, annot.range.clone())
-                    {
-                        // TODO: use annotation color if present
-                        let stroke = egui::Stroke::new(5.0, egui::Color32::RED);
-
-                        let mut points: Vec<egui::Pos2> = Vec::new();
-
-                        for (_offset, step) in nodes {
-                            let (n0, n1) =
-                                self.node_positions.node_pos(step.node());
-
-                            let p0 = (mat * n0.into_homogeneous_point()).xy();
-                            let p1 = (mat * n1.into_homogeneous_point()).xy();
-
-                            points.push(p0.as_array().into());
-                            points.push(p1.as_array().into());
-                        }
-
-                        annot_shapes.push(egui::Shape::line(points, stroke));
-                    }
-                }
+                highlight_annots.extend(pinned.iter().copied());
             }
         });
+
+        {
+            let mat = self.view.to_viewport_matrix(dims);
+            let annotations = self.shared.annotations.blocking_read();
+
+            for annot_id in highlight_annots {
+                let annot = annotations.get(annot_id);
+
+                let stroke = egui::Stroke::new(
+                    5.0,
+                    annot.color.unwrap_or(egui::Color32::RED),
+                );
+
+                let mut shapes_vec = Vec::new();
+
+                if let Some(nodes) = self
+                    .shared
+                    .graph
+                    .path_step_range_iter(annot.path, annot.range.clone())
+                {
+                    for (_offset, step) in nodes {
+                        let (n0, n1) =
+                            self.node_positions.node_pos(step.node());
+
+                        let p0 = (mat * n0.into_homogeneous_point()).xy();
+                        let p1 = (mat * n1.into_homogeneous_point()).xy();
+
+                        shapes_vec.push(egui::Shape::line_segment(
+                            [p0.as_array().into(), p1.as_array().into()],
+                            stroke,
+                        ));
+                    }
+
+                    annot_shapes.push(egui::Shape::Vec(shapes_vec));
+                }
+            }
+        }
 
         let mut hover_pos: Option<[f32; 2]> = None;
 
