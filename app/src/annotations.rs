@@ -85,9 +85,15 @@ impl AnnotationSet {
                             name.rsplit_once(' ')
                         {
                             // if `color_str` is a hex-encoded color string #RRGGBB, use that
-                            (Arc::new(name.to_string()), parse_color(color_str))
+                            (
+                                Arc::new(name.to_string()),
+                                parse_color(&color_str),
+                            )
                         } else {
-                            (Arc::new(name.to_string()), None)
+                            let [r, g, b] =
+                                crate::color::util::hashed_rgb(&name);
+                            let color = egui::Color32::from_rgb(r, g, b);
+                            (Arc::new(name.to_string()), Some(color))
                         };
 
                         let annot = Annotation {
@@ -156,6 +162,9 @@ impl AnnotationSet {
                             })?;
 
                         let a_id = annotations.len();
+
+                        let [r, g, b] = crate::color::util::hashed_rgb(&label);
+                        let color = egui::Color32::from_rgb(r, g, b);
 
                         let annot = Annotation {
                             path: path_id,
