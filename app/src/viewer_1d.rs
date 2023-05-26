@@ -708,9 +708,14 @@ impl AppWindow for Viewer1D {
                                     });
 
                                 let slot_x_range = rect.x_range();
-                                let color = egui::Rgba::from_rgba_unmultiplied(
-                                    0.8, 0.2, 0.2, 0.5,
-                                );
+
+                                let color = self
+                                    .shared
+                                    .annotations
+                                    .blocking_read()
+                                    .get(*g_annot_id)
+                                    .color
+                                    .unwrap_or(egui::Color32::RED);
 
                                 shapes.extend(
                                     regions
