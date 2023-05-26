@@ -129,7 +129,6 @@ impl AnnotationSet {
             match result {
                 Ok(record) => {
                     if let Some(label) = record_label(&record) {
-                        dbg!();
                         let seqid = &record.reference_sequence_name();
 
                         let start = record.start().get();
