@@ -60,6 +60,44 @@ impl<T> ListView<T> {
         self.values.len()
     }
 
+    pub fn scroll_relative_filtered(
+        &mut self,
+        delta: isize,
+        include: impl Fn(&T) -> bool,
+    ) {
+        if delta == 0 {
+            return;
+        }
+        let mut real_delta = 0isize;
+        let mut remaining = delta.abs() as usize;
+
+        if delta > 0 {
+            for (_, val) in self.values[self.offset..].iter().skip(1) {
+                if remaining == 0 {
+                    break;
+                }
+
+                if include(val) {
+                    remaining -= 1;
+                }
+                real_delta += 1;
+            }
+        } else if delta < 0 {
+            for (_, val) in self.values[..self.offset].iter().rev() {
+                if remaining == 0 {
+                    break;
+                }
+
+                if include(val) {
+                    remaining -= 1;
+                }
+                real_delta -= 1;
+            }
+        }
+
+        self.scroll_relative(real_delta);
+    }
+
     pub fn scroll_relative(&mut self, delta: isize) {
         let mut offset = self.offset as isize;
 

@@ -89,3 +89,22 @@ impl<T, const N: usize> Uniform<T, N> {
 
     //
 }
+
+pub mod geometry {
+    pub fn centroid<P: Into<ultraviolet::Vec2>>(
+        points: impl IntoIterator<Item = P>,
+    ) -> ultraviolet::Vec2 {
+        use ultraviolet::Vec2;
+
+        let mut p_sum = Vec2::zero();
+        let mut count = 0f32;
+
+        for point in points {
+            let p = point.into();
+            p_sum += p;
+            count += 1.0;
+        }
+
+        p_sum / count
+    }
+}

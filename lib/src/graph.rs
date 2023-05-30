@@ -591,14 +591,14 @@ impl PathIndex {
         self.path_steps.get(id.ix()).map(|s| s.as_slice())
     }
 
-    pub fn step_at_pos(
+    pub fn step_at_pos<P: Into<u64>>(
         &self,
         path_id: PathId,
-        pos: usize,
+        pos: P,
     ) -> Option<OrientedNode> {
         let offsets = self.path_step_offsets.get(path_id.ix())?;
         let steps = self.path_steps.get(path_id.ix())?;
-        let pos_rank = offsets.rank(pos as u64) as usize;
+        let pos_rank = offsets.rank(pos.into()) as usize;
         steps.get(pos_rank).copied()
     }
 

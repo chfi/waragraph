@@ -6,6 +6,7 @@ use crate::context::{ContextQuery, ContextState};
 use crate::gui::{GridEntry, RowEntry, RowGridLayout};
 use crate::list::ListView;
 use crate::viewer_1d::annotations::AnnotSlot;
+use crate::viewer_1d::config::Config;
 use crossbeam::atomic::AtomicCell;
 use tokio::sync::RwLock;
 use waragraph_core::graph::{Bp, Node, PathId};
@@ -35,6 +36,7 @@ use self::widgets::VisualizationModesWidget;
 
 pub mod annotations;
 pub mod cache;
+pub mod config;
 pub mod control;
 pub mod gui;
 pub mod render;
@@ -76,6 +78,8 @@ pub struct Viewer1D {
 
     pub msg_tx: crossbeam::channel::Sender<control::Msg>,
     msg_rx: crossbeam::channel::Receiver<control::Msg>,
+
+    cfg: Config,
 
     // NB: very temporary, hopefully; bits are spread all over...
     viz_mode_config: HashMap<String, VizModeConfig>,
@@ -266,6 +270,22 @@ impl Viewer1D {
             );
         }
 
+        let cfg = {
+            let cfg = Config {
+                filter_path_list_by_visibility: Arc::new(true.into()),
+            };
+
+            let widget = config::ConfigWidget { cfg: cfg.clone() };
+
+            settings_window.register_widget(
+                "1D Viewer",
+                "Configuration",
+                Arc::new(RwLock::new(widget)),
+            );
+
+            cfg
+        };
+
         let mut viz_samplers = HashMap::default();
 
         {
@@ -371,6 +391,8 @@ impl Viewer1D {
             use_linear_sampler,
 
             color_mapping,
+
+            cfg,
             // color_map_widget,
         })
     }
@@ -507,12 +529,41 @@ impl AppWindow for Viewer1D {
             };
             let view_offset = self.path_list_view.offset();
 
+            let visible_node_range = {
+                let view = self.view.range();
+                let left_node =
+                    self.shared.graph.node_at_pangenome_pos(Bp(view.start));
+                let right_node =
+                    self.shared.graph.node_at_pangenome_pos(Bp(view.end));
+
+                let left =
+                    left_node.and_then(|n| n.ix().checked_sub(1)).unwrap_or(0);
+                let right = right_node
+                    .map(|n| (n.ix() + 1).min(self.shared.graph.node_count - 1))
+                    .unwrap_or(self.shared.graph.node_count - 1);
+
+                (left as u32)..(right as u32)
+            };
+
+            let should_filter = self.cfg.filter_path_list_by_visibility.load();
+
             let layout_result = row_grid_layout.fill_from_slice_index(
                 main_view_rect.height(),
                 [header_row],
                 &self.path_list_view.as_slice(),
                 view_offset,
                 |&(_list_ix, path_id)| {
+                    let path_nodes =
+                        &self.shared.graph.path_node_sets[path_id.ix()];
+
+                    if should_filter
+                        && path_nodes
+                            .range_cardinality(visible_node_range.clone())
+                            == 0
+                    {
+                        return None;
+                    }
+
                     let mut row_entry = RowEntry {
                         grid_template_columns: vec![
                             points(info_col_width),
@@ -558,7 +609,7 @@ impl AppWindow for Viewer1D {
                         ),
                     ]);
 
-                    row_entry
+                    Some(row_entry)
                 },
             );
 
@@ -658,9 +709,14 @@ impl AppWindow for Viewer1D {
                                     });
 
                                 let slot_x_range = rect.x_range();
-                                let color = egui::Rgba::from_rgba_unmultiplied(
-                                    0.8, 0.2, 0.2, 0.5,
-                                );
+
+                                let color = self
+                                    .shared
+                                    .annotations
+                                    .blocking_read()
+                                    .get(*g_annot_id)
+                                    .color
+                                    .unwrap_or(egui::Color32::RED);
 
                                 shapes.extend(
                                     regions
@@ -785,10 +841,10 @@ impl AppWindow for Viewer1D {
                             let annot_items = annots
                                 .iter()
                                 .filter_map(|&i| set.annotations.get(i))
-                                .map(|(range, label)| {
+                                .map(|annot| {
                                     let shape_fn =
-                                        annotations::text_shape(&label);
-                                    (path, range.clone(), shape_fn)
+                                        annotations::text_shape(&annot.label);
+                                    (path, annot.range.clone(), shape_fn)
                                 });
 
                             let annot_slot = AnnotSlot::new_from_path_space(
@@ -935,8 +991,26 @@ impl AppWindow for Viewer1D {
                     // hardcoded row height for now; should be stored/fetched
                     let rows = (scroll.y / 20.0).round() as isize;
 
+                    let visible_node_range = {
+                        let range = self.visible_node_range();
+                        (range.start.ix() as u32)..(range.end.ix() as u32)
+                    };
+
+                    let filter_path_list = |path: &PathId| {
+                        let path_nodes =
+                            &self.shared.graph.path_node_sets[path.ix()];
+                        let should_filter_path_list =
+                            self.cfg.filter_path_list_by_visibility.load();
+
+                        !should_filter_path_list
+                            || path_nodes
+                                .range_cardinality(visible_node_range.clone())
+                                > 0
+                    };
+
                     if rows != 0 {
-                        self.path_list_view.scroll_relative(-rows);
+                        self.path_list_view
+                            .scroll_relative_filtered(-rows, filter_path_list);
                         self.force_resample = true;
                     }
                 }
@@ -977,8 +1051,7 @@ impl AppWindow for Viewer1D {
                     }
                     context_state.set("Viewer1D", ["hover"], Bp(pan_pos));
 
-                    // searches through all the slots, which probably isn't a problem,
-                    // but it's annoying
+                    // this is Some even when the mouse is over a gap in the path
                     let hovered_path = viz_slot_rect_map.iter().find_map(
                         |((path, _), rect)| rect.contains(pos).then_some(*path),
                     );
@@ -1038,9 +1111,9 @@ impl AppWindow for Viewer1D {
                             annot_slot.draw(&painter, &self.view, cursor_pos);
 
                         if let Some(annot_id) = interacted {
-                            let set = annot_slot.set_id;
+                            let set_id = annot_slot.set_id;
                             let global_id =
-                                GlobalAnnotationId { set, annot_id };
+                                GlobalAnnotationId { set_id, annot_id };
 
                             let path = self
                                 .annotations
@@ -1158,6 +1231,23 @@ impl AppWindow for Viewer1D {
                 use winit::event::VirtualKeyCode as Key;
                 let pressed = matches!(input.state, ElementState::Pressed);
 
+                let visible_node_range = {
+                    let range = self.visible_node_range();
+                    (range.start.ix() as u32)..(range.end.ix() as u32)
+                };
+
+                let filter_path_list = |path: &PathId| {
+                    let path_nodes =
+                        &self.shared.graph.path_node_sets[path.ix()];
+                    let should_filter_path_list =
+                        self.cfg.filter_path_list_by_visibility.load();
+
+                    !should_filter_path_list
+                        || path_nodes
+                            .range_cardinality(visible_node_range.clone())
+                            > 0
+                };
+
                 if pressed {
                     match key {
                         Key::Right => {
@@ -1167,11 +1257,13 @@ impl AppWindow for Viewer1D {
                             self.view.translate_norm_f32(-0.1);
                         }
                         Key::Up => {
-                            self.path_list_view.scroll_relative(-1);
+                            self.path_list_view
+                                .scroll_relative_filtered(-1, filter_path_list);
                             self.force_resample = true;
                         }
                         Key::Down => {
-                            self.path_list_view.scroll_relative(1);
+                            self.path_list_view
+                                .scroll_relative_filtered(1, filter_path_list);
                             self.force_resample = true;
                         }
                         Key::Space => {
@@ -1359,5 +1451,20 @@ impl AppWindow for Viewer1D {
             .unwrap();
 
         Ok(())
+    }
+}
+
+impl Viewer1D {
+    fn visible_node_range(&self) -> std::ops::Range<Node> {
+        let view = self.view.range();
+        let left_node = self.shared.graph.node_at_pangenome_pos(Bp(view.start));
+        let right_node = self.shared.graph.node_at_pangenome_pos(Bp(view.end));
+
+        let left = left_node.map(|n| n.ix()).unwrap_or(0);
+        let right = right_node
+            .map(|n| n.ix())
+            .unwrap_or(self.shared.graph.node_count - 1);
+
+        Node::from(left)..Node::from(right)
     }
 }

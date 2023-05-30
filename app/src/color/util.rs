@@ -1,4 +1,4 @@
-fn hashed_rgb(name: &str) -> [u8; 3] {
+pub fn hashed_rgb(name: &str) -> [u8; 3] {
     use sha2::Digest;
     use sha2::Sha256;
 
@@ -13,16 +13,20 @@ fn hashed_rgb(name: &str) -> [u8; 3] {
     [r, g, b]
 }
 
-pub fn path_name_hash_color_alt(path_name: &str) -> [f32; 3] {
-    let [path_r, path_g, path_b] = hashed_rgb(path_name);
+pub fn string_hash_color_f32(input: &str) -> [f32; 3] {
+    let [s_r, s_g, s_b] = hashed_rgb(input);
 
-    let r_f = (path_r as f32) / std::u8::MAX as f32;
-    let g_f = (path_g as f32) / std::u8::MAX as f32;
-    let b_f = (path_b as f32) / std::u8::MAX as f32;
+    let r_f = (s_r as f32) / std::u8::MAX as f32;
+    let g_f = (s_g as f32) / std::u8::MAX as f32;
+    let b_f = (s_b as f32) / std::u8::MAX as f32;
 
     let sum = r_f + g_f + b_f;
 
     [r_f / sum, g_f / sum, b_f / sum]
+}
+
+pub fn path_name_hash_color_alt(path_name: &str) -> [f32; 3] {
+    string_hash_color_f32(path_name)
 }
 
 pub fn path_name_hash_color(path_name: &str) -> [f32; 3] {

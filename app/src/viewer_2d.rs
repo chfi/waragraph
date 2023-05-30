@@ -1,9 +1,13 @@
+use crate::annotations::{AnnotationId, GlobalAnnotationId};
+use crate::app::settings_menu::SettingsWindow;
 use crate::app::{AppWindow, SharedState};
 use crate::color::ColorMap;
 use crate::context::{ContextQuery, ContextState};
+use crate::gui::annotations::AnnotationListWidget;
 use crate::util::BufferDesc;
+use crate::viewer_2d::config::Config;
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::num::NonZeroU32;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -11,6 +15,7 @@ use std::sync::Arc;
 use crossbeam::atomic::AtomicCell;
 use raving_wgpu::camera::DynamicCamera2d;
 use raving_wgpu::texture::Texture;
+use tokio::sync::RwLock;
 use wgpu::BufferUsages;
 use winit::event::WindowEvent;
 
@@ -26,7 +31,10 @@ use ultraviolet::*;
 
 use waragraph_core::graph::{Bp, Node, PathIndex};
 
+pub mod annotations;
+pub mod config;
 pub mod control;
+pub mod gui;
 pub mod layout;
 pub mod util;
 pub mod view;
@@ -37,6 +45,7 @@ use control::ViewControlWidget;
 
 use layout::NodePositions;
 
+use self::annotations::AnnotationLayer;
 use self::view::View2D;
 
 #[derive(Debug)]
@@ -63,6 +72,8 @@ pub struct Viewer2D {
 
     shared: SharedState,
 
+    annotation_layer: AnnotationLayer,
+
     active_viz_data_key: String,
     color_mapping: crate::util::Uniform<ColorMap, 16>,
     data_buffer: wgpu::Buffer,
@@ -71,6 +82,10 @@ pub struct Viewer2D {
 
     pub msg_tx: crossbeam::channel::Sender<control::Msg>,
     msg_rx: crossbeam::channel::Receiver<control::Msg>,
+
+    cfg: Config,
+
+    annotation_list_widget: AnnotationListWidget,
 }
 
 impl Viewer2D {
@@ -80,6 +95,7 @@ impl Viewer2D {
         path_index: Arc<PathIndex>,
         layout_tsv: impl AsRef<std::path::Path>,
         shared: &SharedState,
+        settings_window: &mut SettingsWindow,
     ) -> Result<Self> {
         let (node_positions, vertex_buffer, instance_count) = {
             let pos = NodePositions::from_layout_tsv(layout_tsv)?;
@@ -280,8 +296,50 @@ impl Viewer2D {
         let view_control_widget =
             ViewControlWidget::new(shared, msg_tx.clone());
 
+        let mut annotation_layer = AnnotationLayer::default();
+
+        let node_positions = Arc::new(node_positions);
+
+        {
+            let annotations = shared
+                .annotations
+                .blocking_read()
+                .annotation_sets
+                .iter()
+                .flat_map(|(set_id, set)| {
+                    (0..set.annotations.len()).map(|i| GlobalAnnotationId {
+                        set_id: *set_id,
+                        annot_id: AnnotationId(i),
+                    })
+                })
+                .collect::<Vec<_>>();
+
+            annotation_layer.load_annotations(
+                shared,
+                node_positions.clone(),
+                annotations,
+            );
+        }
+
+        let cfg = {
+            let cfg = Config::default();
+
+            let widget = config::ConfigWidget { cfg: cfg.clone() };
+
+            settings_window.register_widget(
+                "2D Viewer",
+                "Configuration",
+                Arc::new(RwLock::new(widget)),
+            );
+
+            cfg
+        };
+
+        let annotation_list_widget =
+            AnnotationListWidget::new(shared.annotations.clone());
+
         Ok(Self {
-            node_positions: Arc::new(node_positions),
+            node_positions,
 
             vertex_buffer,
             instance_count,
@@ -305,7 +363,13 @@ impl Viewer2D {
             msg_tx,
             msg_rx,
 
+            cfg,
+
             view_control_widget,
+
+            annotation_layer,
+
+            annotation_list_widget,
         })
     }
 
@@ -383,6 +447,80 @@ impl AppWindow for Viewer2D {
                         context_state,
                         ui,
                     );
+
+                    ui.separator();
+
+                    self.annotation_list_widget.show(
+                        ui,
+                        |ui, annot_id, annotation| {
+                            use egui::mutex::Mutex;
+
+                            let mut widget_text =
+                                egui::RichText::new(annotation.label.as_str());
+
+                            let is_pinned = ui.data(|data| {
+                                let pinned = data.get_temp::<Arc<
+                                    Mutex<HashSet<GlobalAnnotationId>>,
+                                >>(
+                                    egui::Id::null()
+                                );
+
+                                pinned
+                                    .map(|pinned| {
+                                        let pinned = pinned.lock();
+                                        pinned.contains(&annot_id)
+                                    })
+                                    .unwrap_or(false)
+                            });
+
+                            if is_pinned {
+                                let color = ui.style().visuals.extreme_bg_color;
+                                widget_text =
+                                    widget_text.background_color(color);
+                            }
+
+                            let widget = egui::Label::new(widget_text)
+                                .sense(egui::Sense::click());
+
+                            let label = ui.add(widget);
+
+                            if label.hovered() {
+                                context_state.set(
+                                    "Viewer2D",
+                                    ["hover"],
+                                    annot_id,
+                                );
+                            }
+
+                            if label.clicked_by(egui::PointerButton::Primary) {
+                                // pan to annotation
+                                let nodes =
+                                    self.shared.graph.path_step_range_iter(
+                                        annotation.path,
+                                        annotation.range.clone(),
+                                    );
+                                let node_centers =
+                                    nodes.unwrap().map(|(_, step)| {
+                                        let (n0, n1) = self
+                                            .node_positions
+                                            .node_pos(step.node());
+                                        let mid = n0 + (n1 - n0) * 0.5;
+                                        mid
+                                    });
+
+                                let pos = crate::util::geometry::centroid(
+                                    node_centers,
+                                );
+
+                                self.view.center = pos;
+                            }
+
+                            if label.clicked_by(egui::PointerButton::Secondary)
+                            {
+                                gui::toggle_pinned_annotation(ui, annot_id);
+                            }
+                        },
+                    );
                 });
 
             let side_panel_rect = side_panel.response.rect;
@@ -439,13 +577,77 @@ impl AppWindow for Viewer2D {
                     .push(egui::Shape::circle_stroke(pmid, 5.0, stroke));
             }
 
+            let node_len = self.shared.graph.node_length(node);
+
             egui::containers::popup::show_tooltip(
                 egui_ctx.ctx(),
                 egui::Id::new("Viewer2D-Node-Tooltip"),
                 |ui| {
                     ui.label(format!("Node {}", node.ix()));
+                    ui.label(format!("Length {} bp", node_len.0));
                 },
             );
+        }
+
+        let mut highlight_annots: HashSet<GlobalAnnotationId> =
+            HashSet::default();
+
+        highlight_annots.extend(
+            context_state
+                .query_get_cast::<_, GlobalAnnotationId>(None, ["hover"])
+                .copied(),
+        );
+
+        egui_ctx.ctx().data(|data| {
+            let mat = self.view.to_viewport_matrix(dims);
+            use egui::mutex::Mutex;
+
+            let pinned = data
+                .get_temp::<Arc<Mutex<HashSet<GlobalAnnotationId>>>>(
+                    egui::Id::null(),
+                );
+
+            if let Some(pinned) = pinned {
+                let pinned = pinned.lock();
+                highlight_annots.extend(pinned.iter().copied());
+            }
+        });
+
+        {
+            let mat = self.view.to_viewport_matrix(dims);
+            let annotations = self.shared.annotations.blocking_read();
+
+            for annot_id in highlight_annots {
+                let annot = annotations.get(annot_id);
+
+                let stroke = egui::Stroke::new(
+                    5.0,
+                    annot.color.unwrap_or(egui::Color32::RED),
+                );
+
+                let mut shapes_vec = Vec::new();
+
+                if let Some(nodes) = self
+                    .shared
+                    .graph
+                    .path_step_range_iter(annot.path, annot.range.clone())
+                {
+                    for (_offset, step) in nodes {
+                        let (n0, n1) =
+                            self.node_positions.node_pos(step.node());
+
+                        let p0 = (mat * n0.into_homogeneous_point()).xy();
+                        let p1 = (mat * n1.into_homogeneous_point()).xy();
+
+                        shapes_vec.push(egui::Shape::line_segment(
+                            [p0.as_array().into(), p1.as_array().into()],
+                            stroke,
+                        ));
+                    }
+
+                    annot_shapes.push(egui::Shape::Vec(shapes_vec));
+                }
+            }
         }
 
         let mut hover_pos: Option<[f32; 2]> = None;
@@ -490,28 +692,38 @@ impl AppWindow for Viewer2D {
                     self.view.translate_size_rel(norm_delta);
                 }
 
-                let painter = ui.painter();
-                painter.extend(annot_shapes);
-            });
+                if let Some(pos) = area_rect.hover_pos() {
+                    hover_pos = Some([pos.x, pos.y]);
 
-            let scroll = ctx.input(|i| i.scroll_delta);
+                    let scroll = ctx.input(|i| i.scroll_delta);
 
-            if let Some(pos) = ctx.pointer_hover_pos() {
-                hover_pos = Some([pos.x, pos.y]);
-            }
+                    let min_scroll = 1.0;
+                    let factor = 0.01;
 
-            if let Some(pos) = ctx.pointer_interact_pos() {
-                let min_scroll = 1.0;
-                let factor = 0.01;
-
-                if scroll.y.abs() > min_scroll {
-                    let dz = 1.0 - scroll.y * factor;
-                    let uvp = Vec2::new(pos.x, pos.y);
-                    let mut norm = uvp / dims;
-                    norm.y = 1.0 - norm.y;
-                    self.view.zoom_with_focus(norm, dz);
+                    if scroll.y.abs() > min_scroll {
+                        let dz = 1.0 - scroll.y * factor;
+                        let uvp = Vec2::new(pos.x, pos.y);
+                        let mut norm = uvp / dims;
+                        norm.y = 1.0 - norm.y;
+                        self.view.zoom_with_focus(norm, dz);
+                    }
                 }
-            }
+
+                let painter = ui.painter();
+
+                painter.extend(annot_shapes);
+
+                if self.cfg.show_annotation_labels.load() {
+                    self.annotation_layer.draw(
+                        tokio_handle,
+                        &self.shared,
+                        &self.node_positions,
+                        &self.view,
+                        dims,
+                        &painter,
+                    );
+                }
+            });
         }
 
         egui_ctx.end_frame(&window.window);
@@ -982,7 +1194,7 @@ impl GeometryBuffers {
         let dst_buf = wgpu::ImageCopyBuffer {
             buffer: &self.node_id_buf.buffer,
             layout: wgpu::ImageDataLayout {
-                bytes_per_row: NonZeroU32::new(aligned_width * stride),
+                bytes_per_row: Some(aligned_width * stride),
                 ..wgpu::ImageDataLayout::default()
             },
         };
@@ -998,7 +1210,7 @@ impl GeometryBuffers {
         let dst_buf = wgpu::ImageCopyBuffer {
             buffer: &self.node_uv_buf.buffer,
             layout: wgpu::ImageDataLayout {
-                bytes_per_row: NonZeroU32::new(aligned_width * stride),
+                bytes_per_row: Some(aligned_width * stride),
                 ..wgpu::ImageDataLayout::default()
             },
         };

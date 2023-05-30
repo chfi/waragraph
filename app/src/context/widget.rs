@@ -152,9 +152,9 @@ impl ContextInspector {
                 let annot_text = {
                     let annots = annotations.blocking_read();
                     let set =
-                        annots.annotation_sets.get(&annot_id.set).unwrap();
-                    let (_range, text) = set.get(annot_id.annot_id).unwrap();
-                    text.to_string()
+                        annots.annotation_sets.get(&annot_id.set_id).unwrap();
+                    let annot = set.get(annot_id.annot_id).unwrap();
+                    annot.label.to_string()
                 };
 
                 let path_name = graph

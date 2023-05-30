@@ -1,12 +1,20 @@
 use anyhow::{anyhow, Result};
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::sync::Arc;
 
 use waragraph_core::graph::{Bp, PathId, PathIndex};
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Annotation {
+    pub path: PathId,
+    pub range: std::ops::Range<Bp>,
+    pub label: Arc<String>,
+    pub color: Option<egui::Color32>,
+}
+
 pub struct AnnotationSet {
     pub name: String,
-    pub annotations: Vec<(std::ops::Range<Bp>, String)>,
+    pub annotations: Vec<Annotation>,
     pub path_annotations: HashMap<PathId, Vec<usize>>,
 }
 
@@ -27,10 +35,7 @@ fn annotation_set_name(
 }
 
 impl AnnotationSet {
-    pub fn get(
-        &self,
-        annot_id: AnnotationId,
-    ) -> Option<&(std::ops::Range<Bp>, String)> {
+    pub fn get(&self, annot_id: AnnotationId) -> Option<&Annotation> {
         self.annotations.get(annot_id.0)
     }
 
@@ -75,7 +80,30 @@ impl AnnotationSet {
                             })?;
 
                         let a_id = annotations.len();
-                        annotations.push((range, name.to_string()));
+
+                        let (label, color) = if let Some((name, color_str)) =
+                            name.rsplit_once(' ')
+                        {
+                            // if `color_str` is a hex-encoded color string #RRGGBB, use that
+                            (
+                                Arc::new(name.to_string()),
+                                parse_color(&color_str),
+                            )
+                        } else {
+                            let [r, g, b] =
+                                crate::color::util::hashed_rgb(&name);
+                            let color = egui::Color32::from_rgb(r, g, b);
+                            (Arc::new(name.to_string()), Some(color))
+                        };
+
+                        let annot = Annotation {
+                            path: path_id,
+                            range,
+                            label,
+                            color,
+                        };
+
+                        annotations.push(annot);
                         path_annotations.entry(path_id).or_default().push(a_id);
                     }
                 }
@@ -116,7 +144,6 @@ impl AnnotationSet {
             match result {
                 Ok(record) => {
                     if let Some(label) = record_label(&record) {
-                        dbg!();
                         let seqid = &record.reference_sequence_name();
 
                         let start = record.start().get();
@@ -135,7 +162,18 @@ impl AnnotationSet {
                             })?;
 
                         let a_id = annotations.len();
-                        annotations.push((range, label));
+
+                        let [r, g, b] = crate::color::util::hashed_rgb(&label);
+                        let color = egui::Color32::from_rgb(r, g, b);
+
+                        let annot = Annotation {
+                            path: path_id,
+                            range,
+                            label: Arc::new(label.to_string()),
+                            color: None,
+                        };
+
+                        annotations.push(annot);
                         path_annotations.entry(path_id).or_default().push(a_id);
                     }
                 }
@@ -161,25 +199,32 @@ pub struct AnnotationId(pub usize);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct GlobalAnnotationId {
-    pub set: AnnotationSetId,
+    pub set_id: AnnotationSetId,
     pub annot_id: AnnotationId,
 }
 
 pub struct AnnotationStore {
-    pub annotation_sets: HashMap<AnnotationSetId, Arc<AnnotationSet>>,
+    pub annotation_sets: BTreeMap<AnnotationSetId, Arc<AnnotationSet>>,
     next_set_id: AnnotationSetId,
 }
 
 impl std::default::Default for AnnotationStore {
     fn default() -> Self {
         Self {
-            annotation_sets: HashMap::default(),
+            annotation_sets: BTreeMap::default(),
             next_set_id: AnnotationSetId(0),
         }
     }
 }
 
 impl AnnotationStore {
+    pub fn get(&self, id: GlobalAnnotationId) -> &Annotation {
+        self.annotation_sets
+            .get(&id.set_id)
+            .and_then(|set| set.get(id.annot_id))
+            .unwrap()
+    }
+
     pub fn insert_set(&mut self, set: AnnotationSet) -> AnnotationSetId {
         let set_id = self.next_set_id;
         self.next_set_id = AnnotationSetId(set_id.0 + 1);
@@ -199,4 +244,29 @@ impl AnnotationStore {
                     .then_some((*set_id, set))
             })
     }
+
+    pub fn total_annotation_count(&self) -> usize {
+        self.annotation_sets
+            .values()
+            .map(|set| set.annotations.len())
+            .sum()
+    }
+}
+
+fn parse_color(color_str: &str) -> Option<egui::Color32> {
+    use btoi::btou_radix;
+
+    let color_str = color_str.trim();
+
+    if color_str.len() != 7 {
+        return None;
+    }
+
+    let rest = color_str.strip_prefix("#")?.as_bytes();
+
+    let r: u8 = btou_radix(&rest[0..=1], 16).ok()?;
+    let g: u8 = btou_radix(&rest[2..=3], 16).ok()?;
+    let b: u8 = btou_radix(&rest[4..=5], 16).ok()?;
+
+    Some(egui::Color32::from_rgb(r, g, b))
 }
