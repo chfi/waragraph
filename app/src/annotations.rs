@@ -72,12 +72,14 @@ impl AnnotationSet {
                         let range = start_bp..end_bp;
 
                         let path_name = path_name_map(seqid);
-                        let path_id = *graph
-                            .path_names
-                            .get_by_right(&path_name)
-                            .ok_or_else(|| {
-                                anyhow!("Path not found: {path_name}")
-                            })?;
+
+                        let path_id = graph.path_names.get_by_right(&path_name);
+
+                        let path_id = if let Some(path) = path_id {
+                            *path
+                        } else {
+                            continue;
+                        };
 
                         let a_id = annotations.len();
 
@@ -154,12 +156,14 @@ impl AnnotationSet {
                         let range = start_bp..end_bp;
 
                         let path_name = path_name_map(seqid);
-                        let path_id = *graph
-                            .path_names
-                            .get_by_right(&path_name)
-                            .ok_or_else(|| {
-                                anyhow!("Path not found: {path_name}")
-                            })?;
+
+                        let path_id = graph.path_names.get_by_right(&path_name);
+
+                        let path_id = if let Some(path) = path_id {
+                            *path
+                        } else {
+                            continue;
+                        };
 
                         let a_id = annotations.len();
 
