@@ -79,7 +79,7 @@ fn vs_main(
 fn fs_main(
            @location(0) uv: vec2f,
            @location(1) @interpolate(flat) slot_id: u32,
-) -> vec4f {
+) -> @location(0) vec4f {
 
   let row_offset = slot_id * u_data.row_size;
   let t = uv.x;
