@@ -8,6 +8,7 @@ pub mod viewer_1d;
 pub mod viewer_2d;
 
 pub mod app;
+pub mod tile_app;
 
 pub mod context;
 

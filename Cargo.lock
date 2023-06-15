@@ -848,6 +848,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "egui_tiles"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2f501eb342a1d53e11842687f360bb9ba5c7971ba443057ac252add5dd2b3d3d"
+dependencies = [
+ "egui",
+ "getrandom",
+ "itertools",
+ "log",
+ "nohash-hasher",
+ "rand",
+ "serde",
+]
+
+[[package]]
 name = "either"
 version = "1.8.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1339,6 +1354,15 @@ name = "iset"
 version = "0.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d0716a0d7080cb7b20b9426276315e6ff5ed537bd920af47417b16de07f9ac76"
+
+[[package]]
+name = "itertools"
+version = "0.10.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b0fd2260e829bddf4cb6ea802289de2f86d6a7a690192fbe91b3f46e0f2c8473"
+dependencies = [
+ "either",
+]
 
 [[package]]
 name = "jni"
@@ -3303,6 +3327,7 @@ dependencies = [
  "egui-wgpu",
  "egui-winit",
  "egui_file",
+ "egui_tiles",
  "env_logger 0.9.3",
  "iset",
  "kiddo",

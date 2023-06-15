@@ -21,6 +21,7 @@ log = "0.4"
 egui = { version = "0.22", features = ["mint"] }
 egui-wgpu = { version = "0.22" }
 egui-winit = { version = "0.22" }
+egui_tiles = "0.1"
 egui_file = "0.9"
 
 wgpu = { version = "0.16", features = ["spirv"] }
