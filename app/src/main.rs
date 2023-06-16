@@ -11,6 +11,15 @@ pub fn main() -> Result<()> {
         .init();
 
     let app = tile_app::App::init()?;
+
+    // raving_wgpu::
+    // let (event_loop, state) =
+    // pollster::block_on(raving_wgpu::initialize_no_window())?;
+
+    let (ev_loop, state, window) =
+        pollster::block_on(raving_wgpu::initialize())?;
+
+    app.run(ev_loop, state, window)
 }
 
 pub fn main_old() -> Result<()> {

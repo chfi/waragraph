@@ -1,6 +1,7 @@
 use std::path::PathBuf;
 use std::sync::Arc;
 
+use raving_wgpu::gui::EguiCtx;
 use winit::{
     event::{ElementState, Event, VirtualKeyCode, WindowEvent},
     event_loop::{ControlFlow, EventLoop, EventLoopWindowTarget},
@@ -143,9 +144,9 @@ impl App {
         })
     }
 
-    pub fn show(&mut self, ctx: &egui::Context) {
-        todo!();
-    }
+    // pub fn show(&mut self, ctx: &egui::Context) {
+    //     todo!();
+    // }
 
     fn start_loading_resources(
         &mut self,
@@ -205,9 +206,17 @@ impl App {
         mut self,
         event_loop: EventLoop<()>,
         state: raving_wgpu::State,
+        mut window: raving_wgpu::WindowState,
     ) -> Result<()> {
         let mut is_ready = false;
         let mut prev_frame_t = std::time::Instant::now();
+
+        let mut egui_ctx = EguiCtx::init(
+            &state,
+            window.surface_format,
+            &event_loop,
+            Some(wgpu::Color::BLACK),
+        );
 
         event_loop.run(
             move |event, event_loop_tgt, control_flow| match &event {
@@ -217,38 +226,76 @@ impl App {
                     }
                 }
                 Event::WindowEvent { window_id, event } => {
-                    match &event {
-                        WindowEvent::CloseRequested => {
-                            *control_flow = ControlFlow::Exit
-                        }
-                        WindowEvent::Resized(phys_size) => {
-                            if is_ready {
-                                /*
-                                app.resize(&state);
-                                app.app
-                                    .on_resize(
-                                        &state,
-                                        app.window.size.into(),
-                                        (*phys_size).into(),
-                                    )
-                                    .unwrap();
-                                */
+                    let consumed = egui_ctx.on_event(event).consumed;
+                    // let mut consumed = app.on_event(event);
+
+                    if !consumed {
+                        match &event {
+                            WindowEvent::CloseRequested => {
+                                *control_flow = ControlFlow::Exit
                             }
+                            WindowEvent::Resized(phys_size) => {
+                                if is_ready {
+                                    window.resize(&state.device);
+                                    /*
+                                    app.resize(&state);
+                                    app.app
+                                        .on_resize(
+                                            &state,
+                                            app.window.size.into(),
+                                            (*phys_size).into(),
+                                        )
+                                        .unwrap();
+                                    */
+                                }
+                            }
+                            WindowEvent::ScaleFactorChanged {
+                                new_inner_size,
+                                ..
+                            } => {
+                                if is_ready {
+                                    window.resize(&state.device);
+                                }
+                            }
+                            _ => {}
                         }
-                        WindowEvent::ScaleFactorChanged {
-                            new_inner_size,
-                            ..
-                        } => {
-                            // if is_ready {
-                            //     app.resize(&state);
-                            // }
-                        }
-                        _ => {}
                     }
                 }
 
                 Event::RedrawRequested(window_id) => {
-                    todo!();
+                    if let Ok(output) = window.surface.get_current_texture() {
+                        let mut encoder = state.device.create_command_encoder(
+                            &wgpu::CommandEncoderDescriptor {
+                                label: Some("TileApp Command Encoder"),
+                            },
+                        );
+
+                        let output_view = output.texture.create_view(
+                            &wgpu::TextureViewDescriptor::default(),
+                        );
+
+                        // let result = app.render(
+                        //     state,
+                        //     window,
+                        //     &output_view,
+                        //     &mut encoder,
+                        // );
+                        // if let Err(e) = result {
+                        //     log::error!("Rendering error: {e:?}");
+                        // }
+
+                        egui_ctx.render(
+                            &state,
+                            &window,
+                            &output_view,
+                            &mut encoder,
+                        );
+                        state.queue.submit(Some(encoder.finish()));
+                        output.present();
+                    } else {
+                        window.resize(&state.device);
+                    }
+
                     /*
                     let app_type = self.app_windows.windows.get(&window_id);
                     if app_type.is_none() {
@@ -264,7 +311,22 @@ impl App {
                     let dt = prev_frame_t.elapsed().as_secs_f32();
                     prev_frame_t = std::time::Instant::now();
 
-                    todo!();
+                    egui_ctx.begin_frame(&window.window);
+
+                    let ctx = egui_ctx.ctx();
+
+                    egui::CentralPanel::default().show(ctx, |ui| {
+                        let mut behavior = AppBehavior {
+                            shared_state: self.shared.as_ref(),
+                            viewer_1d: self.viewer_1d.as_mut(),
+                            viewer_2d: self.viewer_2d.as_mut(),
+                        };
+                        self.tree.ui(&mut behavior, ui);
+                    });
+
+                    egui_ctx.end_frame(&window.window);
+
+                    window.window.request_redraw();
                 }
 
                 _ => {}

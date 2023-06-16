@@ -56,7 +56,9 @@ impl StartPage {
     ) -> Option<super::ResourceLoadState> {
         let mut result = None;
 
-        if let Some((tgt, dialog)) = self.file_dialog.as_ref() {
+        if let Some((tgt, dialog)) = self.file_dialog.as_mut() {
+            dialog.show(ui.ctx());
+
             if dialog.selected() {
                 let path = dialog.path();
                 match tgt {
@@ -67,57 +69,37 @@ impl StartPage {
             }
         }
 
-        ui.vertical(|ui| {
-            ui.horizontal_centered(|ui| {
-                let gfa_button = ui.add_enabled(
-                    self.file_dialog.is_none(),
-                    egui::Button::new("Open GFA"),
-                );
+        ui.vertical_centered_justified(|ui| {
+            Self::file_dialog_row(
+                ui,
+                &mut self.gfa_path,
+                DialogTarget::GFA,
+                &mut self.file_dialog,
+                "gfa",
+                "Open graph GFA",
+            );
+            ui.end_row();
 
-                if gfa_button.clicked() {
-                    let mut dialog =
-                        FileDialog::open_file(self.gfa_path.clone()).filter(
-                            Box::new(|p: &std::path::Path| {
-                                p.extension()
-                                    .map(|e| e.to_ascii_lowercase())
-                                    .is_some_and(|ext| ext == "gfa")
-                            }),
-                        );
+            Self::file_dialog_row(
+                ui,
+                &mut self.tsv_path,
+                DialogTarget::TSV,
+                &mut self.file_dialog,
+                "tsv",
+                "Open graph layout TSV",
+            );
 
-                    dialog.open();
+            ui.end_row();
 
-                    self.file_dialog = Some((DialogTarget::GFA, dialog));
-                }
-
-                let mut gfa_buf = self
-                    .gfa_path
-                    .as_ref()
-                    .map(|s| s.to_string_lossy().to_string())
-                    .unwrap_or_default();
-                ui.add_enabled(false, egui::TextEdit::singleline(&mut gfa_buf));
-
-                ui.end_row();
-
-                Self::file_dialog_row(
-                    ui,
-                    &mut self.tsv_path,
-                    DialogTarget::TSV,
-                    &mut self.file_dialog,
-                    "tsv",
-                    "Open graph layout TSV",
-                );
-
-                ui.end_row();
-
-                if ui.button("Load").clicked() {
-                    result = Some(super::ResourceLoadState {
-                        gfa_path: self.gfa_path.clone(),
-                        tsv_path: self.tsv_path.clone(),
-                        graph: None,
-                        node_positions: None,
-                    });
-                }
-            });
+            if ui.button("Load").clicked() {
+                result = Some(super::ResourceLoadState {
+                    gfa_path: self.gfa_path.clone(),
+                    tsv_path: self.tsv_path.clone(),
+                    graph: None,
+                    node_positions: None,
+                });
+            }
+            ui.end_row();
         });
 
         result
