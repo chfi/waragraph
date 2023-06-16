@@ -1,6 +1,12 @@
 use std::path::PathBuf;
 use std::sync::Arc;
 
+use winit::{
+    event::{ElementState, Event, VirtualKeyCode, WindowEvent},
+    event_loop::{ControlFlow, EventLoop, EventLoopWindowTarget},
+    window::WindowId,
+};
+
 use crate::{
     app::{settings_menu::SettingsWindow, SharedState},
     viewer_1d::Viewer1D,
@@ -81,6 +87,8 @@ pub struct App {
     pub tokio_rt: Arc<tokio::runtime::Runtime>,
     pub shared: Option<SharedState>,
 
+    tree: egui_tiles::Tree<Pane>,
+
     viewer_1d: Option<Viewer1D>,
 
     viewer_2d: Option<Viewer2D>,
@@ -108,11 +116,20 @@ impl App {
             .thread_name("waragraph-tokio")
             .build()?;
 
+        let mut tiles = egui_tiles::Tiles::default();
+        let tabs =
+            vec![tiles.insert_pane(Pane::Start(start::StartPage::default()))];
+        let root = tiles.insert_tab_tile(tabs);
+
+        let tree = egui_tiles::Tree::new(root, tiles);
+
         let tokio_rt = Arc::new(runtime);
 
         Ok(App {
             tokio_rt,
             shared: None,
+
+            tree,
 
             viewer_1d: None,
 
@@ -180,5 +197,78 @@ impl App {
         self.resource_state = Some(resource_state);
 
         Ok(())
+    }
+}
+
+impl App {
+    pub fn run(
+        mut self,
+        event_loop: EventLoop<()>,
+        state: raving_wgpu::State,
+    ) -> Result<()> {
+        let mut is_ready = false;
+        let mut prev_frame_t = std::time::Instant::now();
+
+        event_loop.run(
+            move |event, event_loop_tgt, control_flow| match &event {
+                Event::Resumed => {
+                    if !is_ready {
+                        is_ready = true;
+                    }
+                }
+                Event::WindowEvent { window_id, event } => {
+                    match &event {
+                        WindowEvent::CloseRequested => {
+                            *control_flow = ControlFlow::Exit
+                        }
+                        WindowEvent::Resized(phys_size) => {
+                            if is_ready {
+                                /*
+                                app.resize(&state);
+                                app.app
+                                    .on_resize(
+                                        &state,
+                                        app.window.size.into(),
+                                        (*phys_size).into(),
+                                    )
+                                    .unwrap();
+                                */
+                            }
+                        }
+                        WindowEvent::ScaleFactorChanged {
+                            new_inner_size,
+                            ..
+                        } => {
+                            // if is_ready {
+                            //     app.resize(&state);
+                            // }
+                        }
+                        _ => {}
+                    }
+                }
+
+                Event::RedrawRequested(window_id) => {
+                    todo!();
+                    /*
+                    let app_type = self.app_windows.windows.get(&window_id);
+                    if app_type.is_none() {
+                        return;
+                    }
+                    let app_type = app_type.unwrap();
+
+                    let app = self.app_windows.apps.get_mut(app_type).unwrap();
+                    app.render(&state).unwrap();
+                    */
+                }
+                Event::MainEventsCleared => {
+                    let dt = prev_frame_t.elapsed().as_secs_f32();
+                    prev_frame_t = std::time::Instant::now();
+
+                    todo!();
+                }
+
+                _ => {}
+            },
+        );
     }
 }

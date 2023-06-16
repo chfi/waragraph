@@ -1,8 +1,19 @@
 use waragraph::app::App;
 
+use waragraph::tile_app;
+
 use anyhow::Result;
 
 pub fn main() -> Result<()> {
+    env_logger::builder()
+        .filter_level(log::LevelFilter::Warn)
+        // .filter_level(log::LevelFilter::Debug)
+        .init();
+
+    let app = tile_app::App::init()?;
+}
+
+pub fn main_old() -> Result<()> {
     env_logger::builder()
         .filter_level(log::LevelFilter::Warn)
         // .filter_level(log::LevelFilter::Debug)
