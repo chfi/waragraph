@@ -43,6 +43,10 @@ pub struct AppBehavior<'a> {
     viewer_1d: Option<&'a mut Viewer1D>,
     viewer_2d: Option<&'a mut Viewer2D>,
     // settings: &'a mut SettingsWindow,
+
+    // bit ugly but fine for now
+    // probably want to move into a struct when there's more cases
+    init_resources: Option<ResourceLoadState>,
 }
 
 impl<'a> AppBehavior<'a> {
@@ -67,7 +71,9 @@ impl<'a> egui_tiles::Behavior<Pane> for AppBehavior<'a> {
     ) -> egui_tiles::UiResponse {
         match pane {
             Pane::Start(start) => {
-                start.show(ui);
+                if let Some(load_state) = start.show(ui) {
+                    self.init_resources = Some(load_state);
+                }
             }
             Pane::Viewer1D => {
                 // TODO
@@ -144,14 +150,31 @@ impl App {
         })
     }
 
-    // pub fn show(&mut self, ctx: &egui::Context) {
-    //     todo!();
-    // }
+    pub fn show(&mut self, ctx: &egui::Context) {
+        let mut behavior = AppBehavior {
+            shared_state: self.shared.as_ref(),
+            viewer_1d: self.viewer_1d.as_mut(),
+            viewer_2d: self.viewer_2d.as_mut(),
+            init_resources: None,
+        };
+
+        egui::CentralPanel::default().show(ctx, |ui| {
+            self.tree.ui(&mut behavior, ui);
+        });
+
+        if let Some(state) = behavior.init_resources {
+            self.start_loading_resources(state).unwrap();
+        }
+    }
 
     fn start_loading_resources(
         &mut self,
         mut state: ResourceLoadState,
     ) -> Result<()> {
+        if self.resource_state.is_some() {
+            return Ok(());
+        }
+
         // just in case, don't try to load if we've already begun
         if self.gfa_path.is_some() {
             state.gfa_path = None;
@@ -174,14 +197,23 @@ impl App {
         let handle = self.tokio_rt.spawn_blocking(move || {
             if let Some(gfa_path) = state.gfa_path.as_ref() {
                 // load & set `graph`
-                // state.graph = ...
-                todo!();
+                let result =
+                    waragraph_core::graph::PathIndex::from_gfa(gfa_path);
+
+                match result {
+                    Ok(path_index) => state.graph = Some(path_index),
+                    Err(err) => log::error!("Error parsing GFA: {err:#?}"),
+                }
             };
 
             if let Some(tsv_path) = state.tsv_path.as_ref() {
                 // load & set `node_positions`
-                // state.node_positions = ...
-                todo!();
+                let result = NodePositions::from_layout_tsv(tsv_path);
+
+                match result {
+                    Ok(pos) => state.node_positions = Some(pos),
+                    Err(err) => log::error!("Error parsing layout: {err:#?}"),
+                }
             };
 
             state
@@ -313,16 +345,7 @@ impl App {
 
                     egui_ctx.begin_frame(&window.window);
 
-                    let ctx = egui_ctx.ctx();
-
-                    egui::CentralPanel::default().show(ctx, |ui| {
-                        let mut behavior = AppBehavior {
-                            shared_state: self.shared.as_ref(),
-                            viewer_1d: self.viewer_1d.as_mut(),
-                            viewer_2d: self.viewer_2d.as_mut(),
-                        };
-                        self.tree.ui(&mut behavior, ui);
-                    });
+                    self.show(egui_ctx.ctx());
 
                     egui_ctx.end_frame(&window.window);
 
