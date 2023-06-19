@@ -92,17 +92,17 @@ impl Viewer2D {
     pub fn init(
         state: &State,
         window: &WindowState,
-        path_index: Arc<PathIndex>,
-        layout_tsv: impl AsRef<std::path::Path>,
+        // layout_tsv: impl AsRef<std::path::Path>,
+        node_positions: Arc<NodePositions>,
         shared: &SharedState,
-        settings_window: &mut SettingsWindow,
+        // settings_window: &mut SettingsWindow,
     ) -> Result<Self> {
-        let (node_positions, vertex_buffer, instance_count) = {
-            let pos = NodePositions::from_layout_tsv(layout_tsv)?;
+        let path_index = shared.graph.clone();
 
+        let (vertex_buffer, instance_count) = {
             // TODO: ideally the node IDs and positions would be
             // stored in different buffers
-            let vertex_data = pos
+            let vertex_data = node_positions
                 .iter_nodes()
                 .enumerate()
                 .map(|(ix, p)| {
@@ -126,7 +126,7 @@ impl Viewer2D {
                 },
             );
 
-            (pos, buffer, instance_count)
+            (buffer, instance_count)
         };
 
         let win_dims = {
@@ -298,8 +298,6 @@ impl Viewer2D {
 
         let mut annotation_layer = AnnotationLayer::default();
 
-        let node_positions = Arc::new(node_positions);
-
         {
             let annotations = shared
                 .annotations
@@ -326,11 +324,11 @@ impl Viewer2D {
 
             let widget = config::ConfigWidget { cfg: cfg.clone() };
 
-            settings_window.register_widget(
-                "2D Viewer",
-                "Configuration",
-                Arc::new(RwLock::new(widget)),
-            );
+            // settings_window.register_widget(
+            //     "2D Viewer",
+            //     "Configuration",
+            //     Arc::new(RwLock::new(widget)),
+            // );
 
             cfg
         };

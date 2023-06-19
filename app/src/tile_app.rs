@@ -202,6 +202,8 @@ impl App {
             }
         }
 
+        let mut rebuild_tree = false;
+
         // if SharedState and node positions are ready, but the
         // viewers haven't been initialized, create them and add panes
 
@@ -209,24 +211,55 @@ impl App {
             let dims: [u32; 2] = window.window.inner_size().into();
 
             if self.viewer_1d.is_none() {
-                // TODO initialize 1d viewer
-
                 let viewer =
                     Viewer1D::init(dims, state, window, shared).unwrap();
                 self.viewer_1d = Some(viewer);
 
-                // add pane to tree
-                // let _ = self
-                //     .tree
-                //     .tiles
-                //     .insert_tile(egui_tiles::Tile::Pane(Pane::Viewer1D));
+                rebuild_tree = true;
             }
 
-            if self.viewer_2d.is_none() && self.node_positions.is_some() {
-                // initialize 2d viewer
+            if self.viewer_2d.is_none() {
+                if let Some(pos) = self.node_positions.clone() {
+                    // initialize 2d viewer
+                    let viewer =
+                        Viewer2D::init(state, window, pos, shared).unwrap();
+                    self.viewer_2d = Some(viewer);
 
-                // add pane to tree
+                    rebuild_tree = true;
+                }
             }
+        }
+
+        if rebuild_tree {
+            let mut tiles = egui_tiles::Tiles::default();
+
+            let has_1d = self.viewer_1d.is_some();
+            let has_2d = self.viewer_2d.is_some();
+
+            let mut tabs = vec![];
+            // let tabs = vec![
+            //     tiles.insert_pane(Pane::Start(start::StartPage::default()))
+            // ];
+
+            if !(has_1d && has_2d) {
+                tabs.push(
+                    tiles.insert_pane(Pane::Start(start::StartPage::default())),
+                );
+            }
+
+            if has_1d {
+                tabs.push(tiles.insert_pane(Pane::Viewer1D));
+            }
+
+            if has_2d {
+                tabs.push(tiles.insert_pane(Pane::Viewer2D));
+            }
+
+            let root = tiles.insert_tab_tile(tabs);
+
+            let tree = egui_tiles::Tree::new(root, tiles);
+
+            self.tree = tree;
         }
     }
 

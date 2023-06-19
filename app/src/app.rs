@@ -20,7 +20,7 @@ use crate::{
     color::{ColorSchemeId, ColorStore},
     context::{widget::ContextInspector, ContextState},
     viewer_1d::Viewer1D,
-    viewer_2d::Viewer2D,
+    viewer_2d::{layout::NodePositions, Viewer2D},
 };
 
 mod window;
@@ -322,13 +322,14 @@ impl App {
         let title = "Waragraph 2D";
 
         let app = AppWindowState::init(event_loop, state, title, |window| {
+            let pos = Arc::new(NodePositions::from_layout_tsv(tsv)?);
+
             let mut app = Viewer2D::init(
                 state,
                 &window,
-                self.shared.graph.clone(),
-                tsv,
+                pos,
                 &self.shared,
-                &mut self.settings,
+                // &mut self.settings,
             )?;
 
             Ok(Box::new(app))
