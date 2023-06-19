@@ -291,9 +291,8 @@ impl App {
                 dims,
                 state,
                 &window,
-                self.shared.graph.clone(),
                 &self.shared,
-                &mut self.settings,
+                // &mut self.settings,
             )?;
 
             Ok(Box::new(app))

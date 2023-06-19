@@ -15,8 +15,8 @@ use super::{
 };
 
 pub struct Workspace {
-    pub(super) gfa_path: PathBuf,
-    pub(super) tsv_path: Option<PathBuf>,
+    pub gfa_path: PathBuf,
+    pub tsv_path: Option<PathBuf>,
 }
 
 impl Workspace {

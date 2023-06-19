@@ -94,11 +94,12 @@ impl Viewer1D {
         win_dims: [u32; 2],
         state: &State,
         window: &WindowState,
-        path_index: Arc<PathIndex>,
         shared: &SharedState,
-        settings_window: &mut SettingsWindow,
+        // settings_window: &mut SettingsWindow,
     ) -> Result<Self> {
         let t0 = std::time::Instant::now();
+
+        let path_index = shared.graph.clone();
 
         let mut graph = Graph::new();
 
@@ -263,11 +264,11 @@ impl Viewer1D {
                 use_linear_sampler: use_linear_sampler.clone(),
             };
 
-            settings_window.register_widget(
-                "1D Viewer",
-                "Visualization Modes",
-                Arc::new(RwLock::new(viz_mode_widget)),
-            );
+            // settings_window.register_widget(
+            //     "1D Viewer",
+            //     "Visualization Modes",
+            //     Arc::new(RwLock::new(viz_mode_widget)),
+            // );
         }
 
         let cfg = {
@@ -277,11 +278,11 @@ impl Viewer1D {
 
             let widget = config::ConfigWidget { cfg: cfg.clone() };
 
-            settings_window.register_widget(
-                "1D Viewer",
-                "Configuration",
-                Arc::new(RwLock::new(widget)),
-            );
+            // settings_window.register_widget(
+            //     "1D Viewer",
+            //     "Configuration",
+            //     Arc::new(RwLock::new(widget)),
+            // );
 
             cfg
         };

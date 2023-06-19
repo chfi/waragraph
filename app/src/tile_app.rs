@@ -1,7 +1,11 @@
-use std::path::PathBuf;
 use std::sync::Arc;
+use std::{collections::HashMap, path::PathBuf};
 
 use raving_wgpu::gui::EguiCtx;
+use tokio::{
+    runtime::Runtime,
+    sync::{mpsc, RwLock},
+};
 use winit::{
     event::{ElementState, Event, VirtualKeyCode, WindowEvent},
     event_loop::{ControlFlow, EventLoop, EventLoopWindowTarget},
@@ -9,7 +13,12 @@ use winit::{
 };
 
 use crate::{
-    app::{settings_menu::SettingsWindow, SharedState},
+    annotations::{AnnotationSet, AnnotationStore},
+    app::{
+        resource::GraphDataCache, settings_menu::SettingsWindow,
+        workspace::Workspace, SharedState,
+    },
+    color::ColorStore,
     viewer_1d::Viewer1D,
     viewer_2d::{layout::NodePositions, Viewer2D},
 };
@@ -77,9 +86,11 @@ impl<'a> egui_tiles::Behavior<Pane> for AppBehavior<'a> {
             }
             Pane::Viewer1D => {
                 // TODO
+                ui.label("1D placeholder");
             }
             Pane::Viewer2D => {
                 // TODO
+                ui.label("2D placeholder");
             } //
               // Pane::Settings => {
               //     todo!()
@@ -111,8 +122,8 @@ struct ResourceLoadState {
     gfa_path: Option<PathBuf>,
     tsv_path: Option<PathBuf>,
 
-    graph: Option<PathIndex>,
-    node_positions: Option<NodePositions>,
+    graph: Option<Arc<PathIndex>>,
+    node_positions: Option<Arc<NodePositions>>,
 }
 
 impl App {
@@ -148,6 +159,75 @@ impl App {
 
             resource_state: None,
         })
+    }
+
+    pub fn update(
+        &mut self,
+        state: &raving_wgpu::State,
+        window: &raving_wgpu::WindowState,
+    ) {
+        // if resources are ready, initialize the SharedState
+
+        if let Some(res_state) = self.resource_state.as_mut() {
+            use lazy_async_promise::ImmediateValueState as State;
+            match res_state.poll_state() {
+                State::Success(res_state) => {
+                    self.node_positions = res_state.node_positions.clone();
+                    // TODO initialize sharedstate
+
+                    if let Some(graph) = res_state.graph.clone() {
+                        let gfa_path = res_state
+                            .gfa_path
+                            .as_ref()
+                            .map(|p| p.to_path_buf())
+                            .unwrap();
+
+                        let tsv_path = res_state
+                            .tsv_path
+                            .as_ref()
+                            .map(|p| p.to_path_buf());
+                        self.initialize_shared_state(
+                            state, gfa_path, tsv_path, graph,
+                        );
+                    }
+                }
+                State::Updating | State::Empty => {
+                    // do nothing
+                }
+                State::Error(err) => {
+                    // report error and reset
+                    log::error!("{:#?}", err.0);
+                    self.resource_state = None;
+                }
+            }
+        }
+
+        // if SharedState and node positions are ready, but the
+        // viewers haven't been initialized, create them and add panes
+
+        if let Some(shared) = self.shared.as_ref() {
+            let dims: [u32; 2] = window.window.inner_size().into();
+
+            if self.viewer_1d.is_none() {
+                // TODO initialize 1d viewer
+
+                let viewer =
+                    Viewer1D::init(dims, state, window, shared).unwrap();
+                self.viewer_1d = Some(viewer);
+
+                // add pane to tree
+                // let _ = self
+                //     .tree
+                //     .tiles
+                //     .insert_tile(egui_tiles::Tile::Pane(Pane::Viewer1D));
+            }
+
+            if self.viewer_2d.is_none() && self.node_positions.is_some() {
+                // initialize 2d viewer
+
+                // add pane to tree
+            }
+        }
     }
 
     pub fn show(&mut self, ctx: &egui::Context) {
@@ -201,7 +281,7 @@ impl App {
                     waragraph_core::graph::PathIndex::from_gfa(gfa_path);
 
                 match result {
-                    Ok(path_index) => state.graph = Some(path_index),
+                    Ok(path_index) => state.graph = Some(Arc::new(path_index)),
                     Err(err) => log::error!("Error parsing GFA: {err:#?}"),
                 }
             };
@@ -211,7 +291,7 @@ impl App {
                 let result = NodePositions::from_layout_tsv(tsv_path);
 
                 match result {
-                    Ok(pos) => state.node_positions = Some(pos),
+                    Ok(pos) => state.node_positions = Some(Arc::new(pos)),
                     Err(err) => log::error!("Error parsing layout: {err:#?}"),
                 }
             };
@@ -223,6 +303,8 @@ impl App {
             let result = handle.await?;
             Ok(result)
         };
+
+        let _guard = self.tokio_rt.enter();
 
         // create the resource_state as a future that awaits the blocking thread
         let resource_state = ImmediateValuePromise::new(fut);
@@ -343,6 +425,8 @@ impl App {
                     let dt = prev_frame_t.elapsed().as_secs_f32();
                     prev_frame_t = std::time::Instant::now();
 
+                    self.update(&state, &window);
+
                     egui_ctx.begin_frame(&window.window);
 
                     self.show(egui_ctx.ctx());
@@ -355,5 +439,65 @@ impl App {
                 _ => {}
             },
         );
+    }
+}
+
+impl App {
+    fn initialize_shared_state(
+        &mut self,
+        state: &raving_wgpu::State,
+        gfa_path: PathBuf,
+        tsv_path: Option<PathBuf>,
+        // res_state: &ResourceLoadState,
+        graph: Arc<PathIndex>,
+    ) {
+        let workspace = Arc::new(RwLock::new(Workspace { gfa_path, tsv_path }));
+
+        let graph_data_cache = Arc::new(GraphDataCache::init(&graph));
+
+        let colors = Arc::new(RwLock::new(ColorStore::init(state)));
+
+        let mut data_color_schemes = HashMap::default();
+
+        {
+            let mut colors = colors.blocking_write();
+
+            let mut add_entry = |data: &str, color: &str| {
+                let scheme = colors.get_color_scheme_id(color).unwrap();
+
+                colors.create_color_scheme_texture(state, color);
+
+                data_color_schemes.insert(data.into(), scheme);
+            };
+
+            add_entry("depth", "spectral");
+            add_entry("strand", "black_red");
+        }
+
+        let mut annotations = AnnotationStore::default();
+
+        let annotations: Arc<RwLock<AnnotationStore>> =
+            Arc::new(RwLock::new(annotations));
+
+        // i'll remove this before i actually use it
+        let (app_msg_send, app_msg_recv) = mpsc::channel(256);
+
+        let shared = SharedState {
+            graph,
+
+            // shared: Arc::new(RwLock::new(AnyArcMap::default())),
+            graph_data_cache,
+            annotations,
+
+            colors,
+
+            data_color_schemes: Arc::new(data_color_schemes.into()),
+
+            workspace,
+
+            app_msg_send,
+        };
+
+        self.shared = Some(shared);
     }
 }
