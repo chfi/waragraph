@@ -173,7 +173,6 @@ impl App {
             match res_state.poll_state() {
                 State::Success(res_state) => {
                     self.node_positions = res_state.node_positions.clone();
-                    // TODO initialize sharedstate
 
                     if let Some(graph) = res_state.graph.clone() {
                         let gfa_path = res_state

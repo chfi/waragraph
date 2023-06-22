@@ -31,6 +31,8 @@ use ultraviolet::*;
 
 use waragraph_core::graph::{Bp, Node, PathIndex};
 
+pub mod render;
+
 pub mod annotations;
 pub mod config;
 pub mod control;
@@ -394,6 +396,23 @@ impl Viewer2D {
 
         let data: [f32; 4] = [nw, 0.0, 0.0, 0.0];
         queue.write_buffer(&self.vert_config, 0, bytemuck::cast_slice(&[data]));
+    }
+
+    pub fn update_step(&mut self, dt: f32) {
+        todo!();
+    }
+
+    pub fn render_(&mut self, device: &wgpu::Device) -> wgpu::CommandBuffer {
+        todo!();
+    }
+
+    pub fn show(
+        &mut self,
+        state: &raving_wgpu::State,
+        window: &raving_wgpu::WindowState,
+        ui: &mut egui::Ui,
+    ) {
+        todo!();
     }
 }
 
