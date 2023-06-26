@@ -1,6 +1,8 @@
 use anyhow::{Context, Result};
 use raving_wgpu::node::GraphicsNode;
 
+use wgpu::util::{BufferInitDescriptor, DeviceExt};
+
 pub struct PagedBuffers {
     page_size: u64, // bytes
     stride: u64,    // bytes
@@ -11,7 +13,7 @@ pub struct PagedBuffers {
 impl PagedBuffers {
     pub fn new(
         device: &wgpu::Device,
-        usage: wgpu::BufferUsages,
+        mut usage: wgpu::BufferUsages,
         stride: u64,
         desired_capacity: usize, // in elements
     ) -> Result<Self> {
@@ -24,6 +26,8 @@ impl PagedBuffers {
             (total_size / page_size) + (total_size % page_size).max(1);
 
         let mut pages = Vec::new();
+
+        usage |= wgpu::BufferUsages::COPY_DST;
 
         for _ in 0..page_count {
             let buffer = device.create_buffer(&wgpu::BufferDescriptor {
@@ -62,7 +66,6 @@ impl PagedBuffers {
                           self.capacity());
         }
 
-        // TODO this only works if self was created with COPY_DST usage
         for (page, chunk) in self
             .pages
             .iter()
@@ -110,13 +113,14 @@ pub struct PolylineRenderer {
 
     uniform_buffer: wgpu::Buffer,
     //
-    transform: ultraviolet::Mat4x4,
+    transform: ultraviolet::Mat4,
 }
 
 impl PolylineRenderer {
     pub fn new(
         device: &wgpu::Device,
         surface_format: wgpu::TextureFormat,
+        max_segments: usize,
     ) -> Result<Self> {
         let shader_src = include_str!(concat!(
             env!("CARGO_MANIFEST_DIR"),
@@ -173,15 +177,33 @@ impl PolylineRenderer {
             ],
         )?;
 
-        let vertex_buffers = todo!();
-        let color_buffers = todo!();
+        let vertex_buffers = PagedBuffers::new(
+            device,
+            wgpu::BufferUsages::VERTEX,
+            8,
+            max_segments,
+        )?;
+        let color_buffers = PagedBuffers::new(
+            device,
+            wgpu::BufferUsages::STORAGE,
+            4,
+            max_segments,
+        )?;
+
+        let transform = ultraviolet::Mat4::identity();
+
+        let uniform_buffer = device.create_buffer_init(&BufferInitDescriptor {
+            label: None,
+            contents: bytemuck::cast_slice(&[transform]),
+            usage: wgpu::BufferUsages::UNIFORM,
+        });
 
         Ok(Self {
             graphics_node,
             vertex_buffers,
             color_buffers,
-            uniform_buffer: todo!(),
-            transform: todo!(),
+            uniform_buffer,
+            transform: transform.into(),
         })
     }
 }
