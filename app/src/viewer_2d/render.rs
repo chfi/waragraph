@@ -1,3 +1,187 @@
+use anyhow::{Context, Result};
+use raving_wgpu::node::GraphicsNode;
+
+pub struct PagedBuffers {
+    page_size: u64, // bytes
+    stride: u64,    // bytes
+
+    pages: Vec<wgpu::Buffer>,
+}
+
+impl PagedBuffers {
+    pub fn new(
+        device: &wgpu::Device,
+        usage: wgpu::BufferUsages,
+        stride: u64,
+        desired_capacity: usize, // in elements
+    ) -> Result<Self> {
+        let max_size = device.limits().max_buffer_size;
+
+        // TODO set the page size to the greatest multiple of `stride` smaller than `max_size`
+        let total_size = desired_capacity as u64 * stride;
+        let page_size = total_size.min(max_size);
+        let page_count =
+            (total_size / page_size) + (total_size % page_size).max(1);
+
+        let mut pages = Vec::new();
+
+        for _ in 0..page_count {
+            let buffer = device.create_buffer(&wgpu::BufferDescriptor {
+                label: None,
+                size: page_size,
+                usage,
+                mapped_at_creation: false,
+            });
+
+            pages.push(buffer);
+        }
+
+        Ok(Self {
+            page_size,
+            stride,
+            pages,
+        })
+    }
+
+    pub fn upload_slice<T: bytemuck::Pod>(
+        &self,
+        state: &raving_wgpu::State,
+        data: &[T],
+    ) -> Result<()> {
+        let el_size = std::mem::size_of::<T>();
+
+        if el_size != self.stride as usize {
+            anyhow::bail!("PagedBuffers upload error: data stride {} did not match expected stride {}",
+                          el_size,
+                          self.stride);
+        }
+
+        if data.len() > self.capacity() {
+            anyhow::bail!("PagedBuffers upload error: data would not fit in buffer ({} > {} elements)",
+                          data.len(),
+                          self.capacity());
+        }
+
+        // TODO this only works if self was created with COPY_DST usage
+        for (page, chunk) in self
+            .pages
+            .iter()
+            .zip(data.chunks(self.page_size() as usize))
+        {
+            state
+                .queue
+                .write_buffer(page, 0, bytemuck::cast_slice(chunk));
+        }
+
+        Ok(())
+    }
+
+    pub fn page_size(&self) -> u64 {
+        self.page_size
+    }
+
+    pub fn stride(&self) -> u64 {
+        self.stride
+    }
+
+    pub fn pages(&self) -> &[wgpu::Buffer] {
+        &self.pages
+    }
+
+    pub fn page_count(&self) -> usize {
+        self.pages.len()
+    }
+
+    pub fn capacity(&self) -> usize {
+        let els_per_page = (self.page_size / self.stride) as usize;
+        els_per_page * self.pages.len()
+    }
+
+    pub fn total_size(&self) -> u64 {
+        self.page_size * self.pages.len() as u64
+    }
+}
+
 pub struct PolylineRenderer {
+    graphics_node: GraphicsNode,
+
+    vertex_buffers: PagedBuffers,
+    color_buffers: PagedBuffers,
+
+    uniform_buffer: wgpu::Buffer,
     //
+    transform: ultraviolet::Mat4x4,
+}
+
+impl PolylineRenderer {
+    pub fn new(
+        device: &wgpu::Device,
+        surface_format: wgpu::TextureFormat,
+    ) -> Result<Self> {
+        let shader_src = include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/shaders/path_2d_g.wgsl"
+        ));
+
+        let graphics_node = raving_wgpu::node::graphics_node(
+            device,
+            shader_src,
+            "vs_main",
+            "fs_main",
+            wgpu::PrimitiveState {
+                topology: wgpu::PrimitiveTopology::TriangleList,
+                front_face: wgpu::FrontFace::Cw,
+                cull_mode: None, // TODO fix
+                // cull_mode: Some(wgpu::Face::Front),
+                polygon_mode: wgpu::PolygonMode::Fill,
+
+                strip_index_format: None,
+                unclipped_depth: false,
+                conservative: false,
+            },
+            None,
+            wgpu::MultisampleState::default(),
+            [(
+                ["p0", "p1", "node_id"].as_slice(),
+                wgpu::VertexStepMode::Instance,
+            )],
+            [
+                (
+                    "color",
+                    wgpu::ColorTargetState {
+                        format: surface_format,
+                        blend: Some(wgpu::BlendState::REPLACE),
+                        write_mask: wgpu::ColorWrites::all(),
+                    },
+                ),
+                (
+                    "node_id",
+                    wgpu::ColorTargetState {
+                        format: wgpu::TextureFormat::R32Uint,
+                        blend: None,
+                        write_mask: wgpu::ColorWrites::all(),
+                    },
+                ),
+                (
+                    "uv",
+                    wgpu::ColorTargetState {
+                        format: wgpu::TextureFormat::Rg32Float,
+                        blend: None,
+                        write_mask: wgpu::ColorWrites::all(),
+                    },
+                ),
+            ],
+        )?;
+
+        let vertex_buffers = todo!();
+        let color_buffers = todo!();
+
+        Ok(Self {
+            graphics_node,
+            vertex_buffers,
+            color_buffers,
+            uniform_buffer: todo!(),
+            transform: todo!(),
+        })
+    }
 }

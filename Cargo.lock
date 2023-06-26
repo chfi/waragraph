@@ -3340,6 +3340,7 @@ dependencies = [
  "env_logger 0.9.3",
  "iset",
  "kiddo",
+ "lazy_async_promise",
  "log",
  "lyon",
  "memchr",
