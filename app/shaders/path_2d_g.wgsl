@@ -87,10 +87,26 @@ fn vs_main(
 
 struct FragmentOut {
   @location(0) color: vec4f,
-  @location(1) node_id: u32,
-  @location(2) uv: vec2f,
+  // @location(1) node_id: u32,
+  // @location(2) uv: vec2f,
 }
 
+struct ColorMap {
+ min_val: f32,
+ max_val: f32,
+ min_color: f32,
+ max_color: f32,
+}
+
+// @group(0) @binding(0) var<uniform> projection: mat4x4f;
+// @group(0) @binding(1) var<uniform> config: VertConfig;
+
+@group(1) @binding(0) var<storage, read> u_data: array<f32>;
+
+@group(1) @binding(1) var t_sampler: sampler;
+@group(1) @binding(2) var t_colors: texture_1d<f32>;
+
+@group(1) @binding(3) var<uniform> u_color_map: ColorMap;
 
 @fragment
 fn fs_main(
@@ -98,6 +114,18 @@ fn fs_main(
            @location(1) @interpolate(flat) node_id: u32,
 ) -> FragmentOut {
   var result: FragmentOut;
+
+  let v = u_data[node_id];
+
+  let v_n = (v - u_color_map.min_val) / (u_color_map.max_val - u_color_map.min_val);
+  let c_n = mix(u_color_map.min_color, u_color_map.max_color, v_n);
+
+  let color = textureSample(t_colors, t_sampler, c_n);
+
+  result.color = color;
+
+  // result.node_id = node_id;
+  // result.uv = uv;
 
   return result;
 }
