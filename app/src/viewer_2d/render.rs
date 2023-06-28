@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use anyhow::{Context, Result};
 use raving_wgpu::node::GraphicsNode;
 
@@ -111,10 +113,16 @@ pub struct PolylineRenderer {
     vertex_buffers: PagedBuffers,
     color_buffers: PagedBuffers,
 
-    uniform_buffer: wgpu::Buffer,
+    vertex_cfg_uniform: wgpu::Buffer,
+    projection_uniform: wgpu::Buffer,
+
+    // fragment_uniform: wgpu::Buffer,
+    // uniform_buffer: wgpu::Buffer,
     //
     transform: ultraviolet::Mat4,
 
+    bind_groups: Vec<wgpu::BindGroup>,
+    segment_count: usize,
     has_data: bool,
 }
 
@@ -194,19 +202,33 @@ impl PolylineRenderer {
 
         let transform = ultraviolet::Mat4::identity();
 
-        let uniform_buffer = device.create_buffer_init(&BufferInitDescriptor {
-            label: None,
-            contents: bytemuck::cast_slice(&[transform]),
-            usage: wgpu::BufferUsages::UNIFORM,
-        });
+        let node_width = 20f32;
+        let vertex_cfg_uniform =
+            device.create_buffer_init(&BufferInitDescriptor {
+                label: None,
+                contents: bytemuck::cast_slice(&[node_width, 0f32, 0f32, 0f32]),
+                usage: wgpu::BufferUsages::UNIFORM,
+            });
+
+        let projection_uniform =
+            device.create_buffer_init(&BufferInitDescriptor {
+                label: None,
+                contents: bytemuck::cast_slice(&[transform]),
+                usage: wgpu::BufferUsages::UNIFORM,
+            });
 
         Ok(Self {
             graphics_node,
             vertex_buffers,
             color_buffers,
-            uniform_buffer,
+
+            vertex_cfg_uniform,
+            projection_uniform,
+
             transform: transform.into(),
 
+            bind_groups: vec![],
+            segment_count: 0,
             has_data: false,
         })
     }
@@ -238,16 +260,68 @@ impl PolylineRenderer {
         self.color_buffers.upload_slice(state, segment_colors)?;
 
         self.has_data = true;
+        self.segment_count = segment_positions.len();
 
         Ok(())
     }
 
-    pub fn draw_in_pass(
-        &self,
-        // cmd: &mut wgpu::Command
-        pass: &mut wgpu::RenderPass,
-        // cmd: &mut wgpu::Comm
-    ) {
-        todo!();
+    pub fn has_bind_groups(&self) -> bool {
+        !self.bind_groups.is_empty()
+    }
+
+    pub fn create_bind_groups(&mut self, device: &wgpu::Device) -> Result<()> {
+        self.bind_groups.clear();
+
+        let mut bindings = HashMap::default();
+
+        // create bind groups for interface
+
+        // projection
+        bindings.insert(
+            "projection".into(),
+            self.projection_uniform.as_entire_binding(),
+        );
+
+        // vertex config
+        bindings.insert(
+            "config".into(),
+            self.vertex_cfg_uniform.as_entire_binding(),
+        );
+
+        // segment color
+        bindings.insert(
+            "colors".into(),
+            self.color_buffers.pages[0].as_entire_binding(),
+        );
+
+        let bind_groups = self
+            .graphics_node
+            .interface
+            .create_bind_groups(device, &bindings)?;
+
+        self.bind_groups = bind_groups;
+
+        Ok(())
+    }
+
+    pub fn draw_in_pass<'a, 'b>(&'a self, pass: &'a mut wgpu::RenderPass<'b>)
+    where
+        'a: 'b,
+    {
+        if !self.has_data || !self.has_bind_groups() {
+            return;
+        }
+
+        // iterate through the pages "correctly", setting the vertex
+        // buffer & bind groups, and then drawing
+
+        pass.set_vertex_buffer(0, self.vertex_buffers.pages[0].slice(..));
+
+        let offsets = [];
+        for (i, bind_group) in self.bind_groups.iter().enumerate() {
+            pass.set_bind_group(i as u32, bind_group, &offsets);
+        }
+
+        pass.draw(0..6, 0..self.segment_count as u32);
     }
 }
