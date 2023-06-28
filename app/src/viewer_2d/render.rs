@@ -114,6 +114,8 @@ pub struct PolylineRenderer {
     uniform_buffer: wgpu::Buffer,
     //
     transform: ultraviolet::Mat4,
+
+    has_data: bool,
 }
 
 impl PolylineRenderer {
@@ -158,22 +160,22 @@ impl PolylineRenderer {
                         write_mask: wgpu::ColorWrites::all(),
                     },
                 ),
-                (
-                    "node_id",
-                    wgpu::ColorTargetState {
-                        format: wgpu::TextureFormat::R32Uint,
-                        blend: None,
-                        write_mask: wgpu::ColorWrites::all(),
-                    },
-                ),
-                (
-                    "uv",
-                    wgpu::ColorTargetState {
-                        format: wgpu::TextureFormat::Rg32Float,
-                        blend: None,
-                        write_mask: wgpu::ColorWrites::all(),
-                    },
-                ),
+                // (
+                //     "node_id",
+                //     wgpu::ColorTargetState {
+                //         format: wgpu::TextureFormat::R32Uint,
+                //         blend: None,
+                //         write_mask: wgpu::ColorWrites::all(),
+                //     },
+                // ),
+                // (
+                //     "uv",
+                //     wgpu::ColorTargetState {
+                //         format: wgpu::TextureFormat::Rg32Float,
+                //         blend: None,
+                //         write_mask: wgpu::ColorWrites::all(),
+                //     },
+                // ),
             ],
         )?;
 
@@ -204,6 +206,48 @@ impl PolylineRenderer {
             color_buffers,
             uniform_buffer,
             transform: transform.into(),
+
+            has_data: false,
         })
+    }
+
+    pub fn has_data(&self) -> bool {
+        self.has_data
+    }
+
+    pub fn upload_data(
+        &mut self,
+        state: &raving_wgpu::State,
+        segment_positions: &[[f32; 2]],
+        segment_colors: &[[f32; 4]],
+    ) -> Result<()> {
+        let seg_count = segment_positions.len();
+
+        if seg_count != segment_colors.len() {
+            anyhow::bail!(
+                "PolylineRenderer::upload_data: segment_positions \
+                           and segment_colors must have the same length"
+            );
+        }
+
+        if seg_count > self.vertex_buffers.capacity() {
+            panic!("Line data would not fit buffers");
+        }
+
+        self.vertex_buffers.upload_slice(state, segment_positions)?;
+        self.color_buffers.upload_slice(state, segment_colors)?;
+
+        self.has_data = true;
+
+        Ok(())
+    }
+
+    pub fn draw_in_pass(
+        &self,
+        // cmd: &mut wgpu::Command
+        pass: &mut wgpu::RenderPass,
+        // cmd: &mut wgpu::Comm
+    ) {
+        todo!();
     }
 }

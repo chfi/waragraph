@@ -12,6 +12,7 @@ use winit::{
     window::WindowId,
 };
 
+use crate::viewer_2d::render::PolylineRenderer;
 use crate::{
     annotations::{AnnotationSet, AnnotationStore},
     app::{
@@ -112,6 +113,9 @@ pub struct App {
     viewer_2d: Option<Viewer2D>,
     pub node_positions: Option<Arc<NodePositions>>,
 
+    // segment_renderer: Option<ImmediateValuePromise<PolylineRenderer>>,
+    segment_renderer: Option<PolylineRenderer>,
+
     gfa_path: Option<Arc<PathBuf>>,
     tsv_path: Option<Arc<PathBuf>>,
 
@@ -153,6 +157,8 @@ impl App {
 
             viewer_2d: None,
             node_positions: None,
+
+            segment_renderer: None,
 
             gfa_path: None,
             tsv_path: None,
@@ -221,8 +227,28 @@ impl App {
                 if let Some(pos) = self.node_positions.clone() {
                     // initialize 2d viewer
                     let viewer =
-                        Viewer2D::init(state, window, pos, shared).unwrap();
+                        Viewer2D::init(state, window, pos.clone(), shared)
+                            .unwrap();
                     self.viewer_2d = Some(viewer);
+
+                    let mut segment_renderer = PolylineRenderer::new(
+                        &state.device,
+                        window.surface_format,
+                        shared.graph.node_count,
+                    )
+                    .unwrap();
+                    let vertex = pos.positions.as_slice();
+                    let color = vec![[1f32, 0., 0.2, 1.]; vertex.len()];
+
+                    if let Err(e) = segment_renderer.upload_data(
+                        state,
+                        bytemuck::cast_slice(vertex),
+                        color.as_slice(),
+                    ) {
+                        log::error!("{e:?}");
+                    }
+
+                    self.segment_renderer = Some(segment_renderer);
 
                     rebuild_tree = true;
                 }

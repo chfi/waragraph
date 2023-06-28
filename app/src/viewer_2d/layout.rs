@@ -14,7 +14,7 @@ use waragraph_core::graph::{Node, PathIndex};
 
 pub struct NodePositions {
     pub bounds: (Vec2, Vec2),
-    positions: Vec<Vec2>,
+    pub positions: Vec<Vec2>,
 }
 
 impl NodePositions {
