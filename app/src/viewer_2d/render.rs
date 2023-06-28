@@ -1,6 +1,10 @@
 use std::collections::HashMap;
+use std::sync::Arc;
 
 use anyhow::{Context, Result};
+// use egui::mutex::Mutex;
+
+use egui::mutex::RwLock;
 use raving_wgpu::node::GraphicsNode;
 
 use wgpu::util::{BufferInitDescriptor, DeviceExt};
@@ -9,7 +13,7 @@ pub struct PagedBuffers {
     page_size: u64, // bytes
     stride: u64,    // bytes
 
-    pages: Vec<wgpu::Buffer>,
+    pages: Vec<Arc<wgpu::Buffer>>,
 }
 
 impl PagedBuffers {
@@ -39,7 +43,7 @@ impl PagedBuffers {
                 mapped_at_creation: false,
             });
 
-            pages.push(buffer);
+            pages.push(Arc::new(buffer));
         }
 
         Ok(Self {
@@ -89,7 +93,7 @@ impl PagedBuffers {
         self.stride
     }
 
-    pub fn pages(&self) -> &[wgpu::Buffer] {
+    pub fn pages(&self) -> &[Arc<wgpu::Buffer>] {
         &self.pages
     }
 
@@ -107,22 +111,27 @@ impl PagedBuffers {
     }
 }
 
-pub struct PolylineRenderer {
-    graphics_node: GraphicsNode,
-
+struct State {
     vertex_buffers: PagedBuffers,
     color_buffers: PagedBuffers,
 
     vertex_cfg_uniform: wgpu::Buffer,
     projection_uniform: wgpu::Buffer,
 
+    bind_groups: Vec<wgpu::BindGroup>,
+    segment_count: usize,
+}
+
+pub struct PolylineRenderer {
+    graphics_node: GraphicsNode,
+
+    state: Arc<RwLock<State>>,
+
     // fragment_uniform: wgpu::Buffer,
     // uniform_buffer: wgpu::Buffer,
     //
     transform: ultraviolet::Mat4,
 
-    bind_groups: Vec<wgpu::BindGroup>,
-    segment_count: usize,
     has_data: bool,
 }
 
@@ -217,18 +226,22 @@ impl PolylineRenderer {
                 usage: wgpu::BufferUsages::UNIFORM,
             });
 
-        Ok(Self {
-            graphics_node,
+        let state = Arc::new(RwLock::new(State {
             vertex_buffers,
             color_buffers,
-
             vertex_cfg_uniform,
             projection_uniform,
+            segment_count: 0,
+            bind_groups: vec![],
+        }));
+
+        Ok(Self {
+            graphics_node,
+
+            state,
 
             transform: transform.into(),
 
-            bind_groups: vec![],
-            segment_count: 0,
             has_data: false,
         })
     }
@@ -239,7 +252,8 @@ impl PolylineRenderer {
 
     pub fn upload_data(
         &mut self,
-        state: &raving_wgpu::State,
+        // state: &mut State,
+        gpu_state: &raving_wgpu::State,
         segment_positions: &[[f32; 2]],
         segment_colors: &[[f32; 4]],
     ) -> Result<()> {
@@ -252,25 +266,32 @@ impl PolylineRenderer {
             );
         }
 
-        if seg_count > self.vertex_buffers.capacity() {
+        let mut state = self.state.write();
+
+        if seg_count > state.vertex_buffers.capacity() {
             panic!("Line data would not fit buffers");
         }
 
-        self.vertex_buffers.upload_slice(state, segment_positions)?;
-        self.color_buffers.upload_slice(state, segment_colors)?;
+        state
+            .vertex_buffers
+            .upload_slice(gpu_state, segment_positions)?;
+        state
+            .color_buffers
+            .upload_slice(gpu_state, segment_colors)?;
+        state.segment_count = segment_positions.len();
 
         self.has_data = true;
-        self.segment_count = segment_positions.len();
 
         Ok(())
     }
 
-    pub fn has_bind_groups(&self) -> bool {
-        !self.bind_groups.is_empty()
-    }
+    // pub fn has_bind_groups(&self) -> bool {
+    //     !self.bind_groups.is_empty()
+    // }
 
     pub fn create_bind_groups(&mut self, device: &wgpu::Device) -> Result<()> {
-        self.bind_groups.clear();
+        let mut state = self.state.write();
+        state.bind_groups.clear();
 
         let mut bindings = HashMap::default();
 
@@ -279,19 +300,19 @@ impl PolylineRenderer {
         // projection
         bindings.insert(
             "projection".into(),
-            self.projection_uniform.as_entire_binding(),
+            state.projection_uniform.as_entire_binding(),
         );
 
         // vertex config
         bindings.insert(
             "config".into(),
-            self.vertex_cfg_uniform.as_entire_binding(),
+            state.vertex_cfg_uniform.as_entire_binding(),
         );
 
         // segment color
         bindings.insert(
             "colors".into(),
-            self.color_buffers.pages[0].as_entire_binding(),
+            state.color_buffers.pages[0].as_entire_binding(),
         );
 
         let bind_groups = self
@@ -299,29 +320,91 @@ impl PolylineRenderer {
             .interface
             .create_bind_groups(device, &bindings)?;
 
-        self.bind_groups = bind_groups;
+        state.bind_groups = bind_groups;
 
         Ok(())
     }
 
-    pub fn draw_in_pass<'a, 'b>(&'a self, pass: &'a mut wgpu::RenderPass<'b>)
-    where
-        'a: 'b,
-    {
-        if !self.has_data || !self.has_bind_groups() {
-            return;
-        }
-
+    fn draw_in_pass_impl<'a>(
+        state: &'a State,
+        pass: &mut wgpu::RenderPass<'a>,
+    ) {
         // iterate through the pages "correctly", setting the vertex
         // buffer & bind groups, and then drawing
 
-        pass.set_vertex_buffer(0, self.vertex_buffers.pages[0].slice(..));
+        pass.set_vertex_buffer(0, state.vertex_buffers.pages[0].slice(..));
 
         let offsets = [];
-        for (i, bind_group) in self.bind_groups.iter().enumerate() {
+        for (i, bind_group) in state.bind_groups.iter().enumerate() {
             pass.set_bind_group(i as u32, bind_group, &offsets);
         }
 
-        pass.draw(0..6, 0..self.segment_count as u32);
+        pass.draw(0..6, 0..state.segment_count as u32);
+    }
+
+    pub fn show(&self, ui: &mut egui::Ui) {
+        let clip_rect = ui.clip_rect();
+
+        let has_bind_groups = {
+            let state = self.state.read();
+            !state.bind_groups.is_empty()
+        };
+
+        // if !self.has_data || !self.has_bind_groups() {
+        if !self.has_data || !has_bind_groups {
+            return;
+        }
+
+        let state = self.state.clone();
+        let state_ = self.state.clone();
+
+        let paint_callback = egui::PaintCallback {
+            rect: clip_rect,
+            callback: std::sync::Arc::new(
+                egui_wgpu::CallbackFn::new()
+                    .prepare(move |_device, _queue, _encoder, res| {
+                        // res.insert(state.clone());
+
+                        let state = state.read();
+
+                        let vx_pages = state.vertex_buffers.pages.clone();
+                        res.insert(vx_pages);
+
+                        // res.insert_kv_pair(KvPair(k, v));
+
+                        // let vx = state.vertex_buffers.pages[0].clone();
+
+                        // res.insert(vx);
+                        //
+                        vec![]
+                    })
+                    .paint(move |_info, render_pass, res| {
+                        let state = state_.read();
+
+                        // let state:
+                        // let state: &Arc<RwLock<State>> = res.get().unwrap();
+
+                        let vx_pages: &Vec<Arc<wgpu::Buffer>> =
+                            res.get().unwrap();
+
+                        render_pass.set_vertex_buffer(0, vx.slice(..));
+                        // let state = state.read();
+
+                        // let mut what = move || {
+                        // Self::draw_in_pass_impl(&state, render_pass);
+                        // };
+
+                        // what();
+                        // render_pass.set_vertex_buffer(
+                        //     0,
+                        //     state.vertex_buffers.pages[0].slice(..),
+                        // );
+
+                        //
+                    }),
+            ),
+        };
+
+        ui.painter().add(paint_callback);
     }
 }

@@ -237,12 +237,17 @@ impl App {
                         shared.graph.node_count,
                     )
                     .unwrap();
-                    let vertex = pos.positions.as_slice();
+
+                    // let vertex = pos.positions.as_slice();
+
+                    // testing
+                    let vertex = [[0.5f32, 0.0], [0.5, 0.5], [0.0, 0.5]];
+
                     let color = vec![[1f32, 0., 0.2, 1.]; vertex.len()];
 
                     if let Err(e) = segment_renderer.upload_data(
                         state,
-                        bytemuck::cast_slice(vertex),
+                        bytemuck::cast_slice(vertex.as_slice()),
                         color.as_slice(),
                     ) {
                         log::error!("{e:?}");
