@@ -39,8 +39,8 @@ bytemuck = { version = "1.4", features = ["derive"] }
 palette = { version = "0.6", features = ["bytemuck"] }
 colorous = "1.0"
 
-# raving-wgpu = { path = "../../raving-wgpu" }
-raving-wgpu = { git = "https://github.com/chfi/raving-wgpu" }
+raving-wgpu = { path = "../../raving-wgpu" }
+# raving-wgpu = { git = "https://github.com/chfi/raving-wgpu" }
 lyon = "1.0"
 rand = "0.8"
 

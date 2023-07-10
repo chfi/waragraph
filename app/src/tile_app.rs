@@ -1,6 +1,7 @@
 use std::sync::Arc;
 use std::{collections::HashMap, path::PathBuf};
 
+use egui::util::IdTypeMap;
 use raving_wgpu::gui::EguiCtx;
 use tokio::{
     runtime::Runtime,
@@ -120,6 +121,8 @@ pub struct App {
     tsv_path: Option<Arc<PathBuf>>,
 
     resource_state: Option<ImmediateValuePromise<ResourceLoadState>>,
+
+    id_type_map: IdTypeMap,
 }
 
 struct ResourceLoadState {
@@ -164,6 +167,8 @@ impl App {
             tsv_path: None,
 
             resource_state: None,
+
+            id_type_map: Default::default(),
         })
     }
 
@@ -506,6 +511,46 @@ impl App {
 }
 
 impl App {
+    fn allocate_offscreen_target(
+        &mut self,
+        device: &wgpu::Device,
+        id: &str,
+        dims: impl Into<[u32; 2]>,
+        format: wgpu::TextureFormat,
+    ) -> Result<()> {
+        let [width, height] = dims.into();
+        let usage = wgpu::TextureUsages::RENDER_ATTACHMENT
+            | wgpu::TextureUsages::TEXTURE_BINDING;
+
+        let texture = device.create_texture(&wgpu::TextureDescriptor {
+            label: Some(id),
+            size: wgpu::Extent3d {
+                width,
+                height,
+                depth_or_array_layers: 1,
+            },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format,
+            usage,
+            view_formats: &[],
+        });
+
+        let view = texture.create_view(&wgpu::TextureViewDescriptor {
+            label: todo!(),
+            format: todo!(),
+            dimension: todo!(),
+            aspect: todo!(),
+            base_mip_level: todo!(),
+            mip_level_count: todo!(),
+            base_array_layer: todo!(),
+            array_layer_count: todo!(),
+        });
+
+        Ok(())
+    }
+
     fn initialize_shared_state(
         &mut self,
         state: &raving_wgpu::State,
