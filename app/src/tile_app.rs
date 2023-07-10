@@ -59,6 +59,8 @@ pub struct AppBehavior<'a> {
     // bit ugly but fine for now
     // probably want to move into a struct when there's more cases
     init_resources: Option<ResourceLoadState>,
+
+    id_type_map: &'a mut IdTypeMap,
 }
 
 impl<'a> AppBehavior<'a> {
@@ -95,6 +97,23 @@ impl<'a> egui_tiles::Behavior<Pane> for AppBehavior<'a> {
                 if let Some(viewer_2d) = self.viewer_2d.as_ref() {
                     // TODO
                     ui.label("2D placeholder");
+
+                    let painter = ui.painter();
+
+                    let tex_id: egui::TextureId = self
+                        .id_type_map
+                        .get_temp(egui::Id::new("viewer_2d"))
+                        .unwrap();
+
+                    painter.add(egui::Shape::image(
+                        tex_id,
+                        painter.clip_rect(),
+                        egui::Rect::from_min_max(
+                            egui::pos2(0., 0.),
+                            egui::pos2(1., 1.),
+                        ),
+                        egui::Color32::WHITE,
+                    ));
                 } else {
                     ui.label("2D placeholder");
                 }
@@ -120,8 +139,7 @@ pub struct App {
     pub node_positions: Option<Arc<NodePositions>>,
 
     // segment_renderer: Option<ImmediateValuePromise<PolylineRenderer>>,
-    segment_renderer: Option<PolylineRenderer>,
-
+    // segment_renderer: Option<PolylineRenderer>,
     gfa_path: Option<Arc<PathBuf>>,
     tsv_path: Option<Arc<PathBuf>>,
 
@@ -166,8 +184,7 @@ impl App {
             viewer_2d: None,
             node_positions: None,
 
-            segment_renderer: None,
-
+            // segment_renderer: None,
             gfa_path: None,
             tsv_path: None,
 
@@ -181,6 +198,7 @@ impl App {
         &mut self,
         state: &raving_wgpu::State,
         window: &raving_wgpu::WindowState,
+        egui_ctx: &mut EguiCtx,
     ) {
         // if resources are ready, initialize the SharedState
 
@@ -239,8 +257,23 @@ impl App {
                     let viewer =
                         Viewer2D::init(state, window, pos.clone(), shared)
                             .unwrap();
+
+                    let tex = viewer.geometry_bufs.node_color_tex.clone();
+
+                    let tex_view = tex.view.as_ref().unwrap();
+
+                    let tex_id = egui_ctx.renderer.register_native_texture(
+                        &state.device,
+                        tex_view,
+                        wgpu::FilterMode::Linear,
+                    );
+
+                    self.id_type_map
+                        .insert_temp(egui::Id::new("viewer_2d"), tex_id);
+
                     self.viewer_2d = Some(viewer);
 
+                    /*
                     let mut segment_renderer = PolylineRenderer::new(
                         &state.device,
                         window.surface_format,
@@ -264,6 +297,7 @@ impl App {
                     }
 
                     self.segment_renderer = Some(segment_renderer);
+                    */
 
                     rebuild_tree = true;
                 }
@@ -309,6 +343,7 @@ impl App {
             viewer_1d: self.viewer_1d.as_mut(),
             viewer_2d: self.viewer_2d.as_mut(),
             init_resources: None,
+            id_type_map: &mut self.id_type_map,
         };
 
         egui::CentralPanel::default().show(ctx, |ui| {
@@ -423,10 +458,33 @@ impl App {
                             }
                             WindowEvent::Resized(phys_size) => {
                                 if is_ready {
+                                    let old_size: [u32; 2] = window.size.into();
+
                                     window.resize(&state.device);
 
                                     if let Some(v2d) = self.viewer_2d.as_mut() {
-                                        // v2d.res
+                                        if let Err(e) = v2d.on_resize(
+                                            &state,
+                                            old_size,
+                                            window.size.into(),
+                                        ) {
+                                            log::error!("Error resizing 2d viewer: {e:?}");
+                                        }
+
+                                        let tex_id: egui::TextureId = self.id_type_map.get_temp(egui::Id::new("viewer_2d")).unwrap();
+
+                                        let tex = v2d
+                                            .geometry_bufs
+                                            .node_color_tex
+                                            .clone();
+
+                                        let tex_view =
+                                            tex.view.as_ref().unwrap();
+
+                                        egui_ctx.renderer.update_egui_texture_from_wgpu_texture(&state.device, tex_view, wgpu::FilterMode::Linear, tex_id);
+
+
+                                        // self.id_type_map.insert_temp(Id::new("viewer_2d"),
                                     }
                                     /*
                                     app.resize(&state);
@@ -515,7 +573,7 @@ impl App {
                     let dt = prev_frame_t.elapsed().as_secs_f32();
                     prev_frame_t = std::time::Instant::now();
 
-                    self.update(&state, &window);
+                    self.update(&state, &window, &mut egui_ctx);
 
                     egui_ctx.begin_frame(&window.window);
 

@@ -1271,7 +1271,7 @@ impl GeometryBuffers {
             height,
             color_format,
             // wgpu::TextureFormat::Rgba8UnormSrgb,
-            usage,
+            usage | wgpu::TextureUsages::TEXTURE_BINDING,
             Some("Viewer2D Node ID Attch."),
         )?);
 
