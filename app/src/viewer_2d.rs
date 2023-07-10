@@ -67,7 +67,7 @@ pub struct Viewer2D {
     transform_uniform: wgpu::Buffer,
     vert_config: wgpu::Buffer,
 
-    geometry_bufs: GeometryBuffers,
+    pub(crate) geometry_bufs: GeometryBuffers,
 
     render_graph: Graph,
     draw_node: NodeId,
@@ -88,6 +88,7 @@ pub struct Viewer2D {
     cfg: Config,
 
     annotation_list_widget: AnnotationListWidget,
+    color_format: wgpu::TextureFormat,
 }
 
 impl Viewer2D {
@@ -130,6 +131,8 @@ impl Viewer2D {
 
             (buffer, instance_count)
         };
+
+        let color_format = window.surface_format;
 
         let win_dims = {
             let [w, h]: [u32; 2] = window.window.inner_size().into();
@@ -291,6 +294,7 @@ impl Viewer2D {
         let geometry_bufs = GeometryBuffers::allocate(
             state,
             window.window.inner_size().into(),
+            color_format,
         )?;
 
         let (msg_tx, msg_rx) = crossbeam::channel::unbounded();
@@ -370,6 +374,8 @@ impl Viewer2D {
             annotation_layer,
 
             annotation_list_widget,
+
+            color_format,
         })
     }
 
@@ -844,7 +850,11 @@ impl AppWindow for Viewer2D {
         self.view.set_aspect(aspect);
 
         log::info!("reallocating geometry buffers");
-        self.geometry_bufs = GeometryBuffers::allocate(state, new_window_dims)?;
+        self.geometry_bufs = GeometryBuffers::allocate(
+            state,
+            new_window_dims,
+            self.color_format,
+        )?;
 
         Ok(())
     }
@@ -1059,8 +1069,10 @@ fn parse_path(
     Ok(s.into())
 }
 
-struct GeometryBuffers {
+pub(crate) struct GeometryBuffers {
     dims: [u32; 2],
+
+    pub(crate) node_color_tex: Arc<Texture>,
 
     node_id_tex: Texture,
     node_uv_tex: Texture,
@@ -1241,7 +1253,11 @@ impl GeometryBuffers {
         256 * (div + rem)
     }
 
-    fn allocate(state: &raving_wgpu::State, dims: [u32; 2]) -> Result<Self> {
+    fn allocate(
+        state: &raving_wgpu::State,
+        dims: [u32; 2],
+        color_format: wgpu::TextureFormat,
+    ) -> Result<Self> {
         use wgpu::TextureUsages;
 
         let usage = TextureUsages::RENDER_ATTACHMENT | TextureUsages::COPY_SRC;
@@ -1249,9 +1265,18 @@ impl GeometryBuffers {
         let width = dims[0] as usize;
         let height = dims[1] as usize;
 
+        let node_color_tex = Arc::new(Texture::new(
+            &state.device,
+            width,
+            height,
+            color_format,
+            // wgpu::TextureFormat::Rgba8UnormSrgb,
+            usage,
+            Some("Viewer2D Node ID Attch."),
+        )?);
+
         let node_id_tex = Texture::new(
             &state.device,
-            &state.queue,
             width,
             height,
             wgpu::TextureFormat::R32Uint,
@@ -1261,7 +1286,6 @@ impl GeometryBuffers {
 
         let node_uv_tex = Texture::new(
             &state.device,
-            &state.queue,
             width,
             height,
             wgpu::TextureFormat::Rg32Float,
@@ -1277,7 +1301,6 @@ impl GeometryBuffers {
 
         let node_id_copy_dst_tex = Texture::new(
             &state.device,
-            &state.queue,
             aligned_width,
             height,
             wgpu::TextureFormat::R32Uint,
@@ -1287,7 +1310,6 @@ impl GeometryBuffers {
 
         let node_uv_copy_dst_tex = Texture::new(
             &state.device,
-            &state.queue,
             aligned_width,
             height,
             wgpu::TextureFormat::Rg32Float,
@@ -1332,6 +1354,7 @@ impl GeometryBuffers {
 
         Ok(Self {
             dims,
+            node_color_tex,
             node_id_tex,
             node_uv_tex,
             node_id_buf,

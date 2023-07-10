@@ -387,7 +387,7 @@ impl PolylineRenderer {
                         let vx_pages: &Vec<Arc<wgpu::Buffer>> =
                             res.get().unwrap();
 
-                        render_pass.set_vertex_buffer(0, vx.slice(..));
+                        // render_pass.set_vertex_buffer(0, vx.slice(..));
                         // let state = state.read();
 
                         // let mut what = move || {

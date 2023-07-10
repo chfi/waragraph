@@ -13,6 +13,7 @@ use winit::{
     window::WindowId,
 };
 
+use crate::app::AppWindow;
 use crate::viewer_2d::render::PolylineRenderer;
 use crate::{
     annotations::{AnnotationSet, AnnotationStore},
@@ -91,8 +92,12 @@ impl<'a> egui_tiles::Behavior<Pane> for AppBehavior<'a> {
                 ui.label("1D placeholder");
             }
             Pane::Viewer2D => {
-                // TODO
-                ui.label("2D placeholder");
+                if let Some(viewer_2d) = self.viewer_2d.as_ref() {
+                    // TODO
+                    ui.label("2D placeholder");
+                } else {
+                    ui.label("2D placeholder");
+                }
             } //
               // Pane::Settings => {
               //     todo!()
@@ -419,6 +424,10 @@ impl App {
                             WindowEvent::Resized(phys_size) => {
                                 if is_ready {
                                     window.resize(&state.device);
+
+                                    if let Some(v2d) = self.viewer_2d.as_mut() {
+                                        // v2d.res
+                                    }
                                     /*
                                     app.resize(&state);
                                     app.app
@@ -465,6 +474,19 @@ impl App {
                         // if let Err(e) = result {
                         //     log::error!("Rendering error: {e:?}");
                         // }
+
+                        if let Some(viewer_2d) = self.viewer_2d.as_mut() {
+                            let tex =
+                                viewer_2d.geometry_bufs.node_color_tex.clone();
+
+                            let tex_view = tex.view.as_ref().unwrap();
+                            let _ = viewer_2d.render(
+                                &state,
+                                &window,
+                                tex_view,
+                                &mut encoder,
+                            );
+                        }
 
                         egui_ctx.render(
                             &state,
@@ -520,33 +542,46 @@ impl App {
     ) -> Result<()> {
         let [width, height] = dims.into();
         let usage = wgpu::TextureUsages::RENDER_ATTACHMENT
+            | wgpu::TextureUsages::COPY_SRC
             | wgpu::TextureUsages::TEXTURE_BINDING;
 
-        let texture = device.create_texture(&wgpu::TextureDescriptor {
-            label: Some(id),
-            size: wgpu::Extent3d {
-                width,
-                height,
-                depth_or_array_layers: 1,
-            },
-            mip_level_count: 1,
-            sample_count: 1,
-            dimension: wgpu::TextureDimension::D2,
+        let texture = raving_wgpu::texture::Texture::new(
+            device,
+            width as usize,
+            height as usize,
             format,
             usage,
-            view_formats: &[],
-        });
+            Some(id),
+        )?;
 
-        let view = texture.create_view(&wgpu::TextureViewDescriptor {
-            label: todo!(),
-            format: todo!(),
-            dimension: todo!(),
-            aspect: todo!(),
-            base_mip_level: todo!(),
-            mip_level_count: todo!(),
-            base_array_layer: todo!(),
-            array_layer_count: todo!(),
-        });
+        self.id_type_map
+            .insert_temp(egui::Id::new(id), Arc::new(texture));
+
+        // let texture = device.create_texture(&wgpu::TextureDescriptor {
+        //     label: Some(id),
+        //     size: wgpu::Extent3d {
+        //         width,
+        //         height,
+        //         depth_or_array_layers: 1,
+        //     },
+        //     mip_level_count: 1,
+        //     sample_count: 1,
+        //     dimension: wgpu::TextureDimension::D2,
+        //     format,
+        //     usage,
+        //     view_formats: &[],
+        // });
+
+        // let view = texture.create_view(&wgpu::TextureViewDescriptor {
+        //     label: Some(id),
+        //     format,
+        //     dimension: wgpu::TextureDimension::D2,
+        //     aspect: wgpu::TextureAspect::All,
+        //     base_mip_level:
+        //     mip_level_count: todo!(),
+        //     base_array_layer: todo!(),
+        //     array_layer_count: todo!(),
+        // });
 
         Ok(())
     }
