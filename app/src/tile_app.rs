@@ -321,9 +321,9 @@ impl App {
                 );
             }
 
-            if has_1d {
-                tabs.push(tiles.insert_pane(Pane::Viewer1D));
-            }
+            // if has_1d {
+            //     tabs.push(tiles.insert_pane(Pane::Viewer1D));
+            // }
 
             if has_2d {
                 tabs.push(tiles.insert_pane(Pane::Viewer2D));
@@ -523,27 +523,8 @@ impl App {
                             &wgpu::TextureViewDescriptor::default(),
                         );
 
-                        // let result = app.render(
-                        //     state,
-                        //     window,
-                        //     &output_view,
-                        //     &mut encoder,
-                        // );
-                        // if let Err(e) = result {
-                        //     log::error!("Rendering error: {e:?}");
-                        // }
-
                         if let Some(viewer_2d) = self.viewer_2d.as_mut() {
-                            let tex =
-                                viewer_2d.geometry_bufs.node_color_tex.clone();
-
-                            let tex_view = tex.view.as_ref().unwrap();
-                            let _ = viewer_2d.render(
-                                &state,
-                                &window,
-                                tex_view,
-                                &mut encoder,
-                            );
+                            viewer_2d.render_(&state, window.size, &mut encoder);
                         }
 
                         egui_ctx.render(
@@ -558,16 +539,6 @@ impl App {
                         window.resize(&state.device);
                     }
 
-                    /*
-                    let app_type = self.app_windows.windows.get(&window_id);
-                    if app_type.is_none() {
-                        return;
-                    }
-                    let app_type = app_type.unwrap();
-
-                    let app = self.app_windows.apps.get_mut(app_type).unwrap();
-                    app.render(&state).unwrap();
-                    */
                 }
                 Event::MainEventsCleared => {
                     let dt = prev_frame_t.elapsed().as_secs_f32();

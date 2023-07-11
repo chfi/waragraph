@@ -408,8 +408,177 @@ impl Viewer2D {
         todo!();
     }
 
-    pub fn render_(&mut self, device: &wgpu::Device) -> wgpu::CommandBuffer {
-        todo!();
+    pub fn render_(
+        &mut self,
+        state: &raving_wgpu::State,
+        // device: &wgpu::Device,
+        // queue: &wgpu::Queue,
+        dims: impl Into<[u32; 2]>,
+        // color_texture: &wgpu::TextureView,
+        encoder: &mut wgpu::CommandEncoder,
+    ) {
+        let size: [u32; 2] = dims.into();
+        let [w, h] = size;
+
+        self.update_transform_uniform(&state.queue);
+        self.update_vert_config_uniform(&state.queue, [w as f32, h as f32]);
+
+        let mut transient_res: HashMap<String, InputResource<'_>> =
+            HashMap::default();
+
+        let format = self.color_format;
+        let swapchain_view = self.geometry_bufs.node_color_tex.view.as_ref();
+
+        transient_res.insert(
+            "swapchain".into(),
+            InputResource::Texture {
+                size,
+                format,
+                texture: None,
+                view: swapchain_view,
+                sampler: None,
+            },
+        );
+
+        self.geometry_bufs.use_as_resource(&mut transient_res);
+
+        let v_stride = std::mem::size_of::<[f32; 5]>();
+        transient_res.insert(
+            "vertices".into(),
+            InputResource::Buffer {
+                size: self.instance_count * v_stride,
+                stride: Some(v_stride),
+                buffer: &self.vertex_buffer,
+            },
+        );
+
+        transient_res.insert(
+            "transform".into(),
+            InputResource::Buffer {
+                size: 16 * 4,
+                stride: None,
+                buffer: &self.transform_uniform,
+            },
+        );
+
+        let data_buf_size =
+            self.shared.graph.node_count * std::mem::size_of::<[f32; 5]>();
+        // println!("data_buf
+
+        transient_res.insert(
+            "node_data".to_string(),
+            InputResource::Buffer {
+                size: data_buf_size,
+                stride: None,
+                buffer: &self.data_buffer,
+            },
+        );
+
+        // transient_res.insert(
+        //     "color".to_string(),
+        //     InputResource::Buffer {
+        //         size: color_buf_size,
+        //         stride: None,
+        //         buffer: &color_buf,
+        //     },
+        // );
+
+        // transient_res.insert(
+        //     "color_mapping".to_string(),
+        //     InputResource::Buffer {
+        //         size: 24,
+        //         stride: None,
+        //         buffer: &color_map_buf,
+        //     },
+        // );
+
+        ////
+
+        let (sampler, tex, tex_size) = {
+            let colors = self.shared.colors.blocking_read();
+
+            let sampler = colors.linear_sampler.clone();
+
+            let id = self
+                .shared
+                .data_color_schemes
+                .blocking_read()
+                .get(&self.active_viz_data_key)
+                .copied()
+                .unwrap();
+
+            let scheme = colors.get_color_scheme(id);
+            let size = [scheme.colors.len() as u32, 1];
+
+            (sampler, colors.get_color_scheme_texture(id).unwrap(), size)
+        };
+
+        let texture = &tex.0;
+        let view = &tex.1;
+
+        transient_res.insert(
+            "color_texture".to_string(),
+            InputResource::Texture {
+                size: tex_size,
+                format,
+                sampler: None,
+                texture: Some(texture),
+                view: Some(view),
+            },
+        );
+
+        transient_res.insert(
+            "sampler".to_string(),
+            InputResource::Texture {
+                size: tex_size,
+                format,
+                sampler: Some(&sampler),
+                texture: None,
+                view: None,
+            },
+        );
+
+        transient_res.insert(
+            "color_map".into(),
+            InputResource::Buffer {
+                size: self.color_mapping.buffer_size(),
+                stride: None,
+                buffer: self.color_mapping.buffer(),
+            },
+        );
+
+        /////
+
+        transient_res.insert(
+            "vert_cfg".into(),
+            InputResource::Buffer {
+                size: 1 * 4,
+                stride: None,
+                buffer: &self.vert_config,
+            },
+        );
+
+        self.render_graph.update_transient_cache(&transient_res);
+
+        let valid = self
+            .render_graph
+            .validate(&transient_res, &rhai::Map::default())
+            .unwrap();
+
+        if !valid {
+            log::error!("graph validation error");
+        }
+
+        self.render_graph
+            .execute_with_encoder(
+                &state,
+                &transient_res,
+                &rhai::Map::default(),
+                encoder,
+            )
+            .unwrap();
+
+        self.geometry_bufs.download_textures(encoder);
     }
 
     pub fn show(
