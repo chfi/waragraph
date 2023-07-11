@@ -25,18 +25,25 @@ impl StartPage {
         tgt_ext: &str,
         button_text: &str,
     ) {
+        if matches!(
+            file_dialog.as_ref().map(|(_, d)| d.state()),
+            Some(egui_file::State::Closed | egui_file::State::Cancelled)
+        ) {
+            file_dialog.take();
+        }
+
         let button = ui
             .add_enabled(file_dialog.is_none(), egui::Button::new(button_text));
 
         if button.clicked() {
             let tgt_ext = tgt_ext.to_string();
-            let mut dialog = FileDialog::open_file(path.clone()).filter(
-                Box::new(move |p: &std::path::Path| {
+            let mut dialog = FileDialog::open_file(path.clone())
+                // .
+                .filter(Box::new(move |p: &std::path::Path| {
                     p.extension()
                         .map(|e| e.to_ascii_lowercase())
                         .is_some_and(|ext| ext == tgt_ext.as_str())
-                }),
-            );
+                }));
 
             dialog.open();
 
