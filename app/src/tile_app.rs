@@ -22,6 +22,7 @@ use crate::{
         workspace::Workspace, SharedState,
     },
     color::ColorStore,
+    context::ContextState,
     viewer_1d::Viewer1D,
     viewer_2d::{layout::NodePositions, Viewer2D},
 };
@@ -61,6 +62,8 @@ pub struct AppBehavior<'a> {
     init_resources: Option<ResourceLoadState>,
 
     id_type_map: &'a mut IdTypeMap,
+
+    context_state: &'a mut ContextState,
 }
 
 impl<'a> AppBehavior<'a> {
@@ -94,10 +97,8 @@ impl<'a> egui_tiles::Behavior<Pane> for AppBehavior<'a> {
                 ui.label("1D placeholder");
             }
             Pane::Viewer2D => {
-                if let Some(viewer_2d) = self.viewer_2d.as_ref() {
+                if let Some(viewer_2d) = self.viewer_2d.as_mut() {
                     // TODO
-                    ui.label("2D placeholder");
-
                     let painter = ui.painter();
 
                     let tex_id: egui::TextureId = self
@@ -114,6 +115,8 @@ impl<'a> egui_tiles::Behavior<Pane> for AppBehavior<'a> {
                         ),
                         egui::Color32::WHITE,
                     ));
+
+                    // viewer_2d
                 } else {
                     ui.label("2D placeholder");
                 }
@@ -146,6 +149,7 @@ pub struct App {
     resource_state: Option<ImmediateValuePromise<ResourceLoadState>>,
 
     id_type_map: IdTypeMap,
+    context_state: ContextState,
 }
 
 struct ResourceLoadState {
@@ -191,6 +195,7 @@ impl App {
             resource_state: None,
 
             id_type_map: Default::default(),
+            context_state: ContextState::default(),
         })
     }
 
@@ -199,6 +204,7 @@ impl App {
         state: &raving_wgpu::State,
         window: &raving_wgpu::WindowState,
         egui_ctx: &mut EguiCtx,
+        dt: f32,
     ) {
         // if resources are ready, initialize the SharedState
 
@@ -335,6 +341,10 @@ impl App {
 
             self.tree = tree;
         }
+
+        if let Some(v2d) = self.viewer_2d.as_mut() {
+            v2d.update_(state, dt);
+        }
     }
 
     pub fn show(&mut self, ctx: &egui::Context) {
@@ -344,6 +354,7 @@ impl App {
             viewer_2d: self.viewer_2d.as_mut(),
             init_resources: None,
             id_type_map: &mut self.id_type_map,
+            context_state: &mut self.context_state,
         };
 
         egui::CentralPanel::default().show(ctx, |ui| {
@@ -544,7 +555,7 @@ impl App {
                     let dt = prev_frame_t.elapsed().as_secs_f32();
                     prev_frame_t = std::time::Instant::now();
 
-                    self.update(&state, &window, &mut egui_ctx);
+                    self.update(&state, &window, &mut egui_ctx, dt);
 
                     egui_ctx.begin_frame(&window.window);
 

@@ -404,7 +404,46 @@ impl Viewer2D {
         queue.write_buffer(&self.vert_config, 0, bytemuck::cast_slice(&[data]));
     }
 
-    pub fn update_step(&mut self, dt: f32) {
+    pub fn update_(&mut self, state: &raving_wgpu::State, dt: f32) {
+        todo!();
+    }
+
+    pub fn show_ui(
+        &mut self,
+        context_state: &mut ContextState,
+        ui: &mut egui::Ui,
+    ) {
+        todo!();
+    }
+
+    pub fn update_and_show(
+        &mut self,
+        // state: &raving_wgpu::State,
+        context_state: &mut ContextState,
+        ui: &mut egui::Ui,
+        dt: f32,
+    ) {
+        while let Ok(msg) = self.msg_rx.try_recv() {
+            match msg {
+                control::Msg::View(cmd) => cmd.apply(
+                    &self.shared,
+                    &self.node_positions,
+                    &mut self.view,
+                ),
+            }
+        }
+
+        let size = ui.clip_rect().size();
+        let [width, height]: [f32; 2] = size.into();
+        let dims = ultraviolet::Vec2::new(width as f32, height as f32);
+
+        let scale_dims = dims * ui.ctx().pixels_per_point();
+
+        let screen_rect = egui::Rect::from_min_max(
+            egui::pos2(0.0, 0.0),
+            egui::pos2(dims.x, dims.y),
+        );
+
         todo!();
     }
 
