@@ -404,23 +404,238 @@ impl Viewer2D {
         queue.write_buffer(&self.vert_config, 0, bytemuck::cast_slice(&[data]));
     }
 
-    pub fn update_(&mut self, state: &raving_wgpu::State, dt: f32) {
-        todo!();
-    }
-
     pub fn show_ui(
         &mut self,
         context_state: &mut ContextState,
         ui: &mut egui::Ui,
     ) {
-        todo!();
+        let size = ui.clip_rect().size();
+        let [width, height]: [f32; 2] = size.into();
+        let dims = ultraviolet::Vec2::new(width as f32, height as f32);
+
+        let scale_dims = dims * ui.ctx().pixels_per_point();
+
+        let screen_rect = egui::Rect::from_min_max(
+            egui::pos2(0.0, 0.0),
+            egui::pos2(dims.x, dims.y),
+        );
+
+        // let dims = dims / egui_ctx.ctx().pixels_per_point();
+
+        let mut annot_shapes = Vec::new();
+
+        let hovered_node_1d = context_state
+            // .query_get_cast::<_, Node>(Some("Viewer1D"), ["hover"])
+            .query_get_cast::<_, Node>(None, ["hover"])
+            .copied();
+
+        let goto_node_1d = context_state
+            .query_get_cast::<_, Node>(Some("Viewer1D"), ["goto"])
+            .copied();
+
+        if let Some(node) = hovered_node_1d {
+            let (n0, n1) = self.node_positions.node_pos(node);
+            let mid = n0 + (n1 - n0) * 0.5;
+
+            // a bit hacky but its fine
+            if goto_node_1d.is_some() {
+                self.view.center = mid;
+            }
+
+            let mat = self.view.to_viewport_matrix(dims);
+
+            let p0 = mat * n0.into_homogeneous_point();
+            let p1 = mat * n1.into_homogeneous_point();
+            let pmid = mat * mid.into_homogeneous_point();
+
+            let dist = (p1.xy() - p0.xy()).mag();
+
+            let p0 = egui::pos2(p0.x, p0.y);
+            let p1 = egui::pos2(p1.x, p1.y);
+            let pmid = egui::pos2(pmid.x, pmid.y);
+
+            if dist > 2.0 {
+                let stroke = egui::Stroke::new(5.0, egui::Color32::RED);
+                annot_shapes.push(egui::Shape::line(vec![p0, p1], stroke));
+            } else {
+                let stroke = egui::Stroke::new(2.0, egui::Color32::RED);
+                annot_shapes
+                    .push(egui::Shape::circle_stroke(pmid, 5.0, stroke));
+            }
+
+            let node_len = self.shared.graph.node_length(node);
+
+            egui::containers::popup::show_tooltip(
+                // ui.c
+                ui.ctx(),
+                egui::Id::new("Viewer2D-Node-Tooltip"),
+                |ui| {
+                    ui.label(format!("Node {}", node.ix()));
+                    ui.label(format!("Length {} bp", node_len.0));
+                },
+            );
+        }
+
+        let mut highlight_annots: HashSet<GlobalAnnotationId> =
+            HashSet::default();
+
+        highlight_annots.extend(
+            context_state
+                .query_get_cast::<_, GlobalAnnotationId>(None, ["hover"])
+                .copied(),
+        );
+
+        ui.data(|data| {
+            // let mat = self.view.to_viewport_matrix(dims);
+            use egui::mutex::Mutex;
+
+            let pinned = data
+                .get_temp::<Arc<Mutex<HashSet<GlobalAnnotationId>>>>(
+                    egui::Id::null(),
+                );
+
+            if let Some(pinned) = pinned {
+                let pinned = pinned.lock();
+                highlight_annots.extend(pinned.iter().copied());
+            }
+        });
+
+        {
+            let mat = self.view.to_viewport_matrix(dims);
+            let annotations = self.shared.annotations.blocking_read();
+
+            for annot_id in highlight_annots {
+                let annot = annotations.get(annot_id);
+
+                let stroke = egui::Stroke::new(
+                    5.0,
+                    annot.color.unwrap_or(egui::Color32::RED),
+                );
+
+                let mut shapes_vec = Vec::new();
+
+                if let Some(nodes) = self
+                    .shared
+                    .graph
+                    .path_step_range_iter(annot.path, annot.range.clone())
+                {
+                    for (_offset, step) in nodes {
+                        let (n0, n1) =
+                            self.node_positions.node_pos(step.node());
+
+                        let p0 = (mat * n0.into_homogeneous_point()).xy();
+                        let p1 = (mat * n1.into_homogeneous_point()).xy();
+
+                        shapes_vec.push(egui::Shape::line_segment(
+                            [p0.as_array().into(), p1.as_array().into()],
+                            stroke,
+                        ));
+                    }
+
+                    annot_shapes.push(egui::Shape::Vec(shapes_vec));
+                }
+            }
+        }
+
+        let mut hover_pos: Option<[f32; 2]> = None;
+
+        let main_area = ui.allocate_response(
+            ui.available_size(),
+            egui::Sense::click_and_drag(),
+        );
+
+        // let mut multi_touch_active = false;
+
+        if main_area.dragged_by(egui::PointerButton::Primary) {
+            let delta = Vec2::from(mint::Vector2::from(main_area.drag_delta()));
+            let mut norm_delta = -1.0 * (delta / dims);
+            norm_delta.y *= -1.0;
+            self.view.translate_size_rel(norm_delta);
+        }
+
+        /*
+        {
+            let ctx = egui_ctx.ctx();
+
+            let main_area = egui::Area::new("main_area_2d")
+                .order(egui::Order::Background)
+                .interactable(true)
+                .movable(false)
+                .constrain(true);
+
+            let mut multi_touch_active = false;
+
+            if let Some(touch) = egui_ctx.ctx().multi_touch() {
+                multi_touch_active = true;
+                let t = touch.translation_delta;
+                let z = 2.0 - touch.zoom_delta;
+                let t_ = ultraviolet::Vec2::new(-t.x / dims.x, t.y / dims.y);
+
+                self.view.translate_size_rel(t_);
+                self.view.size *= z;
+            }
+
+            main_area.show(ctx, |ui| {
+                // ui.set_width(main_panel_rect.width());
+                // ui.set_height(main_panel_rect.height());
+
+                let area_rect = ui.allocate_rect(
+                    main_panel_rect,
+                    egui::Sense::click_and_drag(),
+                );
+
+                if area_rect.dragged_by(egui::PointerButton::Primary)
+                    && !multi_touch_active
+                {
+                    let delta =
+                        Vec2::from(mint::Vector2::from(area_rect.drag_delta()));
+                    let mut norm_delta = -1.0 * (delta / dims);
+                    norm_delta.y *= -1.0;
+                    self.view.translate_size_rel(norm_delta);
+                }
+
+                if let Some(pos) = area_rect.hover_pos() {
+                    hover_pos = Some([pos.x, pos.y]);
+
+                    let scroll = ctx.input(|i| i.scroll_delta);
+
+                    let min_scroll = 1.0;
+                    let factor = 0.01;
+
+                    if scroll.y.abs() > min_scroll {
+                        let dz = 1.0 - scroll.y * factor;
+                        let uvp = Vec2::new(pos.x, pos.y);
+                        let mut norm = uvp / dims;
+                        norm.y = 1.0 - norm.y;
+                        self.view.zoom_with_focus(norm, dz);
+                    }
+                }
+
+                let painter = ui.painter();
+
+                painter.extend(annot_shapes);
+
+                if self.cfg.show_annotation_labels.load() {
+                    self.annotation_layer.draw(
+                        tokio_handle,
+                        &self.shared,
+                        &self.node_positions,
+                        &self.view,
+                        dims,
+                        &painter,
+                    );
+                }
+            });
+        }
+        */
+
+        // todo!();
     }
 
-    pub fn update_and_show(
+    pub fn update_step(
         &mut self,
-        // state: &raving_wgpu::State,
+        state: &raving_wgpu::State,
         context_state: &mut ContextState,
-        ui: &mut egui::Ui,
         dt: f32,
     ) {
         while let Ok(msg) = self.msg_rx.try_recv() {
@@ -433,18 +648,7 @@ impl Viewer2D {
             }
         }
 
-        let size = ui.clip_rect().size();
-        let [width, height]: [f32; 2] = size.into();
-        let dims = ultraviolet::Vec2::new(width as f32, height as f32);
-
-        let scale_dims = dims * ui.ctx().pixels_per_point();
-
-        let screen_rect = egui::Rect::from_min_max(
-            egui::pos2(0.0, 0.0),
-            egui::pos2(dims.x, dims.y),
-        );
-
-        todo!();
+        //
     }
 
     pub fn render_(
@@ -618,15 +822,6 @@ impl Viewer2D {
             .unwrap();
 
         self.geometry_bufs.download_textures(encoder);
-    }
-
-    pub fn show(
-        &mut self,
-        state: &raving_wgpu::State,
-        window: &raving_wgpu::WindowState,
-        ui: &mut egui::Ui,
-    ) {
-        todo!();
     }
 }
 

@@ -116,6 +116,8 @@ impl<'a> egui_tiles::Behavior<Pane> for AppBehavior<'a> {
                         egui::Color32::WHITE,
                     ));
 
+                    viewer_2d.show_ui(self.context_state, ui);
+
                     // viewer_2d
                 } else {
                     ui.label("2D placeholder");
@@ -343,7 +345,7 @@ impl App {
         }
 
         if let Some(v2d) = self.viewer_2d.as_mut() {
-            v2d.update_(state, dt);
+            v2d.update_step(state, &mut self.context_state, dt);
         }
     }
 
