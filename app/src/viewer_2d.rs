@@ -686,7 +686,7 @@ impl Viewer2D {
         dims: impl Into<[u32; 2]>,
         // color_texture: &wgpu::TextureView,
         encoder: &mut wgpu::CommandEncoder,
-    ) {
+    ) -> Result<()> {
         let size: [u32; 2] = dims.into();
         let [w, h] = size;
 
@@ -720,13 +720,38 @@ impl Viewer2D {
             log::error!("2D viewer render error: {e:?}");
         }
 
+        let color_attch =
+            self.geometry_bufs.node_color_tex.view.as_ref().unwrap();
+
         //
 
-        // let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-        //     label: todo!(),
-        //     color_attachments: todo!(),
-        //     depth_stencil_attachment: todo!(),
-        // })
+        let render_state = self.segment_renderer.state.read();
+
+        let mut pass =
+            self.segment_renderer.graphics_node.interface.render_pass(
+                &[(
+                    color_attch,
+                    wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(wgpu::Color {
+                            r: 0.0,
+                            g: 0.0,
+                            b: 0.0,
+                            a: 1.0,
+                        }),
+                        store: true,
+                    },
+                )],
+                encoder,
+            )?;
+
+        let viewport = egui::Rect::from_min_max(
+            egui::pos2(0., 0.),
+            egui::pos2(w as f32, h as f32),
+        );
+
+        PolylineRenderer::draw_in_pass_impl(&render_state, &mut pass, viewport);
+
+        Ok(())
     }
 
     pub fn render_(

@@ -7,7 +7,7 @@ use anyhow::{Context, Result};
 use egui::mutex::RwLock;
 use raving_wgpu::node::GraphicsNode;
 
-use wgpu::util::{BufferInitDescriptor, DeviceExt};
+use wgpu::util::{BufferInitDescriptor, DeviceExt, RenderEncoder};
 
 use crate::color::ColorMap;
 
@@ -48,11 +48,15 @@ impl PagedBuffers {
             pages.push(Arc::new(buffer));
         }
 
-        Ok(Self {
+        let result = Self {
             page_size,
             stride,
             pages,
-        })
+        };
+
+        assert!(result.capacity() >= desired_capacity);
+
+        Ok(result)
     }
 
     pub fn upload_slice<T: bytemuck::Pod>(
@@ -104,8 +108,8 @@ impl PagedBuffers {
     }
 
     pub fn capacity(&self) -> usize {
-        let els_per_page = (self.page_size / self.stride) as usize;
-        els_per_page * self.pages.len()
+        // let els_per_page = (self.page_size / self.stride) as usize;
+        (self.page_size as usize * self.pages.len()) / self.stride as usize
     }
 
     pub fn total_size(&self) -> u64 {
@@ -113,7 +117,7 @@ impl PagedBuffers {
     }
 }
 
-struct State {
+pub(super) struct State {
     vertex_buffers: PagedBuffers,
     data_buffers: PagedBuffers,
 
@@ -127,12 +131,14 @@ struct State {
 
     color_sampler_ids:
         Option<(wgpu::Id<wgpu::TextureView>, wgpu::Id<wgpu::Sampler>)>,
+
+    graphics_node: Arc<GraphicsNode>,
 }
 
 pub struct PolylineRenderer {
-    graphics_node: GraphicsNode,
+    pub(super) graphics_node: Arc<GraphicsNode>,
 
-    state: Arc<RwLock<State>>,
+    pub(super) state: Arc<RwLock<State>>,
 
     // fragment_uniform: wgpu::Buffer,
     // uniform_buffer: wgpu::Buffer,
@@ -203,11 +209,12 @@ impl PolylineRenderer {
                 // ),
             ],
         )?;
+        println!("### max_segments: {max_segments}");
 
         let vertex_buffers = PagedBuffers::new(
             device,
             wgpu::BufferUsages::VERTEX,
-            8,
+            12,
             max_segments,
         )?;
         let data_buffers = PagedBuffers::new(
@@ -252,6 +259,8 @@ impl PolylineRenderer {
             },
         )?;
 
+        let graphics_node = Arc::new(graphics_node);
+
         let state = Arc::new(RwLock::new(State {
             vertex_buffers,
             data_buffers,
@@ -264,6 +273,8 @@ impl PolylineRenderer {
             bind_groups: vec![],
 
             color_sampler_ids: None,
+
+            graphics_node: graphics_node.clone(),
         }));
 
         Ok(Self {
@@ -302,11 +313,13 @@ impl PolylineRenderer {
         &mut self,
         // state: &mut State,
         gpu_state: &raving_wgpu::State,
-        segment_positions: &[[f32; 2]],
+        segment_positions: &[[f32; 5]], // actually ([f32; 2], [f32; 2], u32)
     ) -> Result<()> {
         let seg_count = segment_positions.len();
 
         let mut state = self.state.write();
+        println!("segment_positions.len(): {seg_count}");
+        println!("vx buf capacity: {}", state.vertex_buffers.capacity());
 
         if seg_count > state.vertex_buffers.capacity() {
             panic!("Line data would not fit buffers");
@@ -425,13 +438,16 @@ impl PolylineRenderer {
         Ok(())
     }
 
-    fn draw_in_pass_impl<'a>(
+    pub(super) fn draw_in_pass_impl<'a: 'b, 'b>(
+        // &'a self,
         state: &'a State,
-        pass: &mut wgpu::RenderPass<'a>,
+        pass: &mut wgpu::RenderPass<'b>,
         viewport: egui::Rect,
     ) {
         // iterate through the pages "correctly", setting the vertex
         // buffer & bind groups, and then drawing
+
+        pass.set_pipeline(&state.graphics_node.pipeline);
 
         pass.set_vertex_buffer(0, state.vertex_buffers.pages[0].slice(..));
 
@@ -443,7 +459,7 @@ impl PolylineRenderer {
         let min = viewport.min;
         let size = viewport.size();
 
-        pass.set_viewport(min.x, min.y, size.x, size.y, 0., 1_000.);
+        pass.set_viewport(min.x, min.y, size.x, size.y, 0., 1.);
 
         pass.draw(0..6, 0..state.segment_count as u32);
     }

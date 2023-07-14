@@ -537,7 +537,12 @@ impl App {
                         );
 
                         if let Some(viewer_2d) = self.viewer_2d.as_mut() {
-                            viewer_2d.render_new(&state, window.size, &mut encoder);
+                            let result = viewer_2d.render_new(&state, window.size, &mut encoder);
+
+
+                            if let Err(e) = result {
+                                log::error!("2D Viewer render error: {e:?}");
+                            }
                         }
 
                         egui_ctx.render(
@@ -546,6 +551,7 @@ impl App {
                             &output_view,
                             &mut encoder,
                         );
+
                         state.queue.submit(Some(encoder.finish()));
                         output.present();
                     } else {
