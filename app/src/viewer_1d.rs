@@ -207,7 +207,7 @@ impl Viewer1D {
         }));
 
         let color_mapping = crate::util::Uniform::new(
-            &state,
+            &state.device,
             wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
             "Viewer 1D Color Mapping",
             color_mapping_val.clone(),

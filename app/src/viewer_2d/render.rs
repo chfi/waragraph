@@ -9,6 +9,8 @@ use raving_wgpu::node::GraphicsNode;
 
 use wgpu::util::{BufferInitDescriptor, DeviceExt};
 
+use crate::color::ColorMap;
+
 pub struct PagedBuffers {
     page_size: u64, // bytes
     stride: u64,    // bytes
@@ -113,10 +115,12 @@ impl PagedBuffers {
 
 struct State {
     vertex_buffers: PagedBuffers,
-    color_buffers: PagedBuffers,
+    data_buffers: PagedBuffers,
 
     vertex_cfg_uniform: wgpu::Buffer,
     projection_uniform: wgpu::Buffer,
+
+    color_map: crate::util::Uniform<ColorMap, 16>,
 
     bind_groups: Vec<wgpu::BindGroup>,
     segment_count: usize,
@@ -203,7 +207,7 @@ impl PolylineRenderer {
             8,
             max_segments,
         )?;
-        let color_buffers = PagedBuffers::new(
+        let data_buffers = PagedBuffers::new(
             device,
             wgpu::BufferUsages::STORAGE,
             4,
@@ -227,11 +231,30 @@ impl PolylineRenderer {
                 usage: wgpu::BufferUsages::UNIFORM,
             });
 
+        let color_map = ColorMap {
+            value_range: [0.0, 13.0],
+            color_range: [0.0, 1.0],
+        };
+
+        let color_map = crate::util::Uniform::new(
+            device,
+            wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            "Viewer 1D Color Mapping",
+            color_map,
+            |cm| {
+                let data: [u8; 16] = bytemuck::cast(*cm);
+                data
+            },
+        )?;
+
         let state = Arc::new(RwLock::new(State {
             vertex_buffers,
-            color_buffers,
+            data_buffers,
             vertex_cfg_uniform,
             projection_uniform,
+
+            color_map,
+
             segment_count: 0,
             bind_groups: vec![],
         }));
@@ -257,7 +280,6 @@ impl PolylineRenderer {
         // state: &mut State,
         gpu_state: &raving_wgpu::State,
         segment_positions: &[[f32; 2]],
-        // segment_colors: &[[f32; 4]],
     ) -> Result<()> {
         let seg_count = segment_positions.len();
 
@@ -270,9 +292,6 @@ impl PolylineRenderer {
         state
             .vertex_buffers
             .upload_slice(gpu_state, segment_positions)?;
-        // state
-        //     .color_buffers
-        //     .upload_slice(gpu_state, segment_colors)?;
         state.segment_count = segment_positions.len();
 
         self.has_position_data = true;
@@ -284,19 +303,17 @@ impl PolylineRenderer {
         &mut self,
         // state: &mut State,
         gpu_state: &raving_wgpu::State,
-        segment_colors: &[[f32; 4]],
+        segment_data: &[f32],
     ) -> Result<()> {
-        let seg_count = segment_colors.len();
+        let seg_count = segment_data.len();
 
-        let mut state = self.state.write();
+        let state = self.state.write();
 
         if seg_count != state.vertex_buffers.capacity() {
             panic!("Node data doesn't match node count");
         }
 
-        state
-            .color_buffers
-            .upload_slice(gpu_state, segment_colors)?;
+        state.data_buffers.upload_slice(gpu_state, segment_data)?;
 
         self.has_node_data = true;
 
@@ -307,7 +324,12 @@ impl PolylineRenderer {
     //     !self.bind_groups.is_empty()
     // }
 
-    pub fn create_bind_groups(&mut self, device: &wgpu::Device) -> Result<()> {
+    pub fn create_bind_groups(
+        &mut self,
+        device: &wgpu::Device,
+        sampler: &wgpu::Sampler,
+        color: &wgpu::TextureView,
+    ) -> Result<()> {
         let mut state = self.state.write();
         state.bind_groups.clear();
 
@@ -315,6 +337,7 @@ impl PolylineRenderer {
 
         // create bind groups for interface
 
+        //// vertex shader
         // projection
         bindings.insert(
             "projection".into(),
@@ -327,10 +350,26 @@ impl PolylineRenderer {
             state.vertex_cfg_uniform.as_entire_binding(),
         );
 
+        //// fragment shader
         // segment color
         bindings.insert(
-            "colors".into(),
-            state.color_buffers.pages[0].as_entire_binding(),
+            "u_data".into(),
+            state.data_buffers.pages[0].as_entire_binding(),
+        );
+
+        bindings.insert(
+            "u_color_map".into(),
+            state.color_map.buffer().as_entire_binding(),
+        );
+
+        bindings.insert(
+            "t_sampler".into(),
+            wgpu::BindingResource::Sampler(sampler),
+        );
+
+        bindings.insert(
+            "t_colors".into(),
+            wgpu::BindingResource::TextureView(color),
         );
 
         let bind_groups = self
@@ -346,6 +385,7 @@ impl PolylineRenderer {
     fn draw_in_pass_impl<'a>(
         state: &'a State,
         pass: &mut wgpu::RenderPass<'a>,
+        viewport: egui::Rect,
     ) {
         // iterate through the pages "correctly", setting the vertex
         // buffer & bind groups, and then drawing
@@ -356,6 +396,11 @@ impl PolylineRenderer {
         for (i, bind_group) in state.bind_groups.iter().enumerate() {
             pass.set_bind_group(i as u32, bind_group, &offsets);
         }
+
+        let min = viewport.min;
+        let size = viewport.size();
+
+        pass.set_viewport(min.x, min.y, size.x, size.y, 0., 1_000.);
 
         pass.draw(0..6, 0..state.segment_count as u32);
     }

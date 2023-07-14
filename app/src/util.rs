@@ -24,7 +24,7 @@ pub struct Uniform<T, const N: usize> {
 
 impl<T, const N: usize> Uniform<T, N> {
     pub fn new(
-        state: &raving_wgpu::State,
+        device: &wgpu::Device,
         usage: wgpu::BufferUsages,
         name: &str,
         data: T,
@@ -43,13 +43,12 @@ impl<T, const N: usize> Uniform<T, N> {
 
         let label_str = format!("Uniform: {name}");
 
-        let buffer = state.device.create_buffer_init(
-            &wgpu::util::BufferInitDescriptor {
+        let buffer =
+            device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
                 label: Some(&label_str),
                 contents: bytemuck::cast_slice(&buf_data),
                 usage,
-            },
-        );
+            });
 
         Ok(Self {
             name,

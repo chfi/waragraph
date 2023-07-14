@@ -131,7 +131,6 @@ impl Viewer2D {
             if let Err(e) = segment_renderer.upload_vertex_data(
                 state,
                 bytemuck::cast_slice(vertex_data.as_slice()),
-                // color.as_slice(),
             ) {
                 log::error!("{e:?}");
             }
@@ -298,7 +297,7 @@ impl Viewer2D {
         };
 
         let color_mapping = crate::util::Uniform::new(
-            &state,
+            &state.device,
             wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
             "Viewer 1D Color Mapping",
             color_mapping,
