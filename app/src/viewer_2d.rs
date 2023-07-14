@@ -48,6 +48,7 @@ use control::ViewControlWidget;
 use layout::NodePositions;
 
 use self::annotations::AnnotationLayer;
+use self::render::PolylineRenderer;
 use self::view::View2D;
 
 #[derive(Debug)]
@@ -58,6 +59,8 @@ pub struct Args {
 }
 
 pub struct Viewer2D {
+    segment_renderer: PolylineRenderer,
+
     node_positions: Arc<NodePositions>,
     vertex_buffer: wgpu::Buffer,
     instance_count: usize,
@@ -100,6 +103,12 @@ impl Viewer2D {
         shared: &SharedState,
         // settings_window: &mut SettingsWindow,
     ) -> Result<Self> {
+        let mut segment_renderer = PolylineRenderer::new(
+            &state.device,
+            window.surface_format,
+            shared.graph.node_count,
+        )?;
+
         let path_index = shared.graph.clone();
 
         let (vertex_buffer, instance_count) = {
@@ -118,6 +127,14 @@ impl Viewer2D {
                     out
                 })
                 .collect::<Vec<_>>();
+
+            if let Err(e) = segment_renderer.upload_vertex_data(
+                state,
+                bytemuck::cast_slice(vertex_data.as_slice()),
+                // color.as_slice(),
+            ) {
+                log::error!("{e:?}");
+            }
 
             let instance_count = vertex_data.len();
 
@@ -343,6 +360,8 @@ impl Viewer2D {
             AnnotationListWidget::new(shared.annotations.clone());
 
         Ok(Self {
+            segment_renderer,
+
             node_positions,
 
             vertex_buffer,
@@ -412,15 +431,6 @@ impl Viewer2D {
         let size = ui.clip_rect().size();
         let [width, height]: [f32; 2] = size.into();
         let dims = ultraviolet::Vec2::new(width as f32, height as f32);
-
-        let scale_dims = dims * ui.ctx().pixels_per_point();
-
-        let screen_rect = egui::Rect::from_min_max(
-            egui::pos2(0.0, 0.0),
-            egui::pos2(dims.x, dims.y),
-        );
-
-        // let dims = dims / egui_ctx.ctx().pixels_per_point();
 
         let mut annot_shapes = Vec::new();
 
@@ -544,6 +554,7 @@ impl Viewer2D {
             egui::Sense::click_and_drag(),
         );
 
+        let scroll = ui.input(|i| i.scroll_delta);
         // let mut multi_touch_active = false;
 
         if main_area.dragged_by(egui::PointerButton::Primary) {
@@ -551,6 +562,21 @@ impl Viewer2D {
             let mut norm_delta = -1.0 * (delta / dims);
             norm_delta.y *= -1.0;
             self.view.translate_size_rel(norm_delta);
+        }
+
+        if let Some(pos) = main_area.hover_pos() {
+            hover_pos = Some([pos.x, pos.y]);
+
+            let min_scroll = 1.0;
+            let factor = 0.01;
+
+            if scroll.y.abs() > min_scroll {
+                let dz = 1.0 - scroll.y * factor;
+                let uvp = Vec2::new(pos.x, pos.y);
+                let mut norm = uvp / dims;
+                norm.y = 1.0 - norm.y;
+                self.view.zoom_with_focus(norm, dz);
+            }
         }
 
         /*

@@ -101,11 +101,11 @@ struct ColorMap {
 // @group(0) @binding(0) var<uniform> projection: mat4x4f;
 // @group(0) @binding(1) var<uniform> config: VertConfig;
 
-// @group(1) @binding(0) var<storage, read> u_data: array<f32>;
-@group(1) @binding(0) var<storage, read> colors: array<vec4f>;
+@group(1) @binding(0) var<storage, read> u_data: array<f32>;
+// @group(1) @binding(0) var<storage, read> colors: array<vec4f>;
 
-// @group(1) @binding(1) var t_sampler: sampler;
-// @group(1) @binding(2) var t_colors: texture_1d<f32>;
+@group(1) @binding(1) var t_sampler: sampler;
+@group(1) @binding(2) var t_colors: texture_1d<f32>;
 
 // @group(1) @binding(3) var<uniform> u_color_map: ColorMap;
 

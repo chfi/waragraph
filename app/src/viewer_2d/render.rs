@@ -132,7 +132,8 @@ pub struct PolylineRenderer {
     //
     transform: ultraviolet::Mat4,
 
-    has_data: bool,
+    has_position_data: bool,
+    has_node_data: bool,
 }
 
 impl PolylineRenderer {
@@ -242,29 +243,23 @@ impl PolylineRenderer {
 
             transform: transform.into(),
 
-            has_data: false,
+            has_position_data: false,
+            has_node_data: false,
         })
     }
 
     pub fn has_data(&self) -> bool {
-        self.has_data
+        self.has_position_data && self.has_node_data
     }
 
-    pub fn upload_data(
+    pub fn upload_vertex_data(
         &mut self,
         // state: &mut State,
         gpu_state: &raving_wgpu::State,
         segment_positions: &[[f32; 2]],
-        segment_colors: &[[f32; 4]],
+        // segment_colors: &[[f32; 4]],
     ) -> Result<()> {
         let seg_count = segment_positions.len();
-
-        if seg_count != segment_colors.len() {
-            anyhow::bail!(
-                "PolylineRenderer::upload_data: segment_positions \
-                           and segment_colors must have the same length"
-            );
-        }
 
         let mut state = self.state.write();
 
@@ -275,12 +270,35 @@ impl PolylineRenderer {
         state
             .vertex_buffers
             .upload_slice(gpu_state, segment_positions)?;
+        // state
+        //     .color_buffers
+        //     .upload_slice(gpu_state, segment_colors)?;
+        state.segment_count = segment_positions.len();
+
+        self.has_position_data = true;
+
+        Ok(())
+    }
+
+    pub fn upload_node_data(
+        &mut self,
+        // state: &mut State,
+        gpu_state: &raving_wgpu::State,
+        segment_colors: &[[f32; 4]],
+    ) -> Result<()> {
+        let seg_count = segment_colors.len();
+
+        let mut state = self.state.write();
+
+        if seg_count != state.vertex_buffers.capacity() {
+            panic!("Node data doesn't match node count");
+        }
+
         state
             .color_buffers
             .upload_slice(gpu_state, segment_colors)?;
-        state.segment_count = segment_positions.len();
 
-        self.has_data = true;
+        self.has_node_data = true;
 
         Ok(())
     }
@@ -340,71 +358,5 @@ impl PolylineRenderer {
         }
 
         pass.draw(0..6, 0..state.segment_count as u32);
-    }
-
-    pub fn show(&self, ui: &mut egui::Ui) {
-        let clip_rect = ui.clip_rect();
-
-        let has_bind_groups = {
-            let state = self.state.read();
-            !state.bind_groups.is_empty()
-        };
-
-        // if !self.has_data || !self.has_bind_groups() {
-        if !self.has_data || !has_bind_groups {
-            return;
-        }
-
-        let state = self.state.clone();
-        let state_ = self.state.clone();
-
-        let paint_callback = egui::PaintCallback {
-            rect: clip_rect,
-            callback: std::sync::Arc::new(
-                egui_wgpu::CallbackFn::new()
-                    .prepare(move |_device, _queue, _encoder, res| {
-                        // res.insert(state.clone());
-
-                        let state = state.read();
-
-                        let vx_pages = state.vertex_buffers.pages.clone();
-                        res.insert(vx_pages);
-
-                        // res.insert_kv_pair(KvPair(k, v));
-
-                        // let vx = state.vertex_buffers.pages[0].clone();
-
-                        // res.insert(vx);
-                        //
-                        vec![]
-                    })
-                    .paint(move |_info, render_pass, res| {
-                        let state = state_.read();
-
-                        // let state:
-                        // let state: &Arc<RwLock<State>> = res.get().unwrap();
-
-                        let vx_pages: &Vec<Arc<wgpu::Buffer>> =
-                            res.get().unwrap();
-
-                        // render_pass.set_vertex_buffer(0, vx.slice(..));
-                        // let state = state.read();
-
-                        // let mut what = move || {
-                        // Self::draw_in_pass_impl(&state, render_pass);
-                        // };
-
-                        // what();
-                        // render_pass.set_vertex_buffer(
-                        //     0,
-                        //     state.vertex_buffers.pages[0].slice(..),
-                        // );
-
-                        //
-                    }),
-            ),
-        };
-
-        ui.painter().add(paint_callback);
     }
 }
