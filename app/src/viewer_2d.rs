@@ -397,13 +397,15 @@ impl Viewer2D {
         })
     }
 
-    fn update_transform_uniform(&self, queue: &wgpu::Queue) {
+    fn update_transform_uniform(&mut self, queue: &wgpu::Queue) {
         let data = self.view.to_matrix();
         queue.write_buffer(
             &self.transform_uniform,
             0,
             bytemuck::cast_slice(&[data]),
         );
+
+        self.segment_renderer.set_transform(queue, data);
     }
 
     fn update_vert_config_uniform(
@@ -674,6 +676,57 @@ impl Viewer2D {
         }
 
         //
+    }
+
+    pub fn render_new(
+        &mut self,
+        state: &raving_wgpu::State,
+        // device: &wgpu::Device,
+        // queue: &wgpu::Queue,
+        dims: impl Into<[u32; 2]>,
+        // color_texture: &wgpu::TextureView,
+        encoder: &mut wgpu::CommandEncoder,
+    ) {
+        let size: [u32; 2] = dims.into();
+        let [w, h] = size;
+
+        self.update_transform_uniform(&state.queue);
+        self.update_vert_config_uniform(&state.queue, [w as f32, h as f32]);
+
+        let (sampler, color) = {
+            let colors = self.shared.colors.blocking_read();
+
+            let sampler = colors.linear_sampler.clone();
+
+            let id = self
+                .shared
+                .data_color_schemes
+                .blocking_read()
+                .get(&self.active_viz_data_key)
+                .copied()
+                .unwrap();
+
+            (sampler, colors.get_color_scheme_texture(id).unwrap())
+        };
+
+        let texture_view = &color.1;
+
+        // recreate bind groups if needed
+        if let Err(e) = self.segment_renderer.create_bind_groups(
+            &state.device,
+            &sampler,
+            texture_view,
+        ) {
+            log::error!("2D viewer render error: {e:?}");
+        }
+
+        //
+
+        // let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+        //     label: todo!(),
+        //     color_attachments: todo!(),
+        //     depth_stencil_attachment: todo!(),
+        // })
     }
 
     pub fn render_(

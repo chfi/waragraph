@@ -537,7 +537,7 @@ impl App {
                         );
 
                         if let Some(viewer_2d) = self.viewer_2d.as_mut() {
-                            viewer_2d.render_(&state, window.size, &mut encoder);
+                            viewer_2d.render_new(&state, window.size, &mut encoder);
                         }
 
                         egui_ctx.render(

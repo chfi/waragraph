@@ -124,6 +124,9 @@ struct State {
 
     bind_groups: Vec<wgpu::BindGroup>,
     segment_count: usize,
+
+    color_sampler_ids:
+        Option<(wgpu::Id<wgpu::TextureView>, wgpu::Id<wgpu::Sampler>)>,
 }
 
 pub struct PolylineRenderer {
@@ -221,14 +224,16 @@ impl PolylineRenderer {
             device.create_buffer_init(&BufferInitDescriptor {
                 label: None,
                 contents: bytemuck::cast_slice(&[node_width, 0f32, 0f32, 0f32]),
-                usage: wgpu::BufferUsages::UNIFORM,
+                usage: wgpu::BufferUsages::UNIFORM
+                    | wgpu::BufferUsages::COPY_DST,
             });
 
         let projection_uniform =
             device.create_buffer_init(&BufferInitDescriptor {
                 label: None,
                 contents: bytemuck::cast_slice(&[transform]),
-                usage: wgpu::BufferUsages::UNIFORM,
+                usage: wgpu::BufferUsages::UNIFORM
+                    | wgpu::BufferUsages::COPY_DST,
             });
 
         let color_map = ColorMap {
@@ -257,6 +262,8 @@ impl PolylineRenderer {
 
             segment_count: 0,
             bind_groups: vec![],
+
+            color_sampler_ids: None,
         }));
 
         Ok(Self {
@@ -274,6 +281,22 @@ impl PolylineRenderer {
     pub fn has_data(&self) -> bool {
         self.has_position_data && self.has_node_data
     }
+
+    pub fn set_transform(
+        &mut self,
+        queue: &wgpu::Queue,
+        transform: ultraviolet::Mat4,
+    ) {
+        let state = self.state.read();
+        self.transform = transform;
+        queue.write_buffer(
+            &state.projection_uniform,
+            0,
+            &bytemuck::cast_slice(&[transform]),
+        );
+    }
+    // pub fn set_transform(&mut self,
+    //                      queue: &wgpu::Queue) {
 
     pub fn upload_vertex_data(
         &mut self,
@@ -324,14 +347,32 @@ impl PolylineRenderer {
     //     !self.bind_groups.is_empty()
     // }
 
+    // pub fn set_transform(&mut self
+
     pub fn create_bind_groups(
         &mut self,
         device: &wgpu::Device,
         sampler: &wgpu::Sampler,
         color: &wgpu::TextureView,
     ) -> Result<()> {
+        let color_id = color.global_id();
+        let sampler_id = sampler.global_id();
+
         let mut state = self.state.write();
+
+        // the sampler and color are the only bindings not owned by
+        // PolylineRenderer, and none of the resources owned by the
+        // renderer have to be reallocated, so we only need to
+        // recreate the bind groups if those differ
+        if let Some((c_id, s_id)) = state.color_sampler_ids {
+            if c_id == color_id && s_id == sampler_id {
+                return Ok(());
+            }
+        }
+
         state.bind_groups.clear();
+
+        // Option<(Id<wgpu::TextureView>, Id<wgpu::Sampler>)>,
 
         let mut bindings = HashMap::default();
 
@@ -378,6 +419,8 @@ impl PolylineRenderer {
             .create_bind_groups(device, &bindings)?;
 
         state.bind_groups = bind_groups;
+
+        state.color_sampler_ids = Some((color_id, sampler_id));
 
         Ok(())
     }

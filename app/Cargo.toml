@@ -24,7 +24,7 @@ egui-winit = { version = "0.22" }
 egui_tiles = "0.1"
 egui_file = "0.9"
 
-wgpu = { version = "0.16", features = ["spirv"] }
+wgpu = { version = "0.16", features = ["spirv", "expose-ids"] }
 # naga = { version = "0.10", features = ["clone", "spv-in", "glsl-in", "spv-out"] }
 
 taffy = { version = "0.3", features = ["grid"] }
