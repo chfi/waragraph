@@ -26,12 +26,23 @@ impl PagedBuffers {
         desired_capacity: usize, // in elements
     ) -> Result<Self> {
         let max_size = device.limits().max_buffer_size;
+        // let max_size = 8 * (1 << 20);
+        // let max_size = 12 * (1 << 20);
+        // let max_size = 4 * (1 << 20);
+        println!("max_size: {max_size}");
 
         // TODO set the page size to the greatest multiple of `stride` smaller than `max_size`
+
+        println!("desired_capacity: {desired_capacity}");
+        println!("stride: {stride}");
         let total_size = desired_capacity as u64 * stride;
         let page_size = total_size.min(max_size);
         let page_count =
-            (total_size / page_size) + (total_size % page_size).max(1);
+            (total_size / page_size) + (total_size % page_size).min(1);
+
+        println!("total_size: {total_size}");
+        println!("page_size: {page_size}");
+        println!("page_count: {page_count}");
 
         let mut pages = Vec::new();
 
@@ -78,10 +89,12 @@ impl PagedBuffers {
                           self.capacity());
         }
 
+        let data_bytes: &[u8] = bytemuck::cast_slice(data);
+
         for (page, chunk) in self
             .pages
             .iter()
-            .zip(data.chunks(self.page_size() as usize))
+            .zip(data_bytes.chunks(self.page_size() as usize))
         {
             state
                 .queue
@@ -225,7 +238,7 @@ impl PolylineRenderer {
 
         let transform = ultraviolet::Mat4::identity();
 
-        let node_width = 20f32;
+        let node_width = 80f32;
         let vertex_cfg_uniform =
             device.create_buffer_init(&BufferInitDescriptor {
                 label: None,
