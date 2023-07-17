@@ -209,18 +209,17 @@ impl PolylineRenderer {
                 // ),
             ],
         )?;
-        println!("### max_segments: {max_segments}");
 
         let vertex_buffers = PagedBuffers::new(
             device,
             wgpu::BufferUsages::VERTEX,
-            12,
+            std::mem::size_of::<[u32; 5]>() as u64,
             max_segments,
         )?;
         let data_buffers = PagedBuffers::new(
             device,
             wgpu::BufferUsages::STORAGE,
-            4,
+            std::mem::size_of::<[u32; 1]>() as u64,
             max_segments,
         )?;
 
@@ -276,6 +275,7 @@ impl PolylineRenderer {
 
             graphics_node: graphics_node.clone(),
         }));
+        dbg!();
 
         Ok(Self {
             graphics_node,

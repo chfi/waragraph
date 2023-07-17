@@ -108,6 +108,7 @@ impl Viewer2D {
             window.surface_format,
             shared.graph.node_count,
         )?;
+        dbg!();
 
         let path_index = shared.graph.clone();
 
@@ -128,12 +129,20 @@ impl Viewer2D {
                 })
                 .collect::<Vec<_>>();
 
+            // let data: &[
+            let data = bytemuck::cast_slice(vertex_data.as_slice());
+
+            println!("uploading vertex data");
             if let Err(e) = segment_renderer.upload_vertex_data(
                 state,
-                bytemuck::cast_slice(vertex_data.as_slice()),
+                data,
+                // vertex_data.as_slice(),
+                // bytemuck::cast_slice(vertex_data.as_slice()),
             ) {
-                log::error!("{e:?}");
+                dbg!();
+                log::error!(">>> Error uploading vertex data {e:?}");
             }
+            dbg!();
 
             let instance_count = vertex_data.len();
 
