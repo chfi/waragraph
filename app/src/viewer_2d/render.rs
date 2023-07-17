@@ -341,12 +341,12 @@ impl PolylineRenderer {
         gpu_state: &raving_wgpu::State,
         segment_data: &[f32],
     ) -> Result<()> {
-        let seg_count = segment_data.len();
-
         let state = self.state.write();
+        let seg_count = segment_data.len();
+        let expected = state.segment_count;
 
-        if seg_count != state.vertex_buffers.capacity() {
-            panic!("Node data doesn't match node count");
+        if seg_count != expected {
+            panic!("Node data doesn't match node count: was {seg_count}, expected {expected}");
         }
 
         state.data_buffers.upload_slice(gpu_state, segment_data)?;

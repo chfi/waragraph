@@ -291,6 +291,12 @@ impl Viewer2D {
             .fetch_graph_data_blocking(&active_viz_data_key)
             .unwrap();
 
+        if let Err(e) =
+            segment_renderer.upload_node_data(state, &data.node_data)
+        {
+            log::error!("Error uploading node data to GPU: {e:?}");
+        }
+
         let data_buffer = {
             let buffer_usage = BufferUsages::STORAGE | BufferUsages::COPY_DST;
             state.device.create_buffer_init(&BufferInitDescriptor {
