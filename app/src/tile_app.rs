@@ -64,6 +64,8 @@ pub struct AppBehavior<'a> {
     id_type_map: &'a mut IdTypeMap,
 
     context_state: &'a mut ContextState,
+
+    pane_sizes: &'a mut HashMap<egui::Id, [u32; 2]>,
 }
 
 impl<'a> egui_tiles::Behavior<Pane> for AppBehavior<'a> {
@@ -82,8 +84,16 @@ impl<'a> egui_tiles::Behavior<Pane> for AppBehavior<'a> {
         _tile_id: egui_tiles::TileId,
         pane: &mut Pane,
     ) -> egui_tiles::UiResponse {
+        let pane_id = pane.data_id();
+        let [w, h]: [f32; 2] = ui.clip_rect().size().into();
+        let dims = [w as u32, h as u32];
+        self.pane_sizes.insert(pane_id, dims);
+
         match pane {
             Pane::Start(start) => {
+                // let [w, h]: [f32; 2] = ui.clip_rect().size().into();
+                // let dims = [w as u32, h as u32];
+                // self.pane_sizes.insert(pane_id, dims);
                 if let Some(load_state) = start.show(ui) {
                     self.init_resources = Some(load_state);
                 }
@@ -150,6 +160,8 @@ pub struct App {
 
     id_type_map: IdTypeMap,
     context_state: ContextState,
+
+    pane_sizes: HashMap<egui::Id, [u32; 2]>,
 }
 
 struct ResourceLoadState {
@@ -196,6 +208,8 @@ impl App {
 
             id_type_map: Default::default(),
             context_state: ContextState::default(),
+
+            pane_sizes: HashMap::default(),
         })
     }
 
@@ -355,6 +369,7 @@ impl App {
             init_resources: None,
             id_type_map: &mut self.id_type_map,
             context_state: &mut self.context_state,
+            pane_sizes: &mut self.pane_sizes,
         };
 
         egui::CentralPanel::default().show(ctx, |ui| {
@@ -536,7 +551,9 @@ impl App {
 
                         if let Some(viewer_2d) = self.viewer_2d.as_mut() {
 
-                            let result = viewer_2d.render_new(&state, window.size, &mut encoder);
+                            let dims = self.pane_sizes.get(&Pane::Viewer2D.data_id()).copied().unwrap_or(window.size.into());
+
+                            let result = viewer_2d.render_new(&state, dims, &mut encoder);
 
 
                             if let Err(e) = result {
