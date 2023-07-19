@@ -180,11 +180,20 @@ impl PagedBuffers {
     // }
 }
 
+#[derive(Default, Debug, Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
+#[repr(C)]
+struct DataConfig {
+    page_size: u32,
+    // max: u32,
+}
+
 pub(super) struct State {
     vertex_buffers: PagedBuffers,
     data_buffers: PagedBuffers,
 
-    vertex_cfg_uniform: wgpu::Buffer,
+    data_config_uniform: crate::util::Uniform<DataConfig, 4>,
+
+    vertex_config_uniform: wgpu::Buffer,
     projection_uniform: wgpu::Buffer,
 
     color_map: crate::util::Uniform<ColorMap, 16>,
@@ -291,7 +300,7 @@ impl PolylineRenderer {
 
         // let node_width = 80f32;
         let node_width = 400f32;
-        let vertex_cfg_uniform =
+        let vertex_config_uniform =
             device.create_buffer_init(&BufferInitDescriptor {
                 label: None,
                 contents: bytemuck::cast_slice(&[node_width, 0f32, 0f32, 0f32]),
@@ -315,10 +324,23 @@ impl PolylineRenderer {
         let color_map = crate::util::Uniform::new(
             device,
             wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-            "Viewer 1D Color Mapping",
+            "Viewer 2D Color Mapping",
             color_map,
             |cm| {
                 let data: [u8; 16] = bytemuck::cast(*cm);
+                data
+            },
+        )?;
+
+        let data_config_uniform = crate::util::Uniform::new(
+            device,
+            wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            "Viewer 2D Data Config",
+            DataConfig {
+                page_size: vertex_buffers.page_capacity() as u32,
+            },
+            |cm| {
+                let data: [u8; 4] = bytemuck::cast(*cm);
                 data
             },
         )?;
@@ -328,8 +350,10 @@ impl PolylineRenderer {
         let state = Arc::new(RwLock::new(State {
             vertex_buffers,
             data_buffers,
-            vertex_cfg_uniform,
+            vertex_config_uniform,
             projection_uniform,
+
+            data_config_uniform,
 
             color_map,
 
@@ -466,7 +490,7 @@ impl PolylineRenderer {
         // vertex config
         bindings.insert(
             "config".into(),
-            state.vertex_cfg_uniform.as_entire_binding(),
+            state.vertex_config_uniform.as_entire_binding(),
         );
 
         //// fragment shader
@@ -570,14 +594,6 @@ impl PolylineRenderer {
         let data_page_size = state.data_buffers.page_size;
         let data_page_count = state.data_buffers.page_count();
         let data_page_cap = state.data_buffers.page_capacity();
-
-        // dbg!(&vx_page_size);
-        // dbg!(&vx_page_count);
-        // dbg!(&vx_page_cap);
-
-        // dbg!(&data_page_size);
-        // dbg!(&data_page_count);
-        // dbg!(&data_page_cap);
 
         let ranges =
             vx_ranges.iter().map(|(_, r)| r.clone()).collect::<Vec<_>>();
