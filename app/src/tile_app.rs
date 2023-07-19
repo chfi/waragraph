@@ -66,10 +66,6 @@ pub struct AppBehavior<'a> {
     context_state: &'a mut ContextState,
 }
 
-impl<'a> AppBehavior<'a> {
-    //
-}
-
 impl<'a> egui_tiles::Behavior<Pane> for AppBehavior<'a> {
     fn tab_title_for_pane(&mut self, pane: &Pane) -> egui::WidgetText {
         match pane {
@@ -98,8 +94,10 @@ impl<'a> egui_tiles::Behavior<Pane> for AppBehavior<'a> {
             }
             Pane::Viewer2D => {
                 if let Some(viewer_2d) = self.viewer_2d.as_mut() {
-                    // TODO
                     let painter = ui.painter();
+                    // store painter/pane clip rect (or size) somewhere (id_type_map? prb not)
+
+                    // use to set viewport in render pass
 
                     let tex_id: egui::TextureId = self
                         .id_type_map
@@ -537,6 +535,7 @@ impl App {
                         );
 
                         if let Some(viewer_2d) = self.viewer_2d.as_mut() {
+
                             let result = viewer_2d.render_new(&state, window.size, &mut encoder);
 
 

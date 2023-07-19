@@ -25,10 +25,19 @@ impl PagedBuffers {
         stride: u64,
         desired_capacity: usize, // in elements
     ) -> Result<Self> {
-        let max_size = device.limits().max_buffer_size;
+        // let max_size = device.limits().max_buffer_size;
         // let max_size = 8 * (1 << 20);
         // let max_size = 12 * (1 << 20);
-        // let max_size = 4 * (1 << 20);
+        let max_size = 2 * (1 << 20);
+
+        // set the page size to the greatest multiple of `stride` smaller than `max_size`
+        let max_size = (max_size / stride) * stride;
+        // let max_size = if max_size % stride == 0 {
+        //     max_size
+        // } else {
+        //     (max_size / stride) * stride
+        // };
+
         println!("max_size: {max_size}");
 
         // TODO set the page size to the greatest multiple of `stride` smaller than `max_size`
@@ -108,6 +117,10 @@ impl PagedBuffers {
         self.page_size
     }
 
+    pub fn page_capacity(&self) -> usize {
+        (self.page_size / self.stride) as usize
+    }
+
     pub fn stride(&self) -> u64 {
         self.stride
     }
@@ -178,6 +191,7 @@ impl PolylineRenderer {
             shader_src,
             "vs_main",
             "fs_main",
+            ["u_data"],
             wgpu::PrimitiveState {
                 topology: wgpu::PrimitiveTopology::TriangleList,
                 front_face: wgpu::FrontFace::Cw,
@@ -462,17 +476,23 @@ impl PolylineRenderer {
 
         pass.set_pipeline(&state.graphics_node.pipeline);
 
-        pass.set_vertex_buffer(0, state.vertex_buffers.pages[0].slice(..));
-
-        let offsets = [];
-        for (i, bind_group) in state.bind_groups.iter().enumerate() {
-            pass.set_bind_group(i as u32, bind_group, &offsets);
-        }
-
         let min = viewport.min;
         let size = viewport.size();
-
         pass.set_viewport(min.x, min.y, size.x, size.y, 0., 1.);
+
+        //
+
+        pass.set_vertex_buffer(0, state.vertex_buffers.pages[0].slice(..));
+
+        let empty_offsets = [];
+        let offsets = [0];
+        for (i, bind_group) in state.bind_groups.iter().enumerate() {
+            if i == 0 {
+                pass.set_bind_group(i as u32, bind_group, &empty_offsets);
+            } else {
+                pass.set_bind_group(i as u32, bind_group, &offsets);
+            }
+        }
 
         pass.draw(0..6, 0..state.segment_count as u32);
     }
