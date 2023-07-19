@@ -14,6 +14,7 @@ use crate::color::ColorMap;
 pub struct PagedBuffers {
     page_size: u64, // bytes
     stride: u64,    // bytes
+    len: usize,
 
     pages: Vec<Arc<wgpu::Buffer>>,
 }
@@ -39,8 +40,6 @@ impl PagedBuffers {
         // };
 
         println!("max_size: {max_size}");
-
-        // TODO set the page size to the greatest multiple of `stride` smaller than `max_size`
 
         println!("desired_capacity: {desired_capacity}");
         println!("stride: {stride}");
@@ -72,6 +71,7 @@ impl PagedBuffers {
             page_size,
             stride,
             pages,
+            len: 0,
         };
 
         assert!(result.capacity() >= desired_capacity);
@@ -80,7 +80,7 @@ impl PagedBuffers {
     }
 
     pub fn upload_slice<T: bytemuck::Pod>(
-        &self,
+        &mut self,
         state: &raving_wgpu::State,
         data: &[T],
     ) -> Result<()> {
@@ -110,7 +110,13 @@ impl PagedBuffers {
                 .write_buffer(page, 0, bytemuck::cast_slice(chunk));
         }
 
+        self.len = data.len();
+
         Ok(())
+    }
+
+    pub fn len(&self) -> usize {
+        self.len
     }
 
     pub fn page_size(&self) -> u64 {
@@ -141,6 +147,37 @@ impl PagedBuffers {
     pub fn total_size(&self) -> u64 {
         self.page_size * self.pages.len() as u64
     }
+
+    pub fn page_ranges_iter<'a>(
+        &'a self,
+    ) -> impl Iterator<Item = (usize, std::ops::Range<usize>)> + 'a {
+        self.pages.iter().enumerate().map(|(page_i, _buf)| {
+            let len = self.len();
+            let page_cap = self.page_capacity();
+            let offset = page_i * page_cap;
+            let end = (offset + page_cap).min(len);
+
+            (page_i, offset..end)
+        })
+    }
+
+    // pub fn subpage_ranges(
+    //     &self,
+    //     el_count: usize,
+    // ) -> Vec<std::ops::Range<usize>> {
+    //     let subpage_count = self.page_capacity() / el_count;
+
+    //     let ranges = (0..subpage_count)
+    //         .map(|si| {
+    //             let from = si * el_count;
+    //             let to = (si + 1) * el_count;
+
+    //             todo!();
+    //         })
+    //         .collect::<Vec<_>>();
+
+    //     todo!();
+    // }
 }
 
 pub(super) struct State {
@@ -252,7 +289,8 @@ impl PolylineRenderer {
 
         let transform = ultraviolet::Mat4::identity();
 
-        let node_width = 80f32;
+        // let node_width = 80f32;
+        let node_width = 400f32;
         let vertex_cfg_uniform =
             device.create_buffer_init(&BufferInitDescriptor {
                 label: None,
@@ -368,7 +406,7 @@ impl PolylineRenderer {
         gpu_state: &raving_wgpu::State,
         segment_data: &[f32],
     ) -> Result<()> {
-        let state = self.state.write();
+        let mut state = self.state.write();
         let seg_count = segment_data.len();
         let expected = state.segment_count;
 
@@ -480,20 +518,87 @@ impl PolylineRenderer {
         let size = viewport.size();
         pass.set_viewport(min.x, min.y, size.x, size.y, 0., 1.);
 
-        //
+        // vertex buffer slice, (bind group, bind group offset)
+        // let mut args: Vec<(&wgpu::BufferSlice, (&wgpu::BindGroup, [u32; 1]))> =
+        //     Vec::new();
 
-        pass.set_vertex_buffer(0, state.vertex_buffers.pages[0].slice(..));
+        // let mut segment_offset = 0;
 
-        let empty_offsets = [];
-        let offsets = [0];
-        for (i, bind_group) in state.bind_groups.iter().enumerate() {
-            if i == 0 {
-                pass.set_bind_group(i as u32, bind_group, &empty_offsets);
-            } else {
-                pass.set_bind_group(i as u32, bind_group, &offsets);
+        // "step through" the vertex and data buffers simultaneously
+        // using the smaller (in elements) page size
+
+        let page_size = {
+            let vx_els = state.vertex_buffers.page_capacity();
+            let data_els = state.data_buffers.page_capacity();
+
+            vx_els.min(data_els)
+        };
+
+        // (page #, slice)
+        let mut vx_slices: Vec<(usize, std::ops::Range<u32>)> = Vec::new();
+
+        // chunk nodes into "subpages"
+
+        // let subpage_chunks =
+
+        // let mut vx_args: Vec<(&wgpu::Buffer, std::ops::Range<u32>)> =
+        //     Vec::new();
+
+        let mut data_args: Vec<(&wgpu::BindGroup, [u32; 1])> = Vec::new();
+
+        // let mut vx_args: Vec<(u32, u32, &wgpu::BufferSlice)> = Vec::new();
+
+        let vx_ranges = state
+            .vertex_buffers
+            .page_ranges_iter()
+            .map(|(p_i, range)| {
+                let page = &state.vertex_buffers.pages[p_i];
+                let page_cap = state.vertex_buffers.page_capacity();
+                let s = (range.start % page_cap) as u32;
+                let e = ((range.end - 1) % page_cap) as u32;
+
+                (page.slice(..), s..e)
+            })
+            .collect::<Vec<_>>();
+
+        let vx_page_step = state.vertex_buffers.page_capacity();
+
+        let vx_page_size = state.vertex_buffers.page_size;
+        let vx_page_count = state.vertex_buffers.page_count();
+        let vx_page_cap = state.vertex_buffers.page_capacity();
+
+        let data_page_size = state.data_buffers.page_size;
+        let data_page_count = state.data_buffers.page_count();
+        let data_page_cap = state.data_buffers.page_capacity();
+
+        // dbg!(&vx_page_size);
+        // dbg!(&vx_page_count);
+        // dbg!(&vx_page_cap);
+
+        // dbg!(&data_page_size);
+        // dbg!(&data_page_count);
+        // dbg!(&data_page_cap);
+
+        let ranges =
+            vx_ranges.iter().map(|(_, r)| r.clone()).collect::<Vec<_>>();
+
+        println!("ranges: {}\n{ranges:#?}", ranges.len());
+
+        for (vx_buf, instances) in vx_ranges {
+            pass.set_vertex_buffer(0, vx_buf);
+
+            let empty_offsets = [];
+            let offsets = [0];
+            for (i, bind_group) in state.bind_groups.iter().enumerate() {
+                if i == 0 {
+                    pass.set_bind_group(i as u32, bind_group, &empty_offsets);
+                } else {
+                    pass.set_bind_group(i as u32, bind_group, &offsets);
+                }
             }
-        }
 
-        pass.draw(0..6, 0..state.segment_count as u32);
+            // pass.draw(0..6, 0..state.segment_count as u32);
+            pass.draw(0..6, instances);
+        }
     }
 }
