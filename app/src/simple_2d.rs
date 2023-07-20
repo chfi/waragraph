@@ -9,6 +9,8 @@ use raving_wgpu::{gui::EguiCtx, WindowState};
 use sprs::{TriMat, TriMatI};
 use ultraviolet::Vec2;
 
+use egui_winit::winit;
+
 use anyhow::Result;
 use waragraph_core::graph::{matrix::MatGraph, Node, OrientedNode, PathIndex};
 

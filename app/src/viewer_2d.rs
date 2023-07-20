@@ -13,6 +13,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use crossbeam::atomic::AtomicCell;
+use egui_winit::winit;
 use raving_wgpu::camera::DynamicCamera2d;
 use raving_wgpu::texture::Texture;
 use tokio::sync::RwLock;

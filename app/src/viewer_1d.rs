@@ -16,6 +16,7 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
 
+use egui_winit::winit;
 use winit::event::WindowEvent;
 
 use raving_wgpu::graph::dfrog::{Graph, InputResource};

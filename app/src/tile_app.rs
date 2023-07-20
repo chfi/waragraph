@@ -3,11 +3,8 @@ use std::{collections::HashMap, path::PathBuf};
 
 use egui::util::IdTypeMap;
 use raving_wgpu::gui::EguiCtx;
-use tokio::{
-    runtime::Runtime,
-    sync::{mpsc, RwLock},
-};
-use winit::{
+
+use egui_winit::winit::{
     event::{ElementState, Event, VirtualKeyCode, WindowEvent},
     event_loop::{ControlFlow, EventLoop, EventLoopWindowTarget},
     window::WindowId,
@@ -30,6 +27,12 @@ use crate::{
 use anyhow::{Context, Result};
 use lazy_async_promise::ImmediateValuePromise;
 use waragraph_core::graph::PathIndex;
+
+#[cfg(not(target_arch = "wasm32"))]
+use tokio::{
+    runtime::Runtime,
+    sync::{mpsc, RwLock},
+};
 
 mod start;
 
@@ -144,7 +147,12 @@ impl<'a> egui_tiles::Behavior<Pane> for AppBehavior<'a> {
 }
 
 pub struct App {
+    #[cfg(not(target_arch = "wasm32"))]
     pub tokio_rt: Arc<tokio::runtime::Runtime>,
+
+    #[cfg(not(target_arch = "wasm32"))]
+    resource_state: Option<ImmediateValuePromise<ResourceLoadState>>,
+
     pub shared: Option<SharedState>,
 
     tree: egui_tiles::Tree<Pane>,
@@ -158,8 +166,6 @@ pub struct App {
     // segment_renderer: Option<PolylineRenderer>,
     gfa_path: Option<Arc<PathBuf>>,
     tsv_path: Option<Arc<PathBuf>>,
-
-    resource_state: Option<ImmediateValuePromise<ResourceLoadState>>,
 
     id_type_map: IdTypeMap,
     context_state: ContextState,
@@ -176,7 +182,8 @@ struct ResourceLoadState {
 }
 
 impl App {
-    pub fn init() -> Result<Self> {
+    #[cfg(not(target_arch = "wasm32"))]
+    pub fn init_native() -> Result<Self> {
         let runtime = tokio::runtime::Builder::new_multi_thread()
             .worker_threads(4)
             .enable_all()
@@ -380,11 +387,13 @@ impl App {
             self.tree.ui(&mut behavior, ui);
         });
 
+        #[cfg(not(target_arch = "wasm32"))]
         if let Some(state) = behavior.init_resources {
             self.start_loading_resources(state).unwrap();
         }
     }
 
+    #[cfg(not(target_arch = "wasm32"))]
     fn start_loading_resources(
         &mut self,
         mut state: ResourceLoadState,

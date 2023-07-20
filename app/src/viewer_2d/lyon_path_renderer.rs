@@ -20,6 +20,7 @@ use ultraviolet::*;
 
 use wgpu::util::DeviceExt;
 
+use egui_winit::winit;
 use winit::event_loop::EventLoopWindowTarget;
 
 use waragraph_core::graph::{Node, PathIndex};

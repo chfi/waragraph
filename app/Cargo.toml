@@ -9,20 +9,13 @@ edition = "2021"
 waragraph-core = { path = "../lib" }
 bimap = "0.6"
 
-tokio = { version = "1", features = ["full"] }
 async-trait = "0.1"
 
 crossbeam = "0.8"
 
-winit = "0.28"
 env_logger = "0.9"
 log = "0.4"
 
-egui = { version = "0.22", features = ["mint"] }
-egui-wgpu = { version = "0.22" }
-egui-winit = { version = "0.22" }
-egui_tiles = "0.1"
-egui_file = "0.9"
 
 wgpu = { version = "0.16", features = ["spirv", "expose-ids"] }
 # naga = { version = "0.10", features = ["clone", "spv-in", "glsl-in", "spv-out"] }
@@ -60,8 +53,25 @@ iset = "0.2"
 reunion = "0.1"
 sprs = "0.11"
 
-three-edge-connected = "0.2"
 sha2 = "0.10.6"
 kiddo = "2.0.2"
 parry2d = "0.13.4"
+
+# winit = "0.28"
+egui = { version = "0.22", features = ["mint"] }
+egui-wgpu = { version = "0.22" }
+egui_tiles = "0.1"
+egui_file = "0.9"
+
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+tokio = { version = "1", features = ["full"] }
 lazy_async_promise = "0.5.0"
+
+egui-winit = { version = "0.22" }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+wasm-bindgen = "0.2"
+js-sys = "0.3"
+web-sys = "0.3"
+egui-winit = { version = "0.22", default-features = false }
