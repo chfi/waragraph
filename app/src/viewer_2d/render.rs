@@ -26,18 +26,10 @@ impl PagedBuffers {
         stride: u64,
         desired_capacity: usize, // in elements
     ) -> Result<Self> {
-        // let max_size = device.limits().max_buffer_size;
-        // let max_size = 8 * (1 << 20);
-        // let max_size = 12 * (1 << 20);
-        let max_size = 2 * (1 << 20);
+        let max_size = device.limits().max_buffer_size;
 
         // set the page size to the greatest multiple of `stride` smaller than `max_size`
         let max_size = (max_size / stride) * stride;
-        // let max_size = if max_size % stride == 0 {
-        //     max_size
-        // } else {
-        //     (max_size / stride) * stride
-        // };
 
         println!("max_size: {max_size}");
 
@@ -161,23 +153,18 @@ impl PagedBuffers {
         })
     }
 
-    // pub fn subpage_ranges(
-    //     &self,
-    //     el_count: usize,
-    // ) -> Vec<std::ops::Range<usize>> {
-    //     let subpage_count = self.page_capacity() / el_count;
+    pub fn subpage_ranges_iter<'a>(
+        &'a self,
+    ) -> impl Iterator<Item = (usize, std::ops::Range<usize>)> + 'a {
+        self.pages.iter().enumerate().map(|(page_i, _buf)| {
+            let len = self.len();
+            let page_cap = self.page_capacity();
+            let offset = page_i * page_cap;
+            let end = (offset + page_cap).min(len);
 
-    //     let ranges = (0..subpage_count)
-    //         .map(|si| {
-    //             let from = si * el_count;
-    //             let to = (si + 1) * el_count;
-
-    //             todo!();
-    //         })
-    //         .collect::<Vec<_>>();
-
-    //     todo!();
-    // }
+            (page_i, offset..end)
+        })
+    }
 }
 
 #[derive(Default, Debug, Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
@@ -407,8 +394,6 @@ impl PolylineRenderer {
         let seg_count = segment_positions.len();
 
         let mut state = self.state.write();
-        println!("segment_positions.len(): {seg_count}");
-        println!("vx buf capacity: {}", state.vertex_buffers.capacity());
 
         if seg_count > state.vertex_buffers.capacity() {
             panic!("Line data would not fit buffers");
@@ -444,12 +429,6 @@ impl PolylineRenderer {
 
         Ok(())
     }
-
-    // pub fn has_bind_groups(&self) -> bool {
-    //     !self.bind_groups.is_empty()
-    // }
-
-    // pub fn set_transform(&mut self
 
     pub fn create_bind_groups(
         &mut self,
@@ -543,39 +522,11 @@ impl PolylineRenderer {
 
         pass.set_pipeline(&state.graphics_node.pipeline);
 
-        let min = viewport.min;
         let size = viewport.size();
-        pass.set_viewport(min.x, min.y, size.x, size.y, 0., 1.);
-
-        // vertex buffer slice, (bind group, bind group offset)
-        // let mut args: Vec<(&wgpu::BufferSlice, (&wgpu::BindGroup, [u32; 1]))> =
-        //     Vec::new();
-
-        // let mut segment_offset = 0;
+        pass.set_viewport(0., 0., size.x, size.y, 0., 1.);
 
         // "step through" the vertex and data buffers simultaneously
         // using the smaller (in elements) page size
-
-        let page_size = {
-            let vx_els = state.vertex_buffers.page_capacity();
-            let data_els = state.data_buffers.page_capacity();
-
-            vx_els.min(data_els)
-        };
-
-        // (page #, slice)
-        let mut vx_slices: Vec<(usize, std::ops::Range<u32>)> = Vec::new();
-
-        // chunk nodes into "subpages"
-
-        // let subpage_chunks =
-
-        // let mut vx_args: Vec<(&wgpu::Buffer, std::ops::Range<u32>)> =
-        //     Vec::new();
-
-        let mut data_args: Vec<(&wgpu::BindGroup, [u32; 1])> = Vec::new();
-
-        // let mut vx_args: Vec<(u32, u32, &wgpu::BufferSlice)> = Vec::new();
 
         let vx_ranges = state
             .vertex_buffers
@@ -590,21 +541,6 @@ impl PolylineRenderer {
             })
             .collect::<Vec<_>>();
 
-        let vx_page_step = state.vertex_buffers.page_capacity();
-
-        let vx_page_size = state.vertex_buffers.page_size;
-        let vx_page_count = state.vertex_buffers.page_count();
-        let vx_page_cap = state.vertex_buffers.page_capacity();
-
-        let data_page_size = state.data_buffers.page_size;
-        let data_page_count = state.data_buffers.page_count();
-        let data_page_cap = state.data_buffers.page_capacity();
-
-        let ranges =
-            vx_ranges.iter().map(|(_, r)| r.clone()).collect::<Vec<_>>();
-
-        println!("ranges: {}\n{ranges:#?}", ranges.len());
-
         for (vx_buf, instances) in vx_ranges {
             pass.set_vertex_buffer(0, vx_buf);
 
@@ -618,7 +554,6 @@ impl PolylineRenderer {
                 }
             }
 
-            // pass.draw(0..6, 0..state.segment_count as u32);
             pass.draw(0..6, instances);
         }
     }

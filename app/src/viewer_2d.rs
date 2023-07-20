@@ -824,7 +824,6 @@ impl Viewer2D {
 
         let data_buf_size =
             self.shared.graph.node_count * std::mem::size_of::<[f32; 5]>();
-        // println!("data_buf
 
         transient_res.insert(
             "node_data".to_string(),

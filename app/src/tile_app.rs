@@ -66,6 +66,8 @@ pub struct AppBehavior<'a> {
     context_state: &'a mut ContextState,
 
     pane_sizes: &'a mut HashMap<egui::Id, [u32; 2]>,
+
+    window_size: egui::Vec2,
 }
 
 impl<'a> egui_tiles::Behavior<Pane> for AppBehavior<'a> {
@@ -86,6 +88,10 @@ impl<'a> egui_tiles::Behavior<Pane> for AppBehavior<'a> {
     ) -> egui_tiles::UiResponse {
         let pane_id = pane.data_id();
         let [w, h]: [f32; 2] = ui.clip_rect().size().into();
+
+        let win_sz = self.window_size;
+        let uv = [w / win_sz.x, h / win_sz.y];
+
         let dims = [w as u32, h as u32];
         self.pane_sizes.insert(pane_id, dims);
 
@@ -117,10 +123,7 @@ impl<'a> egui_tiles::Behavior<Pane> for AppBehavior<'a> {
                     painter.add(egui::Shape::image(
                         tex_id,
                         painter.clip_rect(),
-                        egui::Rect::from_min_max(
-                            egui::pos2(0., 0.),
-                            egui::pos2(1., 1.),
-                        ),
+                        egui::Rect::from_min_max([0., 0.].into(), uv.into()),
                         egui::Color32::WHITE,
                     ));
 
@@ -370,6 +373,7 @@ impl App {
             id_type_map: &mut self.id_type_map,
             context_state: &mut self.context_state,
             pane_sizes: &mut self.pane_sizes,
+            window_size: ctx.screen_rect().size(),
         };
 
         egui::CentralPanel::default().show(ctx, |ui| {
@@ -550,8 +554,10 @@ impl App {
                         );
 
                         if let Some(viewer_2d) = self.viewer_2d.as_mut() {
-
-                            let dims = self.pane_sizes.get(&Pane::Viewer2D.data_id()).copied().unwrap_or(window.size.into());
+                            let dims = self.pane_sizes
+                                .get(&Pane::Viewer2D.data_id())
+                                .copied()
+                                .unwrap_or(window.size.into());
 
                             let result = viewer_2d.render_new(&state, dims, &mut encoder);
 
