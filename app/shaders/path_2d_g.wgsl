@@ -127,7 +127,7 @@ fn fs_main(
   var result: FragmentOut;
 
   // let index = (u_data_config.offset + node_id).clamp(0, u_data_config.max);
-  let index = node_id % page_size;
+  let index = node_id % u_data_config.page_size;
 
   let v = u_data[index];
   // let v = u_data[node_id];

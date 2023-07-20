@@ -501,6 +501,11 @@ impl PolylineRenderer {
         );
 
         bindings.insert(
+            "u_data_config".into(),
+            state.data_config_uniform.buffer().as_entire_binding(),
+        );
+
+        bindings.insert(
             "u_color_map".into(),
             state.color_map.buffer().as_entire_binding(),
         );
