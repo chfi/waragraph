@@ -1,6 +1,7 @@
 use std::sync::Arc;
 use std::{collections::HashMap, path::PathBuf};
 
+use parking_lot::RwLock;
 use raving_wgpu::egui;
 use raving_wgpu::wgpu;
 
@@ -23,6 +24,10 @@ use crate::{
 
 use anyhow::{Context, Result};
 use waragraph_core::graph::PathIndex;
+
+use self::resource::GraphDataCache;
+
+pub mod resource;
 
 pub enum Pane {
     Viewer1D,
@@ -162,36 +167,31 @@ struct ResourceLoadState {
 
 impl App {
     pub fn init() -> Result<Self> {
-        //
+        let mut tiles = egui_tiles::Tiles::default();
+        let tabs = vec![];
+        let root = tiles.insert_tab_tile(tabs);
+
+        let tree = egui_tiles::Tree::new(root, tiles);
+
+        Ok(App {
+            shared: None,
+
+            tree,
+
+            // viewer_1d: None,
+            viewer_2d: None,
+            node_positions: None,
+
+            // segment_renderer: None,
+            gfa_path: None,
+            tsv_path: None,
+
+            id_type_map: Default::default(),
+            context_state: ContextState::default(),
+
+            pane_sizes: HashMap::default(),
+        })
     }
-
-    // #[cfg(not(target_arch = "wasm32"))]
-    // pub fn init_native() -> Result<Self> {
-    //     let mut tiles = egui_tiles::Tiles::default();
-    //     let tabs = vec![];
-    //     let root = tiles.insert_tab_tile(tabs);
-
-    //     let tree = egui_tiles::Tree::new(root, tiles);
-
-    //     Ok(App {
-    //         shared: None,
-
-    //         tree,
-
-    //         // viewer_1d: None,
-    //         viewer_2d: None,
-    //         node_positions: None,
-
-    //         // segment_renderer: None,
-    //         gfa_path: None,
-    //         tsv_path: None,
-
-    //         id_type_map: Default::default(),
-    //         context_state: ContextState::default(),
-
-    //         pane_sizes: HashMap::default(),
-    //     })
-    // }
 
     pub fn update(
         &mut self,
@@ -311,7 +311,7 @@ impl App {
     pub fn show(&mut self, ctx: &egui::Context) {
         let mut behavior = AppBehavior {
             shared_state: self.shared.as_ref(),
-            viewer_1d: self.viewer_1d.as_mut(),
+            // viewer_1d: self.viewer_1d.as_mut(),
             viewer_2d: self.viewer_2d.as_mut(),
             init_resources: None,
             id_type_map: &mut self.id_type_map,
@@ -537,8 +537,6 @@ impl App {
         // res_state: &ResourceLoadState,
         graph: Arc<PathIndex>,
     ) {
-        let workspace = Arc::new(RwLock::new(Workspace { gfa_path, tsv_path }));
-
         let graph_data_cache = Arc::new(GraphDataCache::init(&graph));
 
         let colors = Arc::new(RwLock::new(ColorStore::init(state)));
@@ -560,10 +558,10 @@ impl App {
             add_entry("strand", "black_red");
         }
 
-        let mut annotations = AnnotationStore::default();
+        // let mut annotations = AnnotationStore::default();
 
-        let annotations: Arc<RwLock<AnnotationStore>> =
-            Arc::new(RwLock::new(annotations));
+        // let annotations: Arc<RwLock<AnnotationStore>> =
+        //     Arc::new(RwLock::new(annotations));
 
         // i'll remove this before i actually use it
         // let (app_msg_send, app_msg_recv) = mpsc::channel(256);
@@ -573,13 +571,10 @@ impl App {
 
             // shared: Arc::new(RwLock::new(AnyArcMap::default())),
             graph_data_cache,
-            annotations,
-
+            // annotations,
             colors,
 
             data_color_schemes: Arc::new(data_color_schemes.into()),
-
-            workspace,
             // app_msg_send,
         };
 

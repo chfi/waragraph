@@ -3497,6 +3497,8 @@ dependencies = [
  "egui-winit",
  "egui_tiles",
  "js-sys",
+ "log",
+ "parking_lot 0.12.1",
  "raving-wgpu",
  "ultraviolet",
  "waragraph-core",

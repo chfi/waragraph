@@ -4,7 +4,11 @@ pub mod context;
 pub mod util;
 pub mod viewer_2d;
 
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
+
+use app::resource::GraphDataCache;
+use color::{ColorSchemeId, ColorStore};
+use parking_lot::RwLock;
 
 #[derive(Clone)]
 pub struct SharedState {
@@ -13,11 +17,10 @@ pub struct SharedState {
     // pub shared: Arc<RwLock<AnyArcMap>>,
     pub graph_data_cache: Arc<GraphDataCache>,
 
-    pub annotations: Arc<RwLock<AnnotationStore>>,
-
+    // pub annotations: Arc<RwLock<AnnotationStore>>,
     pub colors: Arc<RwLock<ColorStore>>,
 
-    pub workspace: Arc<RwLock<Workspace>>,
+    // pub workspace: Arc<RwLock<Workspace>>,
     // gfa_path: Arc<PathBuf>,
     // tsv_path: Option<Arc<RwLock<PathBuf>>>,
     pub data_color_schemes: Arc<RwLock<HashMap<String, ColorSchemeId>>>,

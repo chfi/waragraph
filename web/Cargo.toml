@@ -15,6 +15,10 @@ web-sys = "0.3"
 egui-winit = { version = "0.22", default-features = false }
 egui_tiles = "0.1"
 
+log = "0.4"
+
+parking_lot = "0.12.1"
+
 raving-wgpu = { path = "../../raving-wgpu" }
 waragraph-core = { path = "../lib" }
 
