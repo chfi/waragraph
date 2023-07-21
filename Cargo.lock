@@ -3310,6 +3310,7 @@ dependencies = [
  "mint",
  "noodles",
  "palette",
+ "parking_lot 0.12.1",
  "parry2d",
  "pico-args",
  "pollster",
@@ -3486,6 +3487,17 @@ dependencies = [
  "dlib",
  "lazy_static",
  "pkg-config",
+]
+
+[[package]]
+name = "web"
+version = "0.1.0"
+dependencies = [
+ "egui-winit",
+ "js-sys",
+ "raving-wgpu",
+ "wasm-bindgen",
+ "web-sys",
 ]
 
 [[package]]

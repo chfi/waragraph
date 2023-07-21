@@ -56,8 +56,7 @@ pub struct SharedState {
     // gfa_path: Arc<PathBuf>,
     // tsv_path: Option<Arc<RwLock<PathBuf>>>,
     pub data_color_schemes: Arc<RwLock<HashMap<String, ColorSchemeId>>>,
-
-    pub app_msg_send: tokio::sync::mpsc::Sender<AppMsg>,
+    // pub app_msg_send: tokio::sync::mpsc::Sender<AppMsg>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -81,10 +80,10 @@ pub struct App {
     // pub apps: HashMap<AppType, AppWindowState>,
 
     // sleeping: HashMap<AppType, AsleepWindow>,
-    settings: SettingsWindow,
-    settings_window_tgt: Option<WindowId>,
+    // settings: SettingsWindow,
+    // settings_window_tgt: Option<WindowId>,
 
-    app_msg_recv: tokio::sync::mpsc::Receiver<AppMsg>,
+    // app_msg_recv: tokio::sync::mpsc::Receiver<AppMsg>,
 }
 
 impl App {
@@ -100,20 +99,20 @@ impl App {
         let path_index = waragraph_core::graph::PathIndex::from_gfa(&args.gfa)?;
         let path_index = Arc::new(path_index);
 
-        let (app_msg_send, app_msg_recv) = mpsc::channel::<AppMsg>(256);
+        // let (app_msg_send, app_msg_recv) = mpsc::channel::<AppMsg>(256);
 
-        let mut settings = SettingsWindow::new(
-            tokio_rt.handle().clone(),
-            app_msg_send.clone(),
-        );
+        // let mut settings = SettingsWindow::new(
+        //     tokio_rt.handle().clone(),
+        //     app_msg_send.clone(),
+        // );
 
         let app_windows = AppWindows::default();
 
-        settings.register_widget(
-            "Window",
-            "Windows",
-            app_windows.widget_state.clone(),
-        );
+        // settings.register_widget(
+        //     "Window",
+        //     "Windows",
+        //     app_windows.widget_state.clone(),
+        // );
 
         let shared = {
             let workspace = Arc::new(RwLock::new(Workspace {
@@ -121,10 +120,10 @@ impl App {
                 tsv_path: args.tsv,
             }));
 
-            {
-                let ws = workspace.clone();
-                settings.register_widget("General", "Graph & Layout", ws);
-            }
+            // {
+            //     let ws = workspace.clone();
+            //     settings.register_widget("General", "Graph & Layout", ws);
+            // }
 
             let graph_data_cache = Arc::new(GraphDataCache::init(&path_index));
 
@@ -222,8 +221,7 @@ impl App {
                 data_color_schemes: Arc::new(data_color_schemes.into()),
 
                 workspace,
-
-                app_msg_send,
+                // app_msg_send,
             }
         };
 
@@ -231,11 +229,11 @@ impl App {
 
         let context_inspector = ContextInspector::with_default_widgets(&shared);
 
-        settings.register_widget(
-            "Context",
-            "Context Inspector",
-            context_inspector.settings_widget().clone(),
-        );
+        // settings.register_widget(
+        //     "Context",
+        //     "Context Inspector",
+        //     context_inspector.settings_widget().clone(),
+        // );
 
         Ok(Self {
             tokio_rt,
@@ -249,10 +247,10 @@ impl App {
             // apps: HashMap::default(),
 
             // sleeping: HashMap::default(),
-            settings,
-            settings_window_tgt: None,
+            // settings,
+            // settings_window_tgt: None,
 
-            app_msg_recv,
+            // app_msg_recv,
         })
     }
 
@@ -390,20 +388,20 @@ impl App {
                                     ElementState::Pressed
                                 );
 
-                                if let Some(Key::Escape) = input.virtual_keycode
-                                {
-                                    if pressed {
-                                        if let Err(e) =
-                                            self.shared.app_msg_send.try_send(
-                                                AppMsg::ToggleSettingsWindow {
-                                                    src: *window_id,
-                                                },
-                                            )
-                                        {
-                                            log::error!("{e:?}");
-                                        }
-                                    }
-                                }
+                                // if let Some(Key::Escape) = input.virtual_keycode
+                                // {
+                                //     if pressed {
+                                //         if let Err(e) =
+                                //             self.shared.app_msg_send.try_send(
+                                //                 AppMsg::ToggleSettingsWindow {
+                                //                     src: *window_id,
+                                //                 },
+                                //             )
+                                //         {
+                                //             log::error!("{e:?}");
+                                //         }
+                                //     }
+                                // }
                             }
                             WindowEvent::CloseRequested => {
                                 *control_flow = ControlFlow::Exit
@@ -449,13 +447,13 @@ impl App {
 
                     self.context_state.start_frame();
 
-                    while let Ok(msg) = self.app_msg_recv.try_recv() {
-                        if let Err(e) =
-                            self.process_msg(event_loop_tgt, &state, msg)
-                        {
-                            log::error!("Error processing AppMsg: {e:?}");
-                        }
-                    }
+                    // while let Ok(msg) = self.app_msg_recv.try_recv() {
+                    //     if let Err(e) =
+                    //         self.process_msg(event_loop_tgt, &state, msg)
+                    //     {
+                    //         log::error!("Error processing AppMsg: {e:?}");
+                    //     }
+                    // }
 
                     // TODO: don't really like just having this here,
                     // but good enough for now
@@ -472,11 +470,11 @@ impl App {
                             dt,
                         );
 
-                        if Some(app.window.window.id())
-                            == self.settings_window_tgt
-                        {
-                            self.settings.show(app.egui.ctx());
-                        }
+                        // if Some(app.window.window.id())
+                        //     == self.settings_window_tgt
+                        // {
+                        //     self.settings.show(app.egui.ctx());
+                        // }
 
                         if context_inspector_tgts.contains(app_type) {
                             egui::Window::new("Context Inspector")
@@ -518,18 +516,18 @@ impl App {
                 }
             }
             AppMsg::OpenSettingsWindow { src } => {
-                if self.settings_window_tgt.is_none() {
-                    self.settings_window_tgt = Some(src);
-                }
+                // if self.settings_window_tgt.is_none() {
+                //     self.settings_window_tgt = Some(src);
+                // }
             }
             AppMsg::ToggleSettingsWindow { src } => {
-                if let Some(tgt) = self.settings_window_tgt.take() {
-                    if src != tgt {
-                        self.settings_window_tgt = Some(src);
-                    }
-                } else {
-                    self.settings_window_tgt = Some(src);
-                }
+                // if let Some(tgt) = self.settings_window_tgt.take() {
+                //     if src != tgt {
+                //         self.settings_window_tgt = Some(src);
+                //     }
+                // } else {
+                //     self.settings_window_tgt = Some(src);
+                // }
             }
             AppMsg::WindowDelta(delta) => {
                 self.app_windows

@@ -16,7 +16,6 @@ crossbeam = "0.8"
 env_logger = "0.9"
 log = "0.4"
 
-
 wgpu = { version = "0.16", features = ["spirv", "expose-ids"] }
 # naga = { version = "0.10", features = ["clone", "spv-in", "glsl-in", "spv-out"] }
 
@@ -62,12 +61,12 @@ egui = { version = "0.22", features = ["mint"] }
 egui-wgpu = { version = "0.22" }
 egui_tiles = "0.1"
 egui_file = "0.9"
+parking_lot = "0.12.1"
 
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 tokio = { version = "1", features = ["full"] }
 lazy_async_promise = "0.5.0"
-
 egui-winit = { version = "0.22" }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]

@@ -1,8 +1,8 @@
 [workspace]
 members = [
-    #"old",
     "lib",
     "app",
+    "web",
 ]
 
 resolver = "2"
