@@ -1,6 +1,9 @@
 use std::sync::Arc;
 use std::{collections::HashMap, path::PathBuf};
 
+use raving_wgpu::egui;
+use raving_wgpu::wgpu;
+
 use egui::util::IdTypeMap;
 use raving_wgpu::gui::EguiCtx;
 
@@ -10,37 +13,20 @@ use egui_winit::winit::{
     window::WindowId,
 };
 
-use crate::app::AppWindow;
 use crate::viewer_2d::render::PolylineRenderer;
+use crate::SharedState;
 use crate::{
-    annotations::{AnnotationSet, AnnotationStore},
-    app::{
-        resource::GraphDataCache, settings_menu::SettingsWindow,
-        workspace::Workspace, SharedState,
-    },
     color::ColorStore,
     context::ContextState,
-    viewer_1d::Viewer1D,
     viewer_2d::{layout::NodePositions, Viewer2D},
 };
 
 use anyhow::{Context, Result};
-use lazy_async_promise::ImmediateValuePromise;
 use waragraph_core::graph::PathIndex;
 
-#[cfg(not(target_arch = "wasm32"))]
-use tokio::{
-    runtime::Runtime,
-    sync::{mpsc, RwLock},
-};
-
-mod start;
-
 pub enum Pane {
-    Start(start::StartPage),
     Viewer1D,
     Viewer2D,
-    // Settings,
 }
 
 impl Pane {
@@ -56,7 +42,7 @@ impl Pane {
 pub struct AppBehavior<'a> {
     shared_state: Option<&'a SharedState>,
 
-    viewer_1d: Option<&'a mut Viewer1D>,
+    // viewer_1d: Option<&'a mut Viewer1D>,
     viewer_2d: Option<&'a mut Viewer2D>,
     // settings: &'a mut SettingsWindow,
 
@@ -147,18 +133,11 @@ impl<'a> egui_tiles::Behavior<Pane> for AppBehavior<'a> {
 }
 
 pub struct App {
-    #[cfg(not(target_arch = "wasm32"))]
-    pub tokio_rt: Arc<tokio::runtime::Runtime>,
-
-    #[cfg(not(target_arch = "wasm32"))]
-    resource_state: Option<ImmediateValuePromise<ResourceLoadState>>,
-
     pub shared: Option<SharedState>,
 
     tree: egui_tiles::Tree<Pane>,
 
-    viewer_1d: Option<Viewer1D>,
-
+    // viewer_1d: Option<Viewer1D>,
     viewer_2d: Option<Viewer2D>,
     pub node_positions: Option<Arc<NodePositions>>,
 
@@ -182,46 +161,37 @@ struct ResourceLoadState {
 }
 
 impl App {
-    #[cfg(not(target_arch = "wasm32"))]
-    pub fn init_native() -> Result<Self> {
-        let runtime = tokio::runtime::Builder::new_multi_thread()
-            .worker_threads(4)
-            .enable_all()
-            .thread_name("waragraph-tokio")
-            .build()?;
-
-        let mut tiles = egui_tiles::Tiles::default();
-        let tabs =
-            vec![tiles.insert_pane(Pane::Start(start::StartPage::default()))];
-        let root = tiles.insert_tab_tile(tabs);
-
-        let tree = egui_tiles::Tree::new(root, tiles);
-
-        let tokio_rt = Arc::new(runtime);
-
-        Ok(App {
-            tokio_rt,
-            shared: None,
-
-            tree,
-
-            viewer_1d: None,
-
-            viewer_2d: None,
-            node_positions: None,
-
-            // segment_renderer: None,
-            gfa_path: None,
-            tsv_path: None,
-
-            resource_state: None,
-
-            id_type_map: Default::default(),
-            context_state: ContextState::default(),
-
-            pane_sizes: HashMap::default(),
-        })
+    pub fn init() -> Result<Self> {
+        //
     }
+
+    // #[cfg(not(target_arch = "wasm32"))]
+    // pub fn init_native() -> Result<Self> {
+    //     let mut tiles = egui_tiles::Tiles::default();
+    //     let tabs = vec![];
+    //     let root = tiles.insert_tab_tile(tabs);
+
+    //     let tree = egui_tiles::Tree::new(root, tiles);
+
+    //     Ok(App {
+    //         shared: None,
+
+    //         tree,
+
+    //         // viewer_1d: None,
+    //         viewer_2d: None,
+    //         node_positions: None,
+
+    //         // segment_renderer: None,
+    //         gfa_path: None,
+    //         tsv_path: None,
+
+    //         id_type_map: Default::default(),
+    //         context_state: ContextState::default(),
+
+    //         pane_sizes: HashMap::default(),
+    //     })
+    // }
 
     pub fn update(
         &mut self,
@@ -232,39 +202,6 @@ impl App {
     ) {
         // if resources are ready, initialize the SharedState
 
-        if let Some(res_state) = self.resource_state.as_mut() {
-            use lazy_async_promise::ImmediateValueState as State;
-            match res_state.poll_state() {
-                State::Success(res_state) => {
-                    self.node_positions = res_state.node_positions.clone();
-
-                    if let Some(graph) = res_state.graph.clone() {
-                        let gfa_path = res_state
-                            .gfa_path
-                            .as_ref()
-                            .map(|p| p.to_path_buf())
-                            .unwrap();
-
-                        let tsv_path = res_state
-                            .tsv_path
-                            .as_ref()
-                            .map(|p| p.to_path_buf());
-                        self.initialize_shared_state(
-                            state, gfa_path, tsv_path, graph,
-                        );
-                    }
-                }
-                State::Updating | State::Empty => {
-                    // do nothing
-                }
-                State::Error(err) => {
-                    // report error and reset
-                    log::error!("{:#?}", err.0);
-                    self.resource_state = None;
-                }
-            }
-        }
-
         let mut rebuild_tree = false;
 
         // if SharedState and node positions are ready, but the
@@ -273,13 +210,13 @@ impl App {
         if let Some(shared) = self.shared.as_ref() {
             let dims: [u32; 2] = window.window.inner_size().into();
 
-            if self.viewer_1d.is_none() {
-                let viewer =
-                    Viewer1D::init(dims, state, window, shared).unwrap();
-                self.viewer_1d = Some(viewer);
+            // if self.viewer_1d.is_none() {
+            //     let viewer =
+            //         Viewer1D::init(dims, state, window, shared).unwrap();
+            //     self.viewer_1d = Some(viewer);
 
-                rebuild_tree = true;
-            }
+            //     rebuild_tree = true;
+            // }
 
             if self.viewer_2d.is_none() {
                 if let Some(pos) = self.node_positions.clone() {
@@ -337,7 +274,7 @@ impl App {
         if rebuild_tree {
             let mut tiles = egui_tiles::Tiles::default();
 
-            let has_1d = self.viewer_1d.is_some();
+            // let has_1d = self.viewer_1d.is_some();
             let has_2d = self.viewer_2d.is_some();
 
             let mut tabs = vec![];
@@ -345,11 +282,11 @@ impl App {
             //     tiles.insert_pane(Pane::Start(start::StartPage::default()))
             // ];
 
-            if !(has_1d && has_2d) {
-                tabs.push(
-                    tiles.insert_pane(Pane::Start(start::StartPage::default())),
-                );
-            }
+            // if !(has_1d && has_2d) {
+            //     tabs.push(
+            //         tiles.insert_pane(Pane::Start(start::StartPage::default())),
+            //     );
+            // }
 
             // if has_1d {
             //     tabs.push(tiles.insert_pane(Pane::Viewer1D));
@@ -386,79 +323,6 @@ impl App {
         egui::CentralPanel::default().show(ctx, |ui| {
             self.tree.ui(&mut behavior, ui);
         });
-
-        #[cfg(not(target_arch = "wasm32"))]
-        if let Some(state) = behavior.init_resources {
-            self.start_loading_resources(state).unwrap();
-        }
-    }
-
-    #[cfg(not(target_arch = "wasm32"))]
-    fn start_loading_resources(
-        &mut self,
-        mut state: ResourceLoadState,
-    ) -> Result<()> {
-        if self.resource_state.is_some() {
-            return Ok(());
-        }
-
-        // just in case, don't try to load if we've already begun
-        if self.gfa_path.is_some() {
-            state.gfa_path = None;
-        }
-        if self.tsv_path.is_some() {
-            state.tsv_path = None;
-        }
-
-        if state.gfa_path.is_none() && state.tsv_path.is_none() {
-            return Ok(());
-        }
-
-        // spawn a blocking thread that loads the GFA and/or TSV
-
-        // while a GFA is necessary in both 1D and 2D, I'm designing
-        // this to handle the case where a GFA is first loaded, and
-        // then extended further with a TSV, using the same function
-        // and type
-
-        let handle = self.tokio_rt.spawn_blocking(move || {
-            if let Some(gfa_path) = state.gfa_path.as_ref() {
-                // load & set `graph`
-                let result =
-                    waragraph_core::graph::PathIndex::from_gfa(gfa_path);
-
-                match result {
-                    Ok(path_index) => state.graph = Some(Arc::new(path_index)),
-                    Err(err) => log::error!("Error parsing GFA: {err:#?}"),
-                }
-            };
-
-            if let Some(tsv_path) = state.tsv_path.as_ref() {
-                // load & set `node_positions`
-                let result = NodePositions::from_layout_tsv(tsv_path);
-
-                match result {
-                    Ok(pos) => state.node_positions = Some(Arc::new(pos)),
-                    Err(err) => log::error!("Error parsing layout: {err:#?}"),
-                }
-            };
-
-            state
-        });
-
-        let fut = async move {
-            let result = handle.await?;
-            Ok(result)
-        };
-
-        let _guard = self.tokio_rt.enter();
-
-        // create the resource_state as a future that awaits the blocking thread
-        let resource_state = ImmediateValuePromise::new(fut);
-
-        self.resource_state = Some(resource_state);
-
-        Ok(())
     }
 }
 

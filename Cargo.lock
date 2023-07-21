@@ -3493,9 +3493,13 @@ dependencies = [
 name = "web"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "egui-winit",
+ "egui_tiles",
  "js-sys",
  "raving-wgpu",
+ "ultraviolet",
+ "waragraph-core",
  "wasm-bindgen",
  "web-sys",
 ]

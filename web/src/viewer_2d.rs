@@ -7,17 +7,18 @@ use crate::context::{ContextQuery, ContextState};
 use crate::util::BufferDesc;
 // use crate::viewer_2d::config::Config;
 
+use raving_wgpu::egui;
+use raving_wgpu::wgpu;
+
 use std::collections::{HashMap, HashSet};
 use std::num::NonZeroU32;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use crossbeam::atomic::AtomicCell;
 use egui_winit::winit;
 use raving_wgpu::camera::DynamicCamera2d;
 use raving_wgpu::texture::Texture;
 
-use parking_lot::RwLock;
 use wgpu::BufferUsages;
 use winit::event::WindowEvent;
 
@@ -39,17 +40,17 @@ pub mod render;
 // pub mod config;
 // pub mod control;
 // pub mod gui;
-// pub mod layout;
+pub mod layout;
 // pub mod util;
-// pub mod view;
+pub mod view;
 
 pub mod lyon_path_renderer;
 
-use control::ViewControlWidget;
+// use control::ViewControlWidget;
 
 use layout::NodePositions;
 
-use self::annotations::AnnotationLayer;
+// use self::annotations::AnnotationLayer;
 use self::render::PolylineRenderer;
 use self::view::View2D;
 
