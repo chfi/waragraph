@@ -1,6 +1,8 @@
 use waragraph_core::graph::{Bp, Node, PathId};
 
-use crate::app::SharedState;
+use raving_wgpu::egui;
+
+use crate::SharedState;
 
 use super::{layout::NodePositions, view::View2D};
 
@@ -117,17 +119,14 @@ impl ViewCmd {
 
 pub struct ViewControlWidget {
     shared: SharedState,
-    msg_tx: crossbeam::channel::Sender<Msg>,
+    msg_tx: flume::Sender<Msg>,
 
     node_id_text: String,
     pos_text: String,
 }
 
 impl ViewControlWidget {
-    pub fn new(
-        shared: &SharedState,
-        msg_tx: crossbeam::channel::Sender<Msg>,
-    ) -> Self {
+    pub fn new(shared: &SharedState, msg_tx: flume::Sender<Msg>) -> Self {
         Self {
             shared: shared.clone(),
             msg_tx,
@@ -162,8 +161,7 @@ impl ViewControlWidget {
                 && ui.input(|i| i.key_pressed(egui::Key::Enter)));
 
         if goto_node {
-            let node =
-                crate::viewer_1d::control::parse_node(&self.node_id_text);
+            let node = crate::util::parse_node(&self.node_id_text);
 
             if let Some(node) = node {
                 let _ = self.msg_tx.send(Msg::View(ViewCmd::GotoNode { node }));
@@ -172,7 +170,7 @@ impl ViewControlWidget {
 
         if goto_pos {
             if let Some((path_name, range)) =
-                crate::viewer_1d::control::parse_pos_range(&self.pos_text)
+                crate::util::parse_pos_range(&self.pos_text)
             {
                 let path = path_name
                     .and_then(|name| {

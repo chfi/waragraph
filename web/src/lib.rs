@@ -10,6 +10,13 @@ use app::resource::GraphDataCache;
 use color::{ColorSchemeId, ColorStore};
 use parking_lot::RwLock;
 
+use egui_winit::winit;
+use winit::{
+    event::{ElementState, Event, WindowEvent},
+    event_loop::EventLoop,
+    window::{Fullscreen, WindowBuilder},
+};
+
 #[derive(Clone)]
 pub struct SharedState {
     pub graph: Arc<waragraph_core::graph::PathIndex>,
@@ -25,6 +32,22 @@ pub struct SharedState {
     // tsv_path: Option<Arc<RwLock<PathBuf>>>,
     pub data_color_schemes: Arc<RwLock<HashMap<String, ColorSchemeId>>>,
     // pub app_msg_send: tokio::sync::mpsc::Sender<AppMsg>,
+}
+
+pub fn run() {
+    let event_loop = EventLoop::new();
+    let builder = WindowBuilder::new().with_title("A fantastic window!");
+    #[cfg(target_arch = "wasm32")]
+    let builder = {
+        use winit::platform::web::WindowBuilderExtWebSys;
+        builder.with_append(true)
+    };
+    let window = builder.build(&event_loop).unwrap();
+
+    // need to pass the data in!
+    // the methods I have all read from the file system
+
+    let app = app::App::init();
 }
 
 pub fn add(left: usize, right: usize) -> usize {

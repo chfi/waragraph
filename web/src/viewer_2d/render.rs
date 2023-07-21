@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use anyhow::{Context, Result};
+use raving_wgpu::{egui, wgpu};
 // use egui::mutex::Mutex;
 
 use egui::mutex::RwLock;
@@ -216,7 +217,7 @@ impl PolylineRenderer {
     ) -> Result<Self> {
         let shader_src = include_str!(concat!(
             env!("CARGO_MANIFEST_DIR"),
-            "/shaders/path_2d_g.wgsl"
+            "/../app/shaders/path_2d_g.wgsl"
         ));
 
         let graphics_node = raving_wgpu::node::graphics_node(

@@ -1,13 +1,12 @@
 use std::sync::Arc;
 
-use crossbeam::atomic::AtomicCell;
-use egui::{mutex::Mutex, Color32, Context, Id, Response, Ui};
-use tokio::sync::RwLock;
+use raving_wgpu::egui;
 
-use crate::app::{
-    resource::FStats,
-    settings_menu::{SettingsUiContext, SettingsUiResponse, SettingsWidget},
-};
+use crossbeam_utils::atomic::AtomicCell;
+use egui::{mutex::Mutex, Color32, Context, Id, Response, Ui};
+use parking_lot::RwLock;
+
+use crate::app::resource::FStats;
 
 use super::{ColorMap, ColorScheme, ColorSchemeId, ColorStore};
 
@@ -48,7 +47,7 @@ impl ColorMapWidgetShared {
         data_mode: &str,
         scheme_id: ColorSchemeId,
     ) {
-        let colors = self.colors.blocking_read();
+        let colors = self.colors.read();
 
         if self.data_mode != data_mode {
             let mut color_map = self.color_map.load();
@@ -64,38 +63,38 @@ impl ColorMapWidgetShared {
     }
 }
 
-impl SettingsWidget for ColorMapWidgetShared {
-    fn show(
-        &mut self,
-        ui: &mut egui::Ui,
-        settings_ctx: &SettingsUiContext,
-    ) -> SettingsUiResponse {
-        {
-            let ctx = ui.ctx();
-            let state =
-                ColorMapWidgetState::load(ctx, self.id).unwrap_or_default();
+// impl SettingsWidget for ColorMapWidgetShared {
+//     fn show(
+//         &mut self,
+//         ui: &mut egui::Ui,
+//         settings_ctx: &SettingsUiContext,
+//     ) -> SettingsUiResponse {
+//         {
+//             let ctx = ui.ctx();
+//             let state =
+//                 ColorMapWidgetState::load(ctx, self.id).unwrap_or_default();
 
-            let colors = self.colors.blocking_read();
-            let color_scheme = colors.get_color_scheme(self.scheme_id);
+//             let colors = self.colors.blocking_read();
+//             let color_scheme = colors.get_color_scheme(self.scheme_id);
 
-            let scheme_name = colors.get_scheme_name(self.scheme_id);
+//             let scheme_name = colors.get_scheme_name(self.scheme_id);
 
-            state.prepare_color_scheme(ctx, scheme_name, color_scheme);
+//             state.prepare_color_scheme(ctx, scheme_name, color_scheme);
 
-            state.store(ctx, self.id);
-        }
+//             state.store(ctx, self.id);
+//         }
 
-        let mut color_map = self.color_map.load();
-        let widget = ColorMapWidget {
-            id: self.id,
-            color_map: &mut color_map,
-        };
-        let response = widget.show(ui);
-        self.color_map.store(color_map);
+//         let mut color_map = self.color_map.load();
+//         let widget = ColorMapWidget {
+//             id: self.id,
+//             color_map: &mut color_map,
+//         };
+//         let response = widget.show(ui);
+//         self.color_map.store(color_map);
 
-        SettingsUiResponse { response }
-    }
-}
+//         SettingsUiResponse { response }
+//     }
+// }
 
 pub struct ColorMapWidget<'a> {
     id: egui::Id,

@@ -37,7 +37,7 @@ pub enum Pane {
 impl Pane {
     fn data_id(&self) -> egui::Id {
         match self {
-            Pane::Start(_) => egui::Id::new("RootStart"),
+            // Pane::Start(_) => egui::Id::new("RootStart"),
             Pane::Viewer1D => egui::Id::new("RootViewer1D"),
             Pane::Viewer2D => egui::Id::new("RootViewer2D"),
         }
@@ -67,7 +67,7 @@ pub struct AppBehavior<'a> {
 impl<'a> egui_tiles::Behavior<Pane> for AppBehavior<'a> {
     fn tab_title_for_pane(&mut self, pane: &Pane) -> egui::WidgetText {
         match pane {
-            Pane::Start(_) => "Start".into(),
+            // Pane::Start(_) => "Start".into(),
             Pane::Viewer1D => "1D View".into(),
             Pane::Viewer2D => "2D View".into(),
             // Pane::Settings => "Settings".into(),
@@ -90,14 +90,14 @@ impl<'a> egui_tiles::Behavior<Pane> for AppBehavior<'a> {
         self.pane_sizes.insert(pane_id, dims);
 
         match pane {
-            Pane::Start(start) => {
-                // let [w, h]: [f32; 2] = ui.clip_rect().size().into();
-                // let dims = [w as u32, h as u32];
-                // self.pane_sizes.insert(pane_id, dims);
-                if let Some(load_state) = start.show(ui) {
-                    self.init_resources = Some(load_state);
-                }
-            }
+            // Pane::Start(start) => {
+            //     // let [w, h]: [f32; 2] = ui.clip_rect().size().into();
+            //     // let dims = [w as u32, h as u32];
+            //     // self.pane_sizes.insert(pane_id, dims);
+            //     if let Some(load_state) = start.show(ui) {
+            //         self.init_resources = Some(load_state);
+            //     }
+            // }
             Pane::Viewer1D => {
                 // TODO
                 ui.label("1D placeholder");
@@ -366,7 +366,7 @@ impl App {
                                     window.resize(&state.device);
 
                                     if let Some(v2d) = self.viewer_2d.as_mut() {
-                                        if let Err(e) = v2d.on_resize(
+                                        if let Err(e) = v2d.resize(
                                             &state,
                                             old_size,
                                             window.size.into(),
@@ -544,7 +544,7 @@ impl App {
         let mut data_color_schemes = HashMap::default();
 
         {
-            let mut colors = colors.blocking_write();
+            let mut colors = colors.write();
 
             let mut add_entry = |data: &str, color: &str| {
                 let scheme = colors.get_color_scheme_id(color).unwrap();

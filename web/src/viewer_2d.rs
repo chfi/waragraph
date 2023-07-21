@@ -3,6 +3,7 @@
 // use crate::app::{AppWindow, SharedState};
 use crate::color::ColorMap;
 use crate::context::{ContextQuery, ContextState};
+use crate::SharedState;
 // use crate::gui::annotations::AnnotationListWidget;
 use crate::util::BufferDesc;
 // use crate::viewer_2d::config::Config;
@@ -38,15 +39,15 @@ pub mod render;
 
 // pub mod annotations;
 // pub mod config;
-// pub mod control;
+pub mod control;
 // pub mod gui;
 pub mod layout;
 // pub mod util;
 pub mod view;
 
-pub mod lyon_path_renderer;
+// pub mod lyon_path_renderer;
 
-// use control::ViewControlWidget;
+use control::ViewControlWidget;
 
 use layout::NodePositions;
 
@@ -80,19 +81,18 @@ pub struct Viewer2D {
 
     shared: SharedState,
 
-    annotation_layer: AnnotationLayer,
-
+    // annotation_layer: AnnotationLayer,
     active_viz_data_key: String,
     color_mapping: crate::util::Uniform<ColorMap, 16>,
     data_buffer: wgpu::Buffer,
 
     view_control_widget: control::ViewControlWidget,
 
-    pub msg_tx: crossbeam::channel::Sender<control::Msg>,
-    msg_rx: crossbeam::channel::Receiver<control::Msg>,
+    pub msg_tx: flume::Sender<control::Msg>,
+    msg_rx: flume::Receiver<control::Msg>,
 
     // cfg: Config,
-    annotation_list_widget: AnnotationListWidget,
+    // annotation_list_widget: AnnotationListWidget,
     color_format: wgpu::TextureFormat,
 }
 
@@ -182,11 +182,11 @@ impl Viewer2D {
         let draw_node_schema = {
             let vert_src = include_bytes!(concat!(
                 env!("CARGO_MANIFEST_DIR"),
-                "/shaders/2d_rects.vert.spv"
+                "/../app/shaders/2d_rects.vert.spv"
             ));
             let frag_src = include_bytes!(concat!(
                 env!("CARGO_MANIFEST_DIR"),
-                "/shaders/path_2d_color_map_g.frag.spv"
+                "/../app/shaders/path_2d_color_map_g.frag.spv"
             ));
 
             let primitive = wgpu::PrimitiveState {
@@ -330,50 +330,50 @@ impl Viewer2D {
             color_format,
         )?;
 
-        let (msg_tx, msg_rx) = crossbeam::channel::unbounded();
+        let (msg_tx, msg_rx) = flume::unbounded();
 
         let view_control_widget =
             ViewControlWidget::new(shared, msg_tx.clone());
 
-        let mut annotation_layer = AnnotationLayer::default();
+        // let mut annotation_layer = AnnotationLayer::default();
 
-        {
-            let annotations = shared
-                .annotations
-                .blocking_read()
-                .annotation_sets
-                .iter()
-                .flat_map(|(set_id, set)| {
-                    (0..set.annotations.len()).map(|i| GlobalAnnotationId {
-                        set_id: *set_id,
-                        annot_id: AnnotationId(i),
-                    })
-                })
-                .collect::<Vec<_>>();
+        // {
+        //     let annotations = shared
+        //         .annotations
+        //         .blocking_read()
+        //         .annotation_sets
+        //         .iter()
+        //         .flat_map(|(set_id, set)| {
+        //             (0..set.annotations.len()).map(|i| GlobalAnnotationId {
+        //                 set_id: *set_id,
+        //                 annot_id: AnnotationId(i),
+        //             })
+        //         })
+        //         .collect::<Vec<_>>();
 
-            annotation_layer.load_annotations(
-                shared,
-                node_positions.clone(),
-                annotations,
-            );
-        }
+        //     annotation_layer.load_annotations(
+        //         shared,
+        //         node_positions.clone(),
+        //         annotations,
+        //     );
+        // }
 
-        let cfg = {
-            let cfg = Config::default();
+        // let cfg = {
+        //     let cfg = Config::default();
 
-            let widget = config::ConfigWidget { cfg: cfg.clone() };
+        //     let widget = config::ConfigWidget { cfg: cfg.clone() };
 
-            // settings_window.register_widget(
-            //     "2D Viewer",
-            //     "Configuration",
-            //     Arc::new(RwLock::new(widget)),
-            // );
+        //     // settings_window.register_widget(
+        //     //     "2D Viewer",
+        //     //     "Configuration",
+        //     //     Arc::new(RwLock::new(widget)),
+        //     // );
 
-            cfg
-        };
+        //     cfg
+        // };
 
-        let annotation_list_widget =
-            AnnotationListWidget::new(shared.annotations.clone());
+        // let annotation_list_widget =
+        //     AnnotationListWidget::new(shared.annotations.clone());
 
         Ok(Self {
             segment_renderer,
@@ -405,10 +405,9 @@ impl Viewer2D {
             // cfg,
             view_control_widget,
 
-            annotation_layer,
+            // annotation_layer,
 
-            annotation_list_widget,
-
+            // annotation_list_widget,
             color_format,
         })
     }
@@ -503,6 +502,7 @@ impl Viewer2D {
             );
         }
 
+        /*
         let mut highlight_annots: HashSet<GlobalAnnotationId> =
             HashSet::default();
 
@@ -564,6 +564,8 @@ impl Viewer2D {
             }
         }
 
+        */
+
         let mut hover_pos: Option<[f32; 2]> = None;
 
         let main_area = ui.allocate_response(
@@ -575,7 +577,9 @@ impl Viewer2D {
         // let mut multi_touch_active = false;
 
         if main_area.dragged_by(egui::PointerButton::Primary) {
-            let delta = Vec2::from(mint::Vector2::from(main_area.drag_delta()));
+            let delta: [f32; 2] = main_area.drag_delta().into();
+            let delta = Vec2::from(delta);
+            // let delta = Vec2::from(mint::Vector2::from(main_area.drag_delta()));
             let mut norm_delta = -1.0 * (delta / dims);
             norm_delta.y *= -1.0;
             self.view.translate_size_rel(norm_delta);
@@ -694,6 +698,25 @@ impl Viewer2D {
         //
     }
 
+    pub fn resize(
+        &mut self,
+        state: &raving_wgpu::State,
+        old_window_dims: [u32; 2],
+        new_window_dims: [u32; 2],
+    ) -> anyhow::Result<()> {
+        let aspect = new_window_dims[0] as f32 / new_window_dims[1] as f32;
+        self.view.set_aspect(aspect);
+
+        log::info!("reallocating geometry buffers");
+        self.geometry_bufs = GeometryBuffers::allocate(
+            state,
+            new_window_dims,
+            self.color_format,
+        )?;
+
+        Ok(())
+    }
+
     pub fn render_new(
         &mut self,
         state: &raving_wgpu::State,
@@ -710,14 +733,14 @@ impl Viewer2D {
         self.update_vert_config_uniform(&state.queue, [w as f32, h as f32]);
 
         let (sampler, color) = {
-            let colors = self.shared.colors.blocking_read();
+            let colors = self.shared.colors.read();
 
             let sampler = colors.linear_sampler.clone();
 
             let id = self
                 .shared
                 .data_color_schemes
-                .blocking_read()
+                .read()
                 .get(&self.active_viz_data_key)
                 .copied()
                 .unwrap();
@@ -770,7 +793,8 @@ impl Viewer2D {
         Ok(())
     }
 
-    pub fn render_(
+    /*
+    fn render_(
         &mut self,
         state: &raving_wgpu::State,
         // device: &wgpu::Device,
@@ -941,6 +965,7 @@ impl Viewer2D {
 
         self.geometry_bufs.download_textures(encoder);
     }
+    */
 }
 
 /*
@@ -967,24 +992,6 @@ fn draw_annotations(
     }
 }
 */
-
-pub fn parse_args() -> std::result::Result<Args, pico_args::Error> {
-    let mut pargs = pico_args::Arguments::from_env();
-
-    let args = Args {
-        gfa: pargs.free_from_os_str(parse_path)?,
-        tsv: pargs.free_from_os_str(parse_path)?,
-        annotations: pargs.opt_value_from_os_str("--bed", parse_path)?,
-    };
-
-    Ok(args)
-}
-
-fn parse_path(
-    s: &std::ffi::OsStr,
-) -> std::result::Result<std::path::PathBuf, &'static str> {
-    Ok(s.into())
-}
 
 pub(crate) struct GeometryBuffers {
     dims: [u32; 2],

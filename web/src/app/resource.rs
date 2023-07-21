@@ -1,7 +1,9 @@
 use std::{collections::BTreeMap, sync::Arc};
 
+use raving_wgpu::egui;
+
 use egui::epaint::ahash::HashMap;
-use tokio::sync::RwLock;
+use parking_lot::RwLock;
 use waragraph_core::graph::{sampling::PathData, Node, PathId, PathIndex};
 
 #[derive(Default)]
@@ -246,7 +248,7 @@ impl GraphDataCache {
         &self,
         key: &str,
     ) -> Option<Arc<GraphData<f32, FStats>>> {
-        if let Some(data) = self.graph_f32.blocking_read().get(key) {
+        if let Some(data) = self.graph_f32.read().get(key) {
             return Some(data.clone());
         }
 
@@ -258,47 +260,45 @@ impl GraphDataCache {
 
         let data = Arc::new(GraphData { node_data, stats });
 
-        self.graph_f32
-            .blocking_write()
-            .insert(key.to_string(), data.clone());
+        self.graph_f32.write().insert(key.to_string(), data.clone());
 
         Some(data)
     }
 
-    pub async fn fetch_path_data(
-        &self,
-        data_key: &str,
-        path: PathId,
-    ) -> anyhow::Result<Arc<GraphPathData<f32, FStats>>> {
-        {
-            let data_key = data_key.to_string();
-            let path_data = self.path_f32.read().await;
-            if let Some(data) = path_data.get(&(data_key, path)) {
-                return Ok(data.clone());
-            }
-        }
+    // pub async fn fetch_path_data(
+    //     &self,
+    //     data_key: &str,
+    //     path: PathId,
+    // ) -> anyhow::Result<Arc<GraphPathData<f32, FStats>>> {
+    //     {
+    //         let data_key = data_key.to_string();
+    //         let path_data = self.path_f32.read().await;
+    //         if let Some(data) = path_data.get(&(data_key, path)) {
+    //             return Ok(data.clone());
+    //         }
+    //     }
 
-        let source = self.sources.path_f32.get(data_key).ok_or_else(|| {
-            anyhow::anyhow!("Path data source `{data_key}` not found")
-        })?;
+    //     let source = self.sources.path_f32.get(data_key).ok_or_else(|| {
+    //         anyhow::anyhow!("Path data source `{data_key}` not found")
+    //     })?;
 
-        let source = source.clone();
-        let path_data =
-            tokio::task::spawn_blocking(move || source(path)).await??;
+    //     let source = source.clone();
+    //     let path_data =
+    //         tokio::task::spawn_blocking(move || source(path)).await??;
 
-        let path_stats = FStats::from_items(path_data.iter().copied());
+    //     let path_stats = FStats::from_items(path_data.iter().copied());
 
-        let data = Arc::new(GraphPathData {
-            path,
-            path_data,
-            path_stats,
-        });
+    //     let data = Arc::new(GraphPathData {
+    //         path,
+    //         path_data,
+    //         path_stats,
+    //     });
 
-        let key = (data_key.to_string(), path);
-        self.path_f32.write().await.insert(key, data.clone());
+    //     let key = (data_key.to_string(), path);
+    //     self.path_f32.write().await.insert(key, data.clone());
 
-        Ok(data)
-    }
+    //     Ok(data)
+    // }
 
     pub fn fetch_path_data_blocking(
         &self,
@@ -306,8 +306,7 @@ impl GraphDataCache {
         path: PathId,
     ) -> Option<Arc<GraphPathData<f32, FStats>>> {
         let data_key = data_key.to_string();
-        if let Some(data) =
-            self.path_f32.blocking_read().get(&(data_key.clone(), path))
+        if let Some(data) = self.path_f32.read().get(&(data_key.clone(), path))
         {
             return Some(data.clone());
         }
@@ -322,9 +321,7 @@ impl GraphDataCache {
             path_stats,
         });
 
-        self.path_f32
-            .blocking_write()
-            .insert((data_key, path), data.clone());
+        self.path_f32.write().insert((data_key, path), data.clone());
 
         Some(data)
     }

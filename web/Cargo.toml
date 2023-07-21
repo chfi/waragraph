@@ -19,8 +19,18 @@ log = "0.4"
 
 parking_lot = "0.12.1"
 
+bytemuck = { version = "1.4", features = ["derive"] }
+
+colorous = "1.0"
+palette = { version = "0.6", features = ["bytemuck"] }
+
 raving-wgpu = { path = "../../raving-wgpu" }
 waragraph-core = { path = "../lib" }
 
 anyhow = "1.0"
 ultraviolet = { version = "0.9", features = ["bytemuck", "f64", "mint"]}
+
+flume = "0.10"
+crossbeam-utils = "0.8.16"
+bimap = "0.6.3"
+sha2 = "0.10.7"

@@ -1,4 +1,7 @@
+use raving_wgpu::wgpu;
 use wgpu::util::DeviceExt;
+
+use waragraph_core::graph::{Bp, Node};
 
 #[derive(Debug)]
 pub struct BufferDesc {
@@ -105,5 +108,32 @@ pub mod geometry {
         }
 
         p_sum / count
+    }
+}
+
+pub fn parse_node(text: &str) -> Option<Node> {
+    text.parse::<u32>().map(Node::from).ok()
+}
+
+pub fn parse_pos_range(
+    text: &str,
+) -> Option<(Option<&str>, std::ops::Range<Bp>)> {
+    fn parse_range(text: &str) -> Option<std::ops::Range<Bp>> {
+        if let Some((from, to)) = text.split_once("-") {
+            let from = from.parse::<u64>().ok()?;
+            let to = to.parse::<u64>().ok()?;
+            Some(Bp(from)..Bp(to))
+        } else {
+            let pos = text.parse::<u64>().ok()?;
+            Some(Bp(pos)..Bp(pos + 1))
+        }
+    }
+
+    if let Some((path_name, range_text)) = text.rsplit_once(":") {
+        let range = parse_range(range_text)?;
+        Some((Some(path_name), range))
+    } else {
+        let range = parse_range(text)?;
+        Some((None, range))
     }
 }

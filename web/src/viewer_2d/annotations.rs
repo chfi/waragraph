@@ -1,6 +1,8 @@
 use std::collections::{BTreeSet, HashMap, HashSet};
 use std::sync::Arc;
 
+use raving_wgpu::egui;
+
 use egui::epaint::ahash;
 use parking_lot::RwLock;
 use rstar::primitives::{GeomWithData, Line, Rectangle};

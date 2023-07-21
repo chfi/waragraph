@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use bimap::BiBTreeMap;
+use raving_wgpu::wgpu;
 use wgpu::{
     util::{BufferInitDescriptor, DeviceExt},
     BufferUsages,
