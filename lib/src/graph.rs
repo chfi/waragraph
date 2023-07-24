@@ -17,11 +17,11 @@ pub mod matrix;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(C)]
-pub struct Node(u32);
+pub struct Node(pub u32);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(C)]
-pub struct OrientedNode(u32);
+pub struct OrientedNode(pub u32);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(C)]
@@ -58,7 +58,7 @@ pub struct Bp(pub u64);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(C)]
-pub struct PathId(u32);
+pub struct PathId(pub u32);
 
 impl Node {
     #[inline]
@@ -171,34 +171,6 @@ impl From<usize> for PathId {
     }
 }
 
-#[derive(Debug, Clone)]
-pub struct Waragraph {
-    pub path_index: PathIndex,
-    pub path_node_sets: Vec<RoaringBitmap>,
-}
-
-impl Waragraph {
-    pub fn from_gfa(
-        gfa_path: impl AsRef<std::path::Path>,
-    ) -> std::io::Result<Self> {
-        let path_index = PathIndex::from_gfa(gfa_path)?;
-
-        let mut path_node_sets = Vec::new();
-
-        for steps in path_index.path_steps.iter() {
-            let set =
-                steps.iter().map(|s| s.node().0).collect::<RoaringBitmap>();
-
-            path_node_sets.push(set);
-        }
-
-        Ok(Waragraph {
-            path_index,
-            path_node_sets,
-        })
-    }
-}
-
 #[derive(Default, Clone)]
 pub struct NodeSet {
     set: roaring::RoaringBitmap,
@@ -242,11 +214,12 @@ impl<'a> Iterator for PathStepRangeIter<'a> {
 }
 
 impl PathIndex {
-    pub fn from_gfa(
-        gfa_path: impl AsRef<std::path::Path>,
+    pub fn from_gfa_impl<S: BufRead + Seek>(
+        mut gfa_reader: S,
     ) -> std::io::Result<Self> {
-        let gfa = std::fs::File::open(&gfa_path)?;
-        let mut gfa_reader = BufReader::new(gfa);
+        // let gfa = std::fs::File::open(&gfa_path)?;
+        // let mut gfa_reader = BufReader::new(gfa);
+        gfa_reader.rewind()?;
 
         let mut line_buf = Vec::new();
 
@@ -301,8 +274,7 @@ impl PathIndex {
         seg_id_range.1 - seg_id_range.0,
         );
 
-        let gfa = std::fs::File::open(&gfa_path)?;
-        let mut gfa_reader = BufReader::new(gfa);
+        gfa_reader.rewind()?;
 
         let mut edges = Vec::new();
 
@@ -330,8 +302,7 @@ impl PathIndex {
 
         let node_count = seg_lens.len();
 
-        let gfa = std::fs::File::open(&gfa_path)?;
-        let mut gfa_reader = BufReader::new(gfa);
+        gfa_reader.rewind()?;
 
         let mut path_names = BiBTreeMap::default();
 
@@ -427,6 +398,15 @@ impl PathIndex {
 
             edges,
         })
+    }
+
+    pub fn from_gfa(
+        gfa_path: impl AsRef<std::path::Path>,
+    ) -> std::io::Result<Self> {
+        let gfa = std::fs::File::open(&gfa_path)?;
+        let gfa_reader = BufReader::new(gfa);
+
+        Self::from_gfa_impl(gfa_reader)
     }
 
     pub fn directed_adjacency_matrix(

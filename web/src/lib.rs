@@ -37,11 +37,11 @@ pub struct SharedState {
 pub fn run() {
     let event_loop = EventLoop::new();
     let builder = WindowBuilder::new().with_title("A fantastic window!");
-    #[cfg(target_arch = "wasm32")]
-    let builder = {
-        use winit::platform::web::WindowBuilderExtWebSys;
-        builder.with_append(true)
-    };
+    // #[cfg(target_arch = "wasm32")]
+    // let builder = {
+    // use winit::platform::web::{WindowBuilderExtWebSys, WindowExtWebSys};
+    // builder
+    // };
     let window = builder.build(&event_loop).unwrap();
 
     // need to pass the data in!
