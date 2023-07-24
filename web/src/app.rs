@@ -332,16 +332,10 @@ impl App {
         event_loop: EventLoop<()>,
         state: raving_wgpu::State,
         mut window: raving_wgpu::WindowState,
+        mut egui_ctx: EguiCtx,
     ) -> Result<()> {
         let mut is_ready = false;
-        let mut prev_frame_t = std::time::Instant::now();
-
-        let mut egui_ctx = EguiCtx::init(
-            &state,
-            window.surface_format,
-            &event_loop,
-            Some(wgpu::Color::BLACK),
-        );
+        let mut prev_frame_t = instant::now();
 
         event_loop.run(
             move |event, event_loop_tgt, control_flow| match &event {
@@ -455,10 +449,11 @@ impl App {
 
                 }
                 Event::MainEventsCleared => {
-                    let dt = prev_frame_t.elapsed().as_secs_f32();
-                    prev_frame_t = std::time::Instant::now();
+                    let now = instant::now();
+                    let dt = now - prev_frame_t;
+                    prev_frame_t = now;
 
-                    self.update(&state, &window, &mut egui_ctx, dt);
+                    self.update(&state, &window, &mut egui_ctx, dt as f32);
 
                     egui_ctx.begin_frame(&window.window);
 

@@ -3501,6 +3501,7 @@ dependencies = [
  "egui-winit",
  "egui_tiles",
  "flume",
+ "instant",
  "js-sys",
  "log",
  "palette",
@@ -3510,6 +3511,7 @@ dependencies = [
  "ultraviolet",
  "waragraph-core",
  "wasm-bindgen",
+ "wasm-bindgen-futures",
  "web-sys",
 ]
 

@@ -43,23 +43,67 @@ pub struct SharedState {
 
 #[wasm_bindgen]
 pub struct Context {
+    app: app::App,
     event_loop: EventLoop<()>,
     gpu_state: raving_wgpu::State,
     window: raving_wgpu::WindowState,
     egui_ctx: EguiCtx,
 }
 
-impl Context {}
+#[cfg(target_arch = "wasm32")]
+#[wasm_bindgen]
+impl Context {
+    pub fn canvas_element(&self) -> HtmlCanvasElement {
+        use winit::platform::web::WindowExtWebSys;
+        self.window.window.canvas()
+    }
 
-async fn initialize() -> anyhow::Result<(app::App, Context)> {
+    pub fn run(self) {
+        let result = self.app.run(
+            self.event_loop,
+            self.gpu_state,
+            self.window,
+            self.egui_ctx,
+        );
+
+        if let Err(e) = result {
+            // TODO
+        }
+    }
+}
+
+#[wasm_bindgen]
+pub async fn initialize() -> Result<Context, JsValue> {
+    use web_sys::console;
+    console::log_1(&"running initialize_impl".into());
+    let result = initialize_impl().await;
+
+    match result {
+        Ok(ctx) => Ok(ctx),
+        Err(e) => {
+            Err(JsValue::from_str(&format!("initialization error: {e:?}")))
+        }
+    }
+}
+
+async fn initialize_impl() -> anyhow::Result<Context> {
+    use web_sys::console;
+    console::log_1(&"event loop".into());
     let event_loop = EventLoop::new();
+
+    console::log_1(&"window builder".into());
     let builder = WindowBuilder::new().with_title("A fantastic window!");
+    let window = builder.build(&event_loop).unwrap();
+
+    console::log_1(&"raving".into());
+    let gpu_state = raving_wgpu::State::new().await?;
+
     // #[cfg(target_arch = "wasm32")]
     // let builder = {
     // use winit::platform::web::{WindowBuilderExtWebSys, WindowExtWebSys};
     // builder
     // };
-    let window = builder.build(&event_loop).unwrap();
+    console::log_1(&"window".into());
 
     // need to pass the data in!
     // the methods I have all read from the file system
@@ -74,17 +118,22 @@ async fn initialize() -> anyhow::Result<(app::App, Context)> {
         "/../test/data/A-3105.layout.tsv"
     ));
 
+    console::log_1(&"app".into());
     let mut app = app::App::init()?;
 
     use std::io::Cursor;
 
+    console::log_1(&"node pos".into());
     let node_positions =
         NodePositions::from_layout_tsv_impl(Cursor::new(tsv_src))?;
 
+    console::log_1(&"graph".into());
     let graph = PathIndex::from_gfa_impl(Cursor::new(gfa_src))?;
+    let window = gpu_state.prepare_window(window)?;
 
-    let (event_loop, gpu_state, window) = raving_wgpu::initialize().await?;
+    // let (event_loop, gpu_state, window) = raving_wgpu::initialize().await?;
 
+    console::log_1(&"egui".into());
     let mut egui_ctx = EguiCtx::init(
         &gpu_state,
         window.surface_format,
@@ -92,16 +141,18 @@ async fn initialize() -> anyhow::Result<(app::App, Context)> {
         Some(wgpu::Color::WHITE),
     );
 
+    console::log_1(&"shared state".into());
     app.initialize_shared_state(&gpu_state, Arc::new(graph));
 
     let ctx = Context {
+        app,
         event_loop,
         gpu_state,
         window,
         egui_ctx,
     };
 
-    Ok((app, ctx))
+    Ok(ctx)
 }
 
 pub fn add(left: usize, right: usize) -> usize {
