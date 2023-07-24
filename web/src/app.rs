@@ -193,6 +193,33 @@ impl App {
         })
     }
 
+    /*
+    pub fn initialize_2d_viewer(
+        &mut self,
+        state: &raving_wgpu::State,
+        window: &raving_wgpu::WindowState,
+        egui_ctx: &mut EguiCtx,
+    ) {
+        let viewer =
+            Viewer2D::init(state, window, pos.clone(), shared).unwrap();
+
+        let tex = viewer.geometry_bufs.node_color_tex.clone();
+
+        let tex_view = tex.view.as_ref().unwrap();
+
+        let tex_id = egui_ctx.renderer.register_native_texture(
+            &state.device,
+            tex_view,
+            wgpu::FilterMode::Linear,
+        );
+
+        self.id_type_map
+            .insert_temp(egui::Id::new("viewer_2d"), tex_id);
+
+        self.viewer_2d = Some(viewer);
+    }
+    */
+
     pub fn update(
         &mut self,
         state: &raving_wgpu::State,
@@ -200,6 +227,7 @@ impl App {
         egui_ctx: &mut EguiCtx,
         dt: f32,
     ) {
+        use web_sys::console;
         // if resources are ready, initialize the SharedState
 
         let mut rebuild_tree = false;
@@ -220,11 +248,15 @@ impl App {
 
             if self.viewer_2d.is_none() {
                 if let Some(pos) = self.node_positions.clone() {
+                    console::log_1(&"initializing 2d viewer".into());
                     // initialize 2d viewer
                     let viewer =
                         Viewer2D::init(state, window, pos.clone(), shared)
                             .unwrap();
 
+                    console::log_1(
+                        &"setting up offscreen render target".into(),
+                    );
                     let tex = viewer.geometry_bufs.node_color_tex.clone();
 
                     let tex_view = tex.view.as_ref().unwrap();

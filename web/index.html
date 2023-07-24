@@ -28,7 +28,10 @@
           const canvas = document.getElementById("main_view");
 
           let ctx = await waragraph.initialize(canvas);
-          window.waragraph = ctx;
+          // window.waragraph = ctx;
+
+          ctx.run()
+
       }
 
       run();

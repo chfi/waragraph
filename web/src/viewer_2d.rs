@@ -76,9 +76,8 @@ pub struct Viewer2D {
 
     pub(crate) geometry_bufs: GeometryBuffers,
 
-    render_graph: Graph,
-    draw_node: NodeId,
-
+    // render_graph: Graph,
+    // draw_node: NodeId,
     shared: SharedState,
 
     // annotation_layer: AnnotationLayer,
@@ -105,12 +104,15 @@ impl Viewer2D {
         shared: &SharedState,
         // settings_window: &mut SettingsWindow,
     ) -> Result<Self> {
+        use web_sys::console;
+        console::log_1(&"Viewer2D::init()".into());
         let mut segment_renderer = PolylineRenderer::new(
             &state.device,
             window.surface_format,
             shared.graph.node_count,
         )?;
         dbg!();
+        console::log_1(&"Viewer2D::init()?".into());
 
         let path_index = shared.graph.clone();
 
@@ -159,6 +161,7 @@ impl Viewer2D {
             (buffer, instance_count)
         };
 
+        console::log_1(&"viewer 2d aaaa".into());
         let color_format = window.surface_format;
 
         let win_dims = {
@@ -177,8 +180,10 @@ impl Viewer2D {
 
         let view = View2D::new(center, size);
 
+        /*
         let mut graph = Graph::new();
 
+        console::log_1(&"viewer 2d bbbb".into());
         let draw_node_schema = {
             let vert_src = include_bytes!(concat!(
                 env!("CARGO_MANIFEST_DIR"),
@@ -230,7 +235,9 @@ impl Viewer2D {
                 color_targets.as_slice(),
             )?
         };
+        */
 
+        console::log_1(&"viewer 2d cccc".into());
         let (transform_uniform, vert_config) = {
             let usage = BufferUsages::UNIFORM | BufferUsages::COPY_DST;
 
@@ -255,6 +262,7 @@ impl Viewer2D {
 
             (transform, vert_config)
         };
+        /*
 
         let draw_node = graph.add_node(draw_node_schema);
 
@@ -284,10 +292,12 @@ impl Viewer2D {
             op_state.vertices = Some(0..6);
             op_state.instances = Some(0..instances);
         });
+        */
 
         // let active_viz_data_key = "node_id".to_string();
         let active_viz_data_key = "depth".to_string();
 
+        console::log_1(&"viewer 2d dddd".into());
         let data = shared
             .graph_data_cache
             .fetch_graph_data_blocking(&active_viz_data_key)
@@ -390,9 +400,8 @@ impl Viewer2D {
 
             geometry_bufs,
 
-            render_graph: graph,
-            draw_node,
-
+            // render_graph: graph,
+            // draw_node,
             shared: shared.clone(),
 
             color_mapping,

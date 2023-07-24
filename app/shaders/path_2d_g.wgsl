@@ -1,6 +1,9 @@
 
 struct VertConfig {
   node_width: f32,
+  pad0: f32,
+  pad1: f32,
+  pad2: f32,
 }
 
 
@@ -108,15 +111,15 @@ struct DataConfig {
 // @group(0) @binding(0) var<uniform> projection: mat4x4f;
 // @group(0) @binding(1) var<uniform> config: VertConfig;
 
-@group(1) @binding(0) var<storage, read> u_data: array<f32>;
+// @group(1) @binding(0) var<storage, read> u_data: array<f32>;
 // @group(1) @binding(0) var<storage, read> colors: array<vec4f>;
 
-@group(1) @binding(1) var<uniform> u_data_config: DataConfig;
+@group(1) @binding(0) var<uniform> u_data_config: DataConfig;
 
-@group(1) @binding(2) var t_sampler: sampler;
-@group(1) @binding(3) var t_colors: texture_1d<f32>;
+@group(1) @binding(1) var t_sampler: sampler;
+@group(1) @binding(2) var t_colors: texture_1d<f32>;
 
-@group(1) @binding(4) var<uniform> u_color_map: ColorMap;
+@group(1) @binding(3) var<uniform> u_color_map: ColorMap;
 
 
 @fragment
@@ -127,12 +130,13 @@ fn fs_main(
   var result: FragmentOut;
 
   // let index = (u_data_config.offset + node_id).clamp(0, u_data_config.max);
-  let index = node_id % u_data_config.page_size;
+  // let index = node_id % u_data_config.page_size;
 
-  let v = u_data[index];
+  // let v = u_data[index];
+  let v_n = 0.5;
   // let v = u_data[node_id];
 
-  let v_n = (v - u_color_map.min_val) / (u_color_map.max_val - u_color_map.min_val);
+  // let v_n = (v - u_color_map.min_val) / (u_color_map.max_val - u_color_map.min_val);
   let c_n = mix(u_color_map.min_color, u_color_map.max_color, v_n);
 
   let color = textureSample(t_colors, t_sampler, c_n);

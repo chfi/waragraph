@@ -40,3 +40,4 @@ sha2 = "0.10.7"
 instant = { version = "0.1.12", features = ["wasm-bindgen"] }
 
 wgpu = { version = "0.16", features = ["webgl"] }
+console_error_panic_hook = "0.1.7"

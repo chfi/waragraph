@@ -215,17 +215,22 @@ impl PolylineRenderer {
         surface_format: wgpu::TextureFormat,
         max_segments: usize,
     ) -> Result<Self> {
+        use web_sys::console;
+        console::log_1(&"polyline renderer init".into());
         let shader_src = include_str!(concat!(
             env!("CARGO_MANIFEST_DIR"),
             "/../app/shaders/path_2d_g.wgsl"
         ));
+
+        console::log_1(&"alright".into());
 
         let graphics_node = raving_wgpu::node::graphics_node(
             device,
             shader_src,
             "vs_main",
             "fs_main",
-            ["u_data"],
+            [],
+            // ["u_data"],
             wgpu::PrimitiveState {
                 topology: wgpu::PrimitiveTopology::TriangleList,
                 front_face: wgpu::FrontFace::Cw,
@@ -271,6 +276,7 @@ impl PolylineRenderer {
             ],
         )?;
 
+        console::log_1(&"graphics node done".into());
         let vertex_buffers = PagedBuffers::new(
             device,
             wgpu::BufferUsages::VERTEX,
@@ -283,6 +289,7 @@ impl PolylineRenderer {
             std::mem::size_of::<[u32; 1]>() as u64,
             max_segments,
         )?;
+        console::log_1(&"paged buffers done".into());
 
         let transform = ultraviolet::Mat4::identity();
 
@@ -548,11 +555,11 @@ impl PolylineRenderer {
             let empty_offsets = [];
             let offsets = [0];
             for (i, bind_group) in state.bind_groups.iter().enumerate() {
-                if i == 0 {
-                    pass.set_bind_group(i as u32, bind_group, &empty_offsets);
-                } else {
-                    pass.set_bind_group(i as u32, bind_group, &offsets);
-                }
+                // if i == 0 {
+                pass.set_bind_group(i as u32, bind_group, &empty_offsets);
+                // } else {
+                //     pass.set_bind_group(i as u32, bind_group, &offsets);
+                // }
             }
 
             pass.draw(0..6, instances);

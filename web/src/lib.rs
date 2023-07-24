@@ -74,6 +74,8 @@ impl Context {
 
 #[wasm_bindgen]
 pub async fn initialize(canvas: JsValue) -> Result<Context, JsValue> {
+    std::panic::set_hook(Box::new(console_error_panic_hook::hook));
+
     use web_sys::console;
     console::log_1(&"running initialize_impl".into());
 
@@ -200,6 +202,10 @@ async fn initialize_impl(
 
     console::log_1(&"shared state".into());
     app.initialize_shared_state(&gpu_state, Arc::new(graph));
+
+    app.node_positions = Some(Arc::new(node_positions));
+
+    // app.initialize_2d_viewer(&gpu_state, &window, &mut egui_ctx);
 
     let ctx = Context {
         app,
