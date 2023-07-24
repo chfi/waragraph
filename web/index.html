@@ -4,6 +4,9 @@
   </head>
   <body>
     <!-- Note the usage of `type=module` here as this is an ES6 module -->
+
+    <canvas id="main_view" width=800 height=600></canvas>
+
     <script type="module">
       // Use ES module import syntax to import functionality from the module
       // that we have compiled.
@@ -22,7 +25,9 @@
 
           // window.waragraph = waragraph;
 
-          let ctx = await waragraph.initialize();
+          const canvas = document.getElementById("main_view");
+
+          let ctx = await waragraph.initialize(canvas);
           window.waragraph = ctx;
       }
 

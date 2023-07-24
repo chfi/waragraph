@@ -2560,6 +2560,7 @@ dependencies = [
  "rhai",
  "rustc-hash",
  "ultraviolet",
+ "web-sys",
  "wgpu",
  "winit",
 ]
@@ -3513,6 +3514,7 @@ dependencies = [
  "wasm-bindgen",
  "wasm-bindgen-futures",
  "web-sys",
+ "wgpu",
 ]
 
 [[package]]

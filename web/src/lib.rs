@@ -11,7 +11,7 @@ use color::{ColorSchemeId, ColorStore};
 use parking_lot::RwLock;
 
 use egui_winit::winit;
-use raving_wgpu::{gui::EguiCtx, wgpu};
+use raving_wgpu::gui::EguiCtx;
 use waragraph_core::graph::PathIndex;
 use web_sys::HtmlCanvasElement;
 use winit::{
@@ -73,10 +73,15 @@ impl Context {
 }
 
 #[wasm_bindgen]
-pub async fn initialize() -> Result<Context, JsValue> {
+pub async fn initialize(canvas: JsValue) -> Result<Context, JsValue> {
     use web_sys::console;
     console::log_1(&"running initialize_impl".into());
-    let result = initialize_impl().await;
+
+    console::log_1(&canvas);
+    let canvas = canvas.dyn_into::<HtmlCanvasElement>().ok();
+    console::log_1(&canvas.is_some().into());
+
+    let result = initialize_impl(canvas).await;
 
     match result {
         Ok(ctx) => Ok(ctx),
@@ -86,17 +91,69 @@ pub async fn initialize() -> Result<Context, JsValue> {
     }
 }
 
-async fn initialize_impl() -> anyhow::Result<Context> {
+async fn initialize_impl(
+    canvas: Option<HtmlCanvasElement>,
+) -> anyhow::Result<Context> {
     use web_sys::console;
+    use winit::platform::web::WindowBuilderExtWebSys;
     console::log_1(&"event loop".into());
     let event_loop = EventLoop::new();
 
     console::log_1(&"window builder".into());
-    let builder = WindowBuilder::new().with_title("A fantastic window!");
+    let builder = WindowBuilder::new()
+        .with_title("A fantastic window!")
+        .with_canvas(canvas);
+
     let window = builder.build(&event_loop).unwrap();
 
     console::log_1(&"raving".into());
-    let gpu_state = raving_wgpu::State::new().await?;
+    let (gpu_state, window) =
+        raving_wgpu::State::new_with_window(window).await?;
+
+    console::log_1(&"after raving".into());
+
+    // console::log_1(&"wgpu".into());
+    // let _ = {
+    //     // let backends = wgpu::util::backend_bits_from_env()
+    //     //     .unwrap_or(wgpu::Backends::all());
+    //     let backends = wgpu::Backends::BROWSER_WEBGPU;
+    //     // let backends = wgpu::Backends::all();
+
+    //     console::log_1(&format!("backends: {backends:?}").into());
+    //     let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
+    //         backends,
+    //         dx12_shader_compiler: Default::default(),
+    //     });
+    //     console::log_1(&format!("instance: {instance:?}").into());
+    //     // console::log_1(&instance.into());
+
+    //     let adapter = wgpu::util::initialize_adapter_from_env_or_default(
+    //         &instance, backends, None,
+    //     )
+    //     .await
+    //     .ok_or(anyhow::anyhow!("Could not find compatible adapter"))?;
+
+    //     let allowed_limits = adapter.limits();
+
+    //     let (device, queue) = adapter
+    //         .request_device(
+    //             &wgpu::DeviceDescriptor {
+    //                 features: wgpu::Features::empty(),
+    //                 limits: if cfg!(target_arch = "wasm32") {
+    //                     wgpu::Limits::downlevel_webgl2_defaults()
+    //                 } else {
+    //                     wgpu::Limits {
+    //                         max_push_constant_size: allowed_limits
+    //                             .max_push_constant_size,
+    //                         ..wgpu::Limits::default()
+    //                     }
+    //                 },
+    //                 label: None,
+    //             },
+    //             None,
+    //         )
+    //         .await?;
+    // };
 
     // #[cfg(target_arch = "wasm32")]
     // let builder = {
@@ -129,7 +186,7 @@ async fn initialize_impl() -> anyhow::Result<Context> {
 
     console::log_1(&"graph".into());
     let graph = PathIndex::from_gfa_impl(Cursor::new(gfa_src))?;
-    let window = gpu_state.prepare_window(window)?;
+    // let window = gpu_state.prepare_window(window)?;
 
     // let (event_loop, gpu_state, window) = raving_wgpu::initialize().await?;
 
