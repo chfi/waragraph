@@ -9,7 +9,7 @@ edition = "2021"
 crate-type = ["cdylib"]
 
 [dependencies]
-
+raving-wgpu = { git = "https://github.com/chfi/raving-wgpu", branch = "simplify" }
 
 wasm-bindgen = "0.2"
 wasm-bindgen-futures = "0.4"
@@ -27,7 +27,6 @@ bytemuck = { version = "1.4", features = ["derive"] }
 colorous = "1.0"
 palette = { version = "0.6", features = ["bytemuck"] }
 
-raving-wgpu = { path = "../../raving-wgpu" }
 waragraph-core = { path = "../lib" }
 
 anyhow = "1.0"

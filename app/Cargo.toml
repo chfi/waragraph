@@ -6,6 +6,7 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+raving-wgpu = { git = "https://github.com/chfi/raving-wgpu", branch = "simplify" }
 waragraph-core = { path = "../lib" }
 bimap = "0.6"
 
@@ -31,8 +32,7 @@ bytemuck = { version = "1.4", features = ["derive"] }
 palette = { version = "0.6", features = ["bytemuck"] }
 colorous = "1.0"
 
-raving-wgpu = { path = "../../raving-wgpu" }
-# raving-wgpu = { git = "https://github.com/chfi/raving-wgpu" }
+# raving-wgpu = { path = "../../raving-wgpu" }
 lyon = "1.0"
 rand = "0.8"
 
