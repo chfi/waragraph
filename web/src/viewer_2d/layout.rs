@@ -32,13 +32,10 @@ impl NodePositions {
         (self.positions[ix0], self.positions[ix1])
     }
 
-    pub fn from_layout_tsv(
-        // path_index: &PathIndex,
-        tsv_path: impl AsRef<std::path::Path>,
+    pub fn from_layout_tsv_impl<S: BufRead + Seek>(
+        tsv_reader: S,
     ) -> Result<Self> {
-        use std::fs::File;
-        // use std::io::{prelude::*, BufReader};
-        let mut lines = File::open(tsv_path).map(BufReader::new)?.lines();
+        let mut lines = tsv_reader.lines();
 
         let _header = lines.next();
         let mut positions = Vec::new();
@@ -69,5 +66,13 @@ impl NodePositions {
             positions.into_iter().map(|(_, p)| p).collect::<Vec<_>>();
 
         Ok(Self { positions, bounds })
+    }
+
+    pub fn from_layout_tsv(
+        // path_index: &PathIndex,
+        tsv_path: impl AsRef<std::path::Path>,
+    ) -> Result<Self> {
+        use std::fs::File;
+        Self::from_layout_tsv_impl(File::open(tsv_path).map(BufReader::new)?)
     }
 }

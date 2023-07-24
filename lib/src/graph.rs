@@ -217,8 +217,6 @@ impl PathIndex {
     pub fn from_gfa_impl<S: BufRead + Seek>(
         mut gfa_reader: S,
     ) -> std::io::Result<Self> {
-        // let gfa = std::fs::File::open(&gfa_path)?;
-        // let mut gfa_reader = BufReader::new(gfa);
         gfa_reader.rewind()?;
 
         let mut line_buf = Vec::new();
