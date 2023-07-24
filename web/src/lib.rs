@@ -11,11 +11,18 @@ use color::{ColorSchemeId, ColorStore};
 use parking_lot::RwLock;
 
 use egui_winit::winit;
+use raving_wgpu::{gui::EguiCtx, wgpu};
+use waragraph_core::graph::PathIndex;
+use web_sys::HtmlCanvasElement;
 use winit::{
     event::{ElementState, Event, WindowEvent},
     event_loop::EventLoop,
     window::{Fullscreen, WindowBuilder},
 };
+
+use wasm_bindgen::prelude::*;
+
+use crate::viewer_2d::layout::NodePositions;
 
 #[derive(Clone)]
 pub struct SharedState {
@@ -34,7 +41,17 @@ pub struct SharedState {
     // pub app_msg_send: tokio::sync::mpsc::Sender<AppMsg>,
 }
 
-pub fn run() {
+#[wasm_bindgen]
+pub struct Context {
+    event_loop: EventLoop<()>,
+    gpu_state: raving_wgpu::State,
+    window: raving_wgpu::WindowState,
+    egui_ctx: EguiCtx,
+}
+
+impl Context {}
+
+async fn initialize() -> anyhow::Result<(app::App, Context)> {
     let event_loop = EventLoop::new();
     let builder = WindowBuilder::new().with_title("A fantastic window!");
     // #[cfg(target_arch = "wasm32")]
@@ -47,7 +64,44 @@ pub fn run() {
     // need to pass the data in!
     // the methods I have all read from the file system
 
-    let app = app::App::init();
+    let gfa_src = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../test/data/A-3105.fa.353ea42.34ee7b1.1576367.smooth.fix.gfa"
+    ));
+
+    let tsv_src = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../test/data/A-3105.layout.tsv"
+    ));
+
+    let mut app = app::App::init()?;
+
+    use std::io::Cursor;
+
+    let node_positions =
+        NodePositions::from_layout_tsv_impl(Cursor::new(tsv_src))?;
+
+    let graph = PathIndex::from_gfa_impl(Cursor::new(gfa_src))?;
+
+    let (event_loop, gpu_state, window) = raving_wgpu::initialize().await?;
+
+    let mut egui_ctx = EguiCtx::init(
+        &gpu_state,
+        window.surface_format,
+        &event_loop,
+        Some(wgpu::Color::WHITE),
+    );
+
+    app.initialize_shared_state(&gpu_state, Arc::new(graph));
+
+    let ctx = Context {
+        event_loop,
+        gpu_state,
+        window,
+        egui_ctx,
+    };
+
+    Ok((app, ctx))
 }
 
 pub fn add(left: usize, right: usize) -> usize {

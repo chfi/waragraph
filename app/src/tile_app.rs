@@ -665,7 +665,7 @@ impl App {
         Ok(())
     }
 
-    fn initialize_shared_state(
+    pub(crate) fn initialize_shared_state(
         &mut self,
         state: &raving_wgpu::State,
         gfa_path: PathBuf,
