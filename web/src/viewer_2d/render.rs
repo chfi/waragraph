@@ -226,27 +226,6 @@ impl PagedBuffers {
 
         (page, s..e)
     }
-
-    // pub fn get_subpage_ranges<'a>(
-    //     &'a self,
-    //     index_range: std::ops::Range<usize>,
-    // ) -> Option<impl Iterator<Item = (usize, std::ops::Range<usize>)> + 'a>
-    // {
-    //     None
-    // }
-
-    // pub fn subpage_ranges_iter<'a>(
-    //     &'a self,
-    // ) -> impl Iterator<Item = (usize, std::ops::Range<usize>)> + 'a {
-    //     self.pages.iter().enumerate().map(|(page_i, _buf)| {
-    //         let len = self.len();
-    //         let page_cap = self.page_capacity();
-    //         let offset = page_i * page_cap;
-    //         let end = (offset + page_cap).min(len);
-
-    //         (page_i, offset..end)
-    //     })
-    // }
 }
 
 #[derive(Default, Debug, Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
@@ -443,7 +422,6 @@ impl PolylineRenderer {
 
             graphics_node: graphics_node.clone(),
         }));
-        dbg!();
 
         Ok(Self {
             graphics_node,

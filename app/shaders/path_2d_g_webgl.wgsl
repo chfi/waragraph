@@ -110,12 +110,6 @@ struct DataConfig {
  // max: u32,
 }
 
-// @group(0) @binding(0) var<uniform> projection: mat4x4f;
-// @group(0) @binding(1) var<uniform> config: VertConfig;
-
-// @group(1) @binding(0) var<storage, read> u_data: array<f32>;
-// @group(1) @binding(0) var<storage, read> colors: array<vec4f>;
-
 @group(1) @binding(0) var<uniform> u_data_config: DataConfig;
 
 @group(1) @binding(1) var t_sampler: sampler;
@@ -131,25 +125,14 @@ fn fs_main(
            @location(2) node_data: f32,
 ) -> FragmentOut {
   var result: FragmentOut;
+  let v = node_data;
 
-  // let index = (u_data_config.offset + node_id).clamp(0, u_data_config.max);
-  // let index = node_id % u_data_config.page_size;
-
-  // let v = u_data[index];
-  let v_n = node_data;
-  // let v_n = 0.5;
-  // let v = u_data[node_id];
-
-  // let v_n = (v - u_color_map.min_val) / (u_color_map.max_val - u_color_map.min_val);
+  let v_n = (v - u_color_map.min_val) / (u_color_map.max_val - u_color_map.min_val);
   let c_n = mix(u_color_map.min_color, u_color_map.max_color, v_n);
 
   let color = textureSample(t_colors, t_sampler, c_n);
 
-  // let color = u_colors[node_id];
   result.color = color;
-
-  // result.node_id = node_id;
-  // result.uv = uv;
 
   return result;
 }
