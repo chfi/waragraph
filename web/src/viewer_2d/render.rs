@@ -154,12 +154,60 @@ impl PagedBuffers {
         })
     }
 
+    /// panics if `self.len()` != `other.len()`, or if
+    /// `self.page_capacity()` is greater than `other.page_capacity()`
+    /// (i.e. if `self` has a shorter stride than `other`)
+    fn zip_as_vertex_buffer_slices<'a, 'b>(
+        &'a self,
+        other: &'b Self,
+    ) -> impl Iterator<
+        Item = (
+            wgpu::BufferSlice<'a>,
+            wgpu::BufferSlice<'b>,
+            std::ops::Range<u32>,
+        ),
+    > {
+        if self.len != other.len {
+            panic!("zip_as_vertex_buffer_slices was called with `self.len` != `other.len`");
+        }
+
+        if self.stride < other.stride {
+            panic!("zip_as_vertex_buffer_slices was called with `self.stride` < `other.stride`");
+        }
+
+        self.page_ranges_iter().filter_map(|(p_i, range)| {
+            let page = &self.pages[p_i];
+            let cap = self.page_capacity();
+            let s = (range.start % cap) as u32;
+            let e = ((range.end - 1) % cap) as u32;
+            // let e = (range.end % cap) as u32;
+
+            let instances = s..e;
+
+            let geo_slice = page.slice(..);
+
+            let (page_i, page_range) = other.get_subpage_range(range);
+            let data_page = &other.pages[page_i];
+            let data_s = page_range.start as u32;
+            let data_e = page_range.end as u32;
+            let data_s = (data_s as u64) * other.stride;
+            let data_e = (data_e as u64) * other.stride;
+
+            if data_s == data_e {
+                return None;
+            }
+            let data_slice = data_page.slice(data_s..data_e);
+
+            Some((geo_slice, data_slice, instances))
+        })
+    }
+
     fn get_subpage_range(
         &self,
         index_range: std::ops::Range<usize>,
-    ) -> Option<(usize, std::ops::Range<usize>)> {
-        let si = index_range.start();
-        let ei = index_range.end();
+    ) -> (usize, std::ops::Range<usize>) {
+        let si = index_range.start;
+        let ei = index_range.end;
 
         let sp = si / self.page_capacity();
         let ep = ei / self.page_capacity();
@@ -171,11 +219,14 @@ impl PagedBuffers {
 
         let page = sp;
 
-        // let start_l =
-        todo!();
+        let page_start = page * self.page_capacity();
 
-        None
+        let s = si - page_start;
+        let e = ei - page_start;
+
+        (page, s..e)
     }
+
     // pub fn get_subpage_ranges<'a>(
     //     &'a self,
     //     index_range: std::ops::Range<usize>,
@@ -252,8 +303,6 @@ impl PolylineRenderer {
             "/../app/shaders/path_2d_g_webgl.wgsl"
         ));
 
-        console::log_1(&"alright".into());
-
         let graphics_node = raving_wgpu::node::graphics_node(
             device,
             shader_src,
@@ -274,10 +323,13 @@ impl PolylineRenderer {
             },
             None,
             wgpu::MultisampleState::default(),
-            [(
-                ["p0", "p1", "node_id", "node_data"].as_slice(),
-                wgpu::VertexStepMode::Instance,
-            )],
+            [
+                (
+                    ["p0", "p1", "node_id"].as_slice(),
+                    wgpu::VertexStepMode::Instance,
+                ),
+                (["node_data"].as_slice(), wgpu::VertexStepMode::Instance),
+            ],
             [
                 (
                     "color",
@@ -557,6 +609,7 @@ impl PolylineRenderer {
         pass: &mut wgpu::RenderPass<'b>,
         viewport: egui::Rect,
     ) {
+        use web_sys::console;
         // iterate through the pages "correctly", setting the vertex
         // buffer & bind groups, and then drawing
 
@@ -568,55 +621,17 @@ impl PolylineRenderer {
         // "step through" the vertex and data buffers simultaneously
         // using the smaller (in elements) page size
 
-        let vx_ranges =
-            state.vertex_buffers.page_ranges_iter().map(|(p_i, range)| {
-                let page = &state.vertex_buffers.pages[p_i];
-                let page_cap = state.vertex_buffers.page_capacity();
-                let s = (range.start % page_cap) as u32;
-                let e = ((range.end - 1) % page_cap) as u32;
+        let vx_ranges = state
+            .vertex_buffers
+            .zip_as_vertex_buffer_slices(&state.data_buffers);
 
-                let geo_slice = page.slice(..);
-
-                let data_slice = if let Some((data_p, data_range)) =
-                    state.data_buffers.get_subpage_range(range)
-                {
-                    let page = &state.data_buffers[data_p];
-                    todo!();
-                } else {
-                    panic!("draw_in_pass_impl: invalid data range");
-                };
-                let data_slice = todo!();
-
-                let instances = s..e;
-
-                (geo_slice, data_slice, instances)
-            });
-
-        // let data_ranges =
-        //     state.vertex_buffers.page_ranges_iter().map(|(p_i, range)| {
-        //         let page = &state.vertex_buffers.pages[p_i];
-        //         let page_cap = state.vertex_buffers.page_capacity();
-        //         let s = (range.start % page_cap) as u32;
-        //         let e = ((range.end - 1) % page_cap) as u32;
-
-        //         (page.slice(..), s..e)
-        //     });
-        // .collect::<Vec<_>>();
-
-        let vx_ranges = geo_ranges.zip(data_ranges);
-
-        for ((geo_buf, data_buf), instances) in vx_ranges {
+        for (geo_buf, data_buf, instances) in vx_ranges {
             pass.set_vertex_buffer(0, geo_buf);
             pass.set_vertex_buffer(1, data_buf);
 
             let empty_offsets = [];
-            let offsets = [0];
             for (i, bind_group) in state.bind_groups.iter().enumerate() {
-                // if i == 0 {
                 pass.set_bind_group(i as u32, bind_group, &empty_offsets);
-                // } else {
-                //     pass.set_bind_group(i as u32, bind_group, &offsets);
-                // }
             }
 
             pass.draw(0..6, instances);
