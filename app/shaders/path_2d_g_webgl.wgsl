@@ -12,6 +12,7 @@ struct VertexOut {
   @builtin(position) position: vec4f,
   @location(0) uv: vec2f,
   @location(1) node_id: u32,
+  @location(2) node_data: f32,
 }
 
 @group(0) @binding(0) var<uniform> projection: mat4x4f;
@@ -42,6 +43,7 @@ fn vs_main(
            @location(0) p0: vec2f,
            @location(1) p1: vec2f,
            @location(2) node_id: u32,
+           @location(3) node_data: f32,
 ) -> VertexOut {
   var result: VertexOut;
   result.node_id = node_id;
@@ -80,6 +82,7 @@ fn vs_main(
   let point = p0 + x_basis * pos.x + y_basis * config.node_width * pos.y;
 
   result.position = projection * vec4(point, 0.0, 1.0);
+  result.node_data = node_data;
 
   return result;
 }
@@ -125,6 +128,7 @@ struct DataConfig {
 fn fs_main(
            @location(0) uv: vec2f,
            @location(1) @interpolate(flat) node_id: u32,
+           @location(2) node_data: f32,
 ) -> FragmentOut {
   var result: FragmentOut;
 
@@ -132,7 +136,8 @@ fn fs_main(
   // let index = node_id % u_data_config.page_size;
 
   // let v = u_data[index];
-  let v_n = 0.5;
+  let v_n = node_data;
+  // let v_n = 0.5;
   // let v = u_data[node_id];
 
   // let v_n = (v - u_color_map.min_val) / (u_color_map.max_val - u_color_map.min_val);

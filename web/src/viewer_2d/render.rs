@@ -154,18 +154,48 @@ impl PagedBuffers {
         })
     }
 
-    pub fn subpage_ranges_iter<'a>(
-        &'a self,
-    ) -> impl Iterator<Item = (usize, std::ops::Range<usize>)> + 'a {
-        self.pages.iter().enumerate().map(|(page_i, _buf)| {
-            let len = self.len();
-            let page_cap = self.page_capacity();
-            let offset = page_i * page_cap;
-            let end = (offset + page_cap).min(len);
+    fn get_subpage_range(
+        &self,
+        index_range: std::ops::Range<usize>,
+    ) -> Option<(usize, std::ops::Range<usize>)> {
+        let si = index_range.start();
+        let ei = index_range.end();
 
-            (page_i, offset..end)
-        })
+        let sp = si / self.page_capacity();
+        let ep = ei / self.page_capacity();
+
+        if sp != ep {
+            log::warn!("get_subpage_range crossed page boundary {sp}/{ep}");
+            // TODO warn if page boundary has to be crossed (wasm)
+        }
+
+        let page = sp;
+
+        // let start_l =
+        todo!();
+
+        None
     }
+    // pub fn get_subpage_ranges<'a>(
+    //     &'a self,
+    //     index_range: std::ops::Range<usize>,
+    // ) -> Option<impl Iterator<Item = (usize, std::ops::Range<usize>)> + 'a>
+    // {
+    //     None
+    // }
+
+    // pub fn subpage_ranges_iter<'a>(
+    //     &'a self,
+    // ) -> impl Iterator<Item = (usize, std::ops::Range<usize>)> + 'a {
+    //     self.pages.iter().enumerate().map(|(page_i, _buf)| {
+    //         let len = self.len();
+    //         let page_cap = self.page_capacity();
+    //         let offset = page_i * page_cap;
+    //         let end = (offset + page_cap).min(len);
+
+    //         (page_i, offset..end)
+    //     })
+    // }
 }
 
 #[derive(Default, Debug, Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
@@ -219,7 +249,7 @@ impl PolylineRenderer {
         console::log_1(&"polyline renderer init".into());
         let shader_src = include_str!(concat!(
             env!("CARGO_MANIFEST_DIR"),
-            "/../app/shaders/path_2d_g.wgsl"
+            "/../app/shaders/path_2d_g_webgl.wgsl"
         ));
 
         console::log_1(&"alright".into());
@@ -245,7 +275,7 @@ impl PolylineRenderer {
             None,
             wgpu::MultisampleState::default(),
             [(
-                ["p0", "p1", "node_id"].as_slice(),
+                ["p0", "p1", "node_id", "node_data"].as_slice(),
                 wgpu::VertexStepMode::Instance,
             )],
             [
@@ -283,9 +313,11 @@ impl PolylineRenderer {
             std::mem::size_of::<[u32; 5]>() as u64,
             max_segments,
         )?;
+        // WebGL2 doesn't support storage buffers
         let data_buffers = PagedBuffers::new(
             device,
-            wgpu::BufferUsages::STORAGE,
+            // wgpu::BufferUsages::STORAGE,
+            wgpu::BufferUsages::VERTEX,
             std::mem::size_of::<[u32; 1]>() as u64,
             max_segments,
         )?;
@@ -536,21 +568,46 @@ impl PolylineRenderer {
         // "step through" the vertex and data buffers simultaneously
         // using the smaller (in elements) page size
 
-        let vx_ranges = state
-            .vertex_buffers
-            .page_ranges_iter()
-            .map(|(p_i, range)| {
+        let vx_ranges =
+            state.vertex_buffers.page_ranges_iter().map(|(p_i, range)| {
                 let page = &state.vertex_buffers.pages[p_i];
                 let page_cap = state.vertex_buffers.page_capacity();
                 let s = (range.start % page_cap) as u32;
                 let e = ((range.end - 1) % page_cap) as u32;
 
-                (page.slice(..), s..e)
-            })
-            .collect::<Vec<_>>();
+                let geo_slice = page.slice(..);
 
-        for (vx_buf, instances) in vx_ranges {
-            pass.set_vertex_buffer(0, vx_buf);
+                let data_slice = if let Some((data_p, data_range)) =
+                    state.data_buffers.get_subpage_range(range)
+                {
+                    let page = &state.data_buffers[data_p];
+                    todo!();
+                } else {
+                    panic!("draw_in_pass_impl: invalid data range");
+                };
+                let data_slice = todo!();
+
+                let instances = s..e;
+
+                (geo_slice, data_slice, instances)
+            });
+
+        // let data_ranges =
+        //     state.vertex_buffers.page_ranges_iter().map(|(p_i, range)| {
+        //         let page = &state.vertex_buffers.pages[p_i];
+        //         let page_cap = state.vertex_buffers.page_capacity();
+        //         let s = (range.start % page_cap) as u32;
+        //         let e = ((range.end - 1) % page_cap) as u32;
+
+        //         (page.slice(..), s..e)
+        //     });
+        // .collect::<Vec<_>>();
+
+        let vx_ranges = geo_ranges.zip(data_ranges);
+
+        for ((geo_buf, data_buf), instances) in vx_ranges {
+            pass.set_vertex_buffer(0, geo_buf);
+            pass.set_vertex_buffer(1, data_buf);
 
             let empty_offsets = [];
             let offsets = [0];
