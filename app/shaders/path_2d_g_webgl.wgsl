@@ -79,9 +79,21 @@ fn vs_main(
   let x_basis = p1 - p0;
   let y_basis = normalize(vec2(-x_basis.y, x_basis.x));
 
-  let point = p0 + x_basis * pos.x + y_basis * config.node_width * pos.y;
+  // let point = p0 + x_basis * pos.x + y_basis * config.node_width * pos.y;
+  // result.position = projection * vec4(point, 0.0, 1.0);
 
-  result.position = projection * vec4(point, 0.0, 1.0);
+  let x0 = vec4(p0 + x_basis * pos.x, 0.0, 1.0);
+  let y0 = vec4(y_basis * pos.y, 0.0, 0.0);
+  // let y0 = vec4(y_basis, 0.0, 0.0);
+  // let py = pos.y * projection * y0;
+
+  let px = projection * x0;
+  let py = y0;
+
+  // let point = px + py * 0.1;
+  let point = px + py * config.node_width;
+  result.position = point;
+
   result.node_data = node_data;
 
   return result;

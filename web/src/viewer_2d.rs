@@ -250,8 +250,7 @@ impl Viewer2D {
                     usage,
                 });
 
-            let node_width = 50f32;
-            let data = [node_width, 0.0, 0.0, 0.0];
+            let data = [0f32, 0.0, 0.0, 0.0];
 
             let vert_config =
                 state.device.create_buffer_init(&BufferInitDescriptor {
@@ -437,12 +436,26 @@ impl Viewer2D {
         queue: &wgpu::Queue,
         window_dims: [f32; 2],
     ) {
-        // not in pixels (not even sure what it is)
+        use web_sys::console;
+        let cam_w = self.view.size.x;
+
         let node_width = 120.0;
 
-        let [w, h] = window_dims;
+        // let [w, h] = window_dims;
 
-        let nw = node_width / w.max(h);
+        // let nw = node_width * (window_dims[0] / cam_w);
+        // let nw = node_width * (cam_w / window_dims[0]);
+        // let nw = cam_w * 50.0 / window_dims[0];
+
+        // console::log_1(&format!("node width: {nw}").into());
+
+        // let nw = node_width / cam_w;
+        // let nw = node_width / w.max(h);
+        // let nw = node_width / window_dims[0];
+        // let nw = window_dims[0] / 20.0;
+        // let nw = 0.01;
+        // let nw = 10.0 * (cam_w / window_dims[0]);
+        let nw = 10.0 * (window_dims[0] / cam_w);
 
         let data: [f32; 4] = [nw, 0.0, 0.0, 0.0];
         queue.write_buffer(&self.vert_config, 0, bytemuck::cast_slice(&[data]));
@@ -595,12 +608,14 @@ impl Viewer2D {
         }
 
         if let Some(pos) = main_area.hover_pos() {
+            use web_sys::console;
             hover_pos = Some([pos.x, pos.y]);
 
             let min_scroll = 1.0;
-            let factor = 0.01;
+            let factor = 0.001;
 
             if scroll.y.abs() > min_scroll {
+                console::log_1(&format!("scroll.y: {}", scroll.y).into());
                 let dz = 1.0 - scroll.y * factor;
                 let uvp = Vec2::new(pos.x, pos.y);
                 let mut norm = uvp / dims;

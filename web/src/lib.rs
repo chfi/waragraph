@@ -114,49 +114,6 @@ async fn initialize_impl(
 
     console::log_1(&"after raving".into());
 
-    // console::log_1(&"wgpu".into());
-    // let _ = {
-    //     // let backends = wgpu::util::backend_bits_from_env()
-    //     //     .unwrap_or(wgpu::Backends::all());
-    //     let backends = wgpu::Backends::BROWSER_WEBGPU;
-    //     // let backends = wgpu::Backends::all();
-
-    //     console::log_1(&format!("backends: {backends:?}").into());
-    //     let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
-    //         backends,
-    //         dx12_shader_compiler: Default::default(),
-    //     });
-    //     console::log_1(&format!("instance: {instance:?}").into());
-    //     // console::log_1(&instance.into());
-
-    //     let adapter = wgpu::util::initialize_adapter_from_env_or_default(
-    //         &instance, backends, None,
-    //     )
-    //     .await
-    //     .ok_or(anyhow::anyhow!("Could not find compatible adapter"))?;
-
-    //     let allowed_limits = adapter.limits();
-
-    //     let (device, queue) = adapter
-    //         .request_device(
-    //             &wgpu::DeviceDescriptor {
-    //                 features: wgpu::Features::empty(),
-    //                 limits: if cfg!(target_arch = "wasm32") {
-    //                     wgpu::Limits::downlevel_webgl2_defaults()
-    //                 } else {
-    //                     wgpu::Limits {
-    //                         max_push_constant_size: allowed_limits
-    //                             .max_push_constant_size,
-    //                         ..wgpu::Limits::default()
-    //                     }
-    //                 },
-    //                 label: None,
-    //             },
-    //             None,
-    //         )
-    //         .await?;
-    // };
-
     // #[cfg(target_arch = "wasm32")]
     // let builder = {
     // use winit::platform::web::{WindowBuilderExtWebSys, WindowExtWebSys};
