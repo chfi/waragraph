@@ -72,8 +72,7 @@ pub struct Viewer2D {
     view: View2D,
 
     transform_uniform: wgpu::Buffer,
-    vert_config: wgpu::Buffer,
-
+    // vert_config: wgpu::Buffer,
     pub(crate) geometry_bufs: GeometryBuffers,
 
     // render_graph: Graph,
@@ -237,8 +236,7 @@ impl Viewer2D {
         };
         */
 
-        console::log_1(&"viewer 2d cccc".into());
-        let (transform_uniform, vert_config) = {
+        let transform_uniform = {
             let usage = BufferUsages::UNIFORM | BufferUsages::COPY_DST;
 
             let data = view.to_matrix();
@@ -250,16 +248,7 @@ impl Viewer2D {
                     usage,
                 });
 
-            let data = [0f32, 0.0, 0.0, 0.0];
-
-            let vert_config =
-                state.device.create_buffer_init(&BufferInitDescriptor {
-                    label: None,
-                    contents: bytemuck::cast_slice(&[data]),
-                    usage,
-                });
-
-            (transform, vert_config)
+            transform
         };
         /*
 
@@ -395,7 +384,6 @@ impl Viewer2D {
             view,
 
             transform_uniform,
-            vert_config,
 
             geometry_bufs,
 
@@ -431,15 +419,16 @@ impl Viewer2D {
         self.segment_renderer.set_transform(queue, data);
     }
 
+    /*
     fn update_vert_config_uniform(
         &self,
         queue: &wgpu::Queue,
         window_dims: [f32; 2],
     ) {
-        use web_sys::console;
-        let cam_w = self.view.size.x;
+        // use web_sys::console;
+        // let cam_w = self.view.size.x;
 
-        let node_width = 120.0;
+        // let node_width = 120.0;
 
         // let [w, h] = window_dims;
 
@@ -455,11 +444,17 @@ impl Viewer2D {
         // let nw = window_dims[0] / 20.0;
         // let nw = 0.01;
         // let nw = 10.0 * (cam_w / window_dims[0]);
-        let nw = 10.0 * (window_dims[0] / cam_w);
+        // let nw = 10.0 * (window_dims[0] / cam_w);
+        // let nw = 10.0 / window_dims[0];
+        // let nw = 10.0 / cam_w;
+        // let nw = 0.01;
+        let nw = 0.1;
 
-        let data: [f32; 4] = [nw, 0.0, 0.0, 0.0];
+        // let data: [f32; 4] = [nw, 0.0, 0.0, 0.0];
+        let data: [f32; 4] = [nw; 4];
         queue.write_buffer(&self.vert_config, 0, bytemuck::cast_slice(&[data]));
     }
+    */
 
     pub fn show_ui(
         &mut self,
@@ -753,8 +748,14 @@ impl Viewer2D {
         let size: [u32; 2] = dims.into();
         let [w, h] = size;
 
-        self.update_transform_uniform(&state.queue);
-        self.update_vert_config_uniform(&state.queue, [w as f32, h as f32]);
+        let node_width = 10f32;
+
+        self.segment_renderer.update_uniforms(
+            &state.queue,
+            self.view.to_matrix(),
+            [w as f32, h as f32],
+            node_width,
+        );
 
         let (sampler, color) = {
             let colors = self.shared.colors.read();

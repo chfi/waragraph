@@ -439,6 +439,34 @@ impl PolylineRenderer {
         self.has_position_data && self.has_node_data
     }
 
+    pub fn update_uniforms(
+        &mut self,
+        queue: &wgpu::Queue,
+        transform: ultraviolet::Mat4,
+        window_dims: [f32; 2],
+        node_width_px: f32,
+    ) {
+        let state = self.state.read();
+        self.transform = transform;
+        queue.write_buffer(
+            &state.projection_uniform,
+            0,
+            &bytemuck::cast_slice(&[transform]),
+        );
+
+        let nw = node_width_px / window_dims[0];
+
+        // let nw = 0.1;
+
+        // let data: [f32; 4] = [nw, 0.0, 0.0, 0.0];
+        let data: [f32; 4] = [nw; 4];
+        queue.write_buffer(
+            &state.vertex_config_uniform,
+            0,
+            bytemuck::cast_slice(&[data]),
+        );
+    }
+
     pub fn set_transform(
         &mut self,
         queue: &wgpu::Queue,
