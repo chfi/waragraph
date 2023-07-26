@@ -76,8 +76,8 @@ impl Context {
 
 #[wasm_bindgen]
 pub async fn initialize_with_data(
-    gfa_src: js_sys::Promise,
-    tsv_src: js_sys::Promise,
+    gfa_text_src: js_sys::Promise,
+    tsv_text_src: js_sys::Promise,
     canvas: JsValue,
 ) -> Result<Context, JsValue> {
     use web_sys::console;
@@ -87,18 +87,44 @@ pub async fn initialize_with_data(
 
     let canvas = canvas.dyn_into::<HtmlCanvasElement>().ok();
 
-    let gfa_src = JsFuture::from(gfa_src).await?;
-    let tsv_src = JsFuture::from(tsv_src).await?;
+    let gfa_src = JsFuture::from(gfa_text_src).await?;
+    let tsv_src = JsFuture::from(tsv_text_src).await?;
 
-    // let gfa = gfa_src.dyn_into::<web_sys::Response>()?;
-    // let gfa = JsFuture::from(gfa.array_buffer()?).await?;
+    let gfa = gfa_src.as_string().unwrap();
+    let tsv = tsv_src.as_string().unwrap();
 
-    let gfa = JsFuture::from(gfa_src.dyn_into::<web_sys::Response>()?.text()?)
+    let result =
+        initialize_with_data_impl(gfa.as_str(), tsv.as_str(), canvas).await;
+
+    match result {
+        Ok(ctx) => Ok(ctx),
+        Err(e) => {
+            Err(JsValue::from_str(&format!("initialization error: {e:?}")))
+        }
+    }
+}
+
+#[wasm_bindgen]
+pub async fn initialize_with_data_fetch(
+    gfa_resp: js_sys::Promise,
+    tsv_resp: js_sys::Promise,
+    canvas: JsValue,
+) -> Result<Context, JsValue> {
+    use web_sys::console;
+    console::log_1(&"running initialize_with_data_fetch".into());
+
+    std::panic::set_hook(Box::new(console_error_panic_hook::hook));
+
+    let canvas = canvas.dyn_into::<HtmlCanvasElement>().ok();
+
+    let gfa_resp = JsFuture::from(gfa_resp).await?;
+    let tsv_resp = JsFuture::from(tsv_resp).await?;
+
+    let gfa = JsFuture::from(gfa_resp.dyn_into::<web_sys::Response>()?.text()?)
         .await?;
 
-    let tsv = JsFuture::from(tsv_src.dyn_into::<web_sys::Response>()?.text()?)
+    let tsv = JsFuture::from(tsv_resp.dyn_into::<web_sys::Response>()?.text()?)
         .await?;
-    // console::log_1(&gfa.into());
 
     let gfa = gfa.as_string().unwrap();
     let tsv = tsv.as_string().unwrap();
@@ -112,15 +138,6 @@ pub async fn initialize_with_data(
             Err(JsValue::from_str(&format!("initialization error: {e:?}")))
         }
     }
-
-    // Err(JsValue::from_str(&format!("initialization error")))
-
-    // let gfa =
-
-    // Err(JsValue::from_str("todo!"))
-
-    //
-    // todo!();
 }
 
 #[wasm_bindgen]

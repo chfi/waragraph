@@ -11,14 +11,13 @@
       let wasm;
 
       async function run() {
-          console.log("what");
           wasm = await init_module();
           console.log(waragraph);
           console.log(wasm);
           window.wasm = wasm;
           
-          const gfa_path = '../data/A-3105.fa.353ea42.34ee7b1.1576367.smooth.fix.gfa';
-          const tsv_path = '../data/A-3105.layout.tsv';
+          const gfa_path = '../test/data/A-3105.fa.353ea42.34ee7b1.1576367.smooth.fix.gfa';
+          const tsv_path = '../test/data/A-3105.layout.tsv';
 
           // const gfa_path = '../cerevisiae.pan.fa.gz.d1a145e.417fcdf.7493449.smooth.final.gfa';
           // const tsv_path = '../cerevisiae.pan.fa.gz.d1a145e.417fcdf.7493449.smooth.final.og.lay.tsv';
@@ -30,7 +29,7 @@
           const canvas = document.getElementById("main_view");
 
           console.log("init");
-          let ctx = await waragraph.initialize_with_data(gfa, tsv, canvas);
+          let ctx = await waragraph.initialize_with_data_fetch(gfa, tsv, canvas);
 
           ctx.run()
 

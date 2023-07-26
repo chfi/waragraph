@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+  <head>
+    <meta content="text/html;charset=utf-8" http-equiv="Content-Type"/>
+    <title>Waragraph Web</title>
+  </head>
+  <body>
+    <canvas id="main_view" width=800 height=600 hidden="true"></canvas>
+
+    <div id="file-inputs">
+
+      <div>
+        <label for="gfa-file">Choose a GFA file</label>
+        <input type="file" id="gfa-file" name="gfa" accept=".gfa"></input>
+      </div>
+
+      <div>
+        <label for="layout-file">Choose a TSV layout file</label>
+        <input type="file" id="layout-file" name="layout" accept=".tsv"></input>
+      </div>
+
+      <button id="load-data">Load data</button>
+
+    </div>
+
+
+    <script type="module">
+      import init_module, * as waragraph from './pkg/web.js';
+      let wasm;
+
+      async function run() {
+          wasm = await init_module();
+          console.log(waragraph);
+          console.log(wasm);
+          window.wasm = wasm;
+
+          document
+              .getElementById("load-data")
+              .addEventListener("click", async (e) => {
+                  let gfa_file = document.getElementById("gfa-file").files[0];
+                  let tsv_file = document.getElementById("layout-file").files[0];
+
+                  let gfa = gfa_file.text();
+                  let tsv = tsv_file.text();
+
+                  const canvas = document.getElementById("main_view");
+
+                  let ctx = await waragraph.initialize_with_data(gfa, tsv, canvas);
+
+                  canvas.hidden = false;
+                  document.getElementById("file-inputs").hidden = true;
+
+                  ctx.run()
+
+              });
+
+      }
+
+      run();
+    </script>
+  </body>
+</html>
