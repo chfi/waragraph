@@ -13,6 +13,7 @@ use parking_lot::RwLock;
 use egui_winit::winit;
 use raving_wgpu::gui::EguiCtx;
 use waragraph_core::graph::PathIndex;
+use wasm_bindgen_futures::JsFuture;
 use web_sys::HtmlCanvasElement;
 use winit::{
     event::{ElementState, Event, WindowEvent},
@@ -68,8 +69,58 @@ impl Context {
 
         if let Err(e) = result {
             // TODO
+            panic!("{e}");
         }
     }
+}
+
+#[wasm_bindgen]
+pub async fn initialize_with_data(
+    gfa_src: js_sys::Promise,
+    tsv_src: js_sys::Promise,
+    canvas: JsValue,
+) -> Result<Context, JsValue> {
+    use web_sys::console;
+    console::log_1(&"running initialize_with_data".into());
+
+    std::panic::set_hook(Box::new(console_error_panic_hook::hook));
+
+    let canvas = canvas.dyn_into::<HtmlCanvasElement>().ok();
+
+    let gfa_src = JsFuture::from(gfa_src).await?;
+    let tsv_src = JsFuture::from(tsv_src).await?;
+
+    // let gfa = gfa_src.dyn_into::<web_sys::Response>()?;
+    // let gfa = JsFuture::from(gfa.array_buffer()?).await?;
+
+    let gfa = JsFuture::from(gfa_src.dyn_into::<web_sys::Response>()?.text()?)
+        .await?;
+
+    let tsv = JsFuture::from(tsv_src.dyn_into::<web_sys::Response>()?.text()?)
+        .await?;
+    // console::log_1(&gfa.into());
+
+    let gfa = gfa.as_string().unwrap();
+    let tsv = tsv.as_string().unwrap();
+
+    let result =
+        initialize_with_data_impl(gfa.as_str(), tsv.as_str(), canvas).await;
+
+    match result {
+        Ok(ctx) => Ok(ctx),
+        Err(e) => {
+            Err(JsValue::from_str(&format!("initialization error: {e:?}")))
+        }
+    }
+
+    // Err(JsValue::from_str(&format!("initialization error")))
+
+    // let gfa =
+
+    // Err(JsValue::from_str("todo!"))
+
+    //
+    // todo!();
 }
 
 #[wasm_bindgen]
@@ -83,7 +134,17 @@ pub async fn initialize(canvas: JsValue) -> Result<Context, JsValue> {
     let canvas = canvas.dyn_into::<HtmlCanvasElement>().ok();
     console::log_1(&canvas.is_some().into());
 
-    let result = initialize_impl(canvas).await;
+    let gfa_src = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../test/data/A-3105.fa.353ea42.34ee7b1.1576367.smooth.fix.gfa"
+    ));
+
+    let tsv_src = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../test/data/A-3105.layout.tsv"
+    ));
+
+    let result = initialize_with_data_impl(gfa_src, tsv_src, canvas).await;
 
     match result {
         Ok(ctx) => Ok(ctx),
@@ -93,7 +154,9 @@ pub async fn initialize(canvas: JsValue) -> Result<Context, JsValue> {
     }
 }
 
-async fn initialize_impl(
+async fn initialize_with_data_impl(
+    gfa_src: &str,
+    tsv_src: &str,
     canvas: Option<HtmlCanvasElement>,
 ) -> anyhow::Result<Context> {
     use web_sys::console;
@@ -123,16 +186,6 @@ async fn initialize_impl(
 
     // need to pass the data in!
     // the methods I have all read from the file system
-
-    let gfa_src = include_str!(concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/../test/data/A-3105.fa.353ea42.34ee7b1.1576367.smooth.fix.gfa"
-    ));
-
-    let tsv_src = include_str!(concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/../test/data/A-3105.layout.tsv"
-    ));
 
     console::log_1(&"app".into());
     let mut app = app::App::init()?;

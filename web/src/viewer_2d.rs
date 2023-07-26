@@ -603,14 +603,14 @@ impl Viewer2D {
         }
 
         if let Some(pos) = main_area.hover_pos() {
-            use web_sys::console;
+            // use web_sys::console;
             hover_pos = Some([pos.x, pos.y]);
 
             let min_scroll = 1.0;
             let factor = 0.001;
 
             if scroll.y.abs() > min_scroll {
-                console::log_1(&format!("scroll.y: {}", scroll.y).into());
+                // console::log_1(&format!("scroll.y: {}", scroll.y).into());
                 let dz = 1.0 - scroll.y * factor;
                 let uvp = Vec2::new(pos.x, pos.y);
                 let mut norm = uvp / dims;

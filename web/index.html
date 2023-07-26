@@ -4,18 +4,9 @@
     <title>Waragraph Web</title>
   </head>
   <body>
-    <!-- Note the usage of `type=module` here as this is an ES6 module -->
-
     <canvas id="main_view" width=800 height=600></canvas>
 
     <script type="module">
-      // Use ES module import syntax to import functionality from the module
-      // that we have compiled.
-      //
-      // Note that the `default` import is an initialization function which
-      // will "boot" the module and make it ready to use. Currently browsers
-      // don't support natively imported WebAssembly as an ES module, but
-      // eventually the manual initialization won't be required!
       import init_module, * as waragraph from './pkg/web.js';
       let wasm;
 
@@ -25,13 +16,21 @@
           console.log(waragraph);
           console.log(wasm);
           window.wasm = wasm;
+          
+          const gfa_path = '../data/A-3105.fa.353ea42.34ee7b1.1576367.smooth.fix.gfa';
+          const tsv_path = '../data/A-3105.layout.tsv';
 
-          // window.waragraph = waragraph;
+          // const gfa_path = '../cerevisiae.pan.fa.gz.d1a145e.417fcdf.7493449.smooth.final.gfa';
+          // const tsv_path = '../cerevisiae.pan.fa.gz.d1a145e.417fcdf.7493449.smooth.final.og.lay.tsv';
+
+          let gfa = fetch(gfa_path);
+          let tsv = fetch(tsv_path);
+          console.log(gfa);
 
           const canvas = document.getElementById("main_view");
 
-          let ctx = await waragraph.initialize(canvas);
-          // window.waragraph = ctx;
+          console.log("init");
+          let ctx = await waragraph.initialize_with_data(gfa, tsv, canvas);
 
           ctx.run()
 

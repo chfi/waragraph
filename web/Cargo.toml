@@ -14,7 +14,9 @@ raving-wgpu = { git = "https://github.com/chfi/raving-wgpu", branch = "simplify"
 wasm-bindgen = "0.2"
 wasm-bindgen-futures = "0.4"
 js-sys = "0.3"
-web-sys = "0.3"
+web-sys = { version = "0.3", features = [
+"Response"
+]}
 egui-winit = { version = "0.22", default-features = false }
 egui_tiles = "0.1"
 
