@@ -35,6 +35,67 @@ impl<'index> Iterator for PangenomeNodeIter<'index> {
     }
 }
 
+pub struct PangenomeNodeRangeIter<'index> {
+    index: &'index PathIndex,
+    node_index_range: std::ops::RangeInclusive<usize>,
+    pos_range: std::ops::Range<u64>,
+}
+
+impl<'index> PangenomeNodeRangeIter<'index> {
+    pub(super) fn new_pos_range(
+        index: &'index PathIndex,
+        pos_range: std::ops::Range<u64>,
+    ) -> Self {
+        let pos_range = {
+            let start = pos_range.start.min(index.pangenome_len().0);
+            let end = pos_range.end.min(index.pangenome_len().0);
+            start..end
+        };
+
+        let (start, end) =
+            index.pos_range_nodes(pos_range.clone()).into_inner();
+        let i_s = start.0 as usize;
+        let i_e = end.0 as usize;
+
+        let node_index_range = i_s..=i_e;
+
+        Self {
+            index,
+            node_index_range,
+            pos_range,
+        }
+    }
+}
+
+impl<'index> Iterator for PangenomeNodeRangeIter<'index> {
+    type Item = (Node, std::ops::Range<Bp>);
+
+    #[inline]
+    fn next(&mut self) -> Option<Self::Item> {
+        let index = self.node_index_range.next()?;
+        let node = Node(index as u32);
+        let (offset, length) = self.index.node_offset_length(node);
+
+        let node_start = offset.0;
+        let node_end = offset.0 + length.0;
+
+        let vis_start = self.pos_range.start.max(node_start);
+        let vis_end = self.pos_range.end.min(node_end);
+
+        // let start =
+        // let length = vis_end.checked_sub(vis_start)?;
+
+        // TODO is this even right
+        let range = Bp(vis_start)..Bp(vis_end);
+
+        let end = vis_end;
+        let new_start = end.min(self.pos_range.end);
+        self.pos_range = new_start..self.pos_range.end;
+
+        Some((node, range))
+    }
+}
+
 pub struct PangenomeNodePosRangeIter<'index> {
     index: &'index PathIndex,
     node_index_range: std::ops::RangeInclusive<usize>,

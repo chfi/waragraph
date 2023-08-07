@@ -773,6 +773,12 @@ impl AppWindow for Viewer1D {
             });
         });
 
+        let pixels_per_bp = {
+            let slot_width = path_slot_region.size().x as f64;
+            let view_width = self.view.len() as f64;
+            slot_width / view_width
+        };
+
         for (data_key, path_rects) in data_slots {
             let sampler = self.viz_samplers.get(&data_key).unwrap().clone();
             let result = self.slot_cache.sample_with(
@@ -791,6 +797,21 @@ impl AppWindow for Viewer1D {
             //     data_key.as_str(),
             //     path_rects.iter().map(|(path, _)| *path),
             // );
+
+            for (path, rect) in path_rects {
+                let view_range = self.view.range().clone();
+
+                // draw sequence if zoomed in
+                if pixels_per_bp > 1.0 {
+                    render::sequence_shapes_in_slot(
+                        &self.shared.graph,
+                        path,
+                        view_range,
+                        rect,
+                        &mut shapes,
+                    );
+                }
+            }
         }
 
         {

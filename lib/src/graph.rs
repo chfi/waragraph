@@ -6,6 +6,7 @@ use std::io::prelude::*;
 use std::io::BufReader;
 
 use self::iter::PangenomeNodePosRangeIter;
+use self::iter::PangenomeNodeRangeIter;
 use self::iter::PangenomePathDataPosRangeIter;
 
 pub mod iter;
@@ -206,6 +207,7 @@ pub struct NodeSet {
 
 #[derive(Debug, Clone)]
 pub struct PathIndex {
+    pub sequence: Vec<u8>,
     pub segment_offsets: roaring::RoaringTreemap,
     pub node_count: usize,
     pub sequence_total_len: Bp,
@@ -253,6 +255,7 @@ impl PathIndex {
         let mut segment_offsets = roaring::RoaringTreemap::new();
         let mut seg_lens = Vec::new();
         let mut sequence_total_len = 0;
+        let mut sequence = Vec::new();
 
         let mut seg_id_range = (std::u32::MAX, 0u32);
 
@@ -292,6 +295,7 @@ impl PathIndex {
             segment_offsets.push(sequence_total_len as u64);
             sequence_total_len += len;
             seg_lens.push(len);
+            sequence.extend(seq);
         }
 
         assert!(
@@ -413,6 +417,8 @@ impl PathIndex {
         }
 
         Ok(Self {
+            sequence,
+
             path_names,
             path_steps,
             path_step_offsets,
@@ -494,6 +500,13 @@ impl PathIndex {
         self.node_offset_length(node).0
     }
 
+    pub fn node_sequence(&self, node: Node) -> &[u8] {
+        let (offset, length) = self.node_offset_length(node);
+        let start = offset.0 as usize;
+        let end = start + length.0 as usize;
+        &self.sequence[start..end]
+    }
+
     pub fn node_at_pangenome_pos(&self, pos: Bp) -> Option<Node> {
         if pos > self.sequence_total_len {
             return None;
@@ -563,6 +576,13 @@ impl PathIndex {
         let last = Node::from(end_rank as usize - 1);
 
         first..=last
+    }
+
+    pub fn nodes_span_iter<'i>(
+        &'i self,
+        pan_range: std::ops::Range<u64>,
+    ) -> PangenomeNodeRangeIter<'i> {
+        PangenomeNodeRangeIter::new_pos_range(self, pan_range)
     }
 
     pub fn nodes_pan_range_iter<'i>(
