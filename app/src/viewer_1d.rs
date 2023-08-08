@@ -779,40 +779,45 @@ impl AppWindow for Viewer1D {
             slot_width / view_width
         };
 
-        for (data_key, path_rects) in data_slots {
-            let sampler = self.viz_samplers.get(&data_key).unwrap().clone();
-            let result = self.slot_cache.sample_with(
-                state,
-                tokio_rt,
-                &self.view,
-                data_key.as_str(),
-                path_rects.iter().map(|(path, _)| *path),
-                sampler,
-            );
+        println!("pixels_per_bp: {pixels_per_bp}");
 
-            // let result = self.slot_cache.sample_for_data(
-            //     state,
-            //     tokio_rt,
-            //     &self.view,
-            //     data_key.as_str(),
-            //     path_rects.iter().map(|(path, _)| *path),
-            // );
+        egui_ctx.ctx().fonts(|fonts| {
+            for (data_key, path_rects) in data_slots {
+                let sampler = self.viz_samplers.get(&data_key).unwrap().clone();
+                let result = self.slot_cache.sample_with(
+                    state,
+                    tokio_rt,
+                    &self.view,
+                    data_key.as_str(),
+                    path_rects.iter().map(|(path, _)| *path),
+                    sampler,
+                );
 
-            for (path, rect) in path_rects {
-                let view_range = self.view.range().clone();
+                // let result = self.slot_cache.sample_for_data(
+                //     state,
+                //     tokio_rt,
+                //     &self.view,
+                //     data_key.as_str(),
+                //     path_rects.iter().map(|(path, _)| *path),
+                // );
 
-                // draw sequence if zoomed in
-                if pixels_per_bp > 1.0 {
-                    render::sequence_shapes_in_slot(
-                        &self.shared.graph,
-                        path,
-                        view_range,
-                        rect,
-                        &mut shapes,
-                    );
+                for (path, rect) in path_rects {
+                    let view_range = self.view.range().clone();
+
+                    // draw sequence if zoomed in
+                    if pixels_per_bp > 1.0 {
+                        render::sequence_shapes_in_slot(
+                            fonts,
+                            &self.shared.graph,
+                            path,
+                            view_range,
+                            rect,
+                            &mut shapes,
+                        );
+                    }
                 }
             }
-        }
+        });
 
         {
             let _slot_update_result = self.slot_cache.update(

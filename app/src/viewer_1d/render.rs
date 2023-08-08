@@ -19,6 +19,7 @@ pub struct VizModeConfig {
 }
 
 pub fn sequence_shapes_in_slot(
+    fonts: &egui::text::Fonts,
     graph: &PathIndex,
     path: PathId,
     view_range: std::ops::Range<u64>,
@@ -48,6 +49,8 @@ pub fn sequence_shapes_in_slot(
 
             // let color = egui::Rgba::from_rgba_unmultiplied(0.8, 0.2, 0.2, 0.9);
 
+            let node_rect = egui::Rect::from_x_y_ranges(xl..=xr, y_range);
+
             let color = {
                 use std::hash::{Hash, Hasher};
                 let mut hasher =
@@ -58,54 +61,28 @@ pub fn sequence_shapes_in_slot(
                 egui::Rgba::from_srgba_unmultiplied(r, g, b, 255)
             };
 
-            let shape = egui::Shape::rect_filled(
-                egui::Rect::from_x_y_ranges(xl..=xr, y_range).shrink(1.0),
-                0.,
-                color,
-            );
+            let shape =
+                egui::Shape::rect_filled(node_rect.shrink(1.0), 0., color);
             shapes.push(shape);
 
-            /*
             let seq = graph.node_sequence(node);
 
-            let span_start = span.start.0 as usize;
-            let p0 = p0
-                + egui::vec2(bp_width, 0.0)
-                    * (span_start - view_range.start as usize) as f32;
-
             for (ix, &base) in seq.iter().enumerate() {
-                // let pos = p0 + egui::vec2(bp_width, 0.0) * ix as f32;
-                let pos = p0 + egui::vec2(bp_width, 0.0) * ix as f32;
+                let x = xl + bp_width / 2.0 + bp_width * ix as f32;
 
-                let color = match base.to_ascii_uppercase() {
-                    b'G' => {
-                        egui::Rgba::from_rgba_unmultiplied(0.8, 0.2, 0.2, 0.5)
-                    }
-                    b'C' => {
-                        egui::Rgba::from_rgba_unmultiplied(0.2, 0.8, 0.2, 0.5)
-                    }
-                    b'T' => {
-                        egui::Rgba::from_rgba_unmultiplied(0.2, 0.2, 0.8, 0.5)
-                    }
-                    b'A' => {
-                        egui::Rgba::from_rgba_unmultiplied(0.8, 0.8, 0.2, 0.5)
-                    }
-                    _ => egui::Rgba::from_rgba_unmultiplied(0.3, 0.3, 0.3, 0.5),
-                };
+                let c = base as char;
 
-                let shape = egui::Shape::rect_filled(
-                    egui::Rect::from_center_size(
-                        pos,
-                        egui::vec2(bp_width, rect.height()),
-                    ),
-                    0.0,
-                    color,
+                let shape = egui::Shape::text(
+                    fonts,
+                    egui::pos2(x, rect.center().y),
+                    egui::Align2::CENTER_CENTER,
+                    c,
+                    egui::FontId::monospace(10.0),
+                    egui::Color32::BLACK,
                 );
-
                 shapes.push(shape);
+                //
             }
-            */
-            //
         }
     }
 }
