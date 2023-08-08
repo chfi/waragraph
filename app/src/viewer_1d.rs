@@ -793,19 +793,11 @@ impl AppWindow for Viewer1D {
                     sampler,
                 );
 
-                // let result = self.slot_cache.sample_for_data(
-                //     state,
-                //     tokio_rt,
-                //     &self.view,
-                //     data_key.as_str(),
-                //     path_rects.iter().map(|(path, _)| *path),
-                // );
-
                 for (path, rect) in path_rects {
                     let view_range = self.view.range().clone();
 
                     // draw sequence if zoomed in
-                    if pixels_per_bp > 1.0 {
+                    if pixels_per_bp > 4.0 {
                         render::sequence_shapes_in_slot(
                             fonts,
                             &self.shared.graph,

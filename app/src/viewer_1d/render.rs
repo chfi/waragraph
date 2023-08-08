@@ -26,48 +26,31 @@ pub fn sequence_shapes_in_slot(
     rect: egui::Rect,
     shapes: &mut Vec<egui::Shape>,
 ) {
-    // let nodes = graph.nodes_span_iter(view_range);
     let view_len = (view_range.end - view_range.start) as f64;
 
     let path_set = &graph.path_node_sets[path.ix()];
-
-    let p0 = rect.left_center();
-    // let bp_width = (view_len / rect.width() as f64) as f32;
     let bp_width = (rect.width() as f64 / view_len) as f32;
 
     let view_start = view_range.start;
 
     for (node, span) in graph.nodes_span_iter(view_range.clone()) {
         if path_set.contains(node.into()) {
-            let span_l = (span.start.0 - view_start);
-            let span_r = (span.end.0 - view_start);
+            let span_l = (span.start.0 - view_start) as f32;
+            let span_r = (span.end.0 - view_start) as f32;
 
-            let xl = rect.left() + (span_l as f32) * bp_width;
-            let xr = rect.left() + (span_r as f32) * bp_width;
+            let xl = rect.left() + span_l * bp_width;
+            let xr = rect.left() + span_r * bp_width;
 
             let y_range = rect.y_range();
 
-            // let color = egui::Rgba::from_rgba_unmultiplied(0.8, 0.2, 0.2, 0.9);
-
-            let node_rect = egui::Rect::from_x_y_ranges(xl..=xr, y_range);
-
-            let color = {
-                use std::hash::{Hash, Hasher};
-                let mut hasher =
-                    std::collections::hash_map::DefaultHasher::new();
-                node.hash(&mut hasher);
-                let bytes = hasher.finish().to_ne_bytes();
-                let [r, g, b, ..] = bytes;
-                egui::Rgba::from_srgba_unmultiplied(r, g, b, 255)
-            };
-
-            let shape =
-                egui::Shape::rect_filled(node_rect.shrink(1.0), 0., color);
-            shapes.push(shape);
-
             let seq = graph.node_sequence(node);
 
-            for (ix, &base) in seq.iter().enumerate() {
+            let node_start = graph.node_offset(node).0;
+
+            let to_skip =
+                (view_start.checked_sub(node_start)).unwrap_or(0) as usize;
+
+            for (ix, &base) in seq.iter().skip(to_skip).enumerate() {
                 let x = xl + bp_width / 2.0 + bp_width * ix as f32;
 
                 let c = base as char;
@@ -81,10 +64,7 @@ pub fn sequence_shapes_in_slot(
                     egui::Color32::BLACK,
                 );
                 shapes.push(shape);
-                //
             }
         }
     }
 }
-
-// fn base_color(b: u8) ->
