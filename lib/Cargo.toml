@@ -15,3 +15,20 @@ bimap = "0.6"
 reunion = "0.1"
 sprs = "0.11"
 # three-edge-connected = "0.2"
+
+# arrow2 = { version = 
+arrow2 = { version = "0.17.2", features = [
+"io_json",
+"io_ipc",
+# "io_ipc_compression",
+"io_parquet",
+# "io_parquet_compression",
+"io_print",
+"compute",
+"arrow",
+] }
+
+# [target.'not(cfg(target_arch = "wasm32"))'.dependencies]
+# arrow2 
+
+# [target.'cfg(target_arch = "wasm32")'.dependencies]
