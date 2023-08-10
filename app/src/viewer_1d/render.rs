@@ -6,11 +6,7 @@ use raving_wgpu::graph::dfrog::Graph;
 use raving_wgpu::{NodeId, State, WindowState};
 
 use anyhow::Result;
-
-pub struct Renderer {
-    render_graph: Graph,
-    draw_path_slot: NodeId,
-}
+use waragraph_core::graph::{PathId, PathIndex};
 
 // contains all the config/info needed to render a data buffer
 // sampled from the data source corresponding to `data_key`
@@ -22,97 +18,53 @@ pub struct VizModeConfig {
     pub default_color_map: ColorMap,
 }
 
-pub struct RendererState {
-    vertices: BufferDesc,
-    vert_uniform: wgpu::Buffer,
-    frag_uniform: wgpu::Buffer,
+pub fn sequence_shapes_in_slot(
+    fonts: &egui::text::Fonts,
+    graph: &PathIndex,
+    path: PathId,
+    view_range: std::ops::Range<u64>,
+    rect: egui::Rect,
+    shapes: &mut Vec<egui::Shape>,
+) {
+    let view_len = (view_range.end - view_range.start) as f64;
 
-    data_buffer: BufferDesc,
-}
+    let path_set = &graph.path_node_sets[path.ix()];
+    let bp_width = (rect.width() as f64 / view_len) as f32;
 
-impl Renderer {
-    pub fn init(
-        state: &State,
-        window: &WindowState, // needed for image format
-        settings_window: &mut SettingsWindow,
-    ) -> Result<Self> {
-        let mut graph = Graph::new();
+    let view_start = view_range.start;
 
-        let draw_schema = {
-            let vert_src = include_bytes!(concat!(
-                env!("CARGO_MANIFEST_DIR"),
-                "/shaders/path_slot_1d.vert.spv"
-            ));
-            let frag_src = include_bytes!(concat!(
-                env!("CARGO_MANIFEST_DIR"),
-                "/shaders/path_slot_1d_color_map.frag.spv"
-            ));
+    for (node, span) in graph.nodes_span_iter(view_range.clone()) {
+        if path_set.contains(node.into()) {
+            let span_l = (span.start.0 - view_start) as f32;
+            let span_r = (span.end.0 - view_start) as f32;
 
-            let primitive = wgpu::PrimitiveState {
-                topology: wgpu::PrimitiveTopology::TriangleList,
-                front_face: wgpu::FrontFace::Cw,
-                cull_mode: None,
-                // cull_mode: Some(wgpu::Face::Front),
-                polygon_mode: wgpu::PolygonMode::Fill,
+            let xl = rect.left() + span_l * bp_width;
+            let xr = rect.left() + span_r * bp_width;
 
-                strip_index_format: None,
-                unclipped_depth: false,
-                conservative: false,
-            };
+            let y_range = rect.y_range();
 
-            graph.add_graphics_schema_custom(
-                state,
-                vert_src,
-                frag_src,
-                primitive,
-                wgpu::VertexStepMode::Instance,
-                ["vertex_in"],
-                None,
-                &[wgpu::ColorTargetState {
-                    format: window.surface_format,
-                    blend: Some(wgpu::BlendState::REPLACE),
-                    write_mask: wgpu::ColorWrites::all(),
-                }],
-            )?
-        };
+            let seq = graph.node_sequence(node);
 
-        /*
-        let (vert_uniform, frag_uniform) = {
-            let data = [win_dims[0] as f32, win_dims[1] as f32];
-            let usage = BufferUsages::UNIFORM | BufferUsages::COPY_DST;
+            let node_start = graph.node_offset(node).0;
 
-            let vert_uniform =
-                state.device.create_buffer_init(&BufferInitDescriptor {
-                    label: None,
-                    contents: bytemuck::cast_slice(&[data]),
-                    usage,
-                });
+            let to_skip =
+                (view_start.checked_sub(node_start)).unwrap_or(0) as usize;
 
-            let data = [1.0f32, 0.0];
-            let usage = BufferUsages::UNIFORM | BufferUsages::COPY_DST;
-            let frag_uniform =
-                state.device.create_buffer_init(&BufferInitDescriptor {
-                    label: None,
-                    contents: bytemuck::cast_slice(&[data]),
-                    usage,
-                });
+            for (ix, &base) in seq.iter().skip(to_skip).enumerate() {
+                let x = xl + bp_width / 2.0 + bp_width * ix as f32;
 
-            (vert_uniform, frag_uniform)
-        };
-        */
-        let draw_node = graph.add_node(draw_schema);
-        graph.add_link_from_transient("vertices", draw_node, 0);
-        graph.add_link_from_transient("swapchain", draw_node, 1);
+                let c = base as char;
 
-        graph.add_link_from_transient("vert_cfg", draw_node, 2);
-        // graph.add_link_from_transient("frag_cfg", draw_node, 3);
-
-        graph.add_link_from_transient("viz_data_buffer", draw_node, 3);
-        graph.add_link_from_transient("sampler", draw_node, 4);
-        graph.add_link_from_transient("color_texture", draw_node, 5);
-        graph.add_link_from_transient("color_map", draw_node, 6);
-        graph.add_link_from_transient("transform", draw_node, 7);
-
-        todo!();
+                let shape = egui::Shape::text(
+                    fonts,
+                    egui::pos2(x, rect.center().y),
+                    egui::Align2::CENTER_CENTER,
+                    c,
+                    egui::FontId::monospace(10.0),
+                    egui::Color32::BLACK,
+                );
+                shapes.push(shape);
+            }
+        }
     }
 }
