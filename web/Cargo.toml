@@ -15,7 +15,12 @@ wasm-bindgen = "0.2"
 wasm-bindgen-futures = "0.4"
 js-sys = "0.3"
 web-sys = { version = "0.3", features = [
-"Response"
+"CanvasRenderingContext2d",
+"HtmlCanvasElement",
+"ImageBitmap",
+"ImageData",
+"Response",
+"Window",
 ]}
 egui-winit = { version = "0.22", default-features = false }
 egui_tiles = "0.1"
@@ -45,6 +50,7 @@ roaring = "0.10"
 wgpu = { version = "0.16", features = ["webgl"] }
 console_error_panic_hook = "0.1.7"
 
+async-trait = "0.1"
 
 arrow2 = { version = "0.17.2", features = [
 "io_json",

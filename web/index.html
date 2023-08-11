@@ -6,6 +6,8 @@
   <body>
     <canvas id="main_view" width=800 height=600></canvas>
 
+    <canvas id="path_view" width=800 height=200></canvas>
+
     <script type="module">
       import init_module, * as waragraph from './pkg/web.js';
       let wasm;
@@ -30,6 +32,11 @@
 
           console.log("init");
           let ctx = await waragraph.initialize_with_data_fetch(gfa, tsv, canvas);
+
+          const path_view = ctx.init_path_viewer("gi|568815592:29942469-29945883");
+          let path_canvas = document.getElementById("path_view");
+          path_view.draw_to_canvas(0, 20000, path_canvas);
+          window.path_viewer = path_view;
 
           ctx.run()
 

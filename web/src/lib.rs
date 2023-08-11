@@ -46,6 +46,7 @@ pub struct SharedState {
 
 #[wasm_bindgen]
 pub struct Context {
+    // shared: SharedState,
     app: app::App,
     event_loop: EventLoop<()>,
     gpu_state: raving_wgpu::State,
@@ -53,9 +54,18 @@ pub struct Context {
     egui_ctx: EguiCtx,
 }
 
-#[cfg(target_arch = "wasm32")]
 #[wasm_bindgen]
 impl Context {
+    pub fn init_path_viewer(
+        &self,
+        path_name: &str,
+    ) -> Option<viewer_1d::PathViewer> {
+        let graph = self.app.shared.as_ref()?.graph.clone();
+        let path = *graph.path_names.get_by_right(path_name)?;
+
+        Some(viewer_1d::PathViewer::new(graph, path, 512))
+    }
+
     pub fn canvas_element(&self) -> HtmlCanvasElement {
         use winit::platform::web::WindowExtWebSys;
         self.window.window.canvas()
