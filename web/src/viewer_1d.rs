@@ -48,12 +48,39 @@ impl CoordSys {
         data: &PrimitiveArray<f32>,
         bins_out: &mut [f32],
     ) {
-        let left = sample_range.start();
-        let right = sample_range.end();
+        let left = *sample_range.start();
+        let right = *sample_range.end();
 
-        // let bin_span = (right - left) /
+        let bin_count = bins_out.len();
+        let bin_span = (right - left) as usize / bin_count;
 
         for (bin_ix, bin_val) in bins_out.iter_mut().enumerate() {
+            let bin_start = (bin_span * bin_ix) as u64;
+            let bin_end = if bin_ix == bin_count - 1 {
+                right
+            } else {
+                (bin_span * (bin_ix + 1)) as u64
+            };
+
+            let bin_range = bin_start..bin_end;
+
+            let bin_first_node_i = self.step_offsets.rank(bin_start);
+            // this should never fail (might be an off-by-one at the last node, idk)
+            let bin_first =
+                self.node_order.get(bin_first_node_i as usize).unwrap();
+
+            let bin_last_node_i = self.step_offsets.rank(bin_end);
+            let bin_last =
+                self.node_order.get(bin_last_node_i as usize).unwrap();
+
+            // let bin_range = (bin_span * bin_ix)..(bin_span * (bin_ix + 1));
+            // let (start, end) = sample_range.clone().into_inner();
+            // let len = end - start;
+
+            // let mut bin_size = len / bin_span;
+
+            // let bin start =
+
             todo!();
 
             //
@@ -61,6 +88,12 @@ impl CoordSys {
 
         //
     }
+}
+
+pub struct CoordSysWindows<'c> {
+    coord_sys: &'c CoordSys,
+
+    bp_range: std::ops::Range<u64>,
 }
 
 // i don't really need path data as such, rather the node lengths (graph level)
