@@ -40,5 +40,17 @@ bimap = "0.6.3"
 sha2 = "0.10.7"
 instant = { version = "0.1.12", features = ["wasm-bindgen"] }
 
+roaring = "0.10"
+
 wgpu = { version = "0.16", features = ["webgl"] }
 console_error_panic_hook = "0.1.7"
+
+
+arrow2 = { version = "0.17.2", features = [
+"io_json",
+"io_ipc",
+"io_parquet",
+"io_print",
+"compute",
+"arrow",
+] }

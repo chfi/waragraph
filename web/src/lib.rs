@@ -2,6 +2,8 @@ pub mod app;
 pub mod color;
 pub mod context;
 pub mod util;
+
+pub mod viewer_1d;
 pub mod viewer_2d;
 
 use std::{collections::HashMap, sync::Arc};

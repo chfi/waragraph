@@ -3983,6 +3983,7 @@ name = "web"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "arrow2",
  "bimap",
  "bytemuck",
  "colorous",
@@ -3997,6 +3998,7 @@ dependencies = [
  "palette",
  "parking_lot 0.12.1",
  "raving-wgpu",
+ "roaring",
  "sha2",
  "ultraviolet",
  "waragraph-core",
