@@ -51,7 +51,7 @@ pub fn sequence_shapes_in_slot(
                 (view_start.checked_sub(node_start)).unwrap_or(0) as usize;
 
             for (ix, &base) in seq.iter().skip(to_skip).enumerate() {
-                let x = xl + bp_width / 2.0 + bp_width * ix as f32;
+                let x = xl + bp_width / 2.0 + bp_width * (ix as f32 - 0.5);
 
                 let c = base as char;
 
