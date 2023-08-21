@@ -138,10 +138,6 @@ impl PathViewer {
                     ).unwrap();
                     //
                 });
-
-                // img_bitmap_promise.then(
-
-                //
             }
             Err(e) => {
                 web_sys::console::log_1(
@@ -249,6 +245,79 @@ impl CoordSys_ {
         // `indices` is inclusive
         let len = (e_i + 1) - s_i;
         let data_slice = data.sliced(s_i, len);
+
+        let bp_range_len = (*bp_range.end() + 1) - *bp_range.start();
+        let bin_size = bp_range_len / bins.len() as u64;
+
+        let mut data_iter = data_slice.iter().enumerate();
+
+        let mut bin_length = 0;
+        let mut last_bin = 0usize;
+
+        let bin_range = {
+            let s = *bp_range.start();
+            let e = *bp_range.end();
+
+            move |bin_i: usize| -> std::ops::RangeInclusive<u64> {
+                let i = (bin_i.min(bins.len() - 1)) as u64;
+                let left = s + i * bin_size;
+                let right = s + (i + 1) * bin_size;
+                left..=right
+            }
+        };
+
+        let mut cur_bin_range = bin_range(last_bin);
+
+        // iterate through the data, filling bins along the way
+        // since the data is sorted by the node order, we're also
+        // iterating through the bins -- once we see a new bin,
+        // the previous is done
+        for (i, val) in data_iter {
+            let val = if let Some(val) = val {
+                *val
+            } else {
+                continue;
+            };
+
+            let step_i = s_i + i;
+            let offset = self.step_offsets.get(step_i).unwrap();
+            let next = self.step_offsets.get(step_i + 1).unwrap();
+            let len = next - offset;
+
+            let local_offset = offset as u64 - *bp_range.start();
+            let this_bin = (local_offset / bin_size) as usize;
+
+            let next_offset = next as u64 - *bp_range.start();
+
+            let next_bin = (next_offset / bin_size) as usize;
+
+            if last_bin != this_bin {
+                // finish up last bin
+                last_bin = this_bin;
+                bin_length = 0;
+            }
+
+            if this_bin == next_bin {
+                bins[last_bin] += val;
+                bin_length += len;
+                continue;
+            }
+
+            for bin_i in this_bin..next_bin {
+                // get the portion of `val` from this step
+
+                // first take the intersection of the node range with the bin range
+
+                // multiply `val` with the intersection size and add to the bin
+
+                //
+            }
+
+            // TODO handle remainder of last node if there is any
+
+            // if this_bin != next_bin {
+            // }
+        }
     }
 }
 
