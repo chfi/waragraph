@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use arrow2::array::PrimitiveArray;
-use waragraph_core::graph::{Bp, PathId, PathIndex};
+use waragraph_core::graph::{Bp, Node, PathId, PathIndex};
 
 use wasm_bindgen::{prelude::*, Clamped};
 use web_sys::{CanvasRenderingContext2d, HtmlCanvasElement, ImageData};
@@ -151,6 +151,104 @@ impl PathViewer {
         }
 
         //
+    }
+}
+
+pub struct CoordSys_ {
+    node_order: PrimitiveArray<i32>,
+    // TODO offsets should probably be i64; maybe generic
+    step_offsets: PrimitiveArray<i32>,
+}
+
+impl CoordSys_ {
+    pub fn from_node_order(
+        graph: &PathIndex,
+        node_order: impl Iterator<Item = Node>,
+    ) -> Self {
+        let node_order =
+            PrimitiveArray::from_iter(node_order.map(|n| Some(n.ix() as i32)));
+
+        let mut step_offset_vals = Vec::with_capacity(node_order.len() + 1);
+
+        let mut offset = 0i32;
+
+        for &n_i in node_order.values_iter() {
+            let node = Node::from(n_i as usize);
+            let length = graph.node_length(node);
+            step_offset_vals.push(offset);
+            offset += length.0 as i32;
+        }
+        // `step_offsets` will contain N+1 values to encode the final length
+        // might change later
+        step_offset_vals.push(offset);
+
+        let step_offsets = PrimitiveArray::from_vec(step_offset_vals);
+
+        Self {
+            node_order,
+            step_offsets,
+        }
+    }
+
+    pub fn global_from_graph(graph: &PathIndex) -> Self {
+        Self::from_node_order(
+            graph,
+            (0..graph.node_count).map(|i| Node::from(i)),
+        )
+    }
+
+    pub fn from_path(graph: &PathIndex, path: PathId) -> Self {
+        todo!();
+        // let node_order = PrimitiveArray::from_iter(
+        //     graph.path_steps[path.ix()]
+        //         .iter()
+        //         .map(|i| Some(i.ix() as i32)),
+        // );
+
+        // let step_offsets = Arc::new(graph.path_step_offsets[path.ix()].clone());
+
+        // Self {
+        //     node_order,
+        //     step_offsets,
+        // }
+    }
+
+    pub fn bp_to_step_range(
+        &self,
+        start: u64,
+        end: u64,
+    ) -> std::ops::RangeInclusive<usize> {
+        let start_i = self
+            .step_offsets
+            .values()
+            .binary_search_by_key(&start, |&o| o as u64);
+        let end_i = self
+            .step_offsets
+            .values()
+            .binary_search_by_key(&end, |&o| o as u64);
+
+        let start_out = start_i.unwrap_or_else(|i| i - 1);
+        let end_out = end_i.unwrap_or_else(|i| i - 1);
+
+        start_out..=end_out
+    }
+
+    pub fn sample_range(
+        &self,
+        bp_range: std::ops::RangeInclusive<u64>,
+        data: PrimitiveArray<f32>,
+        bins: &mut [f32],
+    ) {
+        // find range in step index using bp_range
+        let indices = self.bp_to_step_range(*bp_range.start(), *bp_range.end());
+
+        // slice `data` according to step range
+        let s_i = *indices.start();
+        let e_i = *indices.end();
+
+        // `indices` is inclusive
+        let len = (e_i + 1) - s_i;
+        let data_slice = data.sliced(s_i, len);
     }
 }
 
