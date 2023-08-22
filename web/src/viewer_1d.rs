@@ -251,10 +251,7 @@ impl CoordSys_ {
 
         let mut data_iter = data_slice.iter().enumerate();
 
-        let mut bin_length = 0;
-        let mut last_bin = 0usize;
-
-        let bin_range = {
+        let make_bin_range = {
             let s = *bp_range.start();
             let e = *bp_range.end();
 
@@ -266,7 +263,11 @@ impl CoordSys_ {
             }
         };
 
-        let mut cur_bin_range = bin_range(last_bin);
+        let mut bin_length = 0u64;
+        let mut last_bin = 0usize;
+
+        let mut cur_bin_range = make_bin_range(last_bin);
+        let mut last_offset = 0;
 
         // iterate through the data, filling bins along the way
         // since the data is sorted by the node order, we're also
@@ -281,42 +282,35 @@ impl CoordSys_ {
 
             let step_i = s_i + i;
             let offset = self.step_offsets.get(step_i).unwrap();
-            let next = self.step_offsets.get(step_i + 1).unwrap();
-            let len = next - offset;
+            let next_step_offset = self.step_offsets.get(step_i + 1).unwrap();
+            let len = next_step_offset - offset;
 
             let local_offset = offset as u64 - *bp_range.start();
             let this_bin = (local_offset / bin_size) as usize;
 
-            let next_offset = next as u64 - *bp_range.start();
+            let mut offset = offset as u64;
 
-            let next_bin = (next_offset / bin_size) as usize;
+            loop {
+                let cur_bin_range = make_bin_range(this_bin);
+                let next_bin_offset = *cur_bin_range.end() + 1;
 
-            if last_bin != this_bin {
-                // finish up last bin
-                last_bin = this_bin;
-                bin_length = 0;
+                // step through the node across bins, if necessary
+                let boundary = (next_step_offset as u64).min(next_bin_offset);
+                let this_len = boundary - offset;
+
+                if boundary == next_bin_offset {
+                    // close this bin
+                    let bin_val = val * bin_length as f32;
+                    bins[this_bin] = bin_val;
+                    bin_length = 0;
+                }
+
+                offset = boundary;
+
+                if offset == next_step_offset as u64 {
+                    break;
+                }
             }
-
-            if this_bin == next_bin {
-                bins[last_bin] += val;
-                bin_length += len;
-                continue;
-            }
-
-            for bin_i in this_bin..next_bin {
-                // get the portion of `val` from this step
-
-                // first take the intersection of the node range with the bin range
-
-                // multiply `val` with the intersection size and add to the bin
-
-                //
-            }
-
-            // TODO handle remainder of last node if there is any
-
-            // if this_bin != next_bin {
-            // }
         }
     }
 }
