@@ -300,10 +300,17 @@ impl CoordSys {
             &format!("iterating data ({} steps)", data_iter.len()).into(),
         );
 
+        let mut bin_lengths = vec![0u64; bins.len()];
+
         for (i, (c_i, val)) in data_iter.enumerate() {
-            web_sys::console::log_1(&format!("step {i}").into());
+            // web_sys::console::log_1(&format!("step {i}").into());
 
             let seg_offset = self.step_offsets.get(c_i).unwrap() as u64;
+
+            if c_i > e_i {
+                break;
+            }
+
             let next_seg_offset =
                 self.step_offsets.get(c_i + 1).unwrap() as u64;
 
@@ -313,14 +320,20 @@ impl CoordSys {
                 let local_offset = offset - *bp_range.start();
                 let this_bin = (local_offset / bin_size) as usize;
 
+                if this_bin >= bins.len() {
+                    break;
+                }
+
                 let cur_bin_range = &bin_ranges[this_bin];
                 let next_bin_offset = *cur_bin_range.end() + 1;
 
                 let boundary = next_seg_offset.min(next_bin_offset);
                 let this_len = boundary - offset;
 
-                bins[this_bin] += val * bin_length as f32;
+                bins[this_bin] += val * this_len as f32;
+                bin_lengths[this_bin] += this_len;
 
+                /*
                 if boundary == next_bin_offset {
                     // close this bin
                     // let bin_val = val * bin_length as f32;
@@ -329,12 +342,21 @@ impl CoordSys {
                     }
                     bin_length = 0;
                 }
+                */
 
                 offset = boundary;
 
                 if offset == next_seg_offset {
                     break;
                 }
+            }
+        }
+
+        for (val, len) in bins.iter_mut().zip(bin_lengths) {
+            if len != 0 {
+                *val = *val / len as f32;
+            } else {
+                *val = 0f32;
             }
         }
     }

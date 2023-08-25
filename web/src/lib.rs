@@ -25,6 +25,8 @@ use winit::{
 
 use wasm_bindgen::prelude::*;
 
+use crate::viewer_1d::CoordSys;
+
 use crate::viewer_2d::layout::NodePositions;
 
 #[derive(Clone)]
@@ -47,7 +49,7 @@ pub struct SharedState {
 #[wasm_bindgen]
 pub struct Context {
     // shared: SharedState,
-    app: app::App,
+    pub(crate) app: app::App,
     event_loop: EventLoop<()>,
     gpu_state: raving_wgpu::State,
     window: raving_wgpu::WindowState,
@@ -56,6 +58,10 @@ pub struct Context {
 
 #[wasm_bindgen]
 impl Context {
+    pub fn global_coord_sys(&self) -> CoordSys {
+        CoordSys::global_from_graph(&self.app.shared.as_ref().unwrap().graph)
+    }
+
     pub fn init_path_viewer(
         &self,
         path_name: &str,
