@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{collections::BTreeMap, sync::Arc};
 
 use arrow2::array::PrimitiveArray;
 use waragraph_core::graph::{Bp, Node, PathId, PathIndex};
@@ -240,6 +240,105 @@ impl CoordSys {
         start_out..=end_out
     }
 
+    pub fn sample_impl(
+        &self,
+        bp_range: std::ops::RangeInclusive<u64>,
+        data_indices: &[u32],
+        data: &[f32],
+        bins: &mut [f32],
+    ) {
+        web_sys::console::log_1(&format!("in sample_impl").into());
+
+        // find range in step index using bp_range
+        let indices = self.bp_to_step_range(*bp_range.start(), *bp_range.end());
+
+        // slice `data` according to step range
+        let s_i = *indices.start();
+        let e_i = *indices.end();
+
+        // `indices` is inclusive
+        let len = (e_i + 1) - s_i;
+        // let data_slice = data.sliced(s_i, len);
+
+        let bp_range_len = (*bp_range.end() + 1) - *bp_range.start();
+        let bin_size = bp_range_len / bins.len() as u64;
+
+        // web_sys::console::log_1(&format!("
+
+        let data_ix_start = data_indices
+            .binary_search(&(s_i as u32))
+            .unwrap_or_else(|i| if i == 0 { 0 } else { i - 1 })
+            as usize;
+
+        let make_bin_range = {
+            let bin_count = bins.len();
+            let s = *bp_range.start();
+            let e = *bp_range.end();
+
+            move |bin_i: usize| -> std::ops::RangeInclusive<u64> {
+                let i = (bin_i.min(bin_count - 1)) as u64;
+                let left = s + i * bin_size;
+                let right = s + (i + 1) * bin_size;
+                left..=right
+            }
+        };
+
+        let bin_ranges =
+            (0..bins.len()).map(make_bin_range).collect::<Vec<_>>();
+
+        web_sys::console::log_1(&format!("building iterators").into());
+
+        let data_iter = {
+            let data_indices = &data_indices[data_ix_start..];
+            let data = &data[data_ix_start..];
+            std::iter::zip(data_indices, data).map(|(i, v)| (*i as usize, *v))
+        };
+
+        let mut bin_length = 0u64;
+
+        web_sys::console::log_1(
+            &format!("iterating data ({} steps)", data_iter.len()).into(),
+        );
+
+        for (i, (c_i, val)) in data_iter.enumerate() {
+            web_sys::console::log_1(&format!("step {i}").into());
+
+            let seg_offset = self.step_offsets.get(c_i).unwrap() as u64;
+            let next_seg_offset =
+                self.step_offsets.get(c_i + 1).unwrap() as u64;
+
+            let mut offset = seg_offset;
+
+            loop {
+                let local_offset = offset - *bp_range.start();
+                let this_bin = (local_offset / bin_size) as usize;
+
+                let cur_bin_range = &bin_ranges[this_bin];
+                let next_bin_offset = *cur_bin_range.end() + 1;
+
+                let boundary = next_seg_offset.min(next_bin_offset);
+                let this_len = boundary - offset;
+
+                bins[this_bin] += val * bin_length as f32;
+
+                if boundary == next_bin_offset {
+                    // close this bin
+                    // let bin_val = val * bin_length as f32;
+                    if bin_length > 0 {
+                        bins[this_bin] = bins[this_bin] / bin_length as f32;
+                    }
+                    bin_length = 0;
+                }
+
+                offset = boundary;
+
+                if offset == next_seg_offset {
+                    break;
+                }
+            }
+        }
+    }
+
     pub fn sample_range_impl(
         &self,
         bp_range: std::ops::RangeInclusive<u64>,
@@ -335,16 +434,65 @@ impl CoordSys {
 }
 
 #[wasm_bindgen]
+pub struct SparseData {
+    indices: Vec<u32>,
+    data: Vec<f32>,
+}
+
+#[wasm_bindgen]
+impl SparseData {
+    //
+}
+
+#[wasm_bindgen]
+pub fn generate_depth_data(
+    ctx: &crate::Context,
+    path_name: &str,
+) -> Result<SparseData, JsValue> {
+    let graph = &ctx.app.shared.as_ref().unwrap().graph;
+    let path = graph
+        .path_names
+        .get_by_right(path_name)
+        .ok_or::<JsValue>("Path not found".into())?;
+
+    let steps = &graph.path_steps[path.ix()];
+
+    // exploiting that i'm sampling from the global coordinate system for now
+    // let indices = graph.path_node_sets[path.ix()].iter().collect::<Vec<_>>();
+
+    let mut depth_map: BTreeMap<u32, f32> = BTreeMap::default();
+    // let mut depth_map = vec![0f32; indices.len()];
+
+    for step in steps {
+        *depth_map.entry(step.node().ix() as u32).or_default() += 1.0;
+    }
+
+    let (indices, data): (Vec<_>, Vec<_>) = depth_map.into_iter().unzip();
+
+    Ok(SparseData { indices, data })
+}
+
+#[wasm_bindgen]
 impl CoordSys {
+    pub fn new_global(ctx: &crate::Context) -> Self {
+        let graph = &ctx.app.shared.as_ref().unwrap().graph;
+        Self::global_from_graph(graph)
+    }
+
     pub fn sample_range(
         &self,
-        bp_start: u32,
-        bp_end: u32,
-        // data: PrimitiveArray<f32>,
+        bp_start: JsValue,
+        bp_end: JsValue,
+        data: &SparseData,
+        // data_indices: &[u32],
+        // data: &[f32],
         bins: &mut [f32],
     ) {
-        // let range = (bp_start as u64)..=(bp_end as u64);
-        // self.sample_range(range, data, bins);
+        let bp_start = bp_start.as_f64().unwrap() as u64;
+        let bp_end = bp_end.as_f64().unwrap() as u64;
+
+        let range = (bp_start as u64)..=(bp_end as u64);
+        self.sample_impl(range, &data.indices, &data.data, bins);
     }
 }
 
