@@ -21,6 +21,10 @@ use crate::app::resource::GraphDataCache;
 //
 // }
 
+pub struct ArrowSampler {
+    //
+}
+
 // #[async_trait]
 pub trait Sampler: Send + Sync {
     fn sample_range(

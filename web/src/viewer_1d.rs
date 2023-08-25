@@ -35,6 +35,7 @@ impl PathViewer {
 
 #[wasm_bindgen]
 impl PathViewer {
+    /*
     pub fn draw_to_canvas(
         &self,
         view_start: f64,
@@ -48,6 +49,9 @@ impl PathViewer {
 
         let color = self.color;
 
+        let t0 = instant::now();
+        let t = instant::Instant::now();
+
         let sampler =
             PathNodeSetSampler::new(self.graph.clone(), |_path, _val| 1.);
 
@@ -56,6 +60,11 @@ impl PathViewer {
             self.path,
             Bp(view_start)..Bp(view_end),
         );
+        let t1 = instant::now();
+        web_sys::console::log_1(&format!("dt: {}", t1 - t0).into());
+
+        let dt = t.elapsed().as_secs_f64();
+        web_sys::console::log_1(&format!("dt: {dt}").into());
 
         match result {
             Ok(mut buf) => {
@@ -148,31 +157,33 @@ impl PathViewer {
 
         //
     }
+    */
 }
 
-pub struct CoordSys_ {
-    node_order: PrimitiveArray<i32>,
-    // TODO offsets should probably be i64; maybe generic
-    step_offsets: PrimitiveArray<i32>,
+#[wasm_bindgen]
+pub struct CoordSys {
+    node_order: PrimitiveArray<u32>,
+    // TODO offsets should probably be u64; maybe generic
+    step_offsets: PrimitiveArray<u32>,
 }
 
-impl CoordSys_ {
+impl CoordSys {
     pub fn from_node_order(
         graph: &PathIndex,
         node_order: impl Iterator<Item = Node>,
     ) -> Self {
         let node_order =
-            PrimitiveArray::from_iter(node_order.map(|n| Some(n.ix() as i32)));
+            PrimitiveArray::from_iter(node_order.map(|n| Some(n.ix() as u32)));
 
         let mut step_offset_vals = Vec::with_capacity(node_order.len() + 1);
 
-        let mut offset = 0i32;
+        let mut offset = 0u32;
 
         for &n_i in node_order.values_iter() {
             let node = Node::from(n_i as usize);
             let length = graph.node_length(node);
             step_offset_vals.push(offset);
-            offset += length.0 as i32;
+            offset += length.0 as u32;
         }
         // `step_offsets` will contain N+1 values to encode the final length
         // might change later
@@ -229,10 +240,11 @@ impl CoordSys_ {
         start_out..=end_out
     }
 
-    pub fn sample_range(
+    pub fn sample_range_impl(
         &self,
         bp_range: std::ops::RangeInclusive<u64>,
-        data: PrimitiveArray<f32>,
+        // data: PrimitiveArray<f32>,
+        data: &[f32],
         bins: &mut [f32],
     ) {
         // find range in step index using bp_range
@@ -244,19 +256,23 @@ impl CoordSys_ {
 
         // `indices` is inclusive
         let len = (e_i + 1) - s_i;
-        let data_slice = data.sliced(s_i, len);
+        // let data_slice = data.sliced(s_i, len);
 
         let bp_range_len = (*bp_range.end() + 1) - *bp_range.start();
         let bin_size = bp_range_len / bins.len() as u64;
 
-        let mut data_iter = data_slice.iter().enumerate();
+        // let mut data_iter = data_slice.iter().enumerate();
+        let segment_slice = self.node_order.clone().sliced(s_i, len);
+
+        let mut seg_data_iter = segment_slice.iter().zip(data);
 
         let make_bin_range = {
+            let bin_count = bins.len();
             let s = *bp_range.start();
             let e = *bp_range.end();
 
             move |bin_i: usize| -> std::ops::RangeInclusive<u64> {
-                let i = (bin_i.min(bins.len() - 1)) as u64;
+                let i = (bin_i.min(bin_count - 1)) as u64;
                 let left = s + i * bin_size;
                 let right = s + (i + 1) * bin_size;
                 left..=right
@@ -269,13 +285,15 @@ impl CoordSys_ {
         let mut cur_bin_range = make_bin_range(last_bin);
         let mut last_offset = 0;
 
+        /*
+
         // iterate through the data, filling bins along the way
         // since the data is sorted by the node order, we're also
         // iterating through the bins -- once we see a new bin,
         // the previous is done
-        for (i, val) in data_iter {
-            let val = if let Some(val) = val {
-                *val
+        for (seg_i, &val) in seg_data_iter {
+            let seg_i = if let Some(seg_i) = seg_i {
+                *seg_i
             } else {
                 continue;
             };
@@ -312,93 +330,21 @@ impl CoordSys_ {
                 }
             }
         }
+        */
     }
 }
 
-pub struct CoordSys {
-    node_order: PrimitiveArray<i32>,
-    step_offsets: Arc<roaring::RoaringTreemap>,
-    // step_offsets: roaring::RoaringTreemap,
-}
-
+#[wasm_bindgen]
 impl CoordSys {
-    pub fn global_from_graph(graph: &PathIndex) -> Self {
-        let node_order = PrimitiveArray::from_iter(
-            (0..graph.node_count).map(|i| Some(i as i32)),
-        );
-        let step_offsets = Arc::new(graph.segment_offsets.clone());
-
-        Self {
-            node_order,
-            step_offsets,
-        }
-    }
-
-    pub fn from_path(graph: &PathIndex, path: PathId) -> Self {
-        let node_order = PrimitiveArray::from_iter(
-            graph.path_steps[path.ix()]
-                .iter()
-                .map(|i| Some(i.ix() as i32)),
-        );
-
-        let step_offsets = Arc::new(graph.path_step_offsets[path.ix()].clone());
-
-        Self {
-            node_order,
-            step_offsets,
-        }
-    }
-
-    // pub fn sample_range(&self, range: std::ops::Range<u64>, bins_out: &mut [u8]) {
     pub fn sample_range(
         &self,
-        sample_range: std::ops::RangeInclusive<u64>,
-        data: &PrimitiveArray<f32>,
-        bins_out: &mut [f32],
+        bp_start: u32,
+        bp_end: u32,
+        // data: PrimitiveArray<f32>,
+        bins: &mut [f32],
     ) {
-        let left = *sample_range.start();
-        let right = *sample_range.end();
-
-        let bin_count = bins_out.len();
-        let bin_span = (right - left) as usize / bin_count;
-
-        for (bin_ix, bin_val) in bins_out.iter_mut().enumerate() {
-            let bin_start = (bin_span * bin_ix) as u64;
-            let bin_end = if bin_ix == bin_count - 1 {
-                right
-            } else {
-                (bin_span * (bin_ix + 1)) as u64
-            };
-
-            let bin_range = bin_start..bin_end;
-
-            let bin_first_node_i = self.step_offsets.rank(bin_start);
-            // let bin_first =
-            //     self.node_order.get(bin_first_node_i as usize).unwrap();
-
-            let bin_last_node_i = self.step_offsets.rank(bin_end);
-            // let bin_last =
-            //     self.node_order.get(bin_last_node_i as usize).unwrap();
-
-            for i in bin_first_node_i..bin_last_node_i {
-                //
-                // get node range
-            }
-
-            // let bin_range = (bin_span * bin_ix)..(bin_span * (bin_ix + 1));
-            // let (start, end) = sample_range.clone().into_inner();
-            // let len = end - start;
-
-            // let mut bin_size = len / bin_span;
-
-            // let bin start =
-
-            todo!();
-
-            //
-        }
-
-        //
+        // let range = (bp_start as u64)..=(bp_end as u64);
+        // self.sample_range(range, data, bins);
     }
 }
 
