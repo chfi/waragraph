@@ -6,6 +6,8 @@ use waragraph_core::graph::{Bp, Node, PathId, PathIndex};
 use wasm_bindgen::{prelude::*, Clamped};
 use web_sys::{CanvasRenderingContext2d, HtmlCanvasElement, ImageData};
 
+use crate::PathIndexWrap;
+
 pub mod sampler;
 
 #[wasm_bindgen]
@@ -167,9 +169,19 @@ pub struct CoordSys {
     step_offsets: PrimitiveArray<u32>,
 }
 
+#[wasm_bindgen]
+impl CoordSys {
+    pub fn global_from_graph(graph: &PathIndexWrap) -> Self {
+        Self::from_node_order(
+            graph,
+            (0..graph.0.node_count).map(|i| Node::from(i)),
+        )
+    }
+}
+
 impl CoordSys {
     pub fn from_node_order(
-        graph: &PathIndex,
+        graph: &PathIndexWrap,
         node_order: impl Iterator<Item = Node>,
     ) -> Self {
         let node_order =
@@ -181,7 +193,7 @@ impl CoordSys {
 
         for &n_i in node_order.values_iter() {
             let node = Node::from(n_i as usize);
-            let length = graph.node_length(node);
+            let length = graph.0.node_length(node);
             step_offset_vals.push(offset);
             offset += length.0 as u32;
         }
@@ -197,14 +209,7 @@ impl CoordSys {
         }
     }
 
-    pub fn global_from_graph(graph: &PathIndex) -> Self {
-        Self::from_node_order(
-            graph,
-            (0..graph.node_count).map(|i| Node::from(i)),
-        )
-    }
-
-    pub fn from_path(graph: &PathIndex, path: PathId) -> Self {
+    pub fn from_path(graph: &PathIndexWrap, path: PathId) -> Self {
         todo!();
         // let node_order = PrimitiveArray::from_iter(
         //     graph.path_steps[path.ix()]
@@ -496,10 +501,10 @@ pub fn generate_depth_data(
 
 #[wasm_bindgen]
 impl CoordSys {
-    pub fn new_global(ctx: &crate::Context) -> Self {
-        let graph = &ctx.app.shared.as_ref().unwrap().graph;
-        Self::global_from_graph(graph)
-    }
+    // pub fn new_global(ctx: &crate::Context) -> Self {
+    //     let graph = &ctx.app.shared.as_ref().unwrap().graph;
+    //     Self::global_from_graph(graph)
+    // }
 
     pub fn sample_range(
         &self,

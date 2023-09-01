@@ -47,6 +47,26 @@ pub struct SharedState {
 }
 
 #[wasm_bindgen]
+pub fn list_path_names(ctx: &Context) -> Box<[JsValue]> {
+    let graph = &ctx.app.shared.as_ref().unwrap().graph;
+
+    for n in graph.path_names.right_values() {
+        //
+        web_sys::console::log_1(&n.into());
+    }
+
+    Box::new([])
+
+    // let names: Vec<JsValue> = graph
+    //     .path_names
+    //     .right_values()
+    //     .map(JsValue::from)
+    //     .collect::<Vec<_>>();
+
+    // names.into_boxed_slice()
+}
+
+#[wasm_bindgen]
 pub struct Context {
     // shared: SharedState,
     pub(crate) app: app::App,
@@ -58,9 +78,9 @@ pub struct Context {
 
 #[wasm_bindgen]
 impl Context {
-    pub fn global_coord_sys(&self) -> CoordSys {
-        CoordSys::global_from_graph(&self.app.shared.as_ref().unwrap().graph)
-    }
+    // pub fn global_coord_sys(&self) -> CoordSys {
+    //     CoordSys::global_from_graph(&self.app.shared.as_ref().unwrap().graph)
+    // }
 
     pub fn init_path_viewer(
         &self,
@@ -120,6 +140,34 @@ pub async fn initialize_with_data(
             Err(JsValue::from_str(&format!("initialization error: {e:?}")))
         }
     }
+}
+
+#[wasm_bindgen]
+pub struct PathIndexWrap(pub(crate) PathIndex);
+
+#[wasm_bindgen]
+impl PathIndexWrap {
+    pub fn node_count(&self) -> usize {
+        self.0.node_count
+    }
+}
+
+#[wasm_bindgen]
+pub async fn load_gfa_path_index(
+    gfa_resp: js_sys::Promise,
+) -> Result<PathIndexWrap, JsValue> {
+    use std::io::Cursor;
+
+    let gfa_resp = JsFuture::from(gfa_resp).await?;
+
+    let gfa = JsFuture::from(gfa_resp.dyn_into::<web_sys::Response>()?.text()?)
+        .await?;
+
+    let gfa = gfa.as_string().unwrap();
+
+    let graph = PathIndex::from_gfa_impl(Cursor::new(gfa.as_str())).unwrap();
+
+    Ok(PathIndexWrap(graph))
 }
 
 #[wasm_bindgen]

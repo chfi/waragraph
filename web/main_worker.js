@@ -43,7 +43,35 @@ wasm_bindgen('./pkg/web_bg.wasm')
     .then((w) => {
         console.log("done???");
         console.log(w);
+
+        console.log(wasm_bindgen);
+
+        const gfa_path = '../data/A-3105.fa.353ea42.34ee7b1.1576367.smooth.fix.gfa';
+        // const tsv_path = '../data/A-3105.layout.tsv';
+
+        console.log("fetching GFA");
+
+        let gfa = fetch(gfa_path);
+        // let tsv = fetch(tsv_path);
+
+        
+        console.log("parsing GFA");
+
+        // let ctx = wasm_bindgen.initialize_with_data_fetch(gfa, tsv
+        let graph = wasm_bindgen.load_gfa_path_index(gfa);
+
+        Comlink.expose(wasm_bindgen);
+
+        return graph;
+    })
+    .then((graph) => {
+        console.log("GFA loaded");
+        console.log("exposing interface");
+        console.log(graph);
+        console.log(graph.node_count());
+        Comlink.expose(graph);
     });
+    // .then(;
 
 // for (const [key, value] of Object.entries(wasm_bindgen)) {
 //   console.log(`${key}: ${value}`);

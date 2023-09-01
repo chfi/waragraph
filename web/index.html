@@ -9,6 +9,42 @@
     <canvas id="path_view" width=800 height=200></canvas>
 
     <script type="module">
+
+      console.log("what");
+
+      import * as Comlink from "https://unpkg.com/comlink/dist/esm/comlink.mjs";
+
+      console.log("okay");
+
+      async function init() {
+
+          // const worker = new Worker("main_worker.js", { type: 'module' });
+          const worker = new Worker("main_worker.js");
+
+          console.log("eh");
+          // const worker = new Worker("main_worker.js");
+          // worker.onerror = console.error;
+          const obj = Comlink.wrap(worker);
+          console.log("is this working");
+
+          console.log(obj);
+          console.log(`${await obj.node_count()}`);
+          window.the_thing = obj;
+
+          // console.log(`${await obj.counter}`);
+          // await obj.inc();
+          // console.log(`${await obj.counter}`);
+          
+      }
+
+      init();
+
+      
+    </script>
+
+
+<!-- 
+    <script type="module">
       import init_module, * as waragraph from './pkg/web.js';
       let wasm;
 
@@ -17,9 +53,10 @@
           console.log(waragraph);
           console.log(wasm);
           window.wasm = wasm;
+          window.waragraph = waragraph;
           
-          const gfa_path = '../test/data/A-3105.fa.353ea42.34ee7b1.1576367.smooth.fix.gfa';
-          const tsv_path = '../test/data/A-3105.layout.tsv';
+          const gfa_path = '../data/A-3105.fa.353ea42.34ee7b1.1576367.smooth.fix.gfa';
+          const tsv_path = '../data/A-3105.layout.tsv';
 
           // const gfa_path = '../cerevisiae.pan.fa.gz.d1a145e.417fcdf.7493449.smooth.final.gfa';
           // const tsv_path = '../cerevisiae.pan.fa.gz.d1a145e.417fcdf.7493449.smooth.final.og.lay.tsv';
@@ -32,18 +69,20 @@
 
           console.log("init");
           let ctx = await waragraph.initialize_with_data_fetch(gfa, tsv, canvas);
+          window.ctx = ctx;
 
-          const path_view = ctx.init_path_viewer("gi|568815592:29942469-29945883");
-          let path_canvas = document.getElementById("path_view");
-          path_view.draw_to_canvas(0, 20000, path_canvas);
-          window.path_viewer = path_view;
+          // const path_view = ctx.init_path_viewer("gi|568815592:29942469-29945883");
+          // let path_canvas = document.getElementById("path_view");
+          // path_view.draw_to_canvas(0, 20000, path_canvas);
+          // window.path_viewer = path_view;
 
-          ctx.run()
+          // ctx.run()
 
       }
 
       run();
     </script>
+    -->
   </body>
 </html>
 
