@@ -8,6 +8,8 @@
 
     <canvas id="path_view" width=800 height=200></canvas>
 
+    <script src='./pkg/web.js'></script>
+
     <script type="module">
 
       console.log("what");
@@ -17,6 +19,8 @@
       console.log("okay");
 
       async function init() {
+
+          await wasm_bindgen();
 
           // const worker = new Worker("main_worker.js", { type: 'module' });
           const worker = new Worker("main_worker.js");

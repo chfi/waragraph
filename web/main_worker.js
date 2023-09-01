@@ -72,6 +72,8 @@ wasm_bindgen('./pkg/web_bg.wasm')
         console.log(graph);
         console.log(graph.node_count());
         _graph = graph;
+        console.log("worker node count: " + _graph.node_count());
+        Comlink.expose(_graph);
     });
 
 const obj = {
@@ -82,10 +84,14 @@ const obj = {
 };
 
 Comlink.expose({
-    node_count() {
-        console.log("in node_count");
-        console.log("_graph: " + _graph);
-        console.log(_graph);
-        return _graph.node_count();
+    graph() {
+        return Comlink.proxy(_graph);
     }
 });
+
+// Comlink.expose {
+//     __graph,
+//     node_count() {
+//     }
+// }
+

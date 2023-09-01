@@ -150,6 +150,10 @@ impl PathIndexWrap {
     pub fn node_count(&self) -> usize {
         self.0.node_count
     }
+
+    pub fn path_count(&self) -> usize {
+        self.0.path_names.len()
+    }
 }
 
 #[wasm_bindgen]
