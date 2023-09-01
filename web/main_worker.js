@@ -39,6 +39,8 @@ importScripts("./comlink.js");
 console.log(wasm_bindgen);
 console.log(typeof wasm_bindgen);
 
+let _graph;
+
 wasm_bindgen('./pkg/web_bg.wasm')
     .then((w) => {
         console.log("done???");
@@ -69,28 +71,21 @@ wasm_bindgen('./pkg/web_bg.wasm')
         console.log("exposing interface");
         console.log(graph);
         console.log(graph.node_count());
-        Comlink.expose(graph);
+        _graph = graph;
     });
-    // .then(;
 
-// for (const [key, value] of Object.entries(wasm_bindgen)) {
-//   console.log(`${key}: ${value}`);
-// }
+const obj = {
+  counter: 0,
+  inc() {
+    this.counter++;
+  },
+};
 
-/*
-async function init_context() {
-
-    const obj = {
-        counter: 0,
-        inc() {
-            this.counter++;
-        },
-    };
-
-    Comlink.expose(obj);
-
-}
-
-
-init_context();
-*/
+Comlink.expose({
+    node_count() {
+        console.log("in node_count");
+        console.log("_graph: " + _graph);
+        console.log(_graph);
+        return _graph.node_count();
+    }
+});

@@ -21,19 +21,11 @@
           // const worker = new Worker("main_worker.js", { type: 'module' });
           const worker = new Worker("main_worker.js");
 
-          console.log("eh");
-          // const worker = new Worker("main_worker.js");
-          // worker.onerror = console.error;
           const obj = Comlink.wrap(worker);
-          console.log("is this working");
 
-          console.log(obj);
-          console.log(`${await obj.node_count()}`);
-          window.the_thing = obj;
-
-          // console.log(`${await obj.counter}`);
-          // await obj.inc();
-          // console.log(`${await obj.counter}`);
+          // let node_count = await obj.node_count();
+          // console.log("node count: " + node_count);
+          window.thing = obj;
           
       }
 
