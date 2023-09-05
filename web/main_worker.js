@@ -41,6 +41,8 @@ console.log(typeof wasm_bindgen);
 
 let _graph;
 
+let _state;
+
 wasm_bindgen('./pkg/web_bg.wasm')
     .then((w) => {
         console.log("done???");
@@ -62,7 +64,7 @@ wasm_bindgen('./pkg/web_bg.wasm')
         // let ctx = wasm_bindgen.initialize_with_data_fetch(gfa, tsv
         let graph = wasm_bindgen.load_gfa_path_index(gfa);
 
-        Comlink.expose(wasm_bindgen);
+        // Comlink.expose(wasm_bindgen);
 
         return graph;
     })
@@ -71,9 +73,20 @@ wasm_bindgen('./pkg/web_bg.wasm')
         console.log("exposing interface");
         console.log(graph);
         console.log(graph.node_count());
+
+        let path_name = "gi|528476637:29857558-29915771";
+        let coord_sys = wasm_bindgen.CoordSys.global_from_graph(graph);
+        let data = wasm_bindgen.generate_depth_data(graph, path_name);
+
+        _state = { coord_sys, path_name, data };
+
+        console.log(_state);
+
         _graph = graph;
         console.log("worker node count: " + _graph.node_count());
-        Comlink.expose(_graph);
+
+        postMessage("graph-ready");
+
     });
 
 const obj = {
@@ -84,7 +97,7 @@ const obj = {
 };
 
 Comlink.expose({
-    graph() {
+    get_graph() {
         return Comlink.proxy(_graph);
     }
 });

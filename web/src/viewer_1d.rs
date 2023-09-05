@@ -473,10 +473,10 @@ impl SparseData {
 
 #[wasm_bindgen]
 pub fn generate_depth_data(
-    ctx: &crate::Context,
+    graph: &PathIndexWrap,
     path_name: &str,
 ) -> Result<SparseData, JsValue> {
-    let graph = &ctx.app.shared.as_ref().unwrap().graph;
+    let graph = &graph.0;
     let path = graph
         .path_names
         .get_by_right(path_name)
@@ -501,11 +501,6 @@ pub fn generate_depth_data(
 
 #[wasm_bindgen]
 impl CoordSys {
-    // pub fn new_global(ctx: &crate::Context) -> Self {
-    //     let graph = &ctx.app.shared.as_ref().unwrap().graph;
-    //     Self::global_from_graph(graph)
-    // }
-
     pub fn sample_range(
         &self,
         bp_start: JsValue,
@@ -527,17 +522,6 @@ pub struct CoordSysWindows<'c> {
     coord_sys: &'c CoordSys,
 
     bp_range: std::ops::Range<u64>,
-}
-
-// i don't really need path data as such, rather the node lengths (graph level)
-
-// however, i also want to support sampling in other ways, or using
-// other coordinate systems
-
-// is the node length array (prefix sum), produced by sorting the node lengths
-// by the path order, the coordinate system?
-fn sample_from_path(path: (), data: ()) {
-    //
 }
 
 pub fn hashed_rgb(name: &str) -> [u8; 3] {
