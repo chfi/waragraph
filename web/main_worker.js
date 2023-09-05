@@ -97,6 +97,11 @@ const obj = {
 };
 
 Comlink.expose({
+    sample_data(left, right, bin_count) {
+        let bins = new Float32Array(bin_count);
+        _state.coord_sys.sample_range(left, right, _state.data, bins);
+        return Comlink.transfer(bins, [bins.buffer]);
+    },
     get_graph() {
         return Comlink.proxy(_graph);
     }

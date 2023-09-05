@@ -25,12 +25,22 @@
           // const worker = new Worker("main_worker.js", { type: 'module' });
           const worker = new Worker("main_worker.js");
 
+
+        worker.onmessage = (event) => {
+          worker.onmessage = undefined;
+
+          console.log("graph loaded");
           const obj = Comlink.wrap(worker);
 
-          // let node_count = await obj.node_count();
-          // console.log("node count: " + node_count);
-          window.thing = obj;
+            obj.sample_data(0, 10000, 512)
+                .then((data) => {
+                    console.log("sampled data");
+                    console.log(data);
+                });
+
+          window.worker_obj = obj;
           
+        };
       }
 
       init();
