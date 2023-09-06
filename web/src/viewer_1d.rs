@@ -12,31 +12,81 @@ pub mod sampler;
 
 #[wasm_bindgen]
 pub struct PathViewer {
-    graph: Arc<PathIndex>,
-    path: PathId,
-
+    cs: CoordSys,
+    data: SparseData,
     bins: Vec<f32>,
 
-    color: [f32; 4],
-    // canvas: Option<HtmlCanvasElement>,
-}
-
-impl PathViewer {
-    pub fn new(graph: Arc<PathIndex>, path: PathId, bin_count: usize) -> Self {
-        let path_name = graph.path_names.get_by_left(&path).unwrap();
-        let [r, g, b] = path_name_hash_color(path_name);
-
-        Self {
-            graph,
-            path,
-            bins: vec![0f32; bin_count],
-            color: [r, g, b, 1.],
-        }
-    }
+    // graph: Arc<PathIndex>,
+    // path: PathId,
+    color_0: [f32; 4],
+    color_1: [f32; 4],
 }
 
 #[wasm_bindgen]
 impl PathViewer {
+    pub fn new(
+        cs: CoordSys,
+        data: SparseData,
+        bin_count: usize,
+        color_0: JsValue,
+        color_1: JsValue,
+    ) -> Result<PathViewer, JsValue> {
+        let get_channel = |color: &JsValue, c: &str| {
+            let val = js_sys::Reflect::get(color, &c.into());
+            val.ok().and_then(|v| v.as_f64())
+        };
+        let get_color = |color: &JsValue| -> Option<[f32; 4]> {
+            let r = get_channel(color, "r")? as f32;
+            let g = get_channel(color, "g")? as f32;
+            let b = get_channel(color, "b")? as f32;
+            let a = get_channel(color, "a")? as f32;
+
+            if [r, g, b, a].into_iter().any(|c| c > 1.0) {
+                return None;
+            }
+
+            Some([r, g, b, a])
+        };
+
+        let err_text =
+            "Color must be provided as an object { r: _, g: _, b: _, a: _ }";
+
+        let (color_0, color_1) = get_color(&color_0)
+            .zip(get_color(&color_1))
+            .ok_or_else(|| JsValue::from_str(err_text))?;
+
+        let bins = vec![0f32; bin_count];
+
+        Ok(PathViewer {
+            cs,
+            data,
+            bins,
+            color_0,
+            color_1,
+        })
+    }
+
+    // pub fn new(graph: Arc<PathIndex>, path: PathId, bin_count: usize) -> Self {
+    //     let path_name = graph.path_names.get_by_left(&path).unwrap();
+    //     let [r, g, b] = path_name_hash_color(path_name);
+
+    //     Self {
+    //         graph,
+    //         path,
+    //         bins: vec![0f32; bin_count],
+    //         color: [r, g, b, 1.],
+    //     }
+    // }
+}
+
+#[wasm_bindgen]
+impl PathViewer {
+    pub fn draw_to_canvas(&self) {
+        todo!();
+
+        //
+    }
+
     /*
     pub fn draw_to_canvas(
         &self,

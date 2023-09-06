@@ -80,6 +80,32 @@ fn create_nearest_sampler(device: &wgpu::Device) -> wgpu::Sampler {
     device.create_sampler(&sampler_desc)
 }
 
+pub fn spectral_color_scheme() -> Vec<[f32; 4]> {
+    let rgba = |r: u8, g: u8, b: u8| {
+        let max = u8::MAX as f32;
+        [r as f32 / max, g as f32 / max, b as f32 / max, 1.0]
+    };
+
+    let spectral_colors = [
+        rgba(158, 1, 66),
+        rgba(213, 62, 79),
+        rgba(244, 109, 67),
+        rgba(253, 174, 97),
+        rgba(254, 224, 139),
+        rgba(255, 255, 191),
+        rgba(230, 245, 152),
+        rgba(171, 221, 164),
+        rgba(102, 194, 165),
+        rgba(50, 136, 189),
+        rgba(94, 79, 162),
+    ];
+    let mut spectral = vec![rgba(128, 128, 128), rgba(196, 196, 196)];
+
+    spectral.extend(spectral_colors);
+
+    spectral
+}
+
 impl ColorStore {
     pub fn get_color_scheme_id(&self, name: &str) -> Option<ColorSchemeId> {
         self.scheme_name_map.get_by_left(name).copied()
@@ -116,22 +142,7 @@ impl ColorStore {
             [r as f32 / max, g as f32 / max, b as f32 / max, 1.0]
         };
 
-        let spectral_colors = [
-            rgba(158, 1, 66),
-            rgba(213, 62, 79),
-            rgba(244, 109, 67),
-            rgba(253, 174, 97),
-            rgba(254, 224, 139),
-            rgba(255, 255, 191),
-            rgba(230, 245, 152),
-            rgba(171, 221, 164),
-            rgba(102, 194, 165),
-            rgba(50, 136, 189),
-            rgba(94, 79, 162),
-        ];
-        let mut spectral = vec![rgba(128, 128, 128), rgba(196, 196, 196)];
-
-        spectral.extend(spectral_colors);
+        let spectral = spectral_color_scheme();
 
         result.add_color_scheme("spectral", spectral);
 
