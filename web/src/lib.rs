@@ -82,15 +82,15 @@ impl Context {
     //     CoordSys::global_from_graph(&self.app.shared.as_ref().unwrap().graph)
     // }
 
-    pub fn init_path_viewer(
-        &self,
-        path_name: &str,
-    ) -> Option<viewer_1d::PathViewer> {
-        let graph = self.app.shared.as_ref()?.graph.clone();
-        let path = *graph.path_names.get_by_right(path_name)?;
+    // pub fn init_path_viewer(
+    //     &self,
+    //     path_name: &str,
+    // ) -> Option<viewer_1d::PathViewer> {
+    //     let graph = self.app.shared.as_ref()?.graph.clone();
+    //     let path = *graph.path_names.get_by_right(path_name)?;
 
-        Some(viewer_1d::PathViewer::new(graph, path, 512))
-    }
+    //     Some(viewer_1d::PathViewer::new(graph, path, 512))
+    // }
 
     pub fn canvas_element(&self) -> HtmlCanvasElement {
         use winit::platform::web::WindowExtWebSys;

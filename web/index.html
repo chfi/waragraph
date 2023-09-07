@@ -8,7 +8,8 @@
 
     <canvas id="path_view" width=800 height=200></canvas>
 
-    <script src='./pkg/web.js'></script>
+    <script src='./module-workers-polyfill.min.js'></script>
+    <!-- <script src='./pkg/web.js'></script> -->
 
     <script type="module">
 
@@ -16,31 +17,41 @@
 
       import * as Comlink from "https://unpkg.com/comlink/dist/esm/comlink.mjs";
 
+      import init_module, * as wasm_bindgen from './pkg/web.js';
+
       console.log("okay");
 
       async function init() {
+          // await init_module();
+          // await wasm_bindgen();
 
-          await wasm_bindgen();
-
-          // const worker = new Worker("main_worker.js", { type: 'module' });
-          const worker = new Worker("main_worker.js");
+          const worker = new Worker("main_worker.js", { type: 'module' });
+          // const worker = new Worker("main_worker.js");
 
 
+      /*
         worker.onmessage = (event) => {
           worker.onmessage = undefined;
 
           console.log("graph loaded");
           const obj = Comlink.wrap(worker);
 
-            obj.sample_data(0, 10000, 512)
+
+
+
+          obj.sample_data(0, 10000, 512)
                 .then((data) => {
                     console.log("sampled data");
                     console.log(data);
+
+
+
                 });
 
           window.worker_obj = obj;
           
         };
+      */
       }
 
       init();

@@ -4,7 +4,9 @@ use arrow2::array::PrimitiveArray;
 use waragraph_core::graph::{Bp, Node, PathId, PathIndex};
 
 use wasm_bindgen::{prelude::*, Clamped};
-use web_sys::{CanvasRenderingContext2d, HtmlCanvasElement, ImageData};
+use web_sys::{
+    CanvasRenderingContext2d, HtmlCanvasElement, ImageData, OffscreenCanvas,
+};
 
 use crate::PathIndexWrap;
 
@@ -20,6 +22,8 @@ pub struct PathViewer {
     // path: PathId,
     color_0: [f32; 4],
     color_1: [f32; 4],
+
+    canvas: Option<OffscreenCanvas>,
 }
 
 #[wasm_bindgen]
@@ -63,7 +67,23 @@ impl PathViewer {
             bins,
             color_0,
             color_1,
+
+            canvas: None,
         })
+    }
+
+    pub fn set_canvas(&mut self, canvas: OffscreenCanvas) {
+        self.canvas = Some(canvas);
+    }
+
+    pub fn new_canvas(
+        &mut self,
+        width: u32,
+        height: u32,
+    ) -> Result<(), JsValue> {
+        let canvas = OffscreenCanvas::new(width, height)?;
+        self.canvas = Some(canvas);
+        Ok(())
     }
 
     // pub fn new(graph: Arc<PathIndex>, path: PathId, bin_count: usize) -> Self {
@@ -82,7 +102,20 @@ impl PathViewer {
 #[wasm_bindgen]
 impl PathViewer {
     pub fn draw_to_canvas(&self) {
-        todo!();
+        let (canvas, ctx) = if let Some(canvas) = self.canvas.as_ref() {
+            let ctx = canvas.get_context("2d").ok().flatten().unwrap();
+            let ctx = ctx
+                .dyn_into::<web_sys::OffscreenCanvasRenderingContext2d>()
+                .unwrap();
+
+            (canvas, ctx)
+        } else {
+            return;
+        };
+
+        let w = canvas.width();
+        let h = canvas.height();
+        let image_data = ctx.get_image_data(0., 0., w as f64, h as f64);
 
         //
     }

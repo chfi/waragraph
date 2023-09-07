@@ -19,6 +19,8 @@ web-sys = { version = "0.3", features = [
 "HtmlCanvasElement",
 "ImageBitmap",
 "ImageData",
+"OffscreenCanvas",
+"OffscreenCanvasRenderingContext2d",
 "Response",
 "Window",
 ]}
