@@ -22,36 +22,30 @@
       console.log("okay");
 
       async function init() {
-          // await init_module();
-          // await wasm_bindgen();
-
           const worker = new Worker("main_worker.js", { type: 'module' });
-          // const worker = new Worker("main_worker.js");
+
+          worker.onmessage = (event) => {
+              worker.onmessage = undefined;
+
+              console.log("graph loaded");
+              const obj = Comlink.wrap(worker);
+
+              let canvas = document.getElementById('path_view');
+              let offscreen = canvas.transferControlToOffscreen();
+              obj.connect_canvas(Comlink.transfer(offscreen, [offscreen]));
+
+              // obj.sample_data(0, 10000, 512)
+              //     .then((data) => {
+              //         console.log("sampled data");
+              //         console.log(data);
+              //     });
 
 
-      /*
-        worker.onmessage = (event) => {
-          worker.onmessage = undefined;
-
-          console.log("graph loaded");
-          const obj = Comlink.wrap(worker);
+              window.worker_obj = obj;
+              
+          };
 
 
-
-
-          obj.sample_data(0, 10000, 512)
-                .then((data) => {
-                    console.log("sampled data");
-                    console.log(data);
-
-
-
-                });
-
-          window.worker_obj = obj;
-          
-        };
-      */
       }
 
       init();

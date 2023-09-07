@@ -12,9 +12,25 @@ use crate::PathIndexWrap;
 
 pub mod sampler;
 
+#[wasm_bindgen(module = "/js/util.js")]
+extern "C" {
+    //
+    #[wasm_bindgen(catch)]
+    fn create_image_data_impl(
+        mem: JsValue,
+        data_ptr: *const u8,
+        data_len: u32,
+    ) -> Result<JsValue, JsValue>;
+
+    #[wasm_bindgen(catch)]
+    fn madness(data: Box<[u8]>) -> Result<JsValue, JsValue>;
+    // fn create_image_data_impl(data: Box<[u8]>) -> Result<ImageData, JsValue>;
+
+}
+
 #[wasm_bindgen]
 pub struct PathViewer {
-    cs: CoordSys,
+    cs: Arc<CoordSys>,
     data: SparseData,
     bins: Vec<f32>,
 
@@ -28,6 +44,29 @@ pub struct PathViewer {
 
 #[wasm_bindgen]
 impl PathViewer {
+    // #[wasm_bindgen(getter)]
+    // pub fn coord_sys(&self) -> Arc<CoordSys> {
+    //     self.cs.clone()
+    // }
+
+    #[wasm_bindgen(getter)]
+    pub fn get_bin_data(&self) -> Box<[f32]> {
+        self.bins.clone().into_boxed_slice()
+    }
+
+    pub fn sample_range(&mut self, bp_start: JsValue, bp_end: JsValue) {
+        let bp_start = bp_start.as_f64().unwrap() as u64;
+        let bp_end = bp_end.as_f64().unwrap() as u64;
+
+        let range = (bp_start as u64)..=(bp_end as u64);
+        self.cs.sample_impl(
+            range,
+            &self.data.indices,
+            &self.data.data,
+            &mut self.bins,
+        );
+    }
+
     pub fn new(
         cs: CoordSys,
         data: SparseData,
@@ -62,7 +101,7 @@ impl PathViewer {
         let bins = vec![0f32; bin_count];
 
         Ok(PathViewer {
-            cs,
+            cs: Arc::new(cs),
             data,
             bins,
             color_0,
@@ -73,6 +112,7 @@ impl PathViewer {
     }
 
     pub fn set_canvas(&mut self, canvas: OffscreenCanvas) {
+        web_sys::console::log_1(&format!("setting canvas").into());
         self.canvas = Some(canvas);
     }
 
@@ -101,7 +141,44 @@ impl PathViewer {
 
 #[wasm_bindgen]
 impl PathViewer {
+    pub fn transfer_canvas_control_to_self(
+        &mut self,
+        canvas: HtmlCanvasElement,
+    ) -> Result<(), JsValue> {
+        let offscreen = canvas.transfer_control_to_offscreen()?;
+
+        self.canvas = Some(offscreen);
+
+        Ok(())
+    }
+
+    pub fn render_into_new_buffer(&self) -> Box<[u8]> {
+        let mut pixel_data: Vec<u8> = vec![0; self.bins.len() * 4];
+
+        web_sys::console::log_1(
+            &format!("pixel data length: {}", pixel_data.len()).into(),
+        );
+
+        let pixels = pixel_data.chunks_exact_mut(4);
+
+        for (color, val) in pixels.zip(&self.bins) {
+            let [rf, gf, bf, af] = if *val > 0.5 {
+                self.color_0
+            } else {
+                self.color_1
+            };
+
+            color[0] = (255.0 * rf) as u8;
+            color[1] = (255.0 * gf) as u8;
+            color[2] = (255.0 * bf) as u8;
+            color[3] = (255.0 * af) as u8;
+        }
+
+        pixel_data.into_boxed_slice()
+    }
+
     pub fn draw_to_canvas(&self) {
+        web_sys::console::log_1(&format!("getting canvas...").into());
         let (canvas, ctx) = if let Some(canvas) = self.canvas.as_ref() {
             let ctx = canvas.get_context("2d").ok().flatten().unwrap();
             let ctx = ctx
@@ -115,9 +192,62 @@ impl PathViewer {
 
         let w = canvas.width();
         let h = canvas.height();
-        let image_data = ctx.get_image_data(0., 0., w as f64, h as f64);
 
-        //
+        web_sys::console::log_1(&format!("render_into_new_buffer").into());
+
+        let pixels = self.render_into_new_buffer();
+        let px_len = pixels.len() as u32;
+
+        web_sys::console::log_1(&format!("create image data").into());
+
+        let memory = wasm_bindgen::memory();
+
+        let data_ptr = self.bins.as_ptr() as *const u8;
+
+        let image_data = create_image_data_impl(memory, data_ptr, px_len);
+        // let image_data = create_image_data_impl(pixels, px_len / 4);
+
+        // let image_data = create_image_data_impl(pixels, px_len);
+        // let image_data = madness(pixels);
+
+        match image_data {
+            Ok(image_data) => {
+                // web_sys::console::log_1(&e);
+
+                web_sys::console::log_1(&format!("putting image data").into());
+                //     let _ = ctx.put_image_data_with_dirty_x_and_dirty_y_and_dirty_width_and_dirty_height(
+                // &image_data,
+                // 0., 0.,
+                // 0., 0.,
+                // w as f64,
+                // h as f64,
+                // );
+            }
+            Err(e) => {
+                web_sys::console::log_1(
+                    &format!("error creating image data").into(),
+                );
+                let is_undef = e.is_undefined();
+                let is_null = e.is_null();
+                web_sys::console::log_2(&"error!!!".into(), &e);
+                web_sys::console::log_1(
+                    &format!(
+                        "error undefined {is_undef}, error null {is_null}"
+                    )
+                    .into(),
+                );
+            }
+        }
+
+        // if let Err(e) = image_data {}
+
+        // let _ = ctx.put_image_data_with_dirty_x_and_dirty_y_and_dirty_width_and_dirty_height(
+        //     &image_data,
+        //     0., 0.,
+        //     0., 0.,
+        //     w as f64,
+        //     h as f64,
+        //     );
     }
 
     /*

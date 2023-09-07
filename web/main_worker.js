@@ -42,7 +42,12 @@ async function run() {
     let coord_sys = wasm_bindgen.CoordSys.global_from_graph(graph);
     let data = wasm_bindgen.generate_depth_data(graph, path_name);
 
-    _state = { coord_sys, path_name, data };
+    let path_viewer = wasm_bindgen.PathViewer.new(coord_sys, data, 512,
+                                                  { r: 0.8, g: 0.3, b: 0.3, a: 1.0 },
+                                                  { r: 0.2, g: 0.2, b: 0.2, a: 1.0 });
+                                                  
+
+    _state = { path_name, path_viewer };
 
     console.log(_state);
 
@@ -51,15 +56,27 @@ async function run() {
 
 
     Comlink.expose({
-        sample_data(left, right, bin_count) {
-            let bins = new Float32Array(bin_count);
-            _state.coord_sys.sample_range(left, right, _state.data, bins);
-            return Comlink.transfer(bins, [bins.buffer]);
+        connect_canvas(offscreen_canvas) {
+            console.log("hello??");
+            // _state.path_viewer.transfer_canvas_control_to_self(canvas
+            console.log("set_canvas");
+            _state.path_viewer.set_canvas(offscreen_canvas);
+            console.log("sample_range");
+            _state.path_viewer.sample_range(0, 10000);
+            console.log("draw_to_canvas");
+            _state.path_viewer.draw_to_canvas();
         },
+        // sample_data(left, right, bin_count) {
+        //     _state.path_viewer.sample_range(left, right);
+        //     // let data = _state.path_viewer.get_bin_data();
+        //     return;
+        // },
         get_graph() {
             return Comlink.proxy(_graph);
         }
     });
+
+    postMessage("graph-ready");
 }
 
 run();
