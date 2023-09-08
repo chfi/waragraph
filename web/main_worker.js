@@ -65,6 +65,8 @@ async function run() {
             _state.path_viewer.sample_range(0, 10000);
             console.log("draw_to_canvas");
             _state.path_viewer.draw_to_canvas();
+            // console.log("canvas_test");
+            // _state.path_viewer.canvas_test();
         },
         // sample_data(left, right, bin_count) {
         //     _state.path_viewer.sample_range(left, right);

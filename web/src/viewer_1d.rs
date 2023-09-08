@@ -20,11 +20,7 @@ extern "C" {
         mem: JsValue,
         data_ptr: *const u8,
         data_len: u32,
-    ) -> Result<JsValue, JsValue>;
-
-    #[wasm_bindgen(catch)]
-    fn madness(data: Box<[u8]>) -> Result<JsValue, JsValue>;
-    // fn create_image_data_impl(data: Box<[u8]>) -> Result<ImageData, JsValue>;
+    ) -> Result<ImageData, JsValue>;
 
 }
 
@@ -162,7 +158,8 @@ impl PathViewer {
         let pixels = pixel_data.chunks_exact_mut(4);
 
         for (color, val) in pixels.zip(&self.bins) {
-            let [rf, gf, bf, af] = if *val > 0.5 {
+            // let [rf, gf, bf, af] = if *val > 0.5 {
+            let [rf, gf, bf, af] = if *val > 1.0 {
                 self.color_0
             } else {
                 self.color_1
@@ -175,6 +172,22 @@ impl PathViewer {
         }
 
         pixel_data.into_boxed_slice()
+    }
+
+    pub fn canvas_test(&self) {
+        let (canvas, ctx) = if let Some(canvas) = self.canvas.as_ref() {
+            let ctx = canvas.get_context("2d").ok().flatten().unwrap();
+            let ctx = ctx
+                .dyn_into::<web_sys::OffscreenCanvasRenderingContext2d>()
+                .unwrap();
+
+            (canvas, ctx)
+        } else {
+            return;
+        };
+
+        ctx.set_fill_style(&"blue".into());
+        ctx.fill_rect(20.0, 20.0, 80.0, 80.0);
     }
 
     pub fn draw_to_canvas(&self) {
@@ -202,26 +215,34 @@ impl PathViewer {
 
         let memory = wasm_bindgen::memory();
 
-        let data_ptr = self.bins.as_ptr() as *const u8;
+        let pixels_ptr = pixels.as_ptr() as *const u8;
 
-        let image_data = create_image_data_impl(memory, data_ptr, px_len);
+        web_sys::console::log_1(
+            &format!(
+                "pixel 0: [{},{},{},{}]",
+                pixels[0], pixels[1], pixels[2], pixels[3],
+            )
+            .into(),
+        );
+
+        let image_data = create_image_data_impl(memory, pixels_ptr, px_len);
         // let image_data = create_image_data_impl(pixels, px_len / 4);
 
         // let image_data = create_image_data_impl(pixels, px_len);
-        // let image_data = madness(pixels);
 
         match image_data {
             Ok(image_data) => {
                 // web_sys::console::log_1(&e);
 
                 web_sys::console::log_1(&format!("putting image data").into());
-                //     let _ = ctx.put_image_data_with_dirty_x_and_dirty_y_and_dirty_width_and_dirty_height(
-                // &image_data,
-                // 0., 0.,
-                // 0., 0.,
-                // w as f64,
-                // h as f64,
-                // );
+
+                let _ = ctx.put_image_data_with_dirty_x_and_dirty_y_and_dirty_width_and_dirty_height(
+                &image_data,
+                0., 0.,
+                0., 0.,
+                w as f64,
+                h as f64,
+                );
             }
             Err(e) => {
                 web_sys::console::log_1(
@@ -238,141 +259,7 @@ impl PathViewer {
                 );
             }
         }
-
-        // if let Err(e) = image_data {}
-
-        // let _ = ctx.put_image_data_with_dirty_x_and_dirty_y_and_dirty_width_and_dirty_height(
-        //     &image_data,
-        //     0., 0.,
-        //     0., 0.,
-        //     w as f64,
-        //     h as f64,
-        //     );
     }
-
-    /*
-    pub fn draw_to_canvas(
-        &self,
-        view_start: f64,
-        view_end: f64,
-        canvas: HtmlCanvasElement,
-    ) {
-        use sampler::{PathNodeSetSampler, Sampler};
-
-        let view_start = view_start as u64;
-        let view_end = view_end as u64;
-
-        let color = self.color;
-
-        let t0 = instant::now();
-        let t = instant::Instant::now();
-
-        let sampler =
-            PathNodeSetSampler::new(self.graph.clone(), |_path, _val| 1.);
-
-        let result = sampler.sample_range(
-            self.bins.len(),
-            self.path,
-            Bp(view_start)..Bp(view_end),
-        );
-        let t1 = instant::now();
-        web_sys::console::log_1(&format!("dt: {}", t1 - t0).into());
-
-        let dt = t.elapsed().as_secs_f64();
-        web_sys::console::log_1(&format!("dt: {dt}").into());
-
-        match result {
-            Ok(mut buf) => {
-                let pixels: &mut [[u8; 4]] =
-                    bytemuck::cast_slice_mut(buf.as_mut_slice());
-
-                let width = pixels.len();
-
-                for px in pixels {
-                    // let [r, g, b, a] = px;
-                    let val: f32 = bytemuck::cast(*px);
-
-                    if val > 0.0 {
-                        let [r, g, b, a] = self.color;
-                        let r = (r * 255.0) as u8;
-                        let g = (g * 255.0) as u8;
-                        let b = (b * 255.0) as u8;
-                        let a = (a * 255.0) as u8;
-
-                        *px = [r, g, b, a];
-                    } else {
-                        *px = [0, 0, 0, 255];
-                    }
-                }
-
-                // let data = Uint8ClampedArray::from(bytemuck::cast_slice(&buf));
-
-                let data = Clamped(buf.as_slice());
-                // let img_data = web_sy
-
-                // use
-                let img_data = web_sys::ImageData::new_with_u8_clamped_array(
-                    data,
-                    width as u32,
-                )
-                .unwrap();
-
-                let window = web_sys::window().unwrap();
-
-                let img_bitmap_promise = window
-                    .create_image_bitmap_with_image_data(&img_data)
-                    .unwrap();
-
-                let ctx = canvas.get_context("2d").unwrap().unwrap();
-                let ctx: CanvasRenderingContext2d = ctx.dyn_into().unwrap();
-
-                use wasm_bindgen_futures::{
-                    future_to_promise, spawn_local, JsFuture,
-                };
-
-                let future = JsFuture::from(img_bitmap_promise);
-
-                spawn_local(async move {
-                    let bitmap = future.await.unwrap();
-                    let bitmap: web_sys::ImageBitmap =
-                        bitmap.dyn_into().unwrap();
-
-                    let sx = 0.;
-                    let sy = 0.;
-
-                    let sw = width as f64;
-                    let sh = 1.;
-
-                    let dx = 0.;
-                    let dy = 0.;
-
-                    let dw = canvas.width() as f64;
-                    let dh = canvas.height() as f64;
-
-                    ctx.draw_image_with_image_bitmap_and_sw_and_sh_and_dx_and_dy_and_dw_and_dh(
-                        &bitmap,
-                        sx,
-                        sy,
-                        sw,
-                        sh,
-                        dx,
-                        dy,
-                        dw,
-                        dh,
-                    ).unwrap();
-                    //
-                });
-            }
-            Err(e) => {
-                web_sys::console::log_1(
-                    &format!("PathViewer.draw_to_canvas error: {e:?}").into(),
-                );
-            }
-        }
-
-        //
-    }
-    */
 }
 
 #[wasm_bindgen]
