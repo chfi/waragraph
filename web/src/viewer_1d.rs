@@ -121,18 +121,6 @@ impl PathViewer {
         self.canvas = Some(canvas);
         Ok(())
     }
-
-    // pub fn new(graph: Arc<PathIndex>, path: PathId, bin_count: usize) -> Self {
-    //     let path_name = graph.path_names.get_by_left(&path).unwrap();
-    //     let [r, g, b] = path_name_hash_color(path_name);
-
-    //     Self {
-    //         graph,
-    //         path,
-    //         bins: vec![0f32; bin_count],
-    //         color: [r, g, b, 1.],
-    //     }
-    // }
 }
 
 #[wasm_bindgen]
@@ -226,23 +214,22 @@ impl PathViewer {
         );
 
         let image_data = create_image_data_impl(memory, pixels_ptr, px_len);
-        // let image_data = create_image_data_impl(pixels, px_len / 4);
-
-        // let image_data = create_image_data_impl(pixels, px_len);
 
         match image_data {
             Ok(image_data) => {
-                // web_sys::console::log_1(&e);
-
-                web_sys::console::log_1(&format!("putting image data").into());
-
-                let _ = ctx.put_image_data_with_dirty_x_and_dirty_y_and_dirty_width_and_dirty_height(
-                &image_data,
-                0., 0.,
-                0., 0.,
-                w as f64,
-                h as f64,
+                web_sys::console::log_1(
+                    &format!("putting image data into {h} rows").into(),
                 );
+
+                for y in 0..h {
+                    let _ = ctx.put_image_data_with_dirty_x_and_dirty_y_and_dirty_width_and_dirty_height(
+                        &image_data,
+                        0., y as f64,
+                        0., 0.,
+                        w as f64,
+                        h as f64,
+                    );
+                }
             }
             Err(e) => {
                 web_sys::console::log_1(
