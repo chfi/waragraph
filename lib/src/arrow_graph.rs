@@ -1,15 +1,95 @@
 use arrow2::{
-    array::PrimitiveArray,
+    array::{BinaryArray, PrimitiveArray, StructArray, Utf8Array},
     datatypes::{DataType, Field, Schema},
     offset::OffsetsBuffer,
 };
 
+use std::io::prelude::*;
+
 use crate::graph::{Bp, Edge, Node, OrientedNode, PathId};
 
-// waragraph file
-// pub struct WGF {
-//     schema: Schema,
-// }
+pub struct ArrowGFA {
+    // using 32-bit IDs & indices, even for sequence, for now; since
+    // wasm is limited to 32 bits for the forseeable future (and
+    // single memories), it's probably better to implement a kind of
+    // paging/chunking system so that we can load in only the relevant
+    // parts of the graph into the wasm linear memory
+    //
+    // each page would only need to hold 64 bit offsets at the most,
+    // with the array data being 0-offset, so this also provides some
+    // compression (especially for e.g. paths)
+    segment_sequences: BinaryArray<i32>,
+    segment_names: Option<Utf8Array<i32>>,
+
+    links: StructArray,
+
+    path_names: Utf8Array<i32>,
+}
+
+pub fn arrow_graph_from_gfa<S: BufRead + Seek>(
+    mut gfa_lines_reader: S,
+    // gfa_lines: impl Iterator<Item = &'a str>,
+) -> std::io::Result<ArrowGFA> {
+    let mut line_buf = Vec::new();
+
+    // let mut seg_sequences: Vec<Vec<u8>> = Vec::new();
+    // let mut seg_names: Vec<String> = Vec::new();
+
+    // let mut seg_seq_offsets: OffsetsBuffer<i64> = OffsetsBuffer::new();
+    let mut seg_seq_offsets: Vec<i32> = Vec::new();
+    let mut seg_seq_bytes: Vec<u8> = Vec::new();
+
+    let mut seg_name_offsets: Vec<i32> = Vec::new();
+    let mut seg_name_str: Vec<u8> = Vec::new();
+
+    gfa_lines_reader.rewind()?;
+
+    loop {
+        line_buf.clear();
+
+        let len = gfa_lines_reader.read_until(0xA, &mut line_buf)?;
+        if len == 0 {
+            break;
+        }
+
+        let line = &line_buf[..len - 1];
+
+        if !matches!(line.first(), Some(b'S')) {
+            continue;
+        }
+
+        let mut fields = line.split(|&c| c == b'\t');
+
+        let Some((name, seq, opt)) = fields.next().and_then(|_type| {
+                let name = fields.next()?;
+                let seq = fields.next()?;
+                let opt = fields.next();
+                Some((name, seq, opt))
+            }) else {
+                continue;
+            };
+
+        let _opt = opt;
+
+        let offset = seg_seq_bytes.len();
+        // the first offset is always 0 and implicit
+        if offset != 0 {
+            seg_seq_offsets.push(offset as i32);
+        }
+        seg_seq_bytes.extend(seq);
+
+        let name_offset = seg_name_str.len();
+        if name_offset != 0 {
+            seg_name_offsets.push(name_offset as i32);
+        }
+        seg_name_str.extend(name);
+
+        let Some(opt_fields) = opt
+        else { continue; };
+    }
+
+    todo!();
+}
 
 pub struct Path {
     steps: arrow2::array::PrimitiveArray<u32>,
