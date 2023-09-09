@@ -1,5 +1,7 @@
+use ahash::{AHashMap, HashMap};
 use arrow2::{
-    array::{BinaryArray, PrimitiveArray, StructArray, Utf8Array},
+    array::{BinaryArray, PrimitiveArray, StructArray, UInt32Array, Utf8Array},
+    buffer::Buffer,
     datatypes::{DataType, Field, Schema},
     offset::OffsetsBuffer,
 };
@@ -21,9 +23,12 @@ pub struct ArrowGFA {
     segment_sequences: BinaryArray<i32>,
     segment_names: Option<Utf8Array<i32>>,
 
-    links: StructArray,
+    link_from: UInt32Array,
+    link_to: UInt32Array,
 
     path_names: Utf8Array<i32>,
+
+    path_steps: Vec<UInt32Array>,
 }
 
 pub fn arrow_graph_from_gfa<S: BufRead + Seek>(
@@ -71,6 +76,8 @@ pub fn arrow_graph_from_gfa<S: BufRead + Seek>(
 
         let _opt = opt;
 
+        // let seg_index = seg_name_index_map.len();
+
         let offset = seg_seq_bytes.len();
         // the first offset is always 0 and implicit
         if offset != 0 {
@@ -86,9 +93,180 @@ pub fn arrow_graph_from_gfa<S: BufRead + Seek>(
 
         let Some(opt_fields) = opt
         else { continue; };
+
+        // TODO
+        log::info!("TODO: optional fields");
     }
 
-    todo!();
+    let name_offsets = OffsetsBuffer::try_from(seg_name_offsets).unwrap();
+
+    let seg_name_arr = Utf8Array::new(
+        DataType::Utf8,
+        name_offsets,
+        Buffer::from(seg_name_str),
+        None,
+    );
+
+    let seq_offsets = OffsetsBuffer::try_from(seg_seq_offsets).unwrap();
+
+    let seg_seq_arr = BinaryArray::new(
+        DataType::Binary,
+        seq_offsets,
+        Buffer::from(seg_seq_bytes),
+        None,
+    );
+
+    let seg_name_index_map = seg_name_arr
+        .iter()
+        .enumerate()
+        .filter_map(|(i, v)| Some((v?.as_bytes(), i as u32)))
+        .collect::<AHashMap<_, _>>();
+
+    let seg_step_to_handle = |seg_name: &[u8], is_reverse: bool| -> u32 {
+        let index = *seg_name_index_map.get(seg_name).unwrap();
+
+        let mut handle = index << 1;
+
+        if is_reverse {
+            handle |= 1;
+        }
+
+        handle
+    };
+
+    let mut link_from_arr: Vec<u32> = Vec::new();
+    let mut link_to_arr: Vec<u32> = Vec::new();
+
+    gfa_lines_reader.rewind()?;
+
+    loop {
+        line_buf.clear();
+
+        let len = gfa_lines_reader.read_until(0xA, &mut line_buf)?;
+        if len == 0 {
+            break;
+        }
+
+        let line = &line_buf[..len - 1];
+
+        if !matches!(line.first(), Some(b'L')) {
+            continue;
+        }
+
+        let mut fields = line.split(|&c| c == b'\t');
+
+        let Some((from_handle, to_handle, overlap, opt)) = fields.next().and_then(|_type| {
+            let from_name = fields.next()?;
+            let from_is_rev = fields.next()? == b"-";
+            let from_h = seg_step_to_handle(from_name, from_is_rev);
+
+            let to_name = fields.next()?;
+            let to_is_rev = fields.next()? == b"-";
+            let to_h = seg_step_to_handle(to_name, to_is_rev);
+
+            let overlap = fields.next()?;
+            let opt = fields.next();
+            Some((from_h, to_h, overlap, opt))
+        }) else {
+            continue;
+        };
+
+        link_from_arr.push(from_handle);
+        link_to_arr.push(to_handle);
+
+        // TODO store overlap
+
+        let _opt = opt;
+    }
+
+    let link_from_arr = UInt32Array::from_vec(link_from_arr);
+    let link_to_arr = UInt32Array::from_vec(link_to_arr);
+
+    /*
+    let link_array = StructArray::new(
+        DataType::Struct(vec![
+            Field::new("from", DataType::UInt32, false),
+            Field::new("to", DataType::UInt32, false),
+        ]),
+        vec![link_from_arr.boxed(), link_to_arr.boxed()],
+        None,
+    );
+    */
+
+    let mut path_name_offsets: Vec<i32> = Vec::new();
+    let mut path_name_str: Vec<u8> = Vec::new();
+
+    // each step as handle, per path
+    let mut path_step_arrs: Vec<UInt32Array> = Vec::new();
+
+    gfa_lines_reader.rewind()?;
+
+    loop {
+        line_buf.clear();
+
+        let len = gfa_lines_reader.read_until(0xA, &mut line_buf)?;
+        if len == 0 {
+            break;
+        }
+
+        let line = &line_buf[..len - 1];
+
+        if !matches!(line.first(), Some(b'P')) {
+            continue;
+        }
+
+        let mut fields = line.split(|&c| c == b'\t');
+
+        let Some((path_name, seg_names, overlaps, opt)) = fields.next().and_then(|_type| {
+            let path_name = fields.next()?;
+            let seg_names = fields.next()?;
+            let overlaps = fields.next()?;
+            let opt = fields.next();
+
+
+            Some((path_name, seg_names, overlaps, opt))
+        }) else {
+            continue;
+        };
+
+        let name_offset = path_name_str.len();
+        if name_offset != 0 {
+            path_name_offsets.push(name_offset as i32);
+        }
+        path_name_str.extend(path_name);
+
+        let mut step_vec = Vec::new();
+
+        for (step_index, step_str) in
+            seg_names.split(|&c| c == b',').enumerate()
+        {
+            let (seg_name, seg_orient) = step_str.split_at(step_str.len() - 1);
+            let is_rev = seg_orient == b"-";
+
+            let seg_i = seg_step_to_handle(seg_name, is_rev);
+            step_vec.push(seg_i);
+        }
+
+        path_step_arrs.push(UInt32Array::from_vec(step_vec));
+    }
+
+    let name_offsets = OffsetsBuffer::try_from(path_name_offsets).unwrap();
+
+    let path_name_arr = Utf8Array::new(
+        DataType::Utf8,
+        name_offsets,
+        Buffer::from(path_name_str),
+        None,
+    );
+
+    Ok(ArrowGFA {
+        segment_sequences: seg_seq_arr,
+        segment_names: Some(seg_name_arr),
+        link_from: link_from_arr,
+        link_to: link_to_arr,
+        path_names: path_name_arr,
+        path_steps: path_step_arrs,
+    })
 }
 
 pub struct Path {
