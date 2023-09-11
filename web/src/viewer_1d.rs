@@ -32,8 +32,7 @@ pub struct PathViewer {
 
     // graph: Arc<PathIndex>,
     // path: PathId,
-    color_0: [f32; 4],
-    color_1: [f32; 4],
+    color_map: Box<dyn Fn(f32) -> [u8; 4]>,
 
     canvas: Option<OffscreenCanvas>,
 }
@@ -94,14 +93,23 @@ impl PathViewer {
             .zip(get_color(&color_1))
             .ok_or_else(|| JsValue::from_str(err_text))?;
 
+        let color_map = Box::new(move |val: f32| {
+            let [rf, gf, bf, af] = if val > 1.0 { color_0 } else { color_1 };
+
+            let r = (255.0 * rf) as u8;
+            let g = (255.0 * gf) as u8;
+            let b = (255.0 * bf) as u8;
+            let a = (255.0 * af) as u8;
+            [r, g, b, a]
+        });
+
         let bins = vec![0f32; bin_count];
 
         Ok(PathViewer {
             cs: Arc::new(cs),
             data,
             bins,
-            color_0,
-            color_1,
+            color_map,
 
             canvas: None,
         })
@@ -146,17 +154,8 @@ impl PathViewer {
         let pixels = pixel_data.chunks_exact_mut(4);
 
         for (color, val) in pixels.zip(&self.bins) {
-            // let [rf, gf, bf, af] = if *val > 0.5 {
-            let [rf, gf, bf, af] = if *val > 1.0 {
-                self.color_0
-            } else {
-                self.color_1
-            };
-
-            color[0] = (255.0 * rf) as u8;
-            color[1] = (255.0 * gf) as u8;
-            color[2] = (255.0 * bf) as u8;
-            color[3] = (255.0 * af) as u8;
+            let c = (self.color_map)(*val);
+            color.clone_from_slice(&c);
         }
 
         pixel_data.into_boxed_slice()
