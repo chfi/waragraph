@@ -27,8 +27,77 @@ pub struct ArrowGFA {
     link_to: UInt32Array,
 
     path_names: Utf8Array<i32>,
-
     path_steps: Vec<UInt32Array>,
+}
+
+pub struct PathMetadata<'a> {
+    name: &'a str,
+    step_count: usize,
+    unique_segments: usize,
+}
+
+impl ArrowGFA {
+    pub fn segment_sequence(&self, segment_index: u32) -> &[u8] {
+        self.segment_sequences.get(segment_index as usize).unwrap()
+    }
+
+    pub fn segment_name(&self, segment_index: u32) -> Option<&str> {
+        self.segment_names.as_ref()?.get(segment_index as usize)
+    }
+
+    pub fn segment_index(&self, segment_name: &str) -> Option<u32> {
+        let names = self.segment_names.as_ref()?;
+        let (i, _) = names
+            .iter()
+            .filter_map(|s| s)
+            .enumerate()
+            .find(|&(i, name)| name == segment_name)?;
+        Some(i as u32)
+    }
+
+    // pub fn path_vector_offsets(
+    //     &self,
+    //     path_index: u32,
+    // ) -> sprs::CsVecI<u32, u32> {
+    //     let dim = self.segment_sequences.len();
+    //     //
+    // }
+
+    pub fn path_vector_sparse(
+        &self,
+        path_index: u32,
+    ) -> sprs::CsVecI<u32, u32> {
+        let dim = self.segment_sequences.len();
+
+        let mut data = vec![0u32; dim];
+
+        let steps = &self.path_steps[path_index as usize];
+
+        // step vectors are dense so can use values() here
+        for step_h in steps.values_iter() {
+            let _is_rev = (step_h & 1) == 1;
+            let segment_index = step_h >> 1;
+            data[segment_index as usize] += 1;
+        }
+
+        let mut indices: Vec<u32> = Vec::new();
+        let data = data
+            .into_iter()
+            .enumerate()
+            .filter_map(|(i, v)| {
+                if v > 0 {
+                    indices.push(i as u32);
+                    Some(v)
+                } else {
+                    None
+                }
+            })
+            .collect::<Vec<_>>();
+
+        let vector = sprs::CsVecI::new(dim, indices, data);
+
+        vector
+    }
 }
 
 pub fn arrow_graph_from_gfa<S: BufRead + Seek>(
