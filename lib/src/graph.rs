@@ -12,7 +12,7 @@ use self::iter::PangenomePathDataPosRangeIter;
 pub mod iter;
 pub mod sampling;
 
-pub mod spoke;
+// pub mod spoke;
 
 pub mod matrix;
 

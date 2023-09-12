@@ -81,6 +81,16 @@ impl ArrowGFA {
         &self.segment_sequences
     }
 
+    /// O(n) in number of paths
+    pub fn path_name_index(&self, path_name: &str) -> Option<u32> {
+        let (path_ix, _) = self
+            .path_names
+            .iter()
+            .enumerate()
+            .find(|(_ix, name)| name.is_some_and(|n| n == path_name))?;
+        Some(path_ix as u32)
+    }
+
     // pub fn path_vector_offsets(
     //     &self,
     //     path_index: u32,
@@ -89,7 +99,7 @@ impl ArrowGFA {
     //     //
     // }
 
-    pub fn path_vector_sparse(
+    pub fn path_vector_sparse_u32(
         &self,
         path_index: u32,
     ) -> sprs::CsVecI<u32, u32> {
@@ -107,7 +117,7 @@ impl ArrowGFA {
         }
 
         let mut indices: Vec<u32> = Vec::new();
-        let data = data
+        let mut data = data
             .into_iter()
             .enumerate()
             .filter_map(|(i, v)| {
@@ -120,6 +130,9 @@ impl ArrowGFA {
             })
             .collect::<Vec<_>>();
 
+        indices.shrink_to_fit();
+        data.shrink_to_fit();
+
         let vector = sprs::CsVecI::new(dim, indices, data);
 
         vector
@@ -127,8 +140,7 @@ impl ArrowGFA {
 }
 
 pub fn arrow_graph_from_gfa<S: BufRead + Seek>(
-    mut gfa_lines_reader: S,
-    // gfa_lines: impl Iterator<Item = &'a str>,
+    mut gfa_reader: S,
 ) -> std::io::Result<ArrowGFA> {
     let mut line_buf = Vec::new();
 
@@ -142,12 +154,12 @@ pub fn arrow_graph_from_gfa<S: BufRead + Seek>(
     let mut seg_name_offsets: Vec<i32> = Vec::new();
     let mut seg_name_str: Vec<u8> = Vec::new();
 
-    gfa_lines_reader.rewind()?;
+    gfa_reader.rewind()?;
 
     loop {
         line_buf.clear();
 
-        let len = gfa_lines_reader.read_until(0xA, &mut line_buf)?;
+        let len = gfa_reader.read_until(0xA, &mut line_buf)?;
         if len == 0 {
             break;
         }
@@ -174,24 +186,21 @@ pub fn arrow_graph_from_gfa<S: BufRead + Seek>(
         // let seg_index = seg_name_index_map.len();
 
         let offset = seg_seq_bytes.len();
-        // the first offset is always 0 and implicit
-        if offset != 0 {
-            seg_seq_offsets.push(offset as i32);
-        }
+        seg_seq_offsets.push(offset as i32);
         seg_seq_bytes.extend(seq);
 
         let name_offset = seg_name_str.len();
-        if name_offset != 0 {
-            seg_name_offsets.push(name_offset as i32);
-        }
+        seg_name_offsets.push(name_offset as i32);
         seg_name_str.extend(name);
 
         let Some(opt_fields) = opt
         else { continue; };
-
-        // TODO
-        log::info!("TODO: optional fields");
     }
+
+    let offset = seg_seq_bytes.len();
+    seg_seq_offsets.push(offset as i32);
+    let name_offset = seg_name_str.len();
+    seg_name_offsets.push(name_offset as i32);
 
     let name_offsets = OffsetsBuffer::try_from(seg_name_offsets).unwrap();
 
@@ -232,12 +241,12 @@ pub fn arrow_graph_from_gfa<S: BufRead + Seek>(
     let mut link_from_arr: Vec<u32> = Vec::new();
     let mut link_to_arr: Vec<u32> = Vec::new();
 
-    gfa_lines_reader.rewind()?;
+    gfa_reader.rewind()?;
 
     loop {
         line_buf.clear();
 
-        let len = gfa_lines_reader.read_until(0xA, &mut line_buf)?;
+        let len = gfa_reader.read_until(0xA, &mut line_buf)?;
         if len == 0 {
             break;
         }
@@ -294,12 +303,12 @@ pub fn arrow_graph_from_gfa<S: BufRead + Seek>(
     // each step as handle, per path
     let mut path_step_arrs: Vec<UInt32Array> = Vec::new();
 
-    gfa_lines_reader.rewind()?;
+    gfa_reader.rewind()?;
 
     loop {
         line_buf.clear();
 
-        let len = gfa_lines_reader.read_until(0xA, &mut line_buf)?;
+        let len = gfa_reader.read_until(0xA, &mut line_buf)?;
         if len == 0 {
             break;
         }
@@ -325,9 +334,7 @@ pub fn arrow_graph_from_gfa<S: BufRead + Seek>(
         };
 
         let name_offset = path_name_str.len();
-        if name_offset != 0 {
-            path_name_offsets.push(name_offset as i32);
-        }
+        path_name_offsets.push(name_offset as i32);
         path_name_str.extend(path_name);
 
         let mut step_vec = Vec::new();
@@ -345,6 +352,8 @@ pub fn arrow_graph_from_gfa<S: BufRead + Seek>(
         path_step_arrs.push(UInt32Array::from_vec(step_vec));
     }
 
+    let name_offset = path_name_str.len();
+    path_name_offsets.push(name_offset as i32);
     let name_offsets = OffsetsBuffer::try_from(path_name_offsets).unwrap();
 
     let path_name_arr = Utf8Array::new(
@@ -457,10 +466,9 @@ fn arrow_edges(
 #[cfg(test)]
 mod tests {
 
-    use anyhow::Result;
-
     use super::*;
 
+    /*
     #[test]
     fn node_sequences_test() -> Result<()> {
         // let seqs = ["GCGC", "TT", "TGTTGTGT", "A", "TGT", "AAAA"];
@@ -487,6 +495,44 @@ mod tests {
 
         let offsets = nodes.sequences.offsets();
         println!("{offsets:?}");
+
+        Ok(())
+    }
+    */
+
+    use std::io::BufReader;
+
+    #[test]
+    fn test_arrow_gfa() -> std::io::Result<()> {
+        use std::fs::File;
+
+        let gfa_path = concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../test/data/A-3105.fa.353ea42.34ee7b1.1576367.smooth.fix.gfa"
+        );
+
+        let gfa_file = File::open(gfa_path)?;
+        let reader = BufReader::new(gfa_file);
+
+        let arrow_gfa = arrow_graph_from_gfa(reader)?;
+
+        let nodes = arrow_gfa.segment_count();
+        let links = arrow_gfa.link_count();
+        let paths = arrow_gfa.path_count();
+
+        let nodes_iter_count: usize =
+            arrow_gfa.segment_sequences_iter().count();
+
+        assert_eq!(4966, nodes);
+        assert_eq!(nodes, nodes_iter_count);
+
+        assert_eq!(6793, links);
+        assert_eq!(11, paths);
+
+        println!("node count: {nodes}");
+        println!("node iter count: {nodes_iter_count}");
+        println!("link count: {links}");
+        println!("path count: {paths}");
 
         Ok(())
     }

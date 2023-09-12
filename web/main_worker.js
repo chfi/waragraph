@@ -26,14 +26,16 @@ async function run() {
     let gfa = fetch(gfa_path);
     
     console.log("parsing GFA");
-
     // let ctx = wasm_bindgen.initialize_with_data_fetch(gfa, tsv
     let graph = await wasm_bindgen.load_gfa_arrow(gfa);
 
     let path_name = "gi|528476637:29857558-29915771";
+    console.log("constructing coordinate system");
     let coord_sys = wasm_bindgen.CoordSys.global_from_arrow_gfa(graph);
-    let data = wasm_bindgen.generate_depth_data(graph, path_name);
+    console.log("deriving depth data");
+    let data = wasm_bindgen.arrow_gfa_depth_data(graph, path_name);
 
+    console.log("initializing path viewer");
     let path_viewer = wasm_bindgen.PathViewer.new(coord_sys, data, 512,
                                                   { r: 0.8, g: 0.3, b: 0.3, a: 1.0 },
                                                   { r: 0.2, g: 0.2, b: 0.2, a: 1.0 });
@@ -44,12 +46,11 @@ async function run() {
     console.log(_state);
 
     _graph = graph;
-    console.log("worker node count: " + _graph.node_count());
+    console.log("worker node count: " + _graph.segment_count());
 
 
     Comlink.expose({
         connect_canvas(offscreen_canvas) {
-            console.log("hello??");
             // _state.path_viewer.transfer_canvas_control_to_self(canvas
             console.log("set_canvas");
             _state.path_viewer.set_canvas(offscreen_canvas);

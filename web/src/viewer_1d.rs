@@ -574,6 +574,29 @@ pub struct SparseData {
 }
 
 #[wasm_bindgen]
+pub fn arrow_gfa_depth_data(
+    graph: &ArrowGFAWrapped,
+    path_name: &str,
+) -> Result<SparseData, JsValue> {
+    let graph = &graph.0;
+
+    let path_index = graph
+        .path_name_index(path_name)
+        .ok_or::<JsValue>("Path not found".into())?;
+
+    let sprs_vec = graph.path_vector_sparse_u32(path_index);
+
+    let (indices, data) = sprs_vec.into_raw_storage();
+
+    use arrow2::array::{Float32Array, UInt32Array};
+
+    Ok(SparseData {
+        indices: UInt32Array::from_vec(indices),
+        data: Float32Array::from_iter(data.into_iter().map(|v| Some(v as f32))),
+    })
+}
+
+#[wasm_bindgen]
 pub fn generate_depth_data(
     graph: &PathIndexWrap,
     path_name: &str,

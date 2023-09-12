@@ -142,18 +142,33 @@ pub async fn initialize_with_data(
 pub struct ArrowGFAWrapped(pub(crate) ArrowGFA);
 
 #[wasm_bindgen]
+impl ArrowGFAWrapped {
+    pub fn segment_count(&self) -> usize {
+        self.0.segment_count()
+    }
+
+    pub fn path_count(&self) -> usize {
+        self.0.path_count()
+    }
+}
+
+#[wasm_bindgen]
 pub async fn load_gfa_arrow(
     gfa_resp: js_sys::Promise,
 ) -> Result<ArrowGFAWrapped, JsValue> {
     use std::io::Cursor;
 
+    web_sys::console::log_1(&"JsFuture from gfa response".into());
     let gfa_resp = JsFuture::from(gfa_resp).await?;
 
+    web_sys::console::log_1(&"JsFuture response text".into());
     let gfa = JsFuture::from(gfa_resp.dyn_into::<web_sys::Response>()?.text()?)
         .await?;
 
+    web_sys::console::log_1(&"gfa as string".into());
     let gfa = gfa.as_string().unwrap();
 
+    web_sys::console::log_1(&"calling arrow_graph_from_gfa".into());
     let graph = waragraph_core::arrow_graph::arrow_graph_from_gfa(Cursor::new(
         gfa.as_str(),
     ))
