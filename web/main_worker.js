@@ -16,30 +16,22 @@ let wasm;
 
 async function run() {
     wasm = await init_wasm();
-    //
-
-
-    console.log("done???");
-    // console.log(w);
 
     console.log(wasm_bindgen);
 
     const gfa_path = '../data/A-3105.fa.353ea42.34ee7b1.1576367.smooth.fix.gfa';
-    // const tsv_path = '../data/A-3105.layout.tsv';
 
     console.log("fetching GFA");
 
     let gfa = fetch(gfa_path);
-    // let tsv = fetch(tsv_path);
-
     
     console.log("parsing GFA");
 
     // let ctx = wasm_bindgen.initialize_with_data_fetch(gfa, tsv
-    let graph = await wasm_bindgen.load_gfa_path_index(gfa);
+    let graph = await wasm_bindgen.load_gfa_arrow(gfa);
 
     let path_name = "gi|528476637:29857558-29915771";
-    let coord_sys = wasm_bindgen.CoordSys.global_from_graph(graph);
+    let coord_sys = wasm_bindgen.CoordSys.global_from_arrow_gfa(graph);
     let data = wasm_bindgen.generate_depth_data(graph, path_name);
 
     let path_viewer = wasm_bindgen.PathViewer.new(coord_sys, data, 512,

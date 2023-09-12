@@ -78,10 +78,6 @@ pub struct Context {
 
 #[wasm_bindgen]
 impl Context {
-    // pub fn global_coord_sys(&self) -> CoordSys {
-    //     CoordSys::global_from_graph(&self.app.shared.as_ref().unwrap().graph)
-    // }
-
     // pub fn init_path_viewer(
     //     &self,
     //     path_name: &str,
@@ -144,6 +140,27 @@ pub async fn initialize_with_data(
 
 #[wasm_bindgen]
 pub struct ArrowGFAWrapped(pub(crate) ArrowGFA);
+
+#[wasm_bindgen]
+pub async fn load_gfa_arrow(
+    gfa_resp: js_sys::Promise,
+) -> Result<ArrowGFAWrapped, JsValue> {
+    use std::io::Cursor;
+
+    let gfa_resp = JsFuture::from(gfa_resp).await?;
+
+    let gfa = JsFuture::from(gfa_resp.dyn_into::<web_sys::Response>()?.text()?)
+        .await?;
+
+    let gfa = gfa.as_string().unwrap();
+
+    let graph = waragraph_core::arrow_graph::arrow_graph_from_gfa(Cursor::new(
+        gfa.as_str(),
+    ))
+    .unwrap();
+
+    Ok(ArrowGFAWrapped(graph))
+}
 
 #[wasm_bindgen]
 pub struct PathIndexWrap(pub(crate) PathIndex);
