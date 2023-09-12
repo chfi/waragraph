@@ -1,6 +1,6 @@
 use std::{collections::BTreeMap, sync::Arc};
 
-use arrow2::array::PrimitiveArray;
+use arrow2::{array::PrimitiveArray, offset::OffsetsBuffer};
 use waragraph_core::graph::{Bp, Node, PathId, PathIndex};
 
 use wasm_bindgen::{prelude::*, Clamped};
@@ -8,7 +8,7 @@ use web_sys::{
     CanvasRenderingContext2d, HtmlCanvasElement, ImageData, OffscreenCanvas,
 };
 
-use crate::PathIndexWrap;
+use crate::{ArrowGFAWrapped, PathIndexWrap};
 
 pub mod sampler;
 
@@ -56,8 +56,8 @@ impl PathViewer {
         let range = (bp_start as u64)..=(bp_end as u64);
         self.cs.sample_impl(
             range,
-            &self.data.indices,
-            &self.data.data,
+            self.data.indices.values(),
+            self.data.data.values(),
             &mut self.bins,
         );
     }
@@ -251,21 +251,40 @@ impl PathViewer {
 #[wasm_bindgen]
 pub struct CoordSys {
     node_order: PrimitiveArray<u32>,
-    // TODO offsets should probably be u64; maybe generic
-    step_offsets: PrimitiveArray<u32>,
+    // TODO offsets should probably be i64; maybe generic
+    step_offsets: OffsetsBuffer<i32>,
+    // step_offsets: PrimitiveArray<u32>,
 }
 
 #[wasm_bindgen]
 impl CoordSys {
+    pub fn global_from_arrow_gfa(graph: &ArrowGFAWrapped) -> Self {
+        let node_count = graph.0.segment_count();
+
+        let node_order = arrow2::array::UInt32Array::from_iter(
+            (0..node_count as u32).map(Some),
+        );
+
+        let step_offsets = graph.0.segment_sequences_array().offsets().clone();
+
+        Self {
+            node_order,
+            step_offsets,
+        }
+    }
+
+    /*
     pub fn global_from_graph(graph: &PathIndexWrap) -> Self {
         Self::from_node_order(
             graph,
             (0..graph.0.node_count).map(|i| Node::from(i)),
         )
     }
+    */
 }
 
 impl CoordSys {
+    /*
     pub fn from_node_order(
         graph: &PathIndexWrap,
         node_order: impl Iterator<Item = Node>,
@@ -294,6 +313,7 @@ impl CoordSys {
             step_offsets,
         }
     }
+    */
 
     pub fn from_path(graph: &PathIndexWrap, path: PathId) -> Self {
         todo!();
@@ -318,11 +338,11 @@ impl CoordSys {
     ) -> std::ops::RangeInclusive<usize> {
         let start_i = self
             .step_offsets
-            .values()
+            .buffer()
             .binary_search_by_key(&start, |&o| o as u64);
         let end_i = self
             .step_offsets
-            .values()
+            .buffer()
             .binary_search_by_key(&end, |&o| o as u64);
 
         let start_out = start_i.unwrap_or_else(|i| i - 1);
@@ -396,14 +416,15 @@ impl CoordSys {
         for (i, (c_i, val)) in data_iter.enumerate() {
             // web_sys::console::log_1(&format!("step {i}").into());
 
-            let seg_offset = self.step_offsets.get(c_i).unwrap() as u64;
+            let seg_offset =
+                *self.step_offsets.buffer().get(c_i).unwrap() as u64;
 
             if c_i > e_i {
                 break;
             }
 
             let next_seg_offset =
-                self.step_offsets.get(c_i + 1).unwrap() as u64;
+                *self.step_offsets.buffer().get(c_i + 1).unwrap() as u64;
 
             let mut offset = seg_offset;
 
@@ -548,13 +569,8 @@ impl CoordSys {
 
 #[wasm_bindgen]
 pub struct SparseData {
-    indices: Vec<u32>,
-    data: Vec<f32>,
-}
-
-#[wasm_bindgen]
-impl SparseData {
-    //
+    indices: arrow2::array::UInt32Array,
+    data: arrow2::array::Float32Array,
 }
 
 #[wasm_bindgen]
@@ -574,7 +590,6 @@ pub fn generate_depth_data(
     // let indices = graph.path_node_sets[path.ix()].iter().collect::<Vec<_>>();
 
     let mut depth_map: BTreeMap<u32, f32> = BTreeMap::default();
-    // let mut depth_map = vec![0f32; indices.len()];
 
     for step in steps {
         *depth_map.entry(step.node().ix() as u32).or_default() += 1.0;
@@ -582,7 +597,12 @@ pub fn generate_depth_data(
 
     let (indices, data): (Vec<_>, Vec<_>) = depth_map.into_iter().unzip();
 
-    Ok(SparseData { indices, data })
+    use arrow2::array::{Float32Array, UInt32Array};
+
+    Ok(SparseData {
+        indices: UInt32Array::from_vec(indices),
+        data: Float32Array::from_vec(data),
+    })
 }
 
 #[wasm_bindgen]
@@ -600,7 +620,12 @@ impl CoordSys {
         let bp_end = bp_end.as_f64().unwrap() as u64;
 
         let range = (bp_start as u64)..=(bp_end as u64);
-        self.sample_impl(range, &data.indices, &data.data, bins);
+        self.sample_impl(
+            range,
+            &data.indices.values(),
+            &data.data.values(),
+            bins,
+        );
     }
 }
 

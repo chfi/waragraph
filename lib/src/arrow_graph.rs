@@ -37,8 +37,24 @@ pub struct PathMetadata<'a> {
 }
 
 impl ArrowGFA {
+    pub fn segment_count(&self) -> usize {
+        self.segment_sequences.len()
+    }
+
+    pub fn link_count(&self) -> usize {
+        self.link_from.len()
+    }
+
+    pub fn path_count(&self) -> usize {
+        self.path_names.len()
+    }
+
     pub fn segment_sequence(&self, segment_index: u32) -> &[u8] {
         self.segment_sequences.get(segment_index as usize).unwrap()
+    }
+
+    pub fn segment_len(&self, segment_index: u32) -> usize {
+        self.segment_sequence(segment_index).len()
     }
 
     pub fn segment_name(&self, segment_index: u32) -> Option<&str> {
@@ -53,6 +69,16 @@ impl ArrowGFA {
             .enumerate()
             .find(|&(i, name)| name == segment_name)?;
         Some(i as u32)
+    }
+
+    pub fn segment_sequences_iter(
+        &self,
+    ) -> arrow2::array::BinaryValueIter<'_, i32> {
+        self.segment_sequences.values_iter()
+    }
+
+    pub fn segment_sequences_array(&self) -> &BinaryArray<i32> {
+        &self.segment_sequences
     }
 
     // pub fn path_vector_offsets(

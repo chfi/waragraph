@@ -14,7 +14,7 @@ use parking_lot::RwLock;
 
 use egui_winit::winit;
 use raving_wgpu::gui::EguiCtx;
-use waragraph_core::graph::PathIndex;
+use waragraph_core::{arrow_graph::ArrowGFA, graph::PathIndex};
 use wasm_bindgen_futures::JsFuture;
 use web_sys::HtmlCanvasElement;
 use winit::{
@@ -141,6 +141,9 @@ pub async fn initialize_with_data(
         }
     }
 }
+
+#[wasm_bindgen]
+pub struct ArrowGFAWrapped(pub(crate) ArrowGFA);
 
 #[wasm_bindgen]
 pub struct PathIndexWrap(pub(crate) PathIndex);
