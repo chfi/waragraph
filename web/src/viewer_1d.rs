@@ -26,7 +26,7 @@ extern "C" {
 
 #[wasm_bindgen]
 pub struct PathViewer {
-    cs: Arc<CoordSys>,
+    cs: CoordSys,
     data: SparseData,
     bins: Vec<f32>,
 
@@ -39,10 +39,10 @@ pub struct PathViewer {
 
 #[wasm_bindgen]
 impl PathViewer {
-    // #[wasm_bindgen(getter)]
-    // pub fn coord_sys(&self) -> Arc<CoordSys> {
-    //     self.cs.clone()
-    // }
+    #[wasm_bindgen(getter)]
+    pub fn coord_sys(&self) -> CoordSys {
+        self.cs.clone()
+    }
 
     #[wasm_bindgen(getter)]
     pub fn get_bin_data(&self) -> Box<[f32]> {
@@ -106,7 +106,7 @@ impl PathViewer {
         let bins = vec![0f32; bin_count];
 
         Ok(PathViewer {
-            cs: Arc::new(cs),
+            cs,
             data,
             bins,
             color_map,
@@ -248,6 +248,7 @@ impl PathViewer {
     }
 }
 
+#[derive(Debug, Clone)]
 #[wasm_bindgen]
 pub struct CoordSys {
     node_order: PrimitiveArray<u32>,
@@ -273,14 +274,9 @@ impl CoordSys {
         }
     }
 
-    /*
-    pub fn global_from_graph(graph: &PathIndexWrap) -> Self {
-        Self::from_node_order(
-            graph,
-            (0..graph.0.node_count).map(|i| Node::from(i)),
-        )
+    pub fn max(&self) -> u64 {
+        self.step_offsets.len_proxy() as u64
     }
-    */
 }
 
 impl CoordSys {

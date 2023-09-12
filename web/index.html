@@ -32,7 +32,8 @@
 
               let canvas = document.getElementById('path_view');
               let offscreen = canvas.transferControlToOffscreen();
-              obj.connect_canvas(Comlink.transfer(offscreen, [offscreen]));
+              obj.connectCanvas(Comlink.transfer(offscreen, [offscreen]));
+              obj.sampleRange(0, 10000);
 
               // obj.sample_data(0, 10000, 512)
               //     .then((data) => {
