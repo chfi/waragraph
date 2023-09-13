@@ -9,7 +9,6 @@
     <canvas id="path_view" width=800 height=200></canvas>
 
     <script src='./module-workers-polyfill.min.js'></script>
-    <!-- <script src='./pkg/web.js'></script> -->
 
     <script type="module">
 
@@ -36,24 +35,15 @@
               let path_name = "gi|528476637:29857558-29915771";
               // let path_name = "S288C.chrI";
 
-              obj.createPathViewer(path_name).then((path_viewer) => {
-                  console.log("eeeeeeeh");
-                  console.log(path_viewer);
-                  path_viewer.connectCanvas(Comlink.proxy(offscreen));
-                  path_viewer.sampleRange(0, 10000);
+              // path_viewer.connectCanvas(Comlink.transfer(offscreen, [offscreen]));
+              obj.createPathViewer(Comlink.transfer(offscreen, [offscreen]),
+                                   path_name)
+              .then((path_viewer) => {
+                  path_viewer.setView(0, 1000);
+                  path_viewer.sample();
                   window.path_viewer = path_viewer;
               });
 
-              
-
-              // obj.connectCanvas(Comlink.transfer(offscreen, [offscreen]));
-              // obj.sampleRange(0, 10000);
-
-              // obj.sample_data(0, 10000, 512)
-              //     .then((data) => {
-              //         console.log("sampled data");
-              //         console.log(data);
-              //     });
 
 
               window.worker_obj = obj;
@@ -68,47 +58,6 @@
       
     </script>
 
-
-<!-- 
-    <script type="module">
-      import init_module, * as waragraph from './pkg/web.js';
-      let wasm;
-
-      async function run() {
-          wasm = await init_module();
-          console.log(waragraph);
-          console.log(wasm);
-          window.wasm = wasm;
-          window.waragraph = waragraph;
-          
-          const gfa_path = '../data/A-3105.fa.353ea42.34ee7b1.1576367.smooth.fix.gfa';
-          const tsv_path = '../data/A-3105.layout.tsv';
-
-          // const gfa_path = '../cerevisiae.pan.fa.gz.d1a145e.417fcdf.7493449.smooth.final.gfa';
-          // const tsv_path = '../cerevisiae.pan.fa.gz.d1a145e.417fcdf.7493449.smooth.final.og.lay.tsv';
-
-          let gfa = fetch(gfa_path);
-          let tsv = fetch(tsv_path);
-          console.log(gfa);
-
-          const canvas = document.getElementById("main_view");
-
-          console.log("init");
-          let ctx = await waragraph.initialize_with_data_fetch(gfa, tsv, canvas);
-          window.ctx = ctx;
-
-          // const path_view = ctx.init_path_viewer("gi|568815592:29942469-29945883");
-          // let path_canvas = document.getElementById("path_view");
-          // path_view.draw_to_canvas(0, 20000, path_canvas);
-          // window.path_viewer = path_view;
-
-          // ctx.run()
-
-      }
-
-      run();
-    </script>
-    -->
   </body>
 </html>
 
