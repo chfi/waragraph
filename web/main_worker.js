@@ -47,6 +47,8 @@ async function run() {
 
     console.log(wasm_bindgen);
 
+    wasm_bindgen.set_panic_hook();
+
     const gfa_path = '../data/A-3105.fa.353ea42.34ee7b1.1576367.smooth.fix.gfa';
 
     console.log("fetching GFA");

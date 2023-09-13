@@ -246,6 +246,11 @@ pub async fn initialize_with_data_fetch(
 }
 
 #[wasm_bindgen]
+pub fn set_panic_hook() {
+    std::panic::set_hook(Box::new(console_error_panic_hook::hook));
+}
+
+#[wasm_bindgen]
 pub async fn initialize(canvas: JsValue) -> Result<Context, JsValue> {
     std::panic::set_hook(Box::new(console_error_panic_hook::hook));
 

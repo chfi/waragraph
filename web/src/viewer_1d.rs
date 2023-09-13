@@ -535,7 +535,9 @@ impl CoordSys {
             let mut offset = seg_offset;
 
             loop {
-                let local_offset = offset - *bp_range.start();
+                // let local_offset = offset - *bp_range.start();
+                let local_offset =
+                    offset.checked_sub(*bp_range.start()).unwrap_or(0);
                 let this_bin = (local_offset / bin_size) as usize;
 
                 if this_bin >= bins.len() {
@@ -550,17 +552,6 @@ impl CoordSys {
 
                 bins[this_bin] += val * this_len as f32;
                 bin_lengths[this_bin] += this_len;
-
-                /*
-                if boundary == next_bin_offset {
-                    // close this bin
-                    // let bin_val = val * bin_length as f32;
-                    if bin_length > 0 {
-                        bins[this_bin] = bins[this_bin] / bin_length as f32;
-                    }
-                    bin_length = 0;
-                }
-                */
 
                 offset = boundary;
 
@@ -579,99 +570,6 @@ impl CoordSys {
         }
 
         web_sys::console::log_1(&format!("sample_impl done").into());
-    }
-
-    pub fn sample_range_impl(
-        &self,
-        bp_range: std::ops::RangeInclusive<u64>,
-        // data: PrimitiveArray<f32>,
-        data: &[f32],
-        bins: &mut [f32],
-    ) {
-        // find range in step index using bp_range
-        let indices = self.bp_to_step_range(*bp_range.start(), *bp_range.end());
-
-        // slice `data` according to step range
-        let s_i = *indices.start();
-        let e_i = *indices.end();
-
-        // `indices` is inclusive
-        let len = (e_i + 1) - s_i;
-        // let data_slice = data.sliced(s_i, len);
-
-        let bp_range_len = (*bp_range.end() + 1) - *bp_range.start();
-        let bin_size = bp_range_len / bins.len() as u64;
-
-        // let mut data_iter = data_slice.iter().enumerate();
-        let segment_slice = self.node_order.clone().sliced(s_i, len);
-
-        let mut seg_data_iter = segment_slice.iter().zip(data);
-
-        let make_bin_range = {
-            let bin_count = bins.len();
-            let s = *bp_range.start();
-            let e = *bp_range.end();
-
-            move |bin_i: usize| -> std::ops::RangeInclusive<u64> {
-                let i = (bin_i.min(bin_count - 1)) as u64;
-                let left = s + i * bin_size;
-                let right = s + (i + 1) * bin_size;
-                left..=right
-            }
-        };
-
-        let mut bin_length = 0u64;
-        let mut last_bin = 0usize;
-
-        let mut cur_bin_range = make_bin_range(last_bin);
-        let mut last_offset = 0;
-
-        /*
-
-        // iterate through the data, filling bins along the way
-        // since the data is sorted by the node order, we're also
-        // iterating through the bins -- once we see a new bin,
-        // the previous is done
-        for (seg_i, &val) in seg_data_iter {
-            let seg_i = if let Some(seg_i) = seg_i {
-                *seg_i
-            } else {
-                continue;
-            };
-
-            let step_i = s_i + i;
-            let offset = self.step_offsets.get(step_i).unwrap();
-            let next_step_offset = self.step_offsets.get(step_i + 1).unwrap();
-            let len = next_step_offset - offset;
-
-            let local_offset = offset as u64 - *bp_range.start();
-            let this_bin = (local_offset / bin_size) as usize;
-
-            let mut offset = offset as u64;
-
-            loop {
-                let cur_bin_range = make_bin_range(this_bin);
-                let next_bin_offset = *cur_bin_range.end() + 1;
-
-                // step through the node across bins, if necessary
-                let boundary = (next_step_offset as u64).min(next_bin_offset);
-                let this_len = boundary - offset;
-
-                if boundary == next_bin_offset {
-                    // close this bin
-                    let bin_val = val * bin_length as f32;
-                    bins[this_bin] = bin_val;
-                    bin_length = 0;
-                }
-
-                offset = boundary;
-
-                if offset == next_step_offset as u64 {
-                    break;
-                }
-            }
-        }
-        */
     }
 }
 
