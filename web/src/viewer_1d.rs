@@ -35,7 +35,9 @@ pub struct PathViewer {
 
     bins: Vec<f32>,
     last_sampled_range: Option<std::ops::RangeInclusive<u64>>,
-    canvas: Option<OffscreenCanvas>,
+
+    canvas: OffscreenCanvas, // matches `bins`
+    target_canvas: Option<OffscreenCanvas>,
 }
 
 #[wasm_bindgen]
@@ -113,6 +115,8 @@ impl PathViewer {
 
         let bins = vec![0f32; bin_count];
 
+        let canvas = OffscreenCanvas::new(bin_count as u32, 1);
+
         Ok(PathViewer {
             cs,
             data,
@@ -120,16 +124,18 @@ impl PathViewer {
             color_map,
 
             bins,
+            canvas,
             last_sampled_range: None,
-            canvas: None,
+            target_canvas: None,
         })
     }
 
-    pub fn set_canvas(&mut self, canvas: OffscreenCanvas) {
+    pub fn set_target_canvas(&mut self, canvas: OffscreenCanvas) {
         web_sys::console::log_1(&format!("setting canvas").into());
-        self.canvas = Some(canvas);
+        self.target_canvas = Some(canvas);
     }
 
+    /*
     pub fn new_canvas(
         &mut self,
         width: u32,
@@ -139,6 +145,7 @@ impl PathViewer {
         self.canvas = Some(canvas);
         Ok(())
     }
+    */
 }
 
 #[wasm_bindgen]
@@ -171,6 +178,7 @@ impl PathViewer {
         pixel_data.into_boxed_slice()
     }
 
+    /*
     pub fn canvas_test(&self) {
         let (canvas, ctx) = if let Some(canvas) = self.canvas.as_ref() {
             let ctx = canvas.get_context("2d").ok().flatten().unwrap();
@@ -186,22 +194,37 @@ impl PathViewer {
         ctx.set_fill_style(&"blue".into());
         ctx.fill_rect(20.0, 20.0, 80.0, 80.0);
     }
+    */
 
     pub fn draw_to_canvas(&self) {
         web_sys::console::log_1(&format!("getting canvas...").into());
-        let (canvas, ctx) = if let Some(canvas) = self.canvas.as_ref() {
-            let ctx = canvas.get_context("2d").ok().flatten().unwrap();
-            let ctx = ctx
-                .dyn_into::<web_sys::OffscreenCanvasRenderingContext2d>()
-                .unwrap();
 
-            (canvas, ctx)
-        } else {
+        let Some(view_range) = self.last_sampled_range.clone() else {
             return;
         };
 
-        let w = canvas.width();
-        let h = canvas.height();
+        let (tgt_canvas, tgt_ctx) =
+            if let Some(canvas) = self.target_canvas.as_ref() {
+                let ctx = canvas.get_context("2d").ok().flatten().unwrap();
+                let ctx = ctx
+                    .dyn_into::<web_sys::OffscreenCanvasRenderingContext2d>()
+                    .unwrap();
+
+                (canvas, ctx)
+            } else {
+                return;
+            };
+
+        let be_ctx = {
+            let ctx = self.canvas.get_context("2d").ok().flatten().unwrap();
+            let ctx = ctx
+                .dyn_into::<web_sys::OffscreenCanvasRenderingContext2d>()
+                .unwrap();
+            ctx
+        };
+
+        let w = tgt_canvas.width();
+        let h = tgt_canvas.height();
 
         web_sys::console::log_1(&format!("render_into_new_buffer").into());
 
@@ -230,6 +253,9 @@ impl PathViewer {
                     &format!("putting image data into {h} rows").into(),
                 );
 
+                // let _ = ctx.draw_image_with_image_bitmap
+
+                /*
                 for y in 0..h {
                     let _ = ctx.put_image_data_with_dirty_x_and_dirty_y_and_dirty_width_and_dirty_height(
                         &image_data,
@@ -239,6 +265,7 @@ impl PathViewer {
                         h as f64,
                     );
                 }
+                */
             }
             Err(e) => {
                 web_sys::console::log_1(
