@@ -66,7 +66,7 @@ impl PathViewer {
             range.clone(),
             self.data.indices.values(),
             self.data.data.values(),
-            &mut self.bins,
+            bins,
         );
 
         self.last_sampled_range = Some(range);
@@ -115,7 +115,7 @@ impl PathViewer {
 
         let bins = vec![0f32; bin_count];
 
-        let canvas = OffscreenCanvas::new(bin_count as u32, 1);
+        let canvas = OffscreenCanvas::new(bin_count as u32, 1)?;
 
         Ok(PathViewer {
             cs,
@@ -148,18 +148,52 @@ impl PathViewer {
     */
 }
 
+impl PathViewer {
+    fn render_into_offscreen_canvas(&self) {
+        let Some(view_range) = self.last_sampled_range.clone() else {
+            return;
+        };
+
+        let view_size = *view_range.end() - *view_range.start();
+
+        let bin_count = self.bins.len().min(view_size as usize);
+
+        // draw pixel data into single-row offscreen canvas
+        let mut pixel_data: Vec<u8> = vec![0; bin_count * 4];
+        let pixels = pixel_data.chunks_exact_mut(4);
+
+        for (color, val) in pixels.zip(&self.bins) {
+            let c = (self.color_map)(*val);
+            color.clone_from_slice(&c);
+        }
+
+        let memory = wasm_bindgen::memory();
+        let px_len = pixel_data.len() as u32;
+        let pixels_ptr = pixel_data.as_ptr() as *const u8;
+
+        let image_data =
+            create_image_data_impl(memory, pixels_ptr, px_len).unwrap();
+        let ctx = self.canvas.get_context("2d").ok().flatten().unwrap();
+        let ctx = ctx
+            .dyn_into::<web_sys::OffscreenCanvasRenderingContext2d>()
+            .unwrap();
+
+        let _ = ctx.put_image_data(&image_data, 0.0, 0.0);
+    }
+}
+
 #[wasm_bindgen]
 impl PathViewer {
-    pub fn transfer_canvas_control_to_self(
-        &mut self,
-        canvas: HtmlCanvasElement,
-    ) -> Result<(), JsValue> {
-        let offscreen = canvas.transfer_control_to_offscreen()?;
+    // pub fn transfer_canvas_control_to_self(
+    //     &mut self,
+    //     canvas: HtmlCanvasElement,
+    // ) -> Result<(), JsValue> {
+    //     let offscreen = canvas.transfer_control_to_offscreen()?;
 
-        self.canvas = Some(offscreen);
+    //     self.canvas = Some(offscreen);
 
-        Ok(())
-    }
+    //     Ok(())
+    // }
 
     pub fn render_into_new_buffer(&self) -> Box<[u8]> {
         let mut pixel_data: Vec<u8> = vec![0; self.bins.len() * 4];
@@ -197,6 +231,45 @@ impl PathViewer {
     */
 
     pub fn draw_to_canvas(&self) {
+        let Some(view_range) = self.last_sampled_range.clone() else {
+            return;
+        };
+
+        let (tgt_canvas, tgt_ctx) =
+            if let Some(canvas) = self.target_canvas.as_ref() {
+                let ctx = canvas.get_context("2d").ok().flatten().unwrap();
+                let ctx = ctx
+                    .dyn_into::<web_sys::OffscreenCanvasRenderingContext2d>()
+                    .unwrap();
+
+                (canvas, ctx)
+            } else {
+                return;
+            };
+
+        self.render_into_offscreen_canvas();
+
+        let view_size = *view_range.end() - *view_range.start();
+
+        let src_width = view_size as f64;
+        let dst_width = tgt_canvas.width() as f64;
+        let dst_height = tgt_canvas.height() as f64;
+
+        web_sys::console::log_1(&format!("view size: {view_size}\ndst_width: {dst_width}\ndst_height: {dst_height}").into());
+
+        tgt_ctx.draw_image_with_offscreen_canvas_and_sw_and_sh_and_dx_and_dy_and_dw_and_dh(
+            &self.canvas,
+            0.,
+            0.,
+            src_width,
+            1.,
+            0., 0.,
+            dst_width,
+            dst_height,
+            );
+    }
+
+    pub fn draw_to_canvas_old(&self) {
         web_sys::console::log_1(&format!("getting canvas...").into());
 
         let Some(view_range) = self.last_sampled_range.clone() else {
@@ -504,6 +577,8 @@ impl CoordSys {
                 *val = 0f32;
             }
         }
+
+        web_sys::console::log_1(&format!("sample_impl done").into());
     }
 
     pub fn sample_range_impl(

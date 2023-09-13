@@ -18,11 +18,7 @@ let wasm;
 
 class PathViewerCtx {
     constructor(coord_sys, data, { bins, color_0, color_1}) {
-
-
         // TODO set view based on coord_sys, or take an optional argument
-
-
 
         let view = { left: 0, right: coord_sys.max() };
         this.path_viewer = wasm_bindgen.PathViewer.new(coord_sys, data, 512, color_0, color_1);
@@ -30,7 +26,7 @@ class PathViewerCtx {
     }
 
     connectCanvas(offscreen_canvas) {
-        this.path_viewer.set_canvas(offscreen_canvas);
+        this.path_viewer.set_target_canvas(offscreen_canvas);
     }
 
     setView(left, right) {
