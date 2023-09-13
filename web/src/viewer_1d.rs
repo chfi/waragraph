@@ -28,12 +28,13 @@ extern "C" {
 pub struct PathViewer {
     cs: CoordSys,
     data: SparseData,
-    bins: Vec<f32>,
 
     // graph: Arc<PathIndex>,
     // path: PathId,
     color_map: Box<dyn Fn(f32) -> [u8; 4]>,
 
+    bins: Vec<f32>,
+    last_sampled_range: Option<std::ops::RangeInclusive<u64>>,
     canvas: Option<OffscreenCanvas>,
 }
 
@@ -54,12 +55,19 @@ impl PathViewer {
         let bp_end = bp_end.as_f64().unwrap() as u64;
 
         let range = (bp_start as u64)..=(bp_end as u64);
+
+        let bin_count = self.bins.len().min((bp_end - bp_start) as usize);
+
+        let bins = &mut self.bins[..bin_count];
+
         self.cs.sample_impl(
-            range,
+            range.clone(),
             self.data.indices.values(),
             self.data.data.values(),
             &mut self.bins,
         );
+
+        self.last_sampled_range = Some(range);
     }
 
     pub fn new(
@@ -108,9 +116,11 @@ impl PathViewer {
         Ok(PathViewer {
             cs,
             data,
-            bins,
+
             color_map,
 
+            bins,
+            last_sampled_range: None,
             canvas: None,
         })
     }
