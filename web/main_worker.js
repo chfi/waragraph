@@ -21,11 +21,13 @@ class PathViewerCtx {
         // TODO set view based on coord_sys, or take an optional argument
 
         let view = { left: 0, right: coord_sys.max() };
+        console.log("coord_sys max: " + coord_sys.max());
         this.path_viewer = wasm_bindgen.PathViewer.new(coord_sys, data, 512, color_0, color_1);
         this.view = view;
     }
 
     connectCanvas(offscreen_canvas) {
+        console.log("??????????");
         this.path_viewer.set_target_canvas(offscreen_canvas);
     }
 
@@ -41,7 +43,6 @@ class PathViewerCtx {
 }
 
 
-
 async function run() {
     wasm = await init_wasm();
 
@@ -50,6 +51,7 @@ async function run() {
     wasm_bindgen.set_panic_hook();
 
     const gfa_path = '../data/A-3105.fa.353ea42.34ee7b1.1576367.smooth.fix.gfa';
+    // const gfa_path = './cerevisiae.pan.fa.gz.d1a145e.417fcdf.7493449.smooth.final.gfa';
 
     console.log("fetching GFA");
 
@@ -59,7 +61,8 @@ async function run() {
     // let ctx = wasm_bindgen.initialize_with_data_fetch(gfa, tsv
     let graph = await wasm_bindgen.load_gfa_arrow(gfa);
 
-    let path_name = "gi|528476637:29857558-29915771";
+    let path_name = graph.path_name(0);
+    // let path_name = "gi|528476637:29857558-29915771";
     console.log("constructing coordinate system");
     let coord_sys = wasm_bindgen.CoordSys.global_from_arrow_gfa(graph);
     console.log("deriving depth data");
@@ -76,7 +79,11 @@ async function run() {
 
     let path_viewer = new PathViewerCtx(coord_sys, data, opts);
 
-    _state = { path_name, path_viewer };
+    coord_sys = path_viewer.path_viewer.coord_sys;
+
+    console.log("_state coord_sys: " + coord_sys);
+
+    _state = { path_name, path_viewer, coord_sys };
 
     console.log(_state);
 
@@ -85,6 +92,26 @@ async function run() {
 
 
     Comlink.expose({
+        createPathViewer(path_name) {
+            console.log("in createPathViewer with " + path_name);
+            // let path_name = "gi|528476637:29857558-29915771";
+            let coord_sys = _state.coord_sys;
+            console.log("getting coord_sys: " + coord_sys);
+
+            console.log("deriving depth data");
+            let data = wasm_bindgen.arrow_gfa_depth_data(graph, path_name);
+
+            let color_0 = 
+                { r: 0.8, g: 0.3, b: 0.3, a: 1.0 };
+            let color_1 =
+                { r: 0.2, g: 0.2, b: 0.2, a: 1.0 };
+
+            let opts = { bins: 512, color_0, color_1 };
+
+            let viewer = new PathViewerCtx(coord_sys, data, opts);
+
+            return Comlink.proxy(viewer);
+        },
 
         connectCanvas(offscreen_canvas) {
             _state.path_viewer.connectCanvas(offscreen_canvas);

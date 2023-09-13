@@ -150,6 +150,14 @@ impl ArrowGFAWrapped {
     pub fn path_count(&self) -> usize {
         self.0.path_count()
     }
+
+    pub fn path_name(&self, path_index: u32) -> Result<String, JsValue> {
+        let name = self.0.path_name(path_index).ok_or_else(|| {
+            JsValue::from_str(&format!("Path index `{path_index}` not found"))
+        })?;
+
+        Ok(name.to_string())
+    }
 }
 
 #[wasm_bindgen]
