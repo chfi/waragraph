@@ -57,6 +57,10 @@ impl ArrowGFA {
         self.segment_sequence(segment_index).len()
     }
 
+    pub fn total_sequence_len(&self) -> usize {
+        *self.segment_sequences.offsets().last() as usize
+    }
+
     pub fn segment_name(&self, segment_index: u32) -> Option<&str> {
         self.segment_names.as_ref()?.get(segment_index as usize)
     }
@@ -527,16 +531,33 @@ mod tests {
         let nodes_iter_count: usize =
             arrow_gfa.segment_sequences_iter().count();
 
-        assert_eq!(4966, nodes);
-        assert_eq!(nodes, nodes_iter_count);
+        let seq_lens = arrow_gfa
+            .segment_sequences_iter()
+            .map(|seq| seq.len())
+            .collect::<Vec<_>>();
 
-        assert_eq!(6793, links);
-        assert_eq!(11, paths);
+        let total_seq_len_iter: usize = seq_lens.iter().sum();
+
+        let total_seq_len = arrow_gfa.total_sequence_len();
+
+        let seq_offsets = arrow_gfa.segment_sequences.offsets();
+
+        println!("total seq len (iter): {total_seq_len_iter}");
+        println!("total seq len:        {total_seq_len}");
 
         println!("node count: {nodes}");
         println!("node iter count: {nodes_iter_count}");
         println!("link count: {links}");
         println!("path count: {paths}");
+
+        assert_eq!(45897, total_seq_len_iter);
+        assert_eq!(total_seq_len_iter, total_seq_len);
+
+        assert_eq!(4966, nodes);
+        assert_eq!(nodes, nodes_iter_count);
+
+        assert_eq!(6793, links);
+        assert_eq!(11, paths);
 
         Ok(())
     }

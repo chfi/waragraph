@@ -385,7 +385,7 @@ impl CoordSys {
     }
 
     pub fn max(&self) -> u64 {
-        self.step_offsets.len_proxy() as u64
+        *self.step_offsets.last() as u64
     }
 }
 
