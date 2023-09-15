@@ -73,7 +73,7 @@ async function run() {
     let color_1 =
         { r: 0.2, g: 0.2, b: 0.2, a: 1.0 };
 
-    let opts = { bins: 512, color_0, color_1 };
+    let opts = { bins: 1024, color_0, color_1 };
 
     let path_viewer = new PathViewerCtx(coord_sys, data, opts);
 
@@ -104,7 +104,7 @@ async function run() {
             let color_1 =
                 { r: 0.2, g: 0.2, b: 0.2, a: 1.0 };
 
-            let opts = { bins: 512, color_0, color_1 };
+            let opts = { bins: 1024, color_0, color_1 };
 
             let viewer = new PathViewerCtx(coord_sys, data, opts);
 

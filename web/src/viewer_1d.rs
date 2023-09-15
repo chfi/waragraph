@@ -184,17 +184,6 @@ impl PathViewer {
 
 #[wasm_bindgen]
 impl PathViewer {
-    // pub fn transfer_canvas_control_to_self(
-    //     &mut self,
-    //     canvas: HtmlCanvasElement,
-    // ) -> Result<(), JsValue> {
-    //     let offscreen = canvas.transfer_control_to_offscreen()?;
-
-    //     self.canvas = Some(offscreen);
-
-    //     Ok(())
-    // }
-
     pub fn render_into_new_buffer(&self) -> Box<[u8]> {
         let mut pixel_data: Vec<u8> = vec![0; self.bins.len() * 4];
 
@@ -211,24 +200,6 @@ impl PathViewer {
 
         pixel_data.into_boxed_slice()
     }
-
-    /*
-    pub fn canvas_test(&self) {
-        let (canvas, ctx) = if let Some(canvas) = self.canvas.as_ref() {
-            let ctx = canvas.get_context("2d").ok().flatten().unwrap();
-            let ctx = ctx
-                .dyn_into::<web_sys::OffscreenCanvasRenderingContext2d>()
-                .unwrap();
-
-            (canvas, ctx)
-        } else {
-            return;
-        };
-
-        ctx.set_fill_style(&"blue".into());
-        ctx.fill_rect(20.0, 20.0, 80.0, 80.0);
-    }
-    */
 
     pub fn draw_to_canvas(&self) {
         let Some(view_range) = self.last_sampled_range.clone() else {
@@ -250,12 +221,16 @@ impl PathViewer {
         self.render_into_offscreen_canvas();
 
         let view_size = *view_range.end() - *view_range.start();
+        let bin_count = self.bins.len();
 
-        let src_width = view_size as f64;
+        // let src_width = (view_size as usize).min(bin_count) as f64;
+        let src_width = self.canvas.width() as f64;
         let dst_width = tgt_canvas.width() as f64;
         let dst_height = tgt_canvas.height() as f64;
 
         web_sys::console::log_1(&format!("view size: {view_size}\ndst_width: {dst_width}\ndst_height: {dst_height}").into());
+
+        tgt_ctx.set_image_smoothing_enabled(false);
 
         tgt_ctx.draw_image_with_offscreen_canvas_and_sw_and_sh_and_dx_and_dy_and_dw_and_dh(
             &self.canvas,
@@ -267,94 +242,6 @@ impl PathViewer {
             dst_width,
             dst_height,
             );
-    }
-
-    pub fn draw_to_canvas_old(&self) {
-        web_sys::console::log_1(&format!("getting canvas...").into());
-
-        let Some(view_range) = self.last_sampled_range.clone() else {
-            return;
-        };
-
-        let (tgt_canvas, tgt_ctx) =
-            if let Some(canvas) = self.target_canvas.as_ref() {
-                let ctx = canvas.get_context("2d").ok().flatten().unwrap();
-                let ctx = ctx
-                    .dyn_into::<web_sys::OffscreenCanvasRenderingContext2d>()
-                    .unwrap();
-
-                (canvas, ctx)
-            } else {
-                return;
-            };
-
-        let be_ctx = {
-            let ctx = self.canvas.get_context("2d").ok().flatten().unwrap();
-            let ctx = ctx
-                .dyn_into::<web_sys::OffscreenCanvasRenderingContext2d>()
-                .unwrap();
-            ctx
-        };
-
-        let w = tgt_canvas.width();
-        let h = tgt_canvas.height();
-
-        web_sys::console::log_1(&format!("render_into_new_buffer").into());
-
-        let pixels = self.render_into_new_buffer();
-        let px_len = pixels.len() as u32;
-
-        web_sys::console::log_1(&format!("create image data").into());
-
-        let memory = wasm_bindgen::memory();
-
-        let pixels_ptr = pixels.as_ptr() as *const u8;
-
-        web_sys::console::log_1(
-            &format!(
-                "pixel 0: [{},{},{},{}]",
-                pixels[0], pixels[1], pixels[2], pixels[3],
-            )
-            .into(),
-        );
-
-        let image_data = create_image_data_impl(memory, pixels_ptr, px_len);
-
-        match image_data {
-            Ok(image_data) => {
-                web_sys::console::log_1(
-                    &format!("putting image data into {h} rows").into(),
-                );
-
-                // let _ = ctx.draw_image_with_image_bitmap
-
-                /*
-                for y in 0..h {
-                    let _ = ctx.put_image_data_with_dirty_x_and_dirty_y_and_dirty_width_and_dirty_height(
-                        &image_data,
-                        0., y as f64,
-                        0., 0.,
-                        w as f64,
-                        h as f64,
-                    );
-                }
-                */
-            }
-            Err(e) => {
-                web_sys::console::log_1(
-                    &format!("error creating image data").into(),
-                );
-                let is_undef = e.is_undefined();
-                let is_null = e.is_null();
-                web_sys::console::log_2(&"error!!!".into(), &e);
-                web_sys::console::log_1(
-                    &format!(
-                        "error undefined {is_undef}, error null {is_null}"
-                    )
-                    .into(),
-                );
-            }
-        }
     }
 }
 
