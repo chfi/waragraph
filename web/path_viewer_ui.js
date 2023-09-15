@@ -5,19 +5,75 @@ export function addPathViewerEventHandlers(worker, path_viewer, canvas) {
 
     const coord_sys = path_viewer.coord_sys;
 
-    canvas.addEventListener("mouseover", (event) => {
+    const state = {
+        dragging: false,
+        dragOrigin: null,
+    };
 
+    const startDrag = (ev) => {
+        state.dragging = true;
+        state.dragOrigin = ev.clientX;
+    };
+
+    const stopDrag = (ev) => {
+        state.dragging = false;
+        state.dragOrigin = null;
+    };
+
+    canvas.addEventListener("mousedown", startDrag);
+    canvas.addEventListener("mouseout", stopDrag);
+    canvas.addEventListener("mouseup", stopDrag);
+
+    canvas.addEventListener("mousemove", (event) => {
         let mx = event.clientX;
-        let canv_width = canvas.width;
-
-        console.log("clientX: " + mx);
 
         path_viewer.view.then((view) => {
             let { left, right } = view;
+            let view_size = (right - left + 1);
 
-            let bp_pos = left + (mx / canvas.width) * (right - left + 1);
-            console.log("mouse at " + bp_pos + " bp");
+            let bp_pos = left + (mx / canvas.width) * view_size;
+
+            if (state.dragging === true) {
+                let drag_delta = (state.dragOrigin - mx) / canvas.width;
+                let del_bp = drag_delta * view_size;
+                console.log("drag delta: " + del_bp + " bp");
+
+
+                // TODO update view here
+
+            }
+
+        });
+    });
+
+    let last_view = null;
+    const interval_id = setInterval(() => {
+        path_viewer.view.then((cur_view) => {
+
+            let need_refresh;
+
+            if (last_view === null) {
+                console.log("last view null");
+                need_refresh = true;
+            } else {
+                let views_equal = last_view.left == cur_view.left
+                    && last_view.right == cur_view.right;
+                console.log("views equal: " + views_equal);
+
+                console.log(last_view);
+                console.log(cur_view);
+
+                need_refresh = !views_equal;
+            };
+
+            if (need_refresh) {
+                console.log("left: " + cur_view.left + ", right: " + cur_view.right);
+                path_viewer.sample();
+                last_view = cur_view;
+            }
+
         });
 
-    });
+    }, 50);
+        
 }
