@@ -390,53 +390,6 @@ impl CoordSys {
 }
 
 impl CoordSys {
-    /*
-    pub fn from_node_order(
-        graph: &PathIndexWrap,
-        node_order: impl Iterator<Item = Node>,
-    ) -> Self {
-        let node_order =
-            PrimitiveArray::from_iter(node_order.map(|n| Some(n.ix() as u32)));
-
-        let mut step_offset_vals = Vec::with_capacity(node_order.len() + 1);
-
-        let mut offset = 0u32;
-
-        for &n_i in node_order.values_iter() {
-            let node = Node::from(n_i as usize);
-            let length = graph.0.node_length(node);
-            step_offset_vals.push(offset);
-            offset += length.0 as u32;
-        }
-        // `step_offsets` will contain N+1 values to encode the final length
-        // might change later
-        step_offset_vals.push(offset);
-
-        let step_offsets = PrimitiveArray::from_vec(step_offset_vals);
-
-        Self {
-            node_order,
-            step_offsets,
-        }
-    }
-    */
-
-    pub fn from_path(graph: &PathIndexWrap, path: PathId) -> Self {
-        todo!();
-        // let node_order = PrimitiveArray::from_iter(
-        //     graph.path_steps[path.ix()]
-        //         .iter()
-        //         .map(|i| Some(i.ix() as i32)),
-        // );
-
-        // let step_offsets = Arc::new(graph.path_step_offsets[path.ix()].clone());
-
-        // Self {
-        //     node_order,
-        //     step_offsets,
-        // }
-    }
-
     pub fn bp_to_step_range(
         &self,
         start: u64,

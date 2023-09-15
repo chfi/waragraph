@@ -85,10 +85,6 @@ impl ArrowGFA {
         &self.segment_sequences
     }
 
-    pub fn path_name(&self, path_index: u32) -> Option<&str> {
-        self.path_names.get(path_index as usize)
-    }
-
     /// O(n) in number of paths
     pub fn path_name_index(&self, path_name: &str) -> Option<u32> {
         let (path_ix, _) = self
@@ -99,6 +95,21 @@ impl ArrowGFA {
         Some(path_ix as u32)
     }
 
+    pub fn path_name(&self, path_index: u32) -> Option<&str> {
+        self.path_names.get(path_index as usize)
+    }
+
+    pub fn path_step_len(&self, path_index: u32) -> usize {
+        self.path_steps[path_index as usize].len()
+    }
+
+    pub fn path_steps_iter<'a>(
+        &'a self,
+        path_index: u32,
+    ) -> impl Iterator<Item = u32> + 'a {
+        let steps = &self.path_steps[path_index as usize];
+        steps.values_iter().copied()
+    }
     // pub fn path_vector_offsets(
     //     &self,
     //     path_index: u32,
