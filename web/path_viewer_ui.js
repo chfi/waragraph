@@ -1,9 +1,13 @@
 
+async function translateView(path_viewer, delta_bp) {
+}
 
-export function addPathViewerEventHandlers(worker, path_viewer, canvas) {
+export async function addPathViewerEventHandlers(worker, path_viewer, canvas) {
     console.log("adding path viewer event handlers & glue");
 
-    const coord_sys = path_viewer.coord_sys;
+    const coord_sys = await path_viewer.coord_sys;
+    console.log("coord_sys");
+    console.log(coord_sys);
 
     const state = {
         dragging: false,
@@ -36,11 +40,8 @@ export function addPathViewerEventHandlers(worker, path_viewer, canvas) {
             if (state.dragging === true) {
                 let drag_delta = (state.dragOrigin - mx) / canvas.width;
                 let del_bp = drag_delta * view_size;
-                console.log("drag delta: " + del_bp + " bp");
 
-
-                // TODO update view here
-
+                path_viewer.translateView(del_bp);
             }
 
         });
@@ -53,21 +54,21 @@ export function addPathViewerEventHandlers(worker, path_viewer, canvas) {
             let need_refresh;
 
             if (last_view === null) {
-                console.log("last view null");
+                // console.log("last view null");
                 need_refresh = true;
             } else {
                 let views_equal = last_view.left == cur_view.left
                     && last_view.right == cur_view.right;
-                console.log("views equal: " + views_equal);
+                // console.log("views equal: " + views_equal);
 
-                console.log(last_view);
-                console.log(cur_view);
+                // console.log(last_view);
+                // console.log(cur_view);
 
                 need_refresh = !views_equal;
             };
 
             if (need_refresh) {
-                console.log("left: " + cur_view.left + ", right: " + cur_view.right);
+                // console.log("left: " + cur_view.left + ", right: " + cur_view.right);
                 path_viewer.sample();
                 last_view = cur_view;
             }
