@@ -117,8 +117,6 @@ pub async fn initialize_with_data(
     use web_sys::console;
     console::log_1(&"running initialize_with_data".into());
 
-    std::panic::set_hook(Box::new(console_error_panic_hook::hook));
-
     let canvas = canvas.dyn_into::<HtmlCanvasElement>().ok();
 
     let gfa_src = JsFuture::from(gfa_text_src).await?;
@@ -226,8 +224,6 @@ pub async fn initialize_with_data_fetch(
     use web_sys::console;
     console::log_1(&"running initialize_with_data_fetch".into());
 
-    std::panic::set_hook(Box::new(console_error_panic_hook::hook));
-
     let canvas = canvas.dyn_into::<HtmlCanvasElement>().ok();
 
     let gfa_resp = JsFuture::from(gfa_resp).await?;
@@ -256,6 +252,7 @@ pub async fn initialize_with_data_fetch(
 #[wasm_bindgen]
 pub fn set_panic_hook() {
     std::panic::set_hook(Box::new(console_error_panic_hook::hook));
+    console_log::init_with_level(log::Level::Debug);
 }
 
 #[wasm_bindgen]
