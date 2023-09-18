@@ -1,6 +1,4 @@
 
-async function translateView(path_viewer, delta_bp) {
-}
 
 export async function addPathViewerEventHandlers(worker, path_viewer, canvas) {
     console.log("adding path viewer event handlers & glue");
@@ -42,6 +40,7 @@ export async function addPathViewerEventHandlers(worker, path_viewer, canvas) {
                 let del_bp = drag_delta * view_size;
 
                 path_viewer.translateView(del_bp);
+                state.dragOrigin = mx;
             }
 
         });
