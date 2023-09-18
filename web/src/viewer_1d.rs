@@ -221,13 +221,16 @@ impl PathViewer {
         self.render_into_offscreen_canvas();
 
         let view_size = *view_range.end() - *view_range.start();
-        let bin_count = self.bins.len();
 
+        let bin_count = (view_size as usize).min(self.bins.len());
         // let src_width = (view_size as usize).min(bin_count) as f64;
-        let src_width = self.canvas.width() as f64;
+        let src_width = (self.canvas.width() as f64).min(bin_count as f64);
+
+        // let src_width = self.canvas.width() as f64;
         let dst_width = tgt_canvas.width() as f64;
         let dst_height = tgt_canvas.height() as f64;
 
+        web_sys::console::log_1(&format!("src_width: {src_width}").into());
         web_sys::console::log_1(&format!("view size: {view_size}\ndst_width: {dst_width}\ndst_height: {dst_height}").into());
 
         tgt_ctx.set_image_smoothing_enabled(false);

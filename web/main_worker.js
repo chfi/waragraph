@@ -38,7 +38,7 @@ class PathViewerCtx {
         let { left, right } = this.view;
         let view_size = right - left + 1;
         
-        let new_left = left + delta_bp;
+        let new_left = Math.round(left + delta_bp);
 
         if (new_left < 0) {
             new_left = 0;
@@ -48,7 +48,7 @@ class PathViewerCtx {
             new_left = this.path_viewer.coord_sys.max() - view_size - 1;
         }
 
-        let new_right = new_left + view_size;
+        let new_right = new_left + view_size - 1;
 
         let new_size = new_right - new_left + 1;
 
