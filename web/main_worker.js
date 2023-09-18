@@ -20,7 +20,7 @@ class PathViewerCtx {
 
         let view = { left: 0, right: coord_sys.max() };
         console.log("coord_sys max: " + coord_sys.max());
-        this.path_viewer = wasm_bindgen.PathViewer.new(coord_sys, data, 512, color_0, color_1);
+        this.path_viewer = wasm_bindgen.PathViewer.new(coord_sys, data, bins, color_0, color_1);
         this.view = view;
         this.coord_sys = coord_sys;
     }
