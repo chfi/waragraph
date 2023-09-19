@@ -29,7 +29,7 @@ export async function addPathViewerEventHandlers(worker, path_viewer, canvas) {
     canvas.addEventListener("mousemove", (event) => {
         let mx = event.clientX;
 
-        path_viewer.view.then((view) => {
+        path_viewer.getView().then((view) => {
             let { left, right } = view;
             let view_size = (right - left + 1);
 
@@ -48,7 +48,7 @@ export async function addPathViewerEventHandlers(worker, path_viewer, canvas) {
 
     let last_view = null;
     const interval_id = setInterval(() => {
-        path_viewer.view.then((cur_view) => {
+        path_viewer.getView().then((cur_view) => {
 
             let need_refresh;
 

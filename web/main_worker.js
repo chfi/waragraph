@@ -18,8 +18,11 @@ class PathViewerCtx {
     constructor(coord_sys, data, { bins, color_0, color_1}) {
         // TODO set view based on coord_sys, or take an optional argument
 
-        let view = { left: 0, right: coord_sys.max() };
-        console.log("coord_sys max: " + coord_sys.max());
+        let max = coord_sys.max();
+        console.log("coord_sys max: " + max);
+        let view = wasm_bindgen.View1D.new_full(coord_sys.max());
+        console.log("okay");
+        // let view = { left: 0, right: coord_sys.max() };
         this.path_viewer = wasm_bindgen.PathViewer.new(coord_sys, data, bins, color_0, color_1);
         this.view = view;
         this.coord_sys = coord_sys;
@@ -31,11 +34,21 @@ class PathViewerCtx {
     }
 
     setView(left, right) {
-        this.view = { left, right };
+        this.view.set(left, right);
+    }
+
+    getView() {
+        let left = this.view.start;
+        let right = this.view.end;
+        return { left, right };
     }
 
     translateView(delta_bp) {
-        let { left, right } = this.view;
+        this.view.translate(delta_bp);
+        /*
+        let left = this.view.start();
+        let right = this.view.end();
+        // let { left, right } = this.view;
         let view_size = right - left + 1;
         
         let new_left = Math.round(left + delta_bp);
@@ -56,10 +69,15 @@ class PathViewerCtx {
 
         console.log("old size: " + view_size + ", new size: " + new_size);
         console.log("old left: " + left + ", new left: " + new_left);
+        */
     }
 
     sample() {
-        this.path_viewer.sample_range(this.view.left, this.view.right);
+        let l = this.view.start;
+        let r = this.view.end;
+        let size = this.view.len;
+        console.log("sampling: (" + l + ", " + r + ") [" + size + "]");
+        this.path_viewer.sample_range(this.view.start, this.view.end);
         this.path_viewer.draw_to_canvas();
     }
     
