@@ -11,6 +11,7 @@ use web_sys::{
 use crate::{ArrowGFAWrapped, PathIndexWrap};
 
 pub mod sampler;
+pub mod view;
 
 #[wasm_bindgen(module = "/js/util.js")]
 extern "C" {
