@@ -6,6 +6,7 @@
   <body>
     <canvas id="main_view" width=800 height=600></canvas>
 
+    <canvas id="overview_map" width=1024 height=200></canvas>
     <canvas id="path_view" width=1024 height=200></canvas>
 
     <script src='./module-workers-polyfill.min.js'></script>
@@ -19,6 +20,8 @@
       import { addPathViewerEventHandlers } from './path_viewer_ui.js';
 
       import init_module, * as wasm_bindgen from './pkg/web.js';
+
+      import * as Overview from './overview.js';
 
       console.log("okay");
 
@@ -45,10 +48,12 @@
                   path_viewer.sample();
                   // window.path_viewer = path_viewer;
 
+                  let coord_sys = path_viewer.coordSys();
+                  console.log(coord_sys);
+                  let overview = new OverviewMap(coord_sys, document.getElementById('overview_map'));
+
                   addPathViewerEventHandlers(obj, path_viewer, canvas);
               });
-
-
 
               window.worker_obj = obj;
               

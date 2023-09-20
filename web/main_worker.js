@@ -33,6 +33,10 @@ class PathViewerCtx {
         this.path_viewer.set_target_canvas(offscreen_canvas);
     }
 
+    coordSys() {
+        return this.path_viewer.coord_sys;
+    }
+
     setView(left, right) {
         this.view.set(left, right);
     }
