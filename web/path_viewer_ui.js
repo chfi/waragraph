@@ -1,6 +1,6 @@
 
 
-export async function addPathViewerEventHandlers(worker, path_viewer, canvas) {
+export async function addPathViewerEventHandlers(worker, path_viewer, canvas, overview) {
     console.log("adding path viewer event handlers & glue");
 
     const coord_sys = await path_viewer.coord_sys;
@@ -69,6 +69,7 @@ export async function addPathViewerEventHandlers(worker, path_viewer, canvas) {
             if (need_refresh) {
                 // console.log("left: " + cur_view.left + ", right: " + cur_view.right);
                 path_viewer.sample();
+                overview.draw(cur_view);
                 last_view = cur_view;
             }
 

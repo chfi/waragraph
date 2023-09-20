@@ -21,7 +21,7 @@
 
       import init_module, * as wasm_bindgen from './pkg/web.js';
 
-      import * as Overview from './overview.js';
+      import { OverviewMap } from './overview.js';
 
       console.log("okay");
 
@@ -45,14 +45,16 @@
                                    path_name)
               .then((path_viewer) => {
                   path_viewer.setView(0, 1000);
-                  path_viewer.sample();
+                  // path_viewer.sample();
                   // window.path_viewer = path_viewer;
 
-                  let coord_sys = path_viewer.coordSys();
-                  console.log(coord_sys);
-                  let overview = new OverviewMap(coord_sys, document.getElementById('overview_map'));
+                  path_viewer.coordSys().then((coord_sys) => {
+                      console.log(coord_sys);
+                      let overview = new OverviewMap(coord_sys, document.getElementById('overview_map'));
 
-                  addPathViewerEventHandlers(obj, path_viewer, canvas);
+                      addPathViewerEventHandlers(obj, path_viewer, canvas, overview);
+                  });
+
               });
 
               window.worker_obj = obj;

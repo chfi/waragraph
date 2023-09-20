@@ -44,7 +44,9 @@ class PathViewerCtx {
     getView() {
         let left = this.view.start;
         let right = this.view.end;
-        return { left, right };
+        let max = this.view.max;
+        console.log("????");
+        return { left, right, max };
     }
 
     translateView(delta_bp) {
