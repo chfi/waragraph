@@ -33,6 +33,17 @@ class PathViewerCtx {
         this.path_viewer.set_target_canvas(offscreen_canvas);
     }
 
+    forceRedraw(resample) {
+        if (resample) {
+            this.path_viewer.sample_range(this.view.start, this.view.end);
+        }
+        this.path_viewer.draw_to_canvas();
+    }
+
+    maxView() {
+        return this.view.max;
+    }
+
     coordSys() {
         return this.path_viewer.coord_sys;
     }
@@ -46,6 +57,23 @@ class PathViewerCtx {
         let right = this.view.end;
         let max = this.view.max;
         return { left, right, max };
+    }
+
+    centerViewAt(bp) {
+        console.log("centering view around " + bp);
+        let len = this.view.len;
+        let left = bp - (len / 2);
+        let right = bp + (len / 2);
+        console.log("left: " + left + ", right: " + right);
+        this.view.set(left, right);
+    }
+
+    zoomViewNorm(norm_x, scale) {
+        this.view.zoom_with_focus(norm_x, scale);
+    }
+
+    zoomViewCentered(scale) {
+        this.view.zoom_with_focus(0.5, scale);
     }
 
     translateView(delta_bp) {
@@ -83,7 +111,6 @@ class PathViewerCtx {
         let size = this.view.len;
         console.log("sampling: (" + l + ", " + r + ") [" + size + "]");
         this.path_viewer.sample_range(this.view.start, this.view.end);
-        this.path_viewer.draw_to_canvas();
     }
     
 }

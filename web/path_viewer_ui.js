@@ -1,5 +1,51 @@
 
 
+async function addOverviewEventHandlers(path_viewer, overview) {
+    overview.canvas.addEventListener("wheel", (event) => {
+        console.log("scrolling");
+        console.log(event);
+
+        let mode = event.deltaMode;
+        let delta = event.deltaY;
+
+        let relative_scale;
+
+        if (mode === WheelEvent.DOM_DELTA_PIXEL) {
+            //
+        } else if (mode === WheelEvent.DOM_DELTA_PAGE) {
+            //
+        }
+
+        if (delta > 0) {
+            path_viewer.zoomViewCentered(1.05);
+        } else if (delta < 0) {
+            path_viewer.zoomViewCentered(0.95);
+        }
+
+        console.log(mode);
+        console.log(delta);
+
+
+    });
+
+    const view_max = await path_viewer.maxView();
+
+    const centerAround = (mx) => {
+        let bp_pos = (mx / overview.canvas.width) * view_max;
+        path_viewer.centerViewAt(bp_pos);
+    };
+
+    overview.canvas.addEventListener("mousedown", (event) => {
+        centerAround(event.clientX);
+    });
+
+    overview.canvas.addEventListener("mousemove", (event) => {
+        if (event.buttons == 1) {
+            centerAround(event.clientX);
+        }
+    });
+}
+
 export async function addPathViewerEventHandlers(worker, path_viewer, canvas, overview) {
     console.log("adding path viewer event handlers & glue");
 
@@ -21,6 +67,8 @@ export async function addPathViewerEventHandlers(worker, path_viewer, canvas, ov
         state.dragging = false;
         state.dragOrigin = null;
     };
+
+    await addOverviewEventHandlers(path_viewer, overview);
 
     canvas.addEventListener("mousedown", startDrag);
     canvas.addEventListener("mouseout", stopDrag);
@@ -70,6 +118,7 @@ export async function addPathViewerEventHandlers(worker, path_viewer, canvas, ov
                 // console.log("left: " + cur_view.left + ", right: " + cur_view.right);
                 requestAnimationFrame((time) => {
                     path_viewer.sample();
+                    path_viewer.forceRedraw();
                     overview.draw(cur_view);
                 });
                 last_view = cur_view;
