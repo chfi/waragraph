@@ -247,6 +247,8 @@ impl PathViewer {
         // web_sys::console::log_1(&format!("src_width: {src_width}").into());
         // web_sys::console::log_1(&format!("view size: {view_size}\ndst_width: {dst_width}\ndst_height: {dst_height}").into());
 
+        tgt_ctx.clear_rect(0., 0., dst_width, dst_height);
+
         tgt_ctx.set_image_smoothing_enabled(false);
 
         tgt_ctx.draw_image_with_offscreen_canvas_and_sw_and_sh_and_dx_and_dy_and_dw_and_dh(
