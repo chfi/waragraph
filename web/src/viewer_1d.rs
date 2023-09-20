@@ -124,7 +124,7 @@ impl PathViewer {
 
         let bins = vec![0f32; bin_count];
 
-        web_sys::console::log_1(&format!("BIN COUNT: {bin_count}").into());
+        // web_sys::console::log_1(&format!("BIN COUNT: {bin_count}").into());
         let canvas = OffscreenCanvas::new(bin_count as u32, 1)?;
 
         Ok(PathViewer {
@@ -174,7 +174,7 @@ impl PathViewer {
 
         let bin_subset = &self.bins[..bin_count];
 
-        web_sys::console::log_1(&format!("binned data: {bin_subset:?}").into());
+        // web_sys::console::log_1(&format!("binned data: {bin_subset:?}").into());
 
         for (color, val) in pixels.zip(&self.bins) {
             let c = (self.color_map)(*val);
@@ -201,9 +201,9 @@ impl PathViewer {
     pub fn render_into_new_buffer(&self) -> Box<[u8]> {
         let mut pixel_data: Vec<u8> = vec![0; self.bins.len() * 4];
 
-        web_sys::console::log_1(
-            &format!("pixel data length: {}", pixel_data.len()).into(),
-        );
+        // web_sys::console::log_1(
+        //     &format!("pixel data length: {}", pixel_data.len()).into(),
+        // );
 
         let pixels = pixel_data.chunks_exact_mut(4);
 
@@ -244,8 +244,8 @@ impl PathViewer {
         let dst_width = tgt_canvas.width() as f64;
         let dst_height = tgt_canvas.height() as f64;
 
-        web_sys::console::log_1(&format!("src_width: {src_width}").into());
-        web_sys::console::log_1(&format!("view size: {view_size}\ndst_width: {dst_width}\ndst_height: {dst_height}").into());
+        // web_sys::console::log_1(&format!("src_width: {src_width}").into());
+        // web_sys::console::log_1(&format!("view size: {view_size}\ndst_width: {dst_width}\ndst_height: {dst_height}").into());
 
         tgt_ctx.set_image_smoothing_enabled(false);
 
@@ -337,14 +337,14 @@ impl CoordSys {
         let s_i = *indices.start();
         let e_i = *indices.end();
 
-        log::debug!("sampling range {bp_range:?} -- indices {s_i} - {e_i}");
+        // log::debug!("sampling range {bp_range:?} -- indices {s_i} - {e_i}");
 
         let data_ix_start = data_indices
             .binary_search(&(s_i as u32))
             .unwrap_or_else(|i| if i == 0 { 0 } else { i - 1 })
             as usize;
 
-        log::debug!("data index start: {data_ix_start}");
+        // log::debug!("data index start: {data_ix_start}");
 
         /*
          */
@@ -352,7 +352,7 @@ impl CoordSys {
         let bp_range_len = (*bp_range.end() + 1) - *bp_range.start();
         let bin_size = bp_range_len / bins.len() as u64;
 
-        log::debug!("bp_range_len: {bp_range_len}; bin_size: {bin_size}");
+        // log::debug!("bp_range_len: {bp_range_len}; bin_size: {bin_size}");
 
         let make_bin_range = {
             let bin_count = bins.len();
@@ -370,7 +370,7 @@ impl CoordSys {
         let bin_ranges =
             (0..bins.len()).map(make_bin_range).collect::<Vec<_>>();
 
-        log::debug!("bin_ranges: {bin_ranges:?}");
+        // log::debug!("bin_ranges: {bin_ranges:?}");
     }
 
     pub fn sample_impl(
@@ -422,12 +422,12 @@ impl CoordSys {
         for (i, range) in bin_ranges.iter().enumerate() {
             let start = range.start();
             let end = range.end();
-            web_sys::console::log_1(
-                &format!("bin {i} - range [{start}, {end}]").into(),
-            );
+            // web_sys::console::log_1(
+            //     &format!("bin {i} - range [{start}, {end}]").into(),
+            // );
         }
 
-        web_sys::console::log_1(&format!("building iterators").into());
+        // web_sys::console::log_1(&format!("building iterators").into());
 
         let data_iter = {
             let data_indices = &data_indices[data_ix_start..];
@@ -437,20 +437,20 @@ impl CoordSys {
 
         let mut bin_length = 0u64;
 
-        web_sys::console::log_1(
-            &format!("iterating data ({} steps)", data_iter.len()).into(),
-        );
+        // web_sys::console::log_1(
+        //     &format!("iterating data ({} steps)", data_iter.len()).into(),
+        // );
 
         let mut bin_lengths = vec![0u64; bins.len()];
 
         for (i, (c_i, val)) in data_iter.enumerate() {
             // web_sys::console::log_1(&format!("step {i}").into());
 
-            if i < 10 {
-                web_sys::console::log_1(
-                    &format!("step {i} - data ix {c_i} - val {val}").into(),
-                );
-            }
+            // if i < 10 {
+            //     web_sys::console::log_1(
+            //         &format!("step {i} - data ix {c_i} - val {val}").into(),
+            //     );
+            // }
 
             let seg_offset =
                 *self.step_offsets.buffer().get(c_i).unwrap() as u64;
@@ -462,29 +462,17 @@ impl CoordSys {
             let next_seg_offset =
                 *self.step_offsets.buffer().get(c_i + 1).unwrap() as u64;
 
-            log::debug!("segment length: {}", next_seg_offset - seg_offset);
+            // log::debug!("segment length: {}", next_seg_offset - seg_offset);
 
             let mut offset = seg_offset;
 
-            let mut inner_loop_count = 0;
-
             loop {
-                web_sys::console::log_1(
-                    &format!(
-                        "inner loop {inner_loop_count} -- offset {offset}"
-                    )
-                    .into(),
-                );
-                inner_loop_count += 1;
                 // let local_offset = offset - *bp_range.start();
 
                 let local_offset =
                     offset.checked_sub(*bp_range.start()).unwrap_or(0);
 
                 let this_bin = (local_offset / bin_size) as usize;
-                web_sys::console::log_1(
-                    &format!("this bin: {this_bin}").into(),
-                );
 
                 if this_bin >= bins.len() {
                     break;
@@ -492,17 +480,17 @@ impl CoordSys {
 
                 let cur_bin_range = &bin_ranges[this_bin];
                 let next_bin_offset = *cur_bin_range.end();
-                if i < 10 {
-                    web_sys::console::log_1(
-                        &format!("next_bin_offset {next_bin_offset}").into(),
-                    );
-                }
 
                 let boundary = next_seg_offset.min(next_bin_offset);
 
                 let start_offset = offset.max(*cur_bin_range.start());
+
+                // this is kinda busted; just to avoid crashes & infinite loops for now : )
+                if boundary < start_offset {
+                    break;
+                }
                 let this_len = boundary - start_offset;
-                log::debug!("this_len: {this_len}");
+                // log::debug!("this_len: {this_len}");
 
                 bins[this_bin] += val * this_len as f32;
                 bin_lengths[this_bin] += this_len;
@@ -510,16 +498,16 @@ impl CoordSys {
                 offset = boundary;
 
                 if start_offset == next_seg_offset {
-                    web_sys::console::log_1(
-                        &format!("break; cur offset matches next seg, {offset} == {next_seg_offset}").into(),
-                    );
+                    // web_sys::console::log_1(
+                    //     &format!("break; cur offset matches next seg, {offset} == {next_seg_offset}").into(),
+                    // );
 
                     break;
                 }
             }
         }
 
-        web_sys::console::log_1(&format!("{bin_lengths:?}").into());
+        // web_sys::console::log_1(&format!("{bin_lengths:?}").into());
 
         for (val, len) in bins.iter_mut().zip(bin_lengths) {
             if len != 0 {
@@ -529,7 +517,7 @@ impl CoordSys {
             }
         }
 
-        web_sys::console::log_1(&format!("sample_impl done").into());
+        // web_sys::console::log_1(&format!("sample_impl done").into());
     }
 }
 

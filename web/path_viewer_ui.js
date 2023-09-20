@@ -68,8 +68,10 @@ export async function addPathViewerEventHandlers(worker, path_viewer, canvas, ov
 
             if (need_refresh) {
                 // console.log("left: " + cur_view.left + ", right: " + cur_view.right);
-                path_viewer.sample();
-                overview.draw(cur_view);
+                requestAnimationFrame((time) => {
+                    path_viewer.sample();
+                    overview.draw(cur_view);
+                });
                 last_view = cur_view;
             }
 
