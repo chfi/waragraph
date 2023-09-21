@@ -384,6 +384,10 @@ impl CoordSys {
     ) {
         web_sys::console::log_1(&format!("in sample_impl").into());
 
+        for bin in bins.iter_mut() {
+            *bin = 0.0;
+        }
+
         // find range in step index using bp_range
         let indices = self.bp_to_step_range(*bp_range.start(), *bp_range.end());
 
@@ -438,7 +442,6 @@ impl CoordSys {
         };
 
         let mut bin_length = 0u64;
-
         // web_sys::console::log_1(
         //     &format!("iterating data ({} steps)", data_iter.len()).into(),
         // );
