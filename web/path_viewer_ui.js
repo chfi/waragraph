@@ -1,8 +1,9 @@
 
-async function addOverviewEventHandlers(path_viewer, overview) {
-    overview.canvas.addEventListener("wheel", (event) => {
-        console.log("scrolling");
-        console.log(event);
+
+async function addScrollZoomHandler(path_viewer, element) {
+    element.addEventListener("wheel", (event) => {
+        // console.log("scrolling");
+        // console.log(event);
 
         let mode = event.deltaMode;
         let delta = event.deltaY;
@@ -21,11 +22,24 @@ async function addOverviewEventHandlers(path_viewer, overview) {
             path_viewer.zoomViewCentered(0.95);
         }
 
-        console.log(mode);
-        console.log(delta);
-
-
+        // console.log(mode);
+        // console.log(delta);
     });
+}
+
+async function addOverviewEventHandlers(path_viewer, overview) {
+    addScrollZoomHandler(path_viewer, overview.canvas);
+
+    const wheel$ = rxjs.fromEvent(overview.canvas, 'wheel');
+    const mouseDown$ = rxjs.fromEvent(overview.canvas, 'mousedown');
+    const mouseUp$ = rxjs.fromEvent(overview.canvas, 'mouseup');
+    const mouseMove$ = rxjs.fromEvent(overview.canvas, 'mousemove');
+    const mouseOut$ = rxjs.fromEvent(overview.canvas, 'mouseout');
+
+    // wheel$.pipe(
+
+    // );
+
 
     const view_max = await path_viewer.maxView();
 
@@ -85,6 +99,8 @@ export async function addPathViewerEventHandlers(worker, path_viewer, canvas, ov
         let delta_bp = (delta_x / canvas.width) * len;
         path_viewer.translateView(-delta_bp);
     });
+
+    addScrollZoomHandler(path_viewer, canvas);
 
     let last_view = null;
     const interval_id = setInterval(() => {

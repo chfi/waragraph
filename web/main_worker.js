@@ -19,6 +19,49 @@ let _state;
 
 let wasm;
 
+
+class ViewProxy {
+    constructor(view) {
+        this.view = view;
+    }
+
+    max() {
+        return this.view.max;
+    }
+
+    get() {
+        let left = this.view.start;
+        let right = this.view.end;
+        let max = this.view.max;
+        let len = this.view.len;
+        return { left, right, max, len };
+    }
+
+    centerAt(bp) {
+        // console.log("centering view around " + bp);
+        let len = this.view.len;
+        let left = bp - (len / 2);
+        let right = bp + (len / 2);
+        // console.log("left: " + left + ", right: " + right);
+        this.view.set(left, right);
+    }
+
+    zoomNorm(norm_x, scale) {
+        this.view.zoom_with_focus(norm_x, scale);
+
+    }
+
+    zoomViewCentered(scale) {
+        this.view.zoom_with_focus(0.5, scale);
+    }
+
+    translateView(delta_bp) {
+        this.view.translate(delta_bp);
+    }
+
+}
+
+
 class PathViewerCtx {
     constructor(coord_sys, data, { bins, color_0, color_1}) {
         // TODO set view based on coord_sys, or take an optional argument

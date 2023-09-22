@@ -382,6 +382,11 @@ impl CoordSys {
         data: &[f32],
         bins: &mut [f32],
     ) {
+        if bins.is_empty() {
+            log::error!("bins are empty -- this should never happen!");
+            return;
+        }
+
         web_sys::console::log_1(&format!("in sample_impl").into());
 
         for bin in bins.iter_mut() {
