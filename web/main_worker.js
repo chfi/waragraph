@@ -1,9 +1,14 @@
 
 import init_wasm, * as wasm_bindgen from './pkg/web.js';
 import * as Comlink from './comlink.mjs';
-// importScripts('./pkg/web.js');
-// importScripts("./comlink.js");
 
+
+import importUMD from './importUMD.js';
+
+const rxjs = await importUMD('./rxjs.umd.min.js');
+
+console.log("rxjs");
+console.log(rxjs);
 
 console.log(wasm_bindgen);
 console.log(typeof wasm_bindgen);
