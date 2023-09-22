@@ -52,105 +52,39 @@ export async function addPathViewerEventHandlers(worker, path_viewer, canvas, ov
     console.log("coord_sys");
     console.log(coord_sys);
 
-
-    // const { fromEvent,
-    //         takeUntil,
-    //         takeWhile, 
-    //         finalize,
-    //         mergeMap,
-    //         map,
-            
-
-    const state = {
-        dragging: false,
-        dragOrigin: null,
-    };
-
-    const startDrag = (ev) => {
-        state.dragging = true;
-        state.dragOrigin = ev.clientX;
-    };
-
-    const stopDrag = (ev) => {
-        state.dragging = false;
-        state.dragOrigin = null;
-    };
-
     await addOverviewEventHandlers(path_viewer, overview);
 
 
     const { fromEvent,
-            exhaustMap,
             map,
-            mergeMap,
+            pairwise,
+            race,
+            switchMap,
             takeUntil,
-            scan,
-            tap
           } = rxjs;
 
-    rxjs.fromEvent(canvas, 'mousedown')
-        .pipe(
-            mergeMap(_ => fromEvent(canvas, 'mousemove')),
-            map((event) => event.clientX),
-            // tap((x) => {
-            //     console.log("x: " + x);
-            // })
-            takeUntil(
-                rxjs.merge(
-                    fromEvent(canvas, 'mouseup'),
-                    fromEvent(canvas, 'mouseout'),
+    const mouseDown$ = fromEvent(canvas, 'mousedown');
+    const mouseUp$ = fromEvent(canvas, 'mouseup');
+    const mouseMove$ = fromEvent(canvas, 'mousemove');
+    const mouseOut$ = fromEvent(canvas, 'mouseout');
+
+    const drag$ = mouseDown$.pipe(
+        switchMap((event) => {
+            return mouseMove$.pipe(
+                pairwise(),
+                map(([prev, current]) => current.clientX - prev.clientX),
+                takeUntil(
+                    race(mouseUp$, mouseOut$)
                 )
-            ),
-            scan((last, current) => current - last),
-            // map(async (delta_x) => {
-            //     let view = await path_viewer.getView();
-            //     console.log("view: " + view);
-            //     return { delta_x, view };
-            // }),
-            // tap(async ({ delta_x, view }) => {
-            tap(async (delta_x) => {
-                let view = await path_viewer.getView();
-                console.log("view????? " + view);
-                let { left, right } = view;
-                let view_size = (right - left + 1);
-                let delta_bp = (delta_x / canvas.width) * view_size;
-                path_viewer.translateView(delta_bp);
-            }),
-            rxjs.finalize(() => {
-                console.log("done+??=?`????????");
-            }),
+            )
+        })
+    );
 
-            // map((
-        )
-        .subscribe();
-                   
-
-
-    /*
-    canvas.addEventListener("mousedown", startDrag);
-    canvas.addEventListener("mouseout", stopDrag);
-    canvas.addEventListener("mouseup", stopDrag);
-
-    canvas.addEventListener("mousemove", (event) => {
-        let mx = event.clientX;
-
-        path_viewer.getView().then((view) => {
-            let { left, right } = view;
-            let view_size = (right - left + 1);
-
-            let bp_pos = left + (mx / canvas.width) * view_size;
-
-            if (state.dragging === true) {
-                let drag_delta = (state.dragOrigin - mx) / canvas.width;
-                let del_bp = drag_delta * view_size;
-
-                path_viewer.translateView(del_bp);
-                state.dragOrigin = mx;
-            }
-
-        });
+    drag$.subscribe(async (delta_x) => {
+        let { left, right, len } = await path_viewer.getView();
+        let delta_bp = (delta_x / canvas.width) * len;
+        path_viewer.translateView(-delta_bp);
     });
-    */
 
     let last_view = null;
     const interval_id = setInterval(() => {
