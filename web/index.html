@@ -11,11 +11,17 @@
 
     <script src='./module-workers-polyfill.min.js'></script>
 
+    <script src='./rxjs.umd.min.js'></script>
+
     <script type="module">
 
       console.log("what");
 
       import * as Comlink from "https://unpkg.com/comlink/dist/esm/comlink.mjs";
+
+      // import * as rxjs from './rxjs.umd.min.js';
+
+      const { Observable } = rxjs;
 
       import { addPathViewerEventHandlers } from './path_viewer_ui.js';
 
