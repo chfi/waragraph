@@ -19,6 +19,38 @@ let _state;
 
 let wasm;
 
+class ViewHelper {
+    constructor(left, right) {
+        let view = { left, right };
+        this.subject = new rxjs.BehaviorSubject(view);
+        this.interval = null;
+
+        this.subject.subscribe((view) => {
+            console.log("view subscriber, worker");
+            console.log(view);
+        });
+    }
+
+    setView(left, right) {
+        this.subject.next({left, right});
+    }
+
+    startInterval() {
+        if (this.interval === null) {
+            this.interval = setInterval(() => {
+                console.log("view: " + this.view.left + "-" + this.view.right);
+
+            }, 1000);
+        }
+    }
+
+    stopInterval() {
+        if (this.interval !== null) {
+            clearInterval(this.interval);
+        }
+    }
+}
+
 
 class ViewProxy {
     constructor(view) {
@@ -72,8 +104,18 @@ class PathViewerCtx {
         console.log("okay");
         // let view = { left: 0, right: coord_sys.max() };
         this.path_viewer = wasm_bindgen.PathViewer.new(coord_sys, data, bins, color_0, color_1);
+        this.view_proxy = new ViewProxy(view);
         this.view = view;
         this.coord_sys = coord_sys;
+        this.view_helper = new ViewHelper(this.view.start, this.view.end);
+    }
+
+    viewHelper() {
+        return Comlink.proxy(this.view_helper);
+    }
+
+    viewProxy() {
+        return this.view_proxy;
     }
 
     connectCanvas(offscreen_canvas) {
@@ -100,22 +142,28 @@ class PathViewerCtx {
         this.view.set(left, right);
     }
 
+    // setView(view) {
+    //     this.view.set(view.left, view.right);
+    // }
+
     getView() {
         let left = this.view.start;
         let right = this.view.end;
         let max = this.view.max;
-        return { left, right, max };
+        let len = this.view.len;
+        return { left, right, max, len };
     }
 
     centerViewAt(bp) {
-        console.log("centering view around " + bp);
+        // console.log("centering view around " + bp);
         let len = this.view.len;
         let left = bp - (len / 2);
         let right = bp + (len / 2);
-        console.log("left: " + left + ", right: " + right);
+        // console.log("left: " + left + ", right: " + right);
         this.view.set(left, right);
     }
 
+    
     zoomViewNorm(norm_x, scale) {
         this.view.zoom_with_focus(norm_x, scale);
     }
@@ -126,38 +174,13 @@ class PathViewerCtx {
 
     translateView(delta_bp) {
         this.view.translate(delta_bp);
-        /*
-        let left = this.view.start();
-        let right = this.view.end();
-        // let { left, right } = this.view;
-        let view_size = right - left + 1;
-        
-        let new_left = Math.round(left + delta_bp);
-
-        if (new_left < 0) {
-            new_left = 0;
-        }
-
-        if ((new_left + view_size) > this.path_viewer.coord_sys.max()) {
-            new_left = this.path_viewer.coord_sys.max() - view_size - 1;
-        }
-
-        let new_right = new_left + view_size - 1;
-
-        let new_size = new_right - new_left + 1;
-
-        this.view = { left: new_left, right: new_right };
-
-        console.log("old size: " + view_size + ", new size: " + new_size);
-        console.log("old left: " + left + ", new left: " + new_left);
-        */
     }
 
     sample() {
         let l = this.view.start;
         let r = this.view.end;
         let size = this.view.len;
-        console.log("sampling: (" + l + ", " + r + ") [" + size + "]");
+        // console.log("sampling: (" + l + ", " + r + ") [" + size + "]");
         this.path_viewer.sample_range(this.view.start, this.view.end);
     }
     
@@ -240,10 +263,10 @@ async function run() {
             _state.path_viewer.connectCanvas(offscreen_canvas);
         },
 
-        sampleRange(left, right) {
-            _state.path_viewer.setView(left, right);
-            _state.path_viewer.sample();
-        },
+        // sampleRange(left, right) {
+        //     _state.path_viewer.setView(left, right);
+        //     _state.path_viewer.sample();
+        // },
 
         get_graph() {
             return Comlink.proxy(_graph);

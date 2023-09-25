@@ -48,6 +48,9 @@ async function addOverviewEventHandlers(path_viewer, overview) {
         path_viewer.centerViewAt(bp_pos);
     };
 
+    // mouseDown$
+    //     .pipe(
+
     overview.canvas.addEventListener("mousedown", (event) => {
         centerAround(event.clientX);
     });
@@ -81,6 +84,9 @@ export async function addPathViewerEventHandlers(worker, path_viewer, canvas, ov
     const mouseUp$ = fromEvent(canvas, 'mouseup');
     const mouseMove$ = fromEvent(canvas, 'mousemove');
     const mouseOut$ = fromEvent(canvas, 'mouseout');
+
+    const view_proxy = path_viewer.viewProxy();
+
 
     const drag$ = mouseDown$.pipe(
         switchMap((event) => {

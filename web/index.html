@@ -50,6 +50,8 @@
               obj.createPathViewer(Comlink.transfer(offscreen, [offscreen]),
                                    path_name)
               .then((path_viewer) => {
+
+
                   path_viewer.setView(0, 1000);
                   // path_viewer.sample();
                   // window.path_viewer = path_viewer;
@@ -60,6 +62,15 @@
 
                       addPathViewerEventHandlers(obj, path_viewer, canvas, overview);
                   });
+
+
+        path_viewer.viewHelper().then((vh) => {
+            console.log("view helper from main");
+            console.log(vh);
+            vh.setView(5000, 12333);
+        });
+
+
 
                   window.path_viewer = path_viewer;
 

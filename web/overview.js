@@ -10,7 +10,7 @@ class OverviewMap {
     draw(view) {
         const ctx = this.canvas.getContext('2d');
 
-        console.log("drawing overview");
+        // console.log("drawing overview");
 
         let c_width = this.canvas.width;
         let max = view.max;
@@ -18,8 +18,8 @@ class OverviewMap {
         let x0 = (view.left / max) * c_width;
         let x1 = (view.right / max) * c_width;
 
-        console.log('left: ' + view.left + ', right: ' + view.right + ', max: ' + view.max);
-        console.log('x0: ' + x0 + ', x1: ' + x1);
+        // console.log('left: ' + view.left + ', right: ' + view.right + ', max: ' + view.max);
+        // console.log('x0: ' + x0 + ', x1: ' + x1);
 
         ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
 
@@ -34,8 +34,8 @@ class OverviewMap {
 
         let y0 = this.canvas.height / 2;
 
-        console.log("left_txt width: " + left_w);
-        console.log("right_txt width: " + right_w);
+        // console.log("left_txt width: " + left_w);
+        // console.log("right_txt width: " + right_w);
         
         ctx.save();
         if (x0 > left_w) {
