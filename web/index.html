@@ -23,7 +23,8 @@
 
       const { Observable } = rxjs;
 
-      import { addPathViewerEventHandlers } from './path_viewer_ui.js';
+      import { addPathViewerEventHandlers,
+               addPathViewerLogic } from './path_viewer_ui.js';
 
       import init_module, * as wasm_bindgen from './pkg/web.js';
 
@@ -46,29 +47,55 @@
               let path_name = "gi|528476637:29857558-29915771";
               // let path_name = "S288C.chrI";
 
+      const cb = 
+      () => {
+        console.log("in callback on main thread");
+        return 1233;
+        };
+
+obj.callbackTest(Comlink.proxy(cb));
+
+
               // path_viewer.connectCanvas(Comlink.transfer(offscreen, [offscreen]));
               obj.createPathViewer(Comlink.transfer(offscreen, [offscreen]),
                                    path_name)
-              .then((path_viewer) => {
+              .then(async (path_viewer) => {
 
 
                   path_viewer.setView(0, 1000);
                   // path_viewer.sample();
                   // window.path_viewer = path_viewer;
 
+                  let cs_view = await obj.globalCoordSys();
+                  let coord_sys = await cs_view.coord_sys;
+
+                  let max = await cs_view.viewMax();
+
+                  // obj.globalCoordSys().then((cs_view) => {
+                      console.log(coord_sys);
+                  let overview = new OverviewMap(document.getElementById('overview_map'), max);
+
+                      addPathViewerEventHandlers(obj, path_viewer, canvas, overview);
+                      addPathViewerLogic(obj, path_viewer, canvas, overview, cs_view);
+                  // });
+                  console.log("????????????");
+
+      /*
                   path_viewer.coordSys().then((coord_sys) => {
                       console.log(coord_sys);
                       let overview = new OverviewMap(coord_sys, document.getElementById('overview_map'));
 
-                      addPathViewerEventHandlers(obj, path_viewer, canvas, overview);
+                      // addPathViewerEventHandlers(obj, path_viewer, canvas, overview);
+                      addPathViewerLogic(obj, path_viewer, canvas, overview, cs_view);
                   });
+        */
 
 
-        path_viewer.viewHelper().then((vh) => {
-            console.log("view helper from main");
-            console.log(vh);
-            vh.setView(5000, 12333);
-        });
+        // path_viewer.viewHelper().then((vh) => {
+        //     console.log("view helper from main");
+        //     console.log(vh);
+        //     vh.setView(5000, 12333);
+        // });
 
 
 

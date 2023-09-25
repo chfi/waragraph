@@ -19,42 +19,54 @@ let _state;
 
 let wasm;
 
-class ViewHelper {
-    constructor(left, right) {
-        let view = { left, right };
-        this.subject = new rxjs.BehaviorSubject(view);
-        this.interval = null;
+let _global_cs_view = null;
 
-        this.subject.subscribe((view) => {
-            console.log("view subscriber, worker");
-            console.log(view);
-        });
-    }
-
-    setView(left, right) {
-        this.subject.next({left, right});
-    }
-
-    startInterval() {
-        if (this.interval === null) {
-            this.interval = setInterval(() => {
-                console.log("view: " + this.view.left + "-" + this.view.right);
-
-            }, 1000);
-        }
-    }
-
-    stopInterval() {
-        if (this.interval !== null) {
-            clearInterval(this.interval);
-        }
-    }
-}
-
-
-class ViewProxy {
-    constructor(view) {
+class CoordSysView {
+    constructor(coord_sys, view) {
+        this.coord_sys = coord_sys;
         this.view = view;
+
+        let view_range = { start: view.start, end: view.end };
+
+        this.view_range_subject = new rxjs.BehaviorSubject(view_range);
+    }
+
+    viewMax() {
+        return this.view.max;
+    }
+
+    // coordSys() {
+    //     return Comlink.proxy(self.coord_sys);
+    // }
+
+    subscribeTest(obs) {
+        console.log("subscribeTest");
+        // let x = await obs();
+        console.log(x);
+        // console.log("obs:");
+        // console.log(obs);
+    }
+
+    async subscribeTranslateDeltaNorm(observable) {
+        let obs = await observable;
+        console.log("okay uuuuuuuuuuuuu");
+        console.log("seriously what is this: ");
+        // console.log("???????????:::::: " + obs);
+        console.log(obs);
+        /*
+        let new_sub = observable.subscribe(delta => {
+            console.log("in sub");
+            let delta_bp = delta * this.view.len;
+            this.translateView(delta_bp);
+        });
+        */
+        console.log("what");
+    }
+
+    push() {
+        let start = this.view.start;
+        let end = this.view.end;
+        this.view_range_subject.next({start, end});
     }
 
     max() {
@@ -62,36 +74,114 @@ class ViewProxy {
     }
 
     get() {
-        let left = this.view.start;
-        let right = this.view.end;
+        let start = this.view.start;
+        let end = this.view.end;
         let max = this.view.max;
         let len = this.view.len;
-        return { left, right, max, len };
+        return { start, end, max, len };
     }
 
     centerAt(bp) {
         // console.log("centering view around " + bp);
         let len = this.view.len;
-        let left = bp - (len / 2);
-        let right = bp + (len / 2);
+        let start = bp - (len / 2);
+        let end = bp + (len / 2);
         // console.log("left: " + left + ", right: " + right);
-        this.view.set(left, right);
+        this.view.set(start, end);
+        this.push();
     }
 
     zoomNorm(norm_x, scale) {
         this.view.zoom_with_focus(norm_x, scale);
-
+        this.push();
     }
 
     zoomViewCentered(scale) {
         this.view.zoom_with_focus(0.5, scale);
+        this.push();
     }
 
     translateView(delta_bp) {
         this.view.translate(delta_bp);
+        this.push();
     }
 
 }
+
+
+// class ViewHelper {
+//     constructor(start, end) {
+//         let view = { start, end };
+//         this.subject = new rxjs.BehaviorSubject(view);
+//         this.interval = null;
+
+//         this.subject.subscribe((view) => {
+//             console.log("view subscriber, worker");
+//             console.log(view);
+//         });
+//     }
+
+//     setView(left, right) {
+//         this.subject.next({start, right});
+//     }
+
+//     startInterval() {
+//         if (this.interval === null) {
+//             this.interval = setInterval(() => {
+//                 console.log("view: " + this.view.left + "-" + this.view.right);
+
+//             }, 1000);
+//         }
+//     }
+
+//     stopInterval() {
+//         if (this.interval !== null) {
+//             clearInterval(this.interval);
+//         }
+//     }
+// }
+
+
+// class ViewProxy {
+//     constructor(view) {
+//         this.view = view;
+//     }
+
+//     max() {
+//         return this.view.max;
+//     }
+
+//     get() {
+//         let left = this.view.start;
+//         let right = this.view.end;
+//         let max = this.view.max;
+//         let len = this.view.len;
+//         return { left, right, max, len };
+//     }
+
+//     centerAt(bp) {
+//         // console.log("centering view around " + bp);
+//         let len = this.view.len;
+//         let left = bp - (len / 2);
+//         let right = bp + (len / 2);
+//         // console.log("left: " + left + ", right: " + right);
+//         this.view.set(left, right);
+//     }
+
+//     zoomNorm(norm_x, scale) {
+//         this.view.zoom_with_focus(norm_x, scale);
+
+//     }
+
+//     zoomViewCentered(scale) {
+//         this.view.zoom_with_focus(0.5, scale);
+//     }
+
+//     translateView(delta_bp) {
+//         this.view.translate(delta_bp);
+//     }
+
+// }
 
 
 class PathViewerCtx {
@@ -104,19 +194,19 @@ class PathViewerCtx {
         console.log("okay");
         // let view = { left: 0, right: coord_sys.max() };
         this.path_viewer = wasm_bindgen.PathViewer.new(coord_sys, data, bins, color_0, color_1);
-        this.view_proxy = new ViewProxy(view);
+        // this.view_proxy = new ViewProxy(view);
         this.view = view;
         this.coord_sys = coord_sys;
-        this.view_helper = new ViewHelper(this.view.start, this.view.end);
+        // this.view_helper = new ViewHelper(this.view.start, this.view.end);
     }
 
-    viewHelper() {
-        return Comlink.proxy(this.view_helper);
-    }
+    // viewHelper() {
+    //     return Comlink.proxy(this.view_helper);
+    // }
 
-    viewProxy() {
-        return this.view_proxy;
-    }
+    // viewProxy() {
+    //     return this.view_proxy;
+    // }
 
     connectCanvas(offscreen_canvas) {
         console.log(offscreen_canvas);
@@ -147,11 +237,11 @@ class PathViewerCtx {
     // }
 
     getView() {
-        let left = this.view.start;
-        let right = this.view.end;
+        let start = this.view.start;
+        let end = this.view.end;
         let max = this.view.max;
         let len = this.view.len;
-        return { left, right, max, len };
+        return { start, end, max, len };
     }
 
     centerViewAt(bp) {
@@ -233,7 +323,11 @@ async function run() {
 
     _graph = graph;
     console.log("worker node count: " + _graph.segment_count());
+        let view = wasm_bindgen.View1D.new_full(coord_sys.max());
 
+    _global_cs_view = new CoordSysView(coord_sys, view);
+    // console.log("global cs view: ");
+    // console.log(_global_cs_view);
 
     Comlink.expose({
         createPathViewer(offscreen_canvas, path_name) {
@@ -259,8 +353,26 @@ async function run() {
             return Comlink.proxy(viewer);
         },
 
+        subscribeTest(obs) {
+            console.log("in subscribeTest");
+
+        },
+
+        callbackTest(cb) {
+            console.log("in callbackTest");
+            // console.log(cb);
+            cb().then((y) => {
+                console.log("callback results");
+                console.log(y);
+            });
+        },
+
         connectCanvas(offscreen_canvas) {
             _state.path_viewer.connectCanvas(offscreen_canvas);
+        },
+
+        globalCoordSys() {
+            return Comlink.proxy(_global_cs_view);
         },
 
         // sampleRange(left, right) {

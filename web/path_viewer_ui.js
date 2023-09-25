@@ -1,6 +1,10 @@
 
 
+// async function addScrollZoomSub(cs_view
+import * as Comlink from "https://unpkg.com/comlink/dist/esm/comlink.mjs";
+
 async function addScrollZoomHandler(path_viewer, element) {
+    console.log(element);
     element.addEventListener("wheel", (event) => {
         // console.log("scrolling");
         // console.log(event);
@@ -62,6 +66,66 @@ async function addOverviewEventHandlers(path_viewer, overview) {
     });
 }
 
+export async function addPathViewerLogic(worker, path_viewer, canvas, overview, cs_view) {
+    const { fromEvent,
+            map,
+            pairwise,
+            race,
+            switchMap,
+            takeUntil,
+          } = rxjs;
+
+    const mouseDown$ = fromEvent(canvas, 'mousedown');
+    const mouseUp$ = fromEvent(canvas, 'mouseup');
+    const mouseMove$ = fromEvent(canvas, 'mousemove');
+    const mouseOut$ = fromEvent(canvas, 'mouseout');
+
+
+    const drag$ = mouseDown$.pipe(
+        switchMap((event) => {
+            return mouseMove$.pipe(
+                pairwise(),
+                map(([prev, current]) => current.clientX - prev.clientX),
+                takeUntil(
+                    race(mouseUp$, mouseOut$)
+                )
+            )
+        })
+    );
+
+    const dragDeltaNorm$ = drag$.pipe(rxjs.map(async (delta_x) => {
+        let delta = (delta_x / canvas.width);
+        return -delta;
+    }));
+
+
+    console.log(dragDeltaNorm$);
+
+    // dragDeltaNorm$.subscribe(async (delta) => console.log("delta: " + await delta));
+
+    console.log("-----------------------------");
+    console.log(cs_view);
+    // await cs_view.subscribeTranslateDeltaNorm(dragDeltaNorm$);
+    // cs_view.subscribeTest(15);
+    // cs_view.subscribeTest(Comlink.proxy((wtf) => {
+    //     console.log("in callback!");
+    // }));
+    // cs_view.subscribeTranslateDeltaNorm(Comlink.proxy(dragDeltaNorm$));
+
+    /*
+    // await cs_view.subscribeTranslateDeltaNorm(Comlink.proxy(dragDeltaNorm$));
+    console.log("oaky");
+    */
+
+    // drag$.subscribe(async (delta_x) => {
+    //     let { start, end, len } = await path_viewer.getView();
+    //     let delta_bp = (delta_x / canvas.width) * len;
+    //     console.log("in subscribe?!?");
+    //     // path_viewer.translateView(-delta_bp);
+    // });
+
+}
+
 export async function addPathViewerEventHandlers(worker, path_viewer, canvas, overview) {
     console.log("adding path viewer event handlers & glue");
 
@@ -85,8 +149,6 @@ export async function addPathViewerEventHandlers(worker, path_viewer, canvas, ov
     const mouseMove$ = fromEvent(canvas, 'mousemove');
     const mouseOut$ = fromEvent(canvas, 'mouseout');
 
-    const view_proxy = path_viewer.viewProxy();
-
 
     const drag$ = mouseDown$.pipe(
         switchMap((event) => {
@@ -101,7 +163,7 @@ export async function addPathViewerEventHandlers(worker, path_viewer, canvas, ov
     );
 
     drag$.subscribe(async (delta_x) => {
-        let { left, right, len } = await path_viewer.getView();
+        let { start, end, len } = await path_viewer.getView();
         let delta_bp = (delta_x / canvas.width) * len;
         path_viewer.translateView(-delta_bp);
     });
@@ -118,8 +180,8 @@ export async function addPathViewerEventHandlers(worker, path_viewer, canvas, ov
                 // console.log("last view null");
                 need_refresh = true;
             } else {
-                let views_equal = last_view.left == cur_view.left
-                    && last_view.right == cur_view.right;
+                let views_equal = last_view.start == cur_view.start
+                    && last_view.end == cur_view.end;
                 // console.log("views equal: " + views_equal);
 
                 // console.log(last_view);

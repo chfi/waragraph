@@ -1,10 +1,11 @@
 
 
 class OverviewMap {
-    constructor(coord_sys, canvas) {
-        this.coord_sys = coord_sys;
+    constructor(canvas, view_max) {
         this.canvas = canvas;
         this.latest_view = null;
+
+        this.view_max = view_max;
     }
 
     draw(view) {
@@ -13,19 +14,19 @@ class OverviewMap {
         // console.log("drawing overview");
 
         let c_width = this.canvas.width;
-        let max = view.max;
+        let max = this.view_max;
 
-        let x0 = (view.left / max) * c_width;
-        let x1 = (view.right / max) * c_width;
+        let x0 = (view.start / max) * c_width;
+        let x1 = (view.end / max) * c_width;
 
-        // console.log('left: ' + view.left + ', right: ' + view.right + ', max: ' + view.max);
+        // console.log('left: ' + view.start + ', right: ' + view.end + ', max: ' + max);
         // console.log('x0: ' + x0 + ', x1: ' + x1);
 
         ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
 
         
-        let left_txt = Math.round(view.left).toString();
-        let right_txt = Math.round(view.right).toString();
+        let left_txt = Math.round(view.start).toString();
+        let right_txt = Math.round(view.end).toString();
 
         let left_w = ctx.measureText(left_txt).width;
         let right_w = ctx.measureText(right_txt).width;
