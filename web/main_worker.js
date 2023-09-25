@@ -7,6 +7,10 @@ import importUMD from './importUMD.js';
 
 const rxjs = await importUMD('./rxjs.umd.min.js');
 
+const handler = await import('./transfer_handlers.js');
+
+handler.setTransferHandlers(rxjs, Comlink);
+
 console.log("rxjs");
 console.log(rxjs);
 
