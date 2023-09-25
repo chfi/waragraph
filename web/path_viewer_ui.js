@@ -4,33 +4,6 @@
 import * as Comlink from "https://unpkg.com/comlink/dist/esm/comlink.mjs";
 
 
-async function addScrollZoomHandler(path_viewer, element) {
-    console.log(element);
-    element.addEventListener("wheel", (event) => {
-        // console.log("scrolling");
-        // console.log(event);
-
-        let mode = event.deltaMode;
-        let delta = event.deltaY;
-
-        let relative_scale;
-
-        if (mode === WheelEvent.DOM_DELTA_PIXEL) {
-            //
-        } else if (mode === WheelEvent.DOM_DELTA_PAGE) {
-            //
-        }
-
-        if (delta > 0) {
-            path_viewer.zoomViewCentered(1.05);
-        } else if (delta < 0) {
-            path_viewer.zoomViewCentered(0.95);
-        }
-
-        // console.log(mode);
-        // console.log(delta);
-    });
-}
 
 async function addOverviewEventHandlers(path_viewer, overview, cs_view) {
     // addScrollZoomHandler(path_viewer, overview.canvas);
@@ -134,118 +107,34 @@ export async function addPathViewerLogic(worker, path_viewer, canvas, overview, 
     let view_subject = await cs_view.viewSubject();
     console.log(view_subject);
 
-    view_subject.subscribe((view) => {
-        console.log("received a view???");
-        console.log(view);
+    let is_busy = false;
 
-        requestAnimationFrame((time) => {
-            path_viewer.setView(view.start, view.end);
             path_viewer.sample();
             path_viewer.forceRedraw();
-            overview.draw(view);
-        });
-    });
+            // overview.draw(view);
 
-
-
-    // cs_view.subscribeTest(15);
-    // cs_view.subscribeTest(Comlink.proxy((wtf) => {
-    //     console.log("in callback!");
-    // }));
-    // cs_view.subscribeTranslateDeltaNorm(Comlink.proxy(dragDeltaNorm$));
-
-    /*
-    // await cs_view.subscribeTranslateDeltaNorm(Comlink.proxy(dragDeltaNorm$));
-    console.log("oaky");
-    */
-
-    // drag$.subscribe(async (delta_x) => {
-    //     let { start, end, len } = await path_viewer.getView();
-    //     let delta_bp = (delta_x / canvas.width) * len;
-    //     console.log("in subscribe?!?");
-    //     // path_viewer.translateView(-delta_bp);
+    // view_subject.subscribe((view) => {
+    //     console.log(view);
     // });
 
-}
-
-export async function addPathViewerEventHandlers(worker, path_viewer, canvas, overview) {
-    console.log("adding path viewer event handlers & glue");
-
-    const coord_sys = await path_viewer.coord_sys;
-    console.log("coord_sys");
-    console.log(coord_sys);
-
-    await addOverviewEventHandlers(path_viewer, overview);
-
-
-    const { fromEvent,
-            map,
-            pairwise,
-            race,
-            switchMap,
-            takeUntil,
-          } = rxjs;
-
-    const mouseDown$ = fromEvent(canvas, 'mousedown');
-    const mouseUp$ = fromEvent(canvas, 'mouseup');
-    const mouseMove$ = fromEvent(canvas, 'mousemove');
-    const mouseOut$ = fromEvent(canvas, 'mouseout');
-
-
-    const drag$ = mouseDown$.pipe(
-        switchMap((event) => {
-            return mouseMove$.pipe(
-                pairwise(),
-                map(([prev, current]) => current.clientX - prev.clientX),
-                takeUntil(
-                    race(mouseUp$, mouseOut$)
-                )
-            )
-        })
-    );
-
-    /*
-    drag$.subscribe(async (delta_x) => {
-        let { start, end, len } = await path_viewer.getView();
-        let delta_bp = (delta_x / canvas.width) * len;
-        path_viewer.translateView(-delta_bp);
-    });
-    */
-
-    addScrollZoomHandler(path_viewer, canvas);
-
-    let last_view = null;
-    const interval_id = setInterval(() => {
-        path_viewer.getView().then((cur_view) => {
-
-            let need_refresh;
-
-            if (last_view === null) {
-                // console.log("last view null");
-                need_refresh = true;
-            } else {
-                let views_equal = last_view.start == cur_view.start
-                    && last_view.end == cur_view.end;
-                // console.log("views equal: " + views_equal);
-
-                // console.log(last_view);
-                // console.log(cur_view);
-
-                need_refresh = !views_equal;
-            };
-
-            if (need_refresh) {
-                // console.log("left: " + cur_view.left + ", right: " + cur_view.right);
+    view_subject.subscribe((view) => {
+        if (!is_busy) {
+            is_busy = true;
+            // adding a hacky delay to remember to fix this later
+            setTimeout(() => {
                 requestAnimationFrame((time) => {
+                    path_viewer.setView(view.start, view.end);
                     path_viewer.sample();
                     path_viewer.forceRedraw();
-                    overview.draw(cur_view);
+                    overview.draw(view);
+                    is_busy = false;
                 });
-                last_view = cur_view;
-            }
+            }, 10);
+        }
+    });
 
-        });
 
-    }, 50);
-        
+
+
 }
+
