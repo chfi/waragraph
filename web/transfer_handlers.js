@@ -3,7 +3,6 @@ export function setTransferHandlers(rxjs, Comlink) {
     
     Comlink.transferHandlers.set("observable", {
         canHandle: (val) => {
-            console.log("in observable canHandle()");
             return val instanceof Observable;
         },
         deserialize: (val) => {

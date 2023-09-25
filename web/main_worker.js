@@ -47,7 +47,21 @@ class CoordSysView {
         });
     }
 
+    subscribeCenterAt(observable) {
+        let new_sub = observable.subscribe(bp_pos => {
+            this.centerAt(bp_pos);
+        });
+    }
 
+    subscribeZoomCentered(observable) {
+        let new_sub = observable.subscribe(scale => {
+            this.zoomViewCentered(scale);
+        });
+    }
+
+    viewSubject() {
+        return this.view_range_subject;
+    }
 
     push() {
         let start = this.view.start;
@@ -89,6 +103,7 @@ class CoordSysView {
 
     translateView(delta_bp) {
         this.view.translate(delta_bp);
+        console.log("translating view");
         this.push();
     }
 

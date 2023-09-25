@@ -32,8 +32,16 @@ async function addScrollZoomHandler(path_viewer, element) {
     });
 }
 
-async function addOverviewEventHandlers(path_viewer, overview) {
-    addScrollZoomHandler(path_viewer, overview.canvas);
+async function addOverviewEventHandlers(path_viewer, overview, cs_view) {
+    // addScrollZoomHandler(path_viewer, overview.canvas);
+
+    const { fromEvent,
+            map,
+            pairwise,
+            race,
+            switchMap,
+            takeUntil,
+          } = rxjs;
 
     const wheel$ = rxjs.fromEvent(overview.canvas, 'wheel');
     const mouseDown$ = rxjs.fromEvent(overview.canvas, 'mousedown');
@@ -41,12 +49,24 @@ async function addOverviewEventHandlers(path_viewer, overview) {
     const mouseMove$ = rxjs.fromEvent(overview.canvas, 'mousemove');
     const mouseOut$ = rxjs.fromEvent(overview.canvas, 'mouseout');
 
-    // wheel$.pipe(
-
-    // );
-
-
     const view_max = await path_viewer.maxView();
+
+
+    const wheelScaleDelta$ = wheel$.pipe(
+        map(event => {
+            if (event.deltaY > 0) {
+                return 1.05;
+            } else {
+                return 0.95;
+            }
+        })
+    );
+
+    wheelScaleDelta$.subscribe(delta => {
+        console.log("zoomin! " + delta);
+    });
+
+    cs_view.subscribeZoomCentered(wheelScaleDelta$);
 
     const centerAround = (mx) => {
         let bp_pos = (mx / overview.canvas.width) * view_max;
@@ -68,6 +88,9 @@ async function addOverviewEventHandlers(path_viewer, overview) {
 }
 
 export async function addPathViewerLogic(worker, path_viewer, canvas, overview, cs_view) {
+
+    await addOverviewEventHandlers(path_viewer, overview, cs_view);
+
     const { fromEvent,
             map,
             pairwise,
@@ -107,6 +130,21 @@ export async function addPathViewerLogic(worker, path_viewer, canvas, overview, 
     console.log(cs_view);
     await cs_view.subscribeTranslateDeltaNorm(dragDeltaNorm$);
 
+
+    let view_subject = await cs_view.viewSubject();
+    console.log(view_subject);
+
+    view_subject.subscribe((view) => {
+        console.log("received a view???");
+        console.log(view);
+
+        requestAnimationFrame((time) => {
+            path_viewer.setView(view.start, view.end);
+            path_viewer.sample();
+            path_viewer.forceRedraw();
+            overview.draw(view);
+        });
+    });
 
 
 
