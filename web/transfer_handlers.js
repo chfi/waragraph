@@ -1,11 +1,13 @@
 export function setTransferHandlers(rxjs, Comlink) {
     const { Observable, Observer, Subscribable, Subscription } = rxjs;
-
+    
     Comlink.transferHandlers.set("observable", {
-        canHandle(val) {
+        canHandle: (val) => {
+            console.log("in observable canHandle()");
             return val instanceof Observable;
         },
-        serialize(val) {
+        deserialize: (val) => {
+            console.log(" ~~~~~~~~~~#  in observable deserialize()");
             return new Observable((observer) => {
                 const remote = Comlink.transferHandlers.get('proxy')
                       .deserialize(val);
@@ -20,14 +22,37 @@ export function setTransferHandlers(rxjs, Comlink) {
                 }));
             });
         },
-        deserialize(val) {
+        serialize: (val) => {
+            console.log(" #~~~~~~~~~~~  in observable serialize()");
             return Comlink.transferHandlers.get('proxy').serialize({
                 subscribe: (observer) => val.subscribe({
-                    next: (next) => observer.next(next).then(),
-                    error: (error) => observer.error(error).then(),
-                    complete: () => observer.complete().then(),
+                    next: (next) => void observer.next(next).then(),
+                    error: (error) => void observer.error(error).then(),
+                    complete: () => void observer.complete().then(),
                 })
             });
         }
     });
+
+    Comlink.transferHandlers.set('subscription', {
+        canHandle: (value) => {
+            return value instanceof Subscription;
+        },
+        deserialize: (value) => {
+            return new Subscription(() => {
+                const remote = Comlink.transferHandlers.get('proxy')
+                      .deserialize(value);
+
+                void remote.unsubscribe().then(() => {
+                    remote[releaseProxy]();
+                });
+            });
+        },
+        serialize: (value) => {
+            return Comlink.transferHandlers.get('proxy').serialize({
+                unsubscribe: () => value.unsubscribe()
+            });
+        }
+    });
+
 }

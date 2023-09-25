@@ -3,6 +3,7 @@
 // async function addScrollZoomSub(cs_view
 import * as Comlink from "https://unpkg.com/comlink/dist/esm/comlink.mjs";
 
+
 async function addScrollZoomHandler(path_viewer, element) {
     console.log(element);
     element.addEventListener("wheel", (event) => {
@@ -93,7 +94,8 @@ export async function addPathViewerLogic(worker, path_viewer, canvas, overview, 
         })
     );
 
-    const dragDeltaNorm$ = drag$.pipe(rxjs.map(async (delta_x) => {
+    // const dragDeltaNorm$ = drag$.pipe(rxjs.map(async (delta_x) => {
+    const dragDeltaNorm$ = drag$.pipe(rxjs.map((delta_x) => {
         let delta = (delta_x / canvas.width);
         return -delta;
     }));
@@ -101,11 +103,13 @@ export async function addPathViewerLogic(worker, path_viewer, canvas, overview, 
 
     console.log(dragDeltaNorm$);
 
-    // dragDeltaNorm$.subscribe(async (delta) => console.log("delta: " + await delta));
-
     console.log("-----------------------------");
     console.log(cs_view);
-    // await cs_view.subscribeTranslateDeltaNorm(dragDeltaNorm$);
+    await cs_view.subscribeTranslateDeltaNorm(dragDeltaNorm$);
+
+
+
+
     // cs_view.subscribeTest(15);
     // cs_view.subscribeTest(Comlink.proxy((wtf) => {
     //     console.log("in callback!");
@@ -162,11 +166,13 @@ export async function addPathViewerEventHandlers(worker, path_viewer, canvas, ov
         })
     );
 
+    /*
     drag$.subscribe(async (delta_x) => {
         let { start, end, len } = await path_viewer.getView();
         let delta_bp = (delta_x / canvas.width) * len;
         path_viewer.translateView(-delta_bp);
     });
+    */
 
     addScrollZoomHandler(path_viewer, canvas);
 

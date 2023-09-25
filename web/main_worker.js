@@ -39,33 +39,15 @@ class CoordSysView {
         return this.view.max;
     }
 
-    // coordSys() {
-    //     return Comlink.proxy(self.coord_sys);
-    // }
-
-    subscribeTest(obs) {
-        console.log("subscribeTest");
-        // let x = await obs();
-        console.log(x);
-        // console.log("obs:");
-        // console.log(obs);
-    }
-
-    async subscribeTranslateDeltaNorm(observable) {
-        let obs = await observable;
-        console.log("okay uuuuuuuuuuuuu");
-        console.log("seriously what is this: ");
-        // console.log("???????????:::::: " + obs);
-        console.log(obs);
-        /*
+    subscribeTranslateDeltaNorm(observable) {
         let new_sub = observable.subscribe(delta => {
             console.log("in sub");
             let delta_bp = delta * this.view.len;
             this.translateView(delta_bp);
         });
-        */
-        console.log("what");
     }
+
+
 
     push() {
         let start = this.view.start;
@@ -113,79 +95,6 @@ class CoordSysView {
 }
 
 
-// class ViewHelper {
-//     constructor(start, end) {
-//         let view = { start, end };
-//         this.subject = new rxjs.BehaviorSubject(view);
-//         this.interval = null;
-
-//         this.subject.subscribe((view) => {
-//             console.log("view subscriber, worker");
-//             console.log(view);
-//         });
-//     }
-
-//     setView(left, right) {
-//         this.subject.next({start, right});
-//     }
-
-//     startInterval() {
-//         if (this.interval === null) {
-//             this.interval = setInterval(() => {
-//                 console.log("view: " + this.view.left + "-" + this.view.right);
-
-//             }, 1000);
-//         }
-//     }
-
-//     stopInterval() {
-//         if (this.interval !== null) {
-//             clearInterval(this.interval);
-//         }
-//     }
-// }
-
-
-// class ViewProxy {
-//     constructor(view) {
-//         this.view = view;
-//     }
-
-//     max() {
-//         return this.view.max;
-//     }
-
-//     get() {
-//         let left = this.view.start;
-//         let right = this.view.end;
-//         let max = this.view.max;
-//         let len = this.view.len;
-//         return { left, right, max, len };
-//     }
-
-//     centerAt(bp) {
-//         // console.log("centering view around " + bp);
-//         let len = this.view.len;
-//         let left = bp - (len / 2);
-//         let right = bp + (len / 2);
-//         // console.log("left: " + left + ", right: " + right);
-//         this.view.set(left, right);
-//     }
-
-//     zoomNorm(norm_x, scale) {
-//         this.view.zoom_with_focus(norm_x, scale);
-
-//     }
-
-//     zoomViewCentered(scale) {
-//         this.view.zoom_with_focus(0.5, scale);
-//     }
-
-//     translateView(delta_bp) {
-//         this.view.translate(delta_bp);
-//     }
-
-// }
 
 
 class PathViewerCtx {
@@ -195,22 +104,10 @@ class PathViewerCtx {
         let max = coord_sys.max();
         console.log("coord_sys max: " + max);
         let view = wasm_bindgen.View1D.new_full(coord_sys.max());
-        console.log("okay");
-        // let view = { left: 0, right: coord_sys.max() };
         this.path_viewer = wasm_bindgen.PathViewer.new(coord_sys, data, bins, color_0, color_1);
-        // this.view_proxy = new ViewProxy(view);
         this.view = view;
         this.coord_sys = coord_sys;
-        // this.view_helper = new ViewHelper(this.view.start, this.view.end);
     }
-
-    // viewHelper() {
-    //     return Comlink.proxy(this.view_helper);
-    // }
-
-    // viewProxy() {
-    //     return this.view_proxy;
-    // }
 
     connectCanvas(offscreen_canvas) {
         console.log(offscreen_canvas);
@@ -355,20 +252,6 @@ async function run() {
             viewer.connectCanvas(offscreen_canvas);
 
             return Comlink.proxy(viewer);
-        },
-
-        subscribeTest(obs) {
-            console.log("in subscribeTest");
-
-        },
-
-        callbackTest(cb) {
-            console.log("in callbackTest");
-            // console.log(cb);
-            cb().then((y) => {
-                console.log("callback results");
-                console.log(y);
-            });
         },
 
         connectCanvas(offscreen_canvas) {
