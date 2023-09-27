@@ -22,8 +22,7 @@
 
       const { Observable } = rxjs;
 
-      import { addPathViewerEventHandlers,
-               addPathViewerLogic } from './path_viewer_ui.js';
+      import { initializePathViewer, addOverviewEventHandlers, addPathViewerLogic } from './path_viewer_ui.js';
 
       import init_module, * as wasm_bindgen from './pkg/web.js';
 
@@ -39,20 +38,34 @@
 
           const worker = new Worker("main_worker.js", { type: 'module' });
 
-          worker.onmessage = (event) => {
+          worker.onmessage = async (event) => {
               worker.onmessage = undefined;
 
               console.log("graph loaded");
               const obj = Comlink.wrap(worker);
 
-              let canvas = document.getElementById('path_view');
+              // let canvas = document.getElementById('path_view');
+              const canvas = document.createElement('canvas');
+              console.log(canvas);
               let offscreen = canvas.transferControlToOffscreen();
+              console.log(offscreen);
 
               let path_name = "gi|528476637:29857558-29915771";
               // let path_name = "S288C.chrI";
 
+              let cs_view = await obj.globalCoordSys();
+              let view_max = await cs_view.viewMax();
+
+              let overview = new OverviewMap(document.getElementById('overview_map'),  view_max);
+              await addOverviewEventHandlers(overview, cs_view);
+
+    // const path_viewer = await obj.createPathViewer(Comlink.transfer(offscreen, [offscreen]),
+                                                      // path_name);
+
+              let path_viewer = await initializePathViewer(obj, overview, cs_view, path_name);
 
               // path_viewer.connectCanvas(Comlink.transfer(offscreen, [offscreen]));
+      /*
               obj.createPathViewer(Comlink.transfer(offscreen, [offscreen]),
                                    path_name)
               .then(async (path_viewer) => {
@@ -76,28 +89,11 @@
                   // });
                   console.log("????????????");
 
-      /*
-                  path_viewer.coordSys().then((coord_sys) => {
-                      console.log(coord_sys);
-                      let overview = new OverviewMap(coord_sys, document.getElementById('overview_map'));
-
-                      // addPathViewerEventHandlers(obj, path_viewer, canvas, overview);
-                      addPathViewerLogic(obj, path_viewer, canvas, overview, cs_view);
-                  });
-        */
-
-
-        // path_viewer.viewHelper().then((vh) => {
-        //     console.log("view helper from main");
-        //     console.log(vh);
-        //     vh.setView(5000, 12333);
-        // });
-
-
 
                   window.path_viewer = path_viewer;
 
               });
+        */
 
               window.worker_obj = obj;
               

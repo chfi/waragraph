@@ -5,8 +5,29 @@ import * as Comlink from "https://unpkg.com/comlink/dist/esm/comlink.mjs";
 
 
 
-async function addOverviewEventHandlers(path_viewer, overview, cs_view) {
-    // addScrollZoomHandler(path_viewer, overview.canvas);
+// creates and attaches a path viewer to a canvas
+// does not attach the canvas element to the DOM
+export async function initializePathViewer(worker,
+                                    overview,
+                                    cs_view,
+                                    path_name) {
+
+    let canvas = document.createElement('canvas');
+    console.log("what the heck");
+    let offscreen = canvas.transferControlToOffscreen();
+    console.log(canvas);
+    console.log(offscreen);
+
+    const path_viewer = await worker.createPathViewer(Comlink.transfer(offscreen, [offscreen]),
+                                                      path_name);
+
+    addPathViewerLogic(worker, path_viewer, canvas, overview, cs_view);
+}
+
+
+
+
+export async function addOverviewEventHandlers(overview, cs_view) {
 
     const { fromEvent,
             map,
@@ -22,7 +43,7 @@ async function addOverviewEventHandlers(path_viewer, overview, cs_view) {
     const mouseMove$ = rxjs.fromEvent(overview.canvas, 'mousemove');
     const mouseOut$ = rxjs.fromEvent(overview.canvas, 'mouseout');
 
-    const view_max = await path_viewer.maxView();
+    const view_max = await cs_view.viewMax();
 
 
     const wheelScaleDelta$ = wheel$.pipe(
@@ -35,34 +56,25 @@ async function addOverviewEventHandlers(path_viewer, overview, cs_view) {
         })
     );
 
-    wheelScaleDelta$.subscribe(delta => {
-        console.log("zoomin! " + delta);
-    });
+    await cs_view.subscribeZoomCentered(wheelScaleDelta$);
 
-    cs_view.subscribeZoomCentered(wheelScaleDelta$);
+    const mouseAt$ = mouseDown$.pipe(
+        switchMap((event) => {
+            return mouseMove$.pipe(
+                // pairwise(),
+                // map(([prev, current]) => current.clientX - prev.clientX),
+                map((ev) => (ev.clientX / overview.canvas.width) * view_max),
+                takeUntil(
+                    race(mouseUp$, mouseOut$)
+                )
+            )
+        })
+    );
 
-    const centerAround = (mx) => {
-        let bp_pos = (mx / overview.canvas.width) * view_max;
-        path_viewer.centerViewAt(bp_pos);
-    };
-
-    // mouseDown$
-    //     .pipe(
-
-    overview.canvas.addEventListener("mousedown", (event) => {
-        centerAround(event.clientX);
-    });
-
-    overview.canvas.addEventListener("mousemove", (event) => {
-        if (event.buttons == 1) {
-            centerAround(event.clientX);
-        }
-    });
+    await cs_view.subscribeCenterAt(mouseAt$);
 }
 
 export async function addPathViewerLogic(worker, path_viewer, canvas, overview, cs_view) {
-
-    await addOverviewEventHandlers(path_viewer, overview, cs_view);
 
     const { fromEvent,
             map,
@@ -72,11 +84,24 @@ export async function addPathViewerLogic(worker, path_viewer, canvas, overview, 
             takeUntil,
           } = rxjs;
 
+    const wheel$ = rxjs.fromEvent(overview.canvas, 'wheel');
     const mouseDown$ = fromEvent(canvas, 'mousedown');
     const mouseUp$ = fromEvent(canvas, 'mouseup');
     const mouseMove$ = fromEvent(canvas, 'mousemove');
     const mouseOut$ = fromEvent(canvas, 'mouseout');
 
+
+    const wheelScaleDelta$ = wheel$.pipe(
+        map(event => {
+            if (event.deltaY > 0) {
+                return 1.05;
+            } else {
+                return 0.95;
+            }
+        })
+    );
+
+    await cs_view.subscribeZoomCentered(wheelScaleDelta$);
 
     const drag$ = mouseDown$.pipe(
         switchMap((event) => {

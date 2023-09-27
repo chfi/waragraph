@@ -63,14 +63,6 @@ impl PathViewer {
 
         let bins = &mut self.bins[..bin_count];
 
-        // self.cs.better_sample_impl(
-        //     range.clone(),
-        //     self.data.indices.values(),
-        //     self.data.data.values(),
-        //     bins,
-        // );
-
-        // self.cs.better_sample_impl(
         self.cs.sample_impl(
             range.clone(),
             self.data.indices.values(),
@@ -314,65 +306,6 @@ impl CoordSys {
         let end_out = end_i.unwrap_or_else(|i| i - 1);
 
         start_out..=end_out
-    }
-
-    pub fn better_sample_impl(
-        &self,
-        bp_range: std::ops::RangeInclusive<u64>,
-        data_indices: &[u32],
-        data: &[f32],
-        bins: &mut [f32],
-    ) {
-        /* the tricky part about the sampling process is that some
-         * segments cross multiple bins, some bins may be empty, and
-         * some may contain multiple segments -- there's no clear (or
-         * rather, uniform) distinction between which would be the
-         * "outer" vs "inner" loop
-
-         * first of all, get the bins right
-        */
-
-        // find range in step index using bp_range
-        let indices = self.bp_to_step_range(*bp_range.start(), *bp_range.end());
-
-        // slice `data` according to step range
-        let s_i = *indices.start();
-        let e_i = *indices.end();
-
-        // log::debug!("sampling range {bp_range:?} -- indices {s_i} - {e_i}");
-
-        let data_ix_start = data_indices
-            .binary_search(&(s_i as u32))
-            .unwrap_or_else(|i| if i == 0 { 0 } else { i - 1 })
-            as usize;
-
-        // log::debug!("data index start: {data_ix_start}");
-
-        /*
-         */
-
-        let bp_range_len = (*bp_range.end() + 1) - *bp_range.start();
-        let bin_size = bp_range_len / bins.len() as u64;
-
-        // log::debug!("bp_range_len: {bp_range_len}; bin_size: {bin_size}");
-
-        let make_bin_range = {
-            let bin_count = bins.len();
-            let s = *bp_range.start();
-            let e = *bp_range.end();
-
-            move |bin_i: usize| -> std::ops::Range<u64> {
-                let i = (bin_i.min(bin_count - 1)) as u64;
-                let left = s + i * bin_size;
-                let right = s + (i + 1) * bin_size;
-                left..right
-            }
-        };
-
-        let bin_ranges =
-            (0..bins.len()).map(make_bin_range).collect::<Vec<_>>();
-
-        // log::debug!("bin_ranges: {bin_ranges:?}");
     }
 
     pub fn sample_impl(
