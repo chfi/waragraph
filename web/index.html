@@ -15,9 +15,6 @@
 
     <script type="module">
 
-      console.log("what");
-
-      // import * as Comlink from "https://unpkg.com/comlink/dist/esm/comlink.mjs";
       import * as Comlink from './comlink.mjs';
 
       const { Observable } = rxjs;
@@ -27,8 +24,6 @@
       import init_module, * as wasm_bindgen from './pkg/web.js';
 
       import { OverviewMap } from './overview.js';
-
-      console.log("okay");
 
       async function init() {
 
@@ -53,50 +48,11 @@
               let overview = new OverviewMap(document.getElementById('overview_map'),  view_max);
               await addOverviewEventHandlers(overview, cs_view);
 
-    // const path_viewer = await obj.createPathViewer(Comlink.transfer(offscreen, [offscreen]),
-                                                      // path_name);
-
               let path_viewer = await initializePathViewer(obj, overview, cs_view, path_name, canvas);
-
-      // let path_viewer = await obj.createPathViewer(Comlink.transfer(offscreen, [offscreen]),
-                                                      // path_name);
-
-
-              // path_viewer.connectCanvas(Comlink.transfer(offscreen, [offscreen]));
-      /*
-              obj.createPathViewer(Comlink.transfer(offscreen, [offscreen]),
-                                   path_name)
-              .then(async (path_viewer) => {
-
-
-                  path_viewer.setView(0, 1000);
-                  // path_viewer.sample();
-                  // window.path_viewer = path_viewer;
-
-                  let cs_view = await obj.globalCoordSys();
-                  let coord_sys = await cs_view.coord_sys;
-
-                  let max = await cs_view.viewMax();
-
-                  // obj.globalCoordSys().then((cs_view) => {
-                      console.log(coord_sys);
-                  let overview = new OverviewMap(document.getElementById('overview_map'), max);
-
-                      // addPathViewerEventHandlers(obj, path_viewer, canvas, overview);
-                      addPathViewerLogic(obj, path_viewer, canvas, overview, cs_view);
-                  // });
-                  console.log("????????????");
-
-
-                  window.path_viewer = path_viewer;
-
-              });
-        */
 
               window.worker_obj = obj;
               
           };
-
 
       }
 

@@ -17,11 +17,9 @@ export async function initializePathViewer(
     path_name,
     canvas
 ) {
-
     if (canvas === undefined) {
         canvas = document.createElement('canvas');
     }
-
 
     let offscreen = canvas.transferControlToOffscreen();
 
@@ -38,7 +36,91 @@ export async function initializePathViewer(
 }
 
 
+export async function addPathViewerLogic(worker, path_viewer, canvas, overview, cs_view) {
 
+    const { fromEvent,
+            map,
+            pairwise,
+            race,
+            switchMap,
+            takeUntil,
+          } = rxjs;
+
+    const wheel$ = rxjs.fromEvent(canvas, 'wheel');
+    const mouseDown$ = fromEvent(canvas, 'mousedown');
+    const mouseUp$ = fromEvent(canvas, 'mouseup');
+    const mouseMove$ = fromEvent(canvas, 'mousemove');
+    const mouseOut$ = fromEvent(canvas, 'mouseout');
+
+    const wheelScaleDelta$ = wheel$.pipe(
+        map(event => {
+            if (event.deltaY > 0) {
+                return 1.05;
+            } else {
+                return 0.95;
+            }
+        })
+    );
+
+    await cs_view.subscribeZoomCentered(wheelScaleDelta$);
+
+    const drag$ = mouseDown$.pipe(
+        switchMap((event) => {
+            return mouseMove$.pipe(
+                pairwise(),
+                map(([prev, current]) => current.clientX - prev.clientX),
+                takeUntil(
+                    race(mouseUp$, mouseOut$)
+                )
+            )
+        })
+    );
+
+    const dragDeltaNorm$ = drag$.pipe(rxjs.map((delta_x) => {
+        let delta = (delta_x / canvas.width);
+        return -delta;
+    }));
+
+    await cs_view.subscribeTranslateDeltaNorm(dragDeltaNorm$);
+
+    let view_subject = await cs_view.viewSubject();
+    console.log(view_subject);
+
+    path_viewer.sample();
+    path_viewer.forceRedraw();
+
+    view_subject.pipe(
+        rxjs.distinct(),
+        rxjs.throttleTime(10)
+    ).subscribe((view) => {
+        requestAnimationFrame((time) => {
+            path_viewer.setView(view.start, view.end);
+            path_viewer.sample();
+            path_viewer.forceRedraw();
+        });
+    });
+
+    /*
+    let is_busy = false;
+
+    view_subject.subscribe((view) => {
+        if (!is_busy) {
+            is_busy = true;
+            // adding a hacky delay to remember to fix this later
+            setTimeout(() => {
+                requestAnimationFrame((time) => {
+                    path_viewer.setView(view.start, view.end);
+                    path_viewer.sample();
+                    path_viewer.forceRedraw();
+                    // overview.draw(view);
+                    is_busy = false;
+                });
+            }, 10);
+        }
+    });
+    */
+
+}
 
 export async function addOverviewEventHandlers(overview, cs_view) {
 
@@ -74,8 +156,6 @@ export async function addOverviewEventHandlers(overview, cs_view) {
     const mouseAt$ = mouseDown$.pipe(
         switchMap((event) => {
             return mouseMove$.pipe(
-                // pairwise(),
-                // map(([prev, current]) => current.clientX - prev.clientX),
                 map((ev) => (ev.clientX / overview.canvas.width) * view_max),
                 takeUntil(
                     race(mouseUp$, mouseOut$)
@@ -85,94 +165,17 @@ export async function addOverviewEventHandlers(overview, cs_view) {
     );
 
     await cs_view.subscribeCenterAt(mouseAt$);
-}
-
-export async function addPathViewerLogic(worker, path_viewer, canvas, overview, cs_view) {
-
-    const { fromEvent,
-            map,
-            pairwise,
-            race,
-            switchMap,
-            takeUntil,
-          } = rxjs;
-
-    const wheel$ = rxjs.fromEvent(canvas, 'wheel');
-    const mouseDown$ = fromEvent(canvas, 'mousedown');
-    const mouseUp$ = fromEvent(canvas, 'mouseup');
-    const mouseMove$ = fromEvent(canvas, 'mousemove');
-    const mouseOut$ = fromEvent(canvas, 'mouseout');
-
-
-    const wheelScaleDelta$ = wheel$.pipe(
-        map(event => {
-            if (event.deltaY > 0) {
-                return 1.05;
-            } else {
-                return 0.95;
-            }
-        })
-    );
-
-    await cs_view.subscribeZoomCentered(wheelScaleDelta$);
-
-    const drag$ = mouseDown$.pipe(
-        switchMap((event) => {
-            return mouseMove$.pipe(
-                pairwise(),
-                map(([prev, current]) => current.clientX - prev.clientX),
-                takeUntil(
-                    race(mouseUp$, mouseOut$)
-                )
-            )
-        })
-    );
-
-    // const dragDeltaNorm$ = drag$.pipe(rxjs.map(async (delta_x) => {
-    const dragDeltaNorm$ = drag$.pipe(rxjs.map((delta_x) => {
-        let delta = (delta_x / canvas.width);
-        return -delta;
-    }));
-
-
-    console.log(dragDeltaNorm$);
-
-    console.log("-----------------------------");
-    console.log(cs_view);
-    await cs_view.subscribeTranslateDeltaNorm(dragDeltaNorm$);
 
 
     let view_subject = await cs_view.viewSubject();
-    console.log(view_subject);
 
-    let is_busy = false;
-
-            path_viewer.sample();
-            path_viewer.forceRedraw();
-            // overview.draw(view);
-
-    // view_subject.subscribe((view) => {
-    //     console.log(view);
-    // });
-
-    view_subject.subscribe((view) => {
-        if (!is_busy) {
-            is_busy = true;
-            // adding a hacky delay to remember to fix this later
-            setTimeout(() => {
-                requestAnimationFrame((time) => {
-                    path_viewer.setView(view.start, view.end);
-                    path_viewer.sample();
-                    path_viewer.forceRedraw();
-                    overview.draw(view);
-                    is_busy = false;
-                });
-            }, 10);
-        }
+    view_subject.pipe(
+        rxjs.distinct(),
+        rxjs.throttleTime(10),
+    ).subscribe((view) => {
+        requestAnimationFrame(() => {
+            overview.draw(view);
+        })
     });
 
-
-
-
 }
-
