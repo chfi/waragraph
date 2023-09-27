@@ -26,7 +26,7 @@ pub struct ArrowGFA {
     link_from: UInt32Array,
     link_to: UInt32Array,
 
-    path_names: Utf8Array<i32>,
+    pub path_names: Utf8Array<i32>,
     path_steps: Vec<UInt32Array>,
 }
 
@@ -216,13 +216,13 @@ pub fn arrow_graph_from_gfa<S: BufRead + Seek>(
         let mut fields = line.split(|&c| c == b'\t');
 
         let Some((name, seq, opt)) = fields.next().and_then(|_type| {
-                let name = fields.next()?;
-                let seq = fields.next()?;
-                let opt = fields.next();
-                Some((name, seq, opt))
-            }) else {
-                continue;
-            };
+            let name = fields.next()?;
+            let seq = fields.next()?;
+            let opt = fields.next();
+            Some((name, seq, opt))
+        }) else {
+            continue;
+        };
 
         let _opt = opt;
 
@@ -236,8 +236,9 @@ pub fn arrow_graph_from_gfa<S: BufRead + Seek>(
         seg_name_offsets.push(name_offset as i32);
         seg_name_str.extend(name);
 
-        let Some(opt_fields) = opt
-        else { continue; };
+        let Some(opt_fields) = opt else {
+            continue;
+        };
     }
 
     let offset = seg_seq_bytes.len();
@@ -302,19 +303,21 @@ pub fn arrow_graph_from_gfa<S: BufRead + Seek>(
 
         let mut fields = line.split(|&c| c == b'\t');
 
-        let Some((from_handle, to_handle, overlap, opt)) = fields.next().and_then(|_type| {
-            let from_name = fields.next()?;
-            let from_is_rev = fields.next()? == b"-";
-            let from_h = seg_step_to_handle(from_name, from_is_rev);
+        let Some((from_handle, to_handle, overlap, opt)) =
+            fields.next().and_then(|_type| {
+                let from_name = fields.next()?;
+                let from_is_rev = fields.next()? == b"-";
+                let from_h = seg_step_to_handle(from_name, from_is_rev);
 
-            let to_name = fields.next()?;
-            let to_is_rev = fields.next()? == b"-";
-            let to_h = seg_step_to_handle(to_name, to_is_rev);
+                let to_name = fields.next()?;
+                let to_is_rev = fields.next()? == b"-";
+                let to_h = seg_step_to_handle(to_name, to_is_rev);
 
-            let overlap = fields.next()?;
-            let opt = fields.next();
-            Some((from_h, to_h, overlap, opt))
-        }) else {
+                let overlap = fields.next()?;
+                let opt = fields.next();
+                Some((from_h, to_h, overlap, opt))
+            })
+        else {
             continue;
         };
 
@@ -364,15 +367,16 @@ pub fn arrow_graph_from_gfa<S: BufRead + Seek>(
 
         let mut fields = line.split(|&c| c == b'\t');
 
-        let Some((path_name, seg_names, overlaps, opt)) = fields.next().and_then(|_type| {
-            let path_name = fields.next()?;
-            let seg_names = fields.next()?;
-            let overlaps = fields.next()?;
-            let opt = fields.next();
+        let Some((path_name, seg_names, overlaps, opt)) =
+            fields.next().and_then(|_type| {
+                let path_name = fields.next()?;
+                let seg_names = fields.next()?;
+                let overlaps = fields.next()?;
+                let opt = fields.next();
 
-
-            Some((path_name, seg_names, overlaps, opt))
-        }) else {
+                Some((path_name, seg_names, overlaps, opt))
+            })
+        else {
             continue;
         };
 

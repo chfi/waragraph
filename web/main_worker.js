@@ -279,12 +279,17 @@ async function run() {
             return Comlink.proxy(_global_cs_view);
         },
 
+        getPathNames() {
+            let names = _graph.path_names();
+            return names;
+        },
+
         // sampleRange(left, right) {
         //     _state.path_viewer.setView(left, right);
         //     _state.path_viewer.sample();
         // },
 
-        get_graph() {
+        getGraph() {
             return Comlink.proxy(_graph);
         }
     });

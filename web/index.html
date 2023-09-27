@@ -39,6 +39,9 @@
               console.log("graph loaded");
               const obj = Comlink.wrap(worker);
 
+              let names = await obj.getPathNames();
+              console.log(names);
+
               let canvas = document.getElementById('path_view');
               let path_name = "gi|528476637:29857558-29915771";
 

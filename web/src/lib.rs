@@ -47,26 +47,6 @@ pub struct SharedState {
 }
 
 #[wasm_bindgen]
-pub fn list_path_names(ctx: &Context) -> Box<[JsValue]> {
-    let graph = &ctx.app.shared.as_ref().unwrap().graph;
-
-    for n in graph.path_names.right_values() {
-        //
-        web_sys::console::log_1(&n.into());
-    }
-
-    Box::new([])
-
-    // let names: Vec<JsValue> = graph
-    //     .path_names
-    //     .right_values()
-    //     .map(JsValue::from)
-    //     .collect::<Vec<_>>();
-
-    // names.into_boxed_slice()
-}
-
-#[wasm_bindgen]
 pub struct Context {
     // shared: SharedState,
     pub(crate) app: app::App,
@@ -155,6 +135,25 @@ impl ArrowGFAWrapped {
         })?;
 
         Ok(name.to_string())
+    }
+
+    pub fn path_names(&self) -> Vec<JsValue> {
+        log::debug!("1111111111111");
+        let mut vector = vec![];
+
+        log::debug!("222222222222222222222222");
+        for (i, name) in self.0.path_names.iter().enumerate() {
+            if i == 4 {
+                break;
+            }
+            if let Some(name) = name {
+                vector.push(JsValue::from_str(name));
+            }
+        }
+
+        log::debug!(":):):):):):):):)");
+
+        vector
     }
 }
 
