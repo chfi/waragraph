@@ -1,27 +1,40 @@
 
 
 // async function addScrollZoomSub(cs_view
-import * as Comlink from "https://unpkg.com/comlink/dist/esm/comlink.mjs";
+import * as Comlink from './comlink.mjs';
+
+import * as handler from './transfer_handlers.js';
+handler.setTransferHandlers(rxjs, Comlink);
 
 
 
 // creates and attaches a path viewer to a canvas
 // does not attach the canvas element to the DOM
-export async function initializePathViewer(worker,
-                                    overview,
-                                    cs_view,
-                                    path_name) {
+export async function initializePathViewer(
+    worker,
+    overview,
+    cs_view,
+    path_name,
+    canvas
+) {
 
-    let canvas = document.createElement('canvas');
-    console.log("what the heck");
+    if (canvas === undefined) {
+        canvas = document.createElement('canvas');
+    }
+
+
     let offscreen = canvas.transferControlToOffscreen();
-    console.log(canvas);
-    console.log(offscreen);
 
     const path_viewer = await worker.createPathViewer(Comlink.transfer(offscreen, [offscreen]),
                                                       path_name);
 
     addPathViewerLogic(worker, path_viewer, canvas, overview, cs_view);
+
+    let view = await cs_view.get();
+
+    path_viewer.setView(view.start, view.end);
+    path_viewer.sample();
+    path_viewer.forceRedraw();
 }
 
 
@@ -84,7 +97,7 @@ export async function addPathViewerLogic(worker, path_viewer, canvas, overview, 
             takeUntil,
           } = rxjs;
 
-    const wheel$ = rxjs.fromEvent(overview.canvas, 'wheel');
+    const wheel$ = rxjs.fromEvent(canvas, 'wheel');
     const mouseDown$ = fromEvent(canvas, 'mousedown');
     const mouseUp$ = fromEvent(canvas, 'mouseup');
     const mouseMove$ = fromEvent(canvas, 'mousemove');

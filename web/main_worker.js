@@ -247,7 +247,9 @@ async function run() {
 
     Comlink.expose({
         createPathViewer(offscreen_canvas, path_name) {
-            console.log("in createPathViewer with " + path_name);
+            console.log("in createPathViewer");
+            console.log(path_name);
+            // console.log("in createPathViewer with " + path_name);
             // let path_name = "gi|528476637:29857558-29915771";
             let coord_sys = _state.coord_sys;
             console.log("getting coord_sys: " + coord_sys);
@@ -269,9 +271,9 @@ async function run() {
             return Comlink.proxy(viewer);
         },
 
-        connectCanvas(offscreen_canvas) {
-            _state.path_viewer.connectCanvas(offscreen_canvas);
-        },
+        // connectCanvas(offscreen_canvas) {
+        //     _state.path_viewer.connectCanvas(offscreen_canvas);
+        // },
 
         globalCoordSys() {
             return Comlink.proxy(_global_cs_view);

@@ -44,14 +44,8 @@
               console.log("graph loaded");
               const obj = Comlink.wrap(worker);
 
-              // let canvas = document.getElementById('path_view');
-              const canvas = document.createElement('canvas');
-              console.log(canvas);
-              let offscreen = canvas.transferControlToOffscreen();
-              console.log(offscreen);
-
+              let canvas = document.getElementById('path_view');
               let path_name = "gi|528476637:29857558-29915771";
-              // let path_name = "S288C.chrI";
 
               let cs_view = await obj.globalCoordSys();
               let view_max = await cs_view.viewMax();
@@ -62,7 +56,11 @@
     // const path_viewer = await obj.createPathViewer(Comlink.transfer(offscreen, [offscreen]),
                                                       // path_name);
 
-              let path_viewer = await initializePathViewer(obj, overview, cs_view, path_name);
+              let path_viewer = await initializePathViewer(obj, overview, cs_view, path_name, canvas);
+
+      // let path_viewer = await obj.createPathViewer(Comlink.transfer(offscreen, [offscreen]),
+                                                      // path_name);
+
 
               // path_viewer.connectCanvas(Comlink.transfer(offscreen, [offscreen]));
       /*
