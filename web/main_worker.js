@@ -280,7 +280,10 @@ async function run() {
         },
 
         getPathNames() {
-            let names = _graph.path_names();
+            let names = [];
+            _graph.with_path_names((name) => {
+                names.push(name);
+            });
             return names;
         },
 

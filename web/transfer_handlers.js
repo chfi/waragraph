@@ -6,7 +6,6 @@ export function setTransferHandlers(rxjs, Comlink) {
             return val instanceof Observable;
         },
         deserialize: (val) => {
-            console.log(" ~~~~~~~~~~#  in observable deserialize()");
             return new Observable((observer) => {
                 const remote = Comlink.transferHandlers.get('proxy')
                       .deserialize(val);
@@ -22,7 +21,6 @@ export function setTransferHandlers(rxjs, Comlink) {
             });
         },
         serialize: (val) => {
-            console.log(" #~~~~~~~~~~~  in observable serialize()");
             return Comlink.transferHandlers.get('proxy').serialize({
                 subscribe: (observer) => val.subscribe({
                     next: (next) => void observer.next(next).then(),

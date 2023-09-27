@@ -137,24 +137,26 @@ impl ArrowGFAWrapped {
         Ok(name.to_string())
     }
 
-    pub fn path_names(&self) -> Vec<JsValue> {
-        log::debug!("1111111111111");
-        let mut vector = vec![];
-
-        log::debug!("222222222222222222222222");
-        for (i, name) in self.0.path_names.iter().enumerate() {
-            if i == 4 {
-                break;
-            }
-            if let Some(name) = name {
-                vector.push(JsValue::from_str(name));
+    pub fn with_path_names(&self, f: &js_sys::Function) {
+        let this = JsValue::null();
+        for path_name in self.0.path_names.iter() {
+            if let Some(name) = path_name {
+                let val = JsValue::from_str(name);
+                let _ = f.call1(&this, &val);
             }
         }
-
-        log::debug!(":):):):):):):):)");
-
-        vector
     }
+
+    // returning a Vec<JsValue> seems broken right now, idk why
+    // pub fn path_names(&self) -> Vec<JsValue> {
+    //     let mut vector: Vec<JsValue> = vec![];
+    //     for (i, name) in self.0.path_names.iter().enumerate() {
+    //         if let Some(name) = name {
+    //             vector.push(JsValue::from_str(name));
+    //         }
+    //     }
+    //     vector
+    // }
 }
 
 #[wasm_bindgen]
