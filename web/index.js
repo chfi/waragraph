@@ -38,17 +38,23 @@ async function init() {
 
         // let path_viewer = await initializePathViewer(worker_obj, overview, cs_view, path_name, canvas);
 
+        let container = document.getElementById('container');
+
         names.forEach(async (name, path_ix) => {
+
+            console.log("path: " + name);
 
             let { path_viewer, canvas } =
                 await initializePathViewer(worker_obj,
                                            overview,
                                            cs_view,
-                                           path_name);
+                                           name);
 
-            // canvas.width = 800;
-            // canvas.height = 40;
-            // document.append(canvas);
+            let id = "viewer-" + path_name;
+
+            canvas.id = id;
+            container.append(canvas);
+
         });
 
         window.worker_obj = worker_obj;

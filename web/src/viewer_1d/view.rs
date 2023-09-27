@@ -72,7 +72,6 @@ impl View1D {
     }
 
     pub fn translate(&mut self, delta: f64) {
-        log::debug!("translating by {delta}");
         let len = self.len();
 
         self.range.start += delta;

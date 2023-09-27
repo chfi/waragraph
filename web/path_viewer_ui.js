@@ -21,6 +21,9 @@ export async function initializePathViewer(
         canvas = document.createElement('canvas');
     }
 
+    canvas.width = 1024;
+    canvas.height = 60;
+
     let offscreen = canvas.transferControlToOffscreen();
 
     const path_viewer = await worker.createPathViewer(Comlink.transfer(offscreen, [offscreen]),
