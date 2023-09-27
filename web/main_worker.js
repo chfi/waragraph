@@ -114,13 +114,7 @@ class CoordSysView {
 
 class PathViewerCtx {
     constructor(coord_sys, data, { bins, color_0, color_1}) {
-        // TODO set view based on coord_sys, or take an optional argument
-
-        let max = coord_sys.max();
-        console.log("coord_sys max: " + max);
-        let view = wasm_bindgen.View1D.new_full(coord_sys.max());
         this.path_viewer = wasm_bindgen.PathViewer.new(coord_sys, data, bins, color_0, color_1);
-        this.view = view;
         this.coord_sys = coord_sys;
     }
 
@@ -136,57 +130,18 @@ class PathViewerCtx {
         this.path_viewer.draw_to_canvas();
     }
 
-    maxView() {
-        return this.view.max;
-    }
 
     coordSys() {
         return this.path_viewer.coord_sys;
     }
 
-    setView(left, right) {
-        this.view.set(left, right);
-    }
-
-    // setView(view) {
-    //     this.view.set(view.left, view.right);
-    // }
-
-    getView() {
-        let start = this.view.start;
-        let end = this.view.end;
-        let max = this.view.max;
-        let len = this.view.len;
-        return { start, end, max, len };
-    }
-
-    centerViewAt(bp) {
-        // console.log("centering view around " + bp);
-        let len = this.view.len;
-        let left = bp - (len / 2);
-        let right = bp + (len / 2);
-        // console.log("left: " + left + ", right: " + right);
-        this.view.set(left, right);
-    }
-
-    
-    zoomViewNorm(norm_x, scale) {
-        this.view.zoom_with_focus(norm_x, scale);
-    }
-
-    zoomViewCentered(scale) {
-        this.view.zoom_with_focus(0.5, scale);
-    }
-
-    translateView(delta_bp) {
-        this.view.translate(delta_bp);
+    setView(start, end) {
+        this.view = { start, end };
     }
 
     sample() {
         let l = this.view.start;
         let r = this.view.end;
-        let size = this.view.len;
-        // console.log("sampling: (" + l + ", " + r + ") [" + size + "]");
         this.path_viewer.sample_range(this.view.start, this.view.end);
     }
     

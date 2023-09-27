@@ -74,7 +74,7 @@ impl PathViewer {
     }
 
     pub fn new(
-        cs: CoordSys,
+        cs: &CoordSys,
         data: SparseData,
         bin_count: usize,
         color_0: JsValue,
@@ -120,7 +120,7 @@ impl PathViewer {
         let canvas = OffscreenCanvas::new(bin_count as u32, 1)?;
 
         Ok(PathViewer {
-            cs,
+            cs: cs.clone(),
             data,
 
             color_map,

@@ -20,23 +20,38 @@ async function init() {
         worker.onmessage = undefined;
 
         console.log("graph loaded");
-        const obj = Comlink.wrap(worker);
+        const worker_obj = Comlink.wrap(worker);
 
-        let names = await obj.getPathNames();
+        let names = await worker_obj.getPathNames();
         console.log(names);
+
 
         let canvas = document.getElementById('path_view');
         let path_name = "gi|528476637:29857558-29915771";
 
-        let cs_view = await obj.globalCoordSys();
+        let cs_view = await worker_obj.globalCoordSys();
+
         let view_max = await cs_view.viewMax();
 
         let overview = new OverviewMap(document.getElementById('overview_map'),  view_max);
         await addOverviewEventHandlers(overview, cs_view);
 
-        let path_viewer = await initializePathViewer(obj, overview, cs_view, path_name, canvas);
+        // let path_viewer = await initializePathViewer(worker_obj, overview, cs_view, path_name, canvas);
 
-        window.worker_obj = obj;
+        names.forEach(async (name, path_ix) => {
+
+            let { path_viewer, canvas } =
+                await initializePathViewer(worker_obj,
+                                           overview,
+                                           cs_view,
+                                           path_name);
+
+            // canvas.width = 800;
+            // canvas.height = 40;
+            // document.append(canvas);
+        });
+
+        window.worker_obj = worker_obj;
         
     };
 

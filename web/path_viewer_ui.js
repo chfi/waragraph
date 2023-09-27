@@ -33,6 +33,8 @@ export async function initializePathViewer(
     path_viewer.setView(view.start, view.end);
     path_viewer.sample();
     path_viewer.forceRedraw();
+
+    return { path_viewer, canvas };
 }
 
 
@@ -84,7 +86,7 @@ export async function addPathViewerLogic(worker, path_viewer, canvas, overview, 
     await cs_view.subscribeTranslateDeltaNorm(dragDeltaNorm$);
 
     let view_subject = await cs_view.viewSubject();
-    console.log(view_subject);
+    // console.log(view_subject);
 
     path_viewer.sample();
     path_viewer.forceRedraw();
