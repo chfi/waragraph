@@ -201,7 +201,8 @@ async function run() {
     // console.log(_global_cs_view);
 
     Comlink.expose({
-        createPathViewer(offscreen_canvas, path_name) {
+        createPathViewer(offscreen_canvas,
+                         path_name) {
             console.log("in createPathViewer");
             console.log(path_name);
             // console.log("in createPathViewer with " + path_name);
@@ -212,10 +213,14 @@ async function run() {
             console.log("deriving depth data");
             let data = wasm_bindgen.arrow_gfa_depth_data(graph, path_name);
 
+            // let color_0 = 
+            //     { r: 0.8, g: 0.3, b: 0.3, a: 1.0 };
             let color_0 = 
-                { r: 0.8, g: 0.3, b: 0.3, a: 1.0 };
-            let color_1 =
-                { r: 0.2, g: 0.2, b: 0.2, a: 1.0 };
+                { r: 0.0, g: 0.0, b: 0.0, a: 0.0 };
+
+            let color_1 = wasm_bindgen.path_name_hash_color_obj(path_name);
+            console.log("color_1: " + color_1);
+            console.log(color_1);
 
             let opts = { bins: 1024, color_0, color_1 };
 
