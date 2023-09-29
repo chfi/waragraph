@@ -105,7 +105,9 @@ impl PathViewer {
             .ok_or_else(|| JsValue::from_str(err_text))?;
 
         let color_map = Box::new(move |val: f32| {
-            let [rf, gf, bf, af] = if val > 1.0 { color_0 } else { color_1 };
+            // let [rf, gf, bf, af] = if val > 1.0 { color_0 } else { color_1 };
+            let [rf, gf, bf, af] = if val > 0.5 { color_0 } else { color_1 };
+            // let [rf, gf, bf, af] = if val > 0.75 { color_0 } else { color_1 };
 
             let r = (255.0 * rf) as u8;
             let g = (255.0 * gf) as u8;
