@@ -617,3 +617,66 @@ pub fn path_name_hash_color(path_name: &str) -> [f32; 3] {
 
     [r_f, g_f, b_f]
 }
+
+struct ByteIntervalIter<'a> {
+    offsets: &'a OffsetsBuffer<i32>,
+    byte_range: std::ops::Range<i32>,
+    current_index: usize,
+}
+
+impl<'a> ByteIntervalIter<'a> {
+    fn new(
+        offsets: &'a OffsetsBuffer<i32>,
+        byte_range: std::ops::Range<i32>,
+    ) -> Self {
+        let start_index = offsets
+            .binary_search(&byte_range.start)
+            .unwrap_or_else(|x| x);
+        ByteIntervalIter {
+            offsets,
+            byte_range,
+            current_index: start_index,
+        }
+    }
+}
+
+impl<'a> Iterator for ByteIntervalIter<'a> {
+    type Item = (usize, std::ops::RangeInclusive<i32>);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if let Some(&start_offset) = self.offsets.get(self.current_index) {
+            let end_offset = *self
+                .offsets
+                .get(self.current_index + 1)
+                .unwrap_or(&self.byte_range.end);
+            if start_offset < self.byte_range.end {
+                let local_start = if start_offset < self.byte_range.start {
+                    self.byte_range.start - start_offset
+                } else {
+                    0
+                };
+                let local_end = if end_offset > self.byte_range.end {
+                    self.byte_range.end - start_offset
+                } else {
+                    end_offset - start_offset
+                };
+                self.current_index += 1;
+                return Some((self.current_index - 1, local_start..=local_end));
+            }
+        }
+        None
+    }
+}
+
+fn iter_binary_interval<'a>(
+    array: &'a arrow2::array::BinaryArray<i32>,
+    byte_range: std::ops::Range<i32>,
+) -> impl Iterator<Item = &'a [u8]> + 'a {
+    ByteIntervalIter::new(&array.offsets(), byte_range).map(
+        move |(index, local_range)| {
+            let (s, e) = local_range.into_inner();
+            let range = (s as usize)..=(e as usize);
+            &array.value(index)[range]
+        },
+    )
+}

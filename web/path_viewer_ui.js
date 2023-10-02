@@ -89,7 +89,6 @@ export async function addPathViewerLogic(worker, path_viewer, canvas, overview, 
     await cs_view.subscribeTranslateDeltaNorm(dragDeltaNorm$);
 
     let view_subject = await cs_view.viewSubject();
-    // console.log(view_subject);
 
     path_viewer.sample();
     path_viewer.forceRedraw();
@@ -104,26 +103,6 @@ export async function addPathViewerLogic(worker, path_viewer, canvas, overview, 
             path_viewer.forceRedraw();
         });
     });
-
-    /*
-    let is_busy = false;
-
-    view_subject.subscribe((view) => {
-        if (!is_busy) {
-            is_busy = true;
-            // adding a hacky delay to remember to fix this later
-            setTimeout(() => {
-                requestAnimationFrame((time) => {
-                    path_viewer.setView(view.start, view.end);
-                    path_viewer.sample();
-                    path_viewer.forceRedraw();
-                    // overview.draw(view);
-                    is_busy = false;
-                });
-            }, 10);
-        }
-    });
-    */
 
 }
 
