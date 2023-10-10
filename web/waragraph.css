@@ -1,18 +1,27 @@
 .path-viewer-list {
     display: grid;
     gap: 10px;
-    grid-template-columns: minmax(100px, auto) 1fr;
+    grid-template-columns: minmax(100px, auto) auto;
+    grid-template-rows: 40px;
     /* grid-template-columns: 100px 1fr; */
 }
 
-#overview_map {
-    grid-column: 1 / 3;
+#overview-map {
+    /* grid-column: 1 / 3; */
+}
+
+.path-name-column {
+    grid-column: 1;
+}
+.path-data-view-column {
+    grid-column: 2;
 }
 
 .path-row {
 }
 .path-name {
     grid-column: 1;
+    grid-row: 1;
     font-family: monospace;
     overflow-wrap: break-word;
     word-break: break-all;
@@ -21,12 +30,12 @@
     grid-column: 2;
 }
 
-.container {
-    display: grid;
-    grid-template-columns: 200px auto;  /* 200px for the fixed column and 'auto' for the canvas column */
-    height: 100vh;
-}
+/* .container { */
+/*     display: grid; */
+/*     grid-template-columns: 200px auto;  /\* 200px for the fixed column and 'auto' for the canvas column *\/ */
+/*     height: 100vh; */
+/* } */
 
-.canvas-column {
-    overflow-y: auto; /* if you want to allow scrolling if the canvases exceed viewport height */
-}
+/* .canvas-column { */
+/*     overflow-y: auto; /\* if you want to allow scrolling if the canvases exceed viewport height *\/ */
+/* } */

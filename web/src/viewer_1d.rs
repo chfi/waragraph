@@ -73,6 +73,16 @@ impl PathViewer {
         self.last_sampled_range = Some(range);
     }
 
+    pub fn set_offscreen_canvas_width(&mut self, width: JsValue) {
+        if let Some(width) = width.as_f64() {
+            let size = width as usize;
+            if self.bins.len() < size {
+                self.bins.resize(size, 0.0);
+            }
+            self.canvas.set_width(size as u32);
+        }
+    }
+
     pub fn new(
         cs: &CoordSys,
         data: SparseData,

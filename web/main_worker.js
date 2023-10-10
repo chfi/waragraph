@@ -123,6 +123,10 @@ class PathViewerCtx {
         this.path_viewer.set_target_canvas(offscreen_canvas);
     }
 
+    setCanvasWidth(width) {
+        this.path_viewer.set_offscreen_canvas_width(width);
+    }
+
     forceRedraw(resample) {
         if (resample) {
             this.path_viewer.sample_range(this.view.start, this.view.end);

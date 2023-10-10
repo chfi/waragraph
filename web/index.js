@@ -29,12 +29,16 @@ async function init() {
 
         let view_max = await cs_view.viewMax();
 
-        let overview = new OverviewMap(document.getElementById('overview_map'),  view_max);
+        let overview = new OverviewMap(document.getElementById('overview-map'),  view_max);
         await addOverviewEventHandlers(overview, cs_view);
 
         // let path_viewer = await initializePathViewer(worker_obj, overview, cs_view, path_name, canvas);
 
         let container = document.getElementById('container');
+        let name_container = container.querySelector('.path-name-column');
+        let data_container = container.querySelector('.path-data-view-column');
+        console.log(name_container);
+        console.log(data_container);
 
         names.forEach(async (name, path_ix) => {
 
@@ -46,30 +50,25 @@ async function init() {
                                            cs_view,
                                            name);
 
-            const row = document.createElement("div");
-            row.classList.add("path-row");
-
-
             const name_el = document.createElement("div");
             name_el.classList.add("path-name");
             name_el.innerHTML = name;
 
             let id = "viewer-" + name;
-            console.log(canvas);
-
-            // const canvas_col = document.createElement("div");
-            // canvas_col.classList.add("path-data-view");
-
+            // console.log(canvas);
             canvas.classList.add("path-data-view");
-            // canvas_col.append(canvas);
 
-            // container.append(canvas);
             canvas.id = id;
-            container.append(name_el);
-            // row.append(canvas);
-            // row.append(canvas_col);
-            // canvas_col.append(canvas);
-            container.append(canvas);
+            name_container.append(name_el);
+            data_container.append(canvas);
+
+
+            let parent_w = data_container.clientWidth;
+            console.log(parent_w);
+            await path_viewer.setCanvasWidth(parent_w);
+            // console.log(y);
+            // canvas.width = canvas.parentElement.width;
+            // console.log(canvas.parentElement
 
         });
 
