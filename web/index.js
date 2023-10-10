@@ -25,10 +25,6 @@ async function init() {
         let names = await worker_obj.getPathNames();
         console.log(names);
 
-
-        let canvas = document.getElementById('path_view');
-        let path_name = "gi|528476637:29857558-29915771";
-
         let cs_view = await worker_obj.globalCoordSys();
 
         let view_max = await cs_view.viewMax();
@@ -50,9 +46,29 @@ async function init() {
                                            cs_view,
                                            name);
 
-            let id = "viewer-" + path_name;
+            const row = document.createElement("div");
+            row.classList.add("path-row");
 
+
+            const name_el = document.createElement("div");
+            name_el.classList.add("path-name");
+            name_el.innerHTML = name;
+
+            let id = "viewer-" + name;
+            console.log(canvas);
+
+            // const canvas_col = document.createElement("div");
+            // canvas_col.classList.add("path-data-view");
+
+            canvas.classList.add("path-data-view");
+            // canvas_col.append(canvas);
+
+            // container.append(canvas);
             canvas.id = id;
+            container.append(name_el);
+            // row.append(canvas);
+            // row.append(canvas_col);
+            // canvas_col.append(canvas);
             container.append(canvas);
 
         });
