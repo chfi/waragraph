@@ -10,6 +10,7 @@ use crate::util::BufferDesc;
 
 use raving_wgpu::egui;
 use raving_wgpu::wgpu;
+use waragraph_core::arrow_graph::ArrowGFA;
 
 use std::collections::{HashMap, HashSet};
 use std::num::NonZeroU32;
@@ -34,6 +35,8 @@ use anyhow::Result;
 use ultraviolet::*;
 
 use waragraph_core::graph::{Bp, Node, PathIndex};
+
+use wasm_bindgen::{prelude::*, Clamped};
 
 pub mod render;
 
@@ -60,6 +63,57 @@ pub struct Args {
     pub gfa: PathBuf,
     pub tsv: PathBuf,
     pub annotations: Option<PathBuf>,
+}
+
+#[wasm_bindgen]
+pub struct GraphViewerArgs {
+    indices: Option<wgpu::Buffer>,
+    index_count: Option<NonZeroU32>,
+
+    view: View2D,
+}
+
+#[wasm_bindgen]
+pub struct GraphViewer {
+    renderer: PolylineRenderer,
+
+    transform_uniform: wgpu::Buffer,
+    geometry_buffers: GeometryBuffers,
+}
+
+impl GraphViewer {
+    pub fn initialize(
+        state: &raving_wgpu::State,
+        surface_format: wgpu::TextureFormat,
+        graph: &ArrowGFA,
+        pos_x: &[f32],
+        pos_y: &[f32],
+        data: &[f32],
+    ) -> anyhow::Result<Self> {
+        let seg_count = graph.segment_count();
+
+        let renderer =
+            PolylineRenderer::new(&state.device, surface_format, seg_count)?;
+
+        // let vertex_data = std::iter::zip(pos_x, pos_y).enumerate().map(|(i, (x, y))|
+
+        // let vertex_data = node_positions
+        //     .iter_nodes()
+        //     .enumerate()
+        //     .map(|(ix, p)| {
+        //         let ix = [ix as u32];
+        //         let pos: &[u8] = bytemuck::cast_slice(&p);
+        //         let id: &[u8] = bytemuck::cast_slice(&ix);
+        //         let mut out = [0u8; 4 * 5];
+        //         out[0..(4 * 4)].clone_from_slice(pos);
+        //         out[(4 * 4)..].clone_from_slice(id);
+        //         out
+        //     })
+        //     .collect::<Vec<_>>();
+
+        //
+        todo!();
+    }
 }
 
 pub struct Viewer2D {
