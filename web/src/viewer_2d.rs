@@ -3,7 +3,7 @@
 // use crate::app::{AppWindow, SharedState};
 use crate::color::ColorMap;
 use crate::context::{ContextQuery, ContextState};
-use crate::SharedState;
+use crate::{ArrowGFAWrapped, RavingCtx, SegmentPositions, SharedState};
 // use crate::gui::annotations::AnnotationListWidget;
 use crate::util::BufferDesc;
 // use crate::viewer_2d::config::Config;
@@ -78,6 +78,33 @@ pub struct GraphViewer {
     renderer: PolylineRenderer,
 
     geometry_buffers: GeometryBuffers,
+}
+
+#[wasm_bindgen]
+impl GraphViewer {
+    // pub fn new_depth_data(
+    pub fn new_dummy_data(
+        raving: &RavingCtx,
+        graph: &ArrowGFAWrapped,
+        pos: &SegmentPositions,
+    ) -> Result<GraphViewer, JsValue> {
+        // let mut node_data = vec![0f32; graph.segment_count()];
+        let mut node_data = vec![1f32; graph.segment_count()];
+
+        let viewer = GraphViewer::initialize(
+            &raving.gpu_state,
+            raving.surface_format,
+            &graph.0,
+            &pos.xs,
+            &pos.ys,
+            &node_data,
+        )
+        .map_err(|err| -> JsValue {
+            format!("Error initializing GraphViewer: {err:?}").into()
+        })?;
+
+        Ok(viewer)
+    }
 }
 
 impl GraphViewer {
@@ -157,6 +184,8 @@ impl GraphViewer {
             },
         );
 
+        let state = self.renderer.state.read();
+
         let mut pass = self.renderer.graphics_node.interface.render_pass(
             &[(
                 tgt_attch,
@@ -179,8 +208,6 @@ impl GraphViewer {
             egui::pos2(0., 0.),
             egui::pos2(w as f32, h as f32),
         );
-
-        let state = self.renderer.state.read();
 
         PolylineRenderer::draw_in_pass_impl(&state, &mut pass, viewport);
 

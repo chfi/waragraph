@@ -48,18 +48,37 @@ pub struct SharedState {
 
 #[wasm_bindgen]
 pub struct RavingCtx {
-    gpu_state: raving_wgpu::State,
+    pub(crate) gpu_state: raving_wgpu::State,
+    pub(crate) surface_format: wgpu::TextureFormat,
 }
 
 #[wasm_bindgen]
 impl RavingCtx {
     pub async fn initialize() -> Result<RavingCtx, JsValue> {
-        match raving_wgpu::State::new().await {
-            Ok(gpu_state) => Ok(Self { gpu_state }),
-            Err(err) => {
-                todo!();
-            }
-        }
+        let gpu_state =
+            raving_wgpu::State::new_web()
+                .await
+                .map_err(|err| -> JsValue {
+                    format!("Error initializing Raving GPU context: {err:?}")
+                        .into()
+                })?;
+        // create a canvas to create a surface so we can get the texture format
+        let canvas = web_sys::OffscreenCanvas::new(300, 150)?;
+        let surface: wgpu::Surface = gpu_state
+            .instance
+            .create_surface_from_offscreen_canvas(canvas)
+            .map_err(|err: wgpu::CreateSurfaceError| -> JsValue {
+                format!("error creating surface from offscreen canvas: {err:?}")
+                    .into()
+            })?;
+
+        let caps = surface.get_capabilities(&gpu_state.adapter);
+        let surface_format = caps.formats[0];
+
+        Ok(Self {
+            gpu_state,
+            surface_format,
+        })
     }
 }
 
@@ -71,14 +90,14 @@ pub struct SegmentPositions {
 
 #[wasm_bindgen]
 impl SegmentPositions {
-    pub async fn from_tsv(
-        tsv_text: js_sys::Promise,
+    pub fn from_tsv(
+        // tsv_text: js_sys::Promise,
+        tsv_text: JsValue,
     ) -> Result<SegmentPositions, JsValue> {
         use std::io::prelude::*;
         use std::io::Cursor;
 
-        let tsv = JsFuture::from(tsv_text).await?;
-        let tsv_text = tsv
+        let tsv_text = tsv_text
             .as_string()
             .ok_or_else(|| format!("TSV could not be read as text"))?;
 
@@ -87,10 +106,18 @@ impl SegmentPositions {
         let mut xs = Vec::new();
         let mut ys = Vec::new();
 
-        for line in cursor.lines() {
+        log::debug!("parsing?????");
+        for (i, line) in cursor.lines().enumerate() {
+            if i == 0 {
+                continue;
+            }
+
             let Ok(line) = line else { continue };
             let line = line.trim();
+
             let mut fields = line.split_ascii_whitespace();
+
+            let _id = fields.next();
 
             let x = fields.next().unwrap().parse::<f32>().unwrap();
             let y = fields.next().unwrap().parse::<f32>().unwrap();

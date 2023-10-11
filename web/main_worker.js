@@ -17,6 +17,8 @@ console.log(rxjs);
 console.log(wasm_bindgen);
 console.log(typeof wasm_bindgen);
 
+let _raving_ctx;
+
 let _graph;
 
 let _state;
@@ -151,6 +153,13 @@ class PathViewerCtx {
     
 }
 
+class GraphViewerCtx {
+    constructor(graph_viewer, seg_pos) {
+        this.graph_viewer = graph_viewer;
+        this.segment_pos = seg_pos;
+    }
+}
+
 
 async function run() {
     wasm = await init_wasm();
@@ -158,6 +167,11 @@ async function run() {
     console.log(wasm_bindgen);
 
     wasm_bindgen.set_panic_hook();
+
+    console.log("initializing raving");
+    let raving_ctx = await wasm_bindgen.RavingCtx.initialize();
+    _raving_ctx = raving_ctx;
+    console.log("raving context ready");
 
     const gfa_path = '../data/A-3105.fa.353ea42.34ee7b1.1576367.smooth.fix.gfa';
     // const gfa_path = './cerevisiae.pan.fa.gz.d1a145e.417fcdf.7493449.smooth.final.gfa';
@@ -205,6 +219,20 @@ async function run() {
     // console.log(_global_cs_view);
 
     Comlink.expose({
+
+        async initialize2DGraphViewer(layout_tsv_text_resp) {
+            console.log("initializing 2D graph viewer");
+            let layout_tsv = layout_tsv_text_resp;
+            let seg_pos = wasm_bindgen.SegmentPositions.from_tsv(layout_tsv);
+            console.log(seg_pos);
+            console.log(_raving_ctx);
+
+            let viewer = wasm_bindgen.GraphViewer.new_dummy_data(_raving_ctx,
+                                                                 graph,
+                                                                 seg_pos);
+
+            return Comlink.proxy(new GraphViewerCtx(viewer, seg_pos));
+        },
         createPathViewer(offscreen_canvas,
                          path_name) {
             console.log("in createPathViewer");

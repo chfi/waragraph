@@ -2965,6 +2965,37 @@ checksum = "9c8a99fddc9f0ba0a85884b8d14e3592853e787d581ca1816c91349b10e4eeab"
 [[package]]
 name = "raving-wgpu"
 version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "bytemuck",
+ "crossbeam",
+ "datafrog",
+ "egui",
+ "egui-wgpu",
+ "egui-winit",
+ "env_logger 0.9.3",
+ "image",
+ "jni 0.19.0",
+ "libc",
+ "log",
+ "lyon",
+ "naga",
+ "ndk",
+ "ndk-context",
+ "ndk-glue",
+ "parking_lot 0.11.2",
+ "rhai",
+ "rustc-hash",
+ "ultraviolet",
+ "wasm-bindgen",
+ "web-sys",
+ "wgpu",
+ "winit",
+]
+
+[[package]]
+name = "raving-wgpu"
+version = "0.1.0"
 source = "git+https://github.com/chfi/raving-wgpu?branch=simplify#b0e0032a567f65198d32de34735810e19fccc533"
 dependencies = [
  "anyhow",
@@ -3814,7 +3845,7 @@ dependencies = [
  "pico-args",
  "pollster",
  "rand",
- "raving-wgpu",
+ "raving-wgpu 0.1.0 (git+https://github.com/chfi/raving-wgpu?branch=simplify)",
  "reunion",
  "rhai",
  "roaring",
@@ -4012,7 +4043,7 @@ dependencies = [
  "mint",
  "palette",
  "parking_lot 0.12.1",
- "raving-wgpu",
+ "raving-wgpu 0.1.0",
  "roaring",
  "sha2",
  "ultraviolet",
