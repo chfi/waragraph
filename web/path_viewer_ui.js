@@ -22,7 +22,7 @@ export async function initializePathViewer(
     }
 
     canvas.width = 1024;
-    canvas.height = 60;
+    canvas.height = 40;
 
     let offscreen = canvas.transferControlToOffscreen();
 

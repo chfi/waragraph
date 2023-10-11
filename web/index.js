@@ -29,7 +29,10 @@ async function init() {
 
         let view_max = await cs_view.viewMax();
 
-        let overview = new OverviewMap(document.getElementById('overview-map'),  view_max);
+        let overview_el = document.getElementById('overview-map');
+        console.log(overview_el);
+        overview_el.width = overview_el.parentElement.clientWidth;
+        let overview = new OverviewMap(overview_el,  view_max);
         await addOverviewEventHandlers(overview, cs_view);
 
         // let path_viewer = await initializePathViewer(worker_obj, overview, cs_view, path_name, canvas);
@@ -55,7 +58,6 @@ async function init() {
             name_el.innerHTML = name;
 
             let id = "viewer-" + name;
-            // console.log(canvas);
             canvas.classList.add("path-data-view");
 
             canvas.id = id;
@@ -66,9 +68,6 @@ async function init() {
             let parent_w = data_container.clientWidth;
             console.log(parent_w);
             await path_viewer.setCanvasWidth(parent_w);
-            // console.log(y);
-            // canvas.width = canvas.parentElement.width;
-            // console.log(canvas.parentElement
 
         });
 
