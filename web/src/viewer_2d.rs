@@ -11,6 +11,7 @@ use crate::util::BufferDesc;
 use raving_wgpu::egui;
 use raving_wgpu::wgpu;
 use waragraph_core::arrow_graph::ArrowGFA;
+use web_sys::OffscreenCanvas;
 
 use std::collections::{HashMap, HashSet};
 use std::num::NonZeroU32;
@@ -78,6 +79,7 @@ pub struct GraphViewer {
     renderer: PolylineRenderer,
 
     geometry_buffers: GeometryBuffers,
+    offscreen_canvas: Option<OffscreenCanvas>,
 }
 
 #[wasm_bindgen]
@@ -91,7 +93,7 @@ impl GraphViewer {
         // let mut node_data = vec![0f32; graph.segment_count()];
         let mut node_data = vec![1f32; graph.segment_count()];
 
-        let viewer = GraphViewer::initialize(
+        let mut viewer = GraphViewer::initialize(
             &raving.gpu_state,
             raving.surface_format,
             &graph.0,
@@ -103,7 +105,23 @@ impl GraphViewer {
             format!("Error initializing GraphViewer: {err:?}").into()
         })?;
 
+        // viewer.offscreen_canvas = Some(OffscreenCanvas::new(300, 150)?);
+
         Ok(viewer)
+    }
+
+    pub fn draw_to_offscreen_canvas(
+        &mut self,
+        raving: &RavingCtx,
+        width: u32,
+        height: u32,
+    ) {
+        // let Some(canvas) = self.offscreen_canvas.as_mut() else {
+        //     return;
+        // };
+
+        // canvas.set_width(width);
+        // canvas.set_height(height);
     }
 }
 
@@ -169,6 +187,7 @@ impl GraphViewer {
         Ok(Self {
             renderer,
             geometry_buffers,
+            offscreen_canvas: None,
         })
     }
 
