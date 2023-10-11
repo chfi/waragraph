@@ -77,7 +77,6 @@ pub struct GraphViewerArgs {
 pub struct GraphViewer {
     renderer: PolylineRenderer,
 
-    transform_uniform: wgpu::Buffer,
     geometry_buffers: GeometryBuffers,
 }
 
@@ -88,32 +87,106 @@ impl GraphViewer {
         graph: &ArrowGFA,
         pos_x: &[f32],
         pos_y: &[f32],
-        data: &[f32],
+        node_data: &[f32],
     ) -> anyhow::Result<Self> {
         let seg_count = graph.segment_count();
 
-        let renderer =
+        let mut renderer =
             PolylineRenderer::new(&state.device, surface_format, seg_count)?;
 
-        // let vertex_data = std::iter::zip(pos_x, pos_y).enumerate().map(|(i, (x, y))|
+        let points = {
+            let x_iter = pos_x.chunks(2);
+            let y_iter = pos_y.chunks(2);
+            x_iter.zip(y_iter).map(|(xs, ys)| match (xs, ys) {
+                ([x0, x1], [y0, y1]) => {
+                    [Vec2::new(*x0, *y0), Vec2::new(*x1, *y1)]
+                }
+                _ => unreachable!(),
+            })
+        };
 
-        // let vertex_data = node_positions
-        //     .iter_nodes()
-        //     .enumerate()
-        //     .map(|(ix, p)| {
-        //         let ix = [ix as u32];
-        //         let pos: &[u8] = bytemuck::cast_slice(&p);
-        //         let id: &[u8] = bytemuck::cast_slice(&ix);
-        //         let mut out = [0u8; 4 * 5];
-        //         out[0..(4 * 4)].clone_from_slice(pos);
-        //         out[(4 * 4)..].clone_from_slice(id);
-        //         out
-        //     })
-        //     .collect::<Vec<_>>();
+        let mut min_p = Vec2::broadcast(std::f32::MAX);
+        let mut max_p = Vec2::broadcast(std::f32::MIN);
 
-        //
-        todo!();
+        let vertex_data = points
+            .enumerate()
+            .map(|(ix, p)| {
+                min_p = min_p.min_by_component(p[0]).min_by_component(p[1]);
+                max_p = max_p.max_by_component(p[0]).max_by_component(p[1]);
+                let mut out = [0u8; 4 * 5];
+                out[0..(4 * 4)].clone_from_slice(bytemuck::cast_slice(&p));
+                out[(4 * 4)..]
+                    .clone_from_slice(bytemuck::cast_slice(&[ix as u32]));
+                out
+            })
+            .collect::<Vec<_>>();
+
+        let data = bytemuck::cast_slice(vertex_data.as_slice());
+
+        println!("uploading vertex data");
+        renderer.upload_vertex_data(state, data)?;
+        renderer.upload_node_data(state, node_data)?;
+
+        let transform = {
+            let size = max_p - min_p;
+            let center = min_p + (max_p - min_p) * 0.5;
+            let view = View2D::new(center, size);
+            view.to_matrix()
+        };
+
+        renderer.set_transform(&state.queue, transform);
+
+        let geometry_buffers =
+            GeometryBuffers::allocate(state, [1024; 2], surface_format)?;
+
+        Ok(Self {
+            renderer,
+            geometry_buffers,
+        })
     }
+
+    pub fn draw(
+        &self,
+        state: &raving_wgpu::State,
+        tgt_dims: [u32; 2],
+        tgt_attch: &wgpu::TextureView,
+    ) -> anyhow::Result<()> {
+        let mut encoder = state.device.create_command_encoder(
+            &wgpu::CommandEncoderDescriptor {
+                label: Some("2D viewer command encoder"),
+            },
+        );
+
+        let mut pass = self.renderer.graphics_node.interface.render_pass(
+            &[(
+                tgt_attch,
+                wgpu::Operations {
+                    load: wgpu::LoadOp::Clear(wgpu::Color {
+                        r: 0.0,
+                        g: 0.0,
+                        b: 0.0,
+                        a: 1.0,
+                    }),
+                    store: true,
+                },
+            )],
+            &mut encoder,
+        )?;
+
+        let [w, h] = tgt_dims;
+
+        let viewport = egui::Rect::from_min_max(
+            egui::pos2(0., 0.),
+            egui::pos2(w as f32, h as f32),
+        );
+
+        let state = self.renderer.state.read();
+
+        PolylineRenderer::draw_in_pass_impl(&state, &mut pass, viewport);
+
+        Ok(())
+    }
+    // surface: &wgpu::Surfa
 }
 
 pub struct Viewer2D {

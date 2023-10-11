@@ -38,6 +38,8 @@ palette = { version = "0.6", features = ["bytemuck"] }
 waragraph-core = { path = "../lib" }
 
 anyhow = "1.0"
+
+mint = "0.5"
 ultraviolet = { version = "0.9", features = ["bytemuck", "f64", "mint"]}
 
 flume = "0.10"
