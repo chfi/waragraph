@@ -79,6 +79,7 @@ impl PathViewer {
             if self.bins.len() < size {
                 self.bins.resize(size, 0.0);
             }
+            log::debug!("setting canvas width to {width}");
             self.canvas.set_width(size as u32);
         }
     }

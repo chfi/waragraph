@@ -47,6 +47,63 @@ pub struct SharedState {
 }
 
 #[wasm_bindgen]
+pub struct RavingCtx {
+    gpu_state: raving_wgpu::State,
+}
+
+#[wasm_bindgen]
+impl RavingCtx {
+    pub async fn initialize() -> Result<RavingCtx, JsValue> {
+        match raving_wgpu::State::new().await {
+            Ok(gpu_state) => Ok(Self { gpu_state }),
+            Err(err) => {
+                todo!();
+            }
+        }
+    }
+}
+
+#[wasm_bindgen]
+pub struct SegmentPositions {
+    xs: Vec<f32>,
+    ys: Vec<f32>,
+}
+
+#[wasm_bindgen]
+impl SegmentPositions {
+    pub async fn from_tsv(
+        tsv_text: js_sys::Promise,
+    ) -> Result<SegmentPositions, JsValue> {
+        use std::io::prelude::*;
+        use std::io::Cursor;
+
+        let tsv = JsFuture::from(tsv_text).await?;
+        let tsv_text = tsv
+            .as_string()
+            .ok_or_else(|| format!("TSV could not be read as text"))?;
+
+        let cursor = Cursor::new(tsv_text.as_bytes());
+
+        let mut xs = Vec::new();
+        let mut ys = Vec::new();
+
+        for line in cursor.lines() {
+            let Ok(line) = line else { continue };
+            let line = line.trim();
+            let mut fields = line.split_ascii_whitespace();
+
+            let x = fields.next().unwrap().parse::<f32>().unwrap();
+            let y = fields.next().unwrap().parse::<f32>().unwrap();
+
+            xs.push(x);
+            ys.push(y);
+        }
+
+        Ok(SegmentPositions { xs, ys })
+    }
+}
+
+#[wasm_bindgen]
 pub struct Context {
     // shared: SharedState,
     pub(crate) app: app::App,
