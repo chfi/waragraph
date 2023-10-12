@@ -158,6 +158,11 @@ class GraphViewerCtx {
         this.graph_viewer = graph_viewer;
         this.segment_pos = seg_pos;
     }
+
+    draw() {
+        this.graph_viewer.draw_to_offscreen_canvas(_raving_ctx);
+        console.log("does it get here");
+    }
 }
 
 
@@ -220,7 +225,8 @@ async function run() {
 
     Comlink.expose({
 
-        async initialize2DGraphViewer(layout_tsv_text_resp) {
+        async initialize2DGraphViewer(layout_tsv_text_resp,
+                                      offscreen_canvas) {
             console.log("initializing 2D graph viewer");
             let layout_tsv = layout_tsv_text_resp;
             let seg_pos = wasm_bindgen.SegmentPositions.from_tsv(layout_tsv);
@@ -229,7 +235,8 @@ async function run() {
 
             let viewer = wasm_bindgen.GraphViewer.new_dummy_data(_raving_ctx,
                                                                  graph,
-                                                                 seg_pos);
+                                                                 seg_pos,
+                                                                 offscreen_canvas);
 
             return Comlink.proxy(new GraphViewerCtx(viewer, seg_pos));
         },

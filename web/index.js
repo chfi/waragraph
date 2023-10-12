@@ -24,9 +24,17 @@ async function init() {
 
         let layout_tsv = await fetch("./data/A-3105.layout.tsv").then(l => l.text());
 
+        let graph_viewer_canvas = document.getElementById("graph-viewer-2d");
+        let graph_viewer_offscreen = graph_viewer_canvas.transferControlToOffscreen();
+
         console.log("main - initializing 2D viewer");
         console.log(layout_tsv);
-        let viewer_2d = worker_obj.initialize2DGraphViewer(layout_tsv);
+        let viewer_2d =
+            await worker_obj.initialize2DGraphViewer(layout_tsv,
+                                                     Comlink.transfer(graph_viewer_offscreen,
+                                                                      [graph_viewer_offscreen]));
+        viewer_2d.draw();
+
 
         let names = await worker_obj.getPathNames();
         console.log(names);

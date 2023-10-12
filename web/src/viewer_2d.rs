@@ -90,6 +90,7 @@ impl GraphViewer {
         raving: &RavingCtx,
         graph: &ArrowGFAWrapped,
         pos: &SegmentPositions,
+        offscreen_canvas: OffscreenCanvas,
     ) -> Result<GraphViewer, JsValue> {
         // let mut node_data = vec![0f32; graph.segment_count()];
         let mut node_data = vec![1f32; graph.segment_count()];
@@ -108,7 +109,8 @@ impl GraphViewer {
             format!("Error initializing GraphViewer: {err:?}").into()
         })?;
 
-        let canvas = OffscreenCanvas::new(800, 600)?;
+        // let canvas = OffscreenCanvas::new(800, 600)?;
+        let canvas = offscreen_canvas;
         let surface = raving
             .gpu_state
             .instance
@@ -116,6 +118,13 @@ impl GraphViewer {
             .map_err(|err| {
                 JsValue::from(format!("Error initializing surface: {err:?}"))
             })?;
+
+        surface.configure(
+            &raving.gpu_state.device,
+            &surface
+                .get_default_config(&raving.gpu_state.adapter, 800, 600)
+                .expect("Error configuring surface"),
+        );
 
         viewer.surface = Some(surface);
         // viewer.offscreen_canvas = Some(OffscreenCanvas::new(300, 150)?);
@@ -263,14 +272,21 @@ impl GraphViewer {
         renderer.upload_vertex_data(state, data)?;
         renderer.upload_node_data(state, node_data)?;
 
-        let transform = {
+        let view = {
             let size = max_p - min_p;
             let center = min_p + (max_p - min_p) * 0.5;
             let view = View2D::new(center, size);
-            view.to_matrix()
+            view
         };
 
-        renderer.set_transform(&state.queue, transform);
+        renderer.set_transform(&state.queue, view.to_matrix());
+
+        renderer.update_uniforms(
+            &state.queue,
+            view.to_matrix(),
+            [800., 600.],
+            50.0,
+        );
 
         let geometry_buffers =
             GeometryBuffers::allocate(state, [1024; 2], surface_format)?;
