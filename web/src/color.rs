@@ -37,7 +37,7 @@ pub struct ColorStore {
     pub nearest_sampler: Arc<wgpu::Sampler>,
 }
 
-fn create_linear_sampler(device: &wgpu::Device) -> wgpu::Sampler {
+pub(crate) fn create_linear_sampler(device: &wgpu::Device) -> wgpu::Sampler {
     let address_mode = wgpu::AddressMode::ClampToEdge;
 
     let sampler_desc = wgpu::SamplerDescriptor {
@@ -59,7 +59,7 @@ fn create_linear_sampler(device: &wgpu::Device) -> wgpu::Sampler {
     device.create_sampler(&sampler_desc)
 }
 
-fn create_nearest_sampler(device: &wgpu::Device) -> wgpu::Sampler {
+pub(crate) fn create_nearest_sampler(device: &wgpu::Device) -> wgpu::Sampler {
     let address_mode = wgpu::AddressMode::ClampToEdge;
 
     let sampler_desc = wgpu::SamplerDescriptor {

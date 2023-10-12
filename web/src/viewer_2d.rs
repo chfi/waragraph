@@ -80,7 +80,11 @@ pub struct GraphViewer {
 
     geometry_buffers: GeometryBuffers,
     surface: Option<wgpu::Surface>,
+    sampler: wgpu::Sampler,
+
     // offscreen_canvas: Option<OffscreenCanvas>,
+    color_texture: wgpu::Texture,
+    color_texture_view: wgpu::TextureView,
 }
 
 #[wasm_bindgen]
@@ -169,7 +173,16 @@ impl GraphViewer {
             .create_view(&wgpu::TextureViewDescriptor::default());
 
         let dims = [texture.texture.width(), texture.texture.height()];
-        self.draw(&raving.gpu_state, dims, &tex_view);
+
+        let mut encoder = raving.gpu_state.device.create_command_encoder(
+            &wgpu::CommandEncoderDescriptor {
+                label: Some("2D viewer command encoder"),
+            },
+        );
+
+        self.draw(&raving.gpu_state, dims, &tex_view, &mut encoder);
+
+        raving.gpu_state.queue.submit([encoder.finish()]);
 
         texture.present();
     }
@@ -291,25 +304,94 @@ impl GraphViewer {
         let geometry_buffers =
             GeometryBuffers::allocate(state, [1024; 2], surface_format)?;
 
+        let sampler = crate::color::create_linear_sampler(&state.device);
+
+        let dimension = wgpu::TextureDimension::D1;
+        let format = wgpu::TextureFormat::Rgba8Unorm;
+
+        let label = format!("Texture - Color Scheme <TEMP>");
+
+        let usage = wgpu::TextureUsages::TEXTURE_BINDING
+            | wgpu::TextureUsages::COPY_DST;
+
+        let color_scheme = crate::color::spectral_color_scheme();
+
+        let pixel_data: Vec<_> = color_scheme
+            .iter()
+            .map(|&[r, g, b, a]| {
+                [
+                    (r * 255.0) as u8,
+                    (g * 255.0) as u8,
+                    (b * 255.0) as u8,
+                    (a * 255.0) as u8,
+                ]
+            })
+            .collect();
+
+        let width = color_scheme.len() as u32;
+
+        let size = wgpu::Extent3d {
+            width,
+            height: 1,
+            depth_or_array_layers: 1,
+        };
+
+        let texture_desc = wgpu::TextureDescriptor {
+            label: Some(&label),
+            size,
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension,
+            format,
+            usage,
+            view_formats: &[],
+        };
+
+        let color_texture = state.device.create_texture_with_data(
+            &state.queue,
+            &texture_desc,
+            bytemuck::cast_slice(&pixel_data),
+        );
+
+        let label = format!("Texture View - Color Scheme <TEMP>");
+
+        let color_texture_view =
+            color_texture.create_view(&wgpu::TextureViewDescriptor {
+                label: Some(&label),
+                format: Some(format),
+                dimension: Some(wgpu::TextureViewDimension::D1),
+                aspect: wgpu::TextureAspect::All,
+                base_mip_level: 0,
+                mip_level_count: None,
+                base_array_layer: 0,
+                array_layer_count: None,
+            });
+
         Ok(Self {
             renderer,
             geometry_buffers,
             surface: None,
+            sampler,
+            color_texture,
+            color_texture_view,
             // offscreen_canvas: None,
         })
     }
 
     pub fn draw(
-        &self,
+        &mut self,
         state: &raving_wgpu::State,
         tgt_dims: [u32; 2],
         tgt_attch: &wgpu::TextureView,
+        encoder: &mut wgpu::CommandEncoder,
     ) -> anyhow::Result<()> {
-        let mut encoder = state.device.create_command_encoder(
-            &wgpu::CommandEncoderDescriptor {
-                label: Some("2D viewer command encoder"),
-            },
-        );
+        if let Err(e) = self.renderer.create_bind_groups(
+            &state.device,
+            &self.sampler,
+            &self.color_texture_view,
+        ) {
+            log::error!("2D viewer render error: {e:?}");
+        }
 
         let state = self.renderer.state.read();
 
@@ -318,7 +400,7 @@ impl GraphViewer {
                 tgt_attch,
                 wgpu::Operations {
                     load: wgpu::LoadOp::Clear(wgpu::Color {
-                        r: 0.0,
+                        r: 1.0,
                         g: 0.0,
                         b: 0.0,
                         a: 1.0,
@@ -326,7 +408,7 @@ impl GraphViewer {
                     store: true,
                 },
             )],
-            &mut encoder,
+            encoder,
         )?;
 
         let [w, h] = tgt_dims;
