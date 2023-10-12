@@ -17,12 +17,11 @@ pub mod view;
 extern "C" {
     //
     #[wasm_bindgen(catch)]
-    fn create_image_data_impl(
+    pub(crate) fn create_image_data_impl(
         mem: JsValue,
         data_ptr: *const u8,
         data_len: u32,
     ) -> Result<ImageData, JsValue>;
-
 }
 
 #[wasm_bindgen]
