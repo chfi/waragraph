@@ -9,10 +9,16 @@ import init_module, * as wasm_bindgen from './pkg/web.js';
 */
 
 let wasm;
+let _raving_ctx;
 
 class GraphViewer {
-    constructor() {
+    constructor(viewer) {
         // maybe just take the minimum raw data needed here
+        this.graph_viewer = viewer;
+    }
+
+    draw() {
+        this.graph_viewer.draw_to_offscreen_canvas(_raving_ctx);
     }
 
     // for some reason strings don't get returned from wasm
@@ -39,7 +45,22 @@ export async function initGraphViewer(memory, graph) {
     console.log(">>>>>>>>>> in initGraphViewer");
     if (wasm === undefined) {
         wasm = await init_module(undefined, memory);
+        wasm_bindgen.set_panic_hook();
     }
+
+
+    if (_raving_ctx === undefined) {
+        console.log("initializing raving ctx");
+
+        try {
+
+        _raving_ctx = await wasm_bindgen.RavingCtx.initialize();
+        } catch (error) {
+            console.log(error);
+        }
+    }
+
+    console.log("creating segment positions");
 
     let layout_tsv = await fetch("./data/A-3105.layout.tsv").then(l => l.text());
     let seg_pos = wasm_bindgen.SegmentPositions.from_tsv(layout_tsv);
@@ -50,5 +71,15 @@ export async function initGraphViewer(memory, graph) {
     let seg_count = _graph.segment_count();
     console.log("segment count: " + seg_count);
 
-    return new GraphViewer();
+    let canvas = document.getElementById("graph-viewer-2d");
+    let offscreen_canvas = canvas.transferControlToOffscreen();
+
+        /*
+    let viewer = wasm_bindgen.GraphViewer.new_dummy_data(_raving_ctx,
+          graph,
+          seg_pos,
+          offscreen_canvas);
+
+    return new GraphViewer(viewer);
+        */
 }

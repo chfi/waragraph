@@ -17,7 +17,7 @@ console.log(rxjs);
 console.log(wasm_bindgen);
 console.log(typeof wasm_bindgen);
 
-let _raving_ctx;
+// let _raving_ctx;
 
 let _graph;
 
@@ -179,8 +179,7 @@ async function run() {
     wasm_bindgen.set_panic_hook();
 
     console.log("initializing raving");
-    let raving_ctx = await wasm_bindgen.RavingCtx.initialize();
-    _raving_ctx = raving_ctx;
+    // _raving_ctx = raving_ctx;
     console.log("raving context ready");
 
     const gfa_path = '../data/A-3105.fa.353ea42.34ee7b1.1576367.smooth.fix.gfa';
@@ -310,7 +309,7 @@ async function run() {
         // },
 
         getGraph() {
-            return Comlink.proxy(_graph);
+            return _graph;
         }
     });
 

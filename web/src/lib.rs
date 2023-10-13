@@ -55,15 +55,30 @@ pub struct RavingCtx {
 #[wasm_bindgen]
 impl RavingCtx {
     pub async fn initialize() -> Result<RavingCtx, JsValue> {
-        let gpu_state =
-            raving_wgpu::State::new_web()
-                .await
-                .map_err(|err| -> JsValue {
-                    format!("Error initializing Raving GPU context: {err:?}")
-                        .into()
-                })?;
+        log::debug!("!");
+        // let gpu_state =
+        //     raving_wgpu::State::new_web()
+        //         .await
+        //         .map_err(|err| -> JsValue {
+        //             format!("Error initializing Raving GPU context: {err:?}")
+        //                 .into()
+        //         })?;
+
+        let gpu_state = raving_wgpu::State::new_web().await;
+        // .map_err(|err| -> JsValue {
+        //     format!("Error initializing Raving GPU context: {err:?}")
+        //         .into()
+        // })?;
+
+        let Ok(gpu_state) = gpu_state else {
+            log::debug!("?");
+            return Err(JsValue::from_str("not that it matters"));
+        };
+
         // create a canvas to create a surface so we can get the texture format
+        log::debug!("!");
         let canvas = web_sys::OffscreenCanvas::new(300, 150)?;
+        log::debug!("!");
         let surface: wgpu::Surface = gpu_state
             .instance
             .create_surface_from_offscreen_canvas(canvas)
@@ -72,8 +87,10 @@ impl RavingCtx {
                     .into()
             })?;
 
+        log::debug!("!");
         let caps = surface.get_capabilities(&gpu_state.adapter);
         let surface_format = caps.formats[0];
+        log::debug!("!");
 
         Ok(Self {
             gpu_state,
