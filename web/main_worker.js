@@ -168,8 +168,8 @@ class GraphViewerCtx {
 */
 
 
-async function run() {
-    wasm = await init_wasm();
+async function run(memory) {
+    wasm = await init_wasm(undefined, memory);
     console.log("???????????");
     console.log(wasm);
     console.log(wasm.memory);
@@ -313,7 +313,15 @@ async function run() {
         }
     });
 
-    postMessage("graph-ready");
+    postMessage("GRAPH_READY");
 }
 
-run();
+postMessage("WORKER_INIT");
+
+onmessage = (event) => {
+    onmessage = undefined;
+    console.log("received message");
+    console.log(typeof event.data[0]);
+    console.log(event.data);
+    run(event.data[0]);
+}

@@ -41,7 +41,31 @@ class GraphViewer {
 
 export { GraphViewer };
 
+// initializing raving/wgpu works when done here, but not when
+// using the wasm memory shared from the worker
+export async function testRavingCtx() {
+    console.log(">>>>>>>>>> in testRavingCtx");
+    if (wasm === undefined) {
+        wasm = await init_module();
+        wasm_bindgen.set_panic_hook();
+    }
+
+    if (_raving_ctx === undefined) {
+        console.log("initializing raving ctx");
+
+        try {
+
+        _raving_ctx = await wasm_bindgen.RavingCtx.initialize();
+        } catch (error) {
+            console.log(error);
+        }
+    }
+
+
+}
+
 export async function initGraphViewer(memory, graph) {
+// export async function initGraphViewer(memory) {
     console.log(">>>>>>>>>> in initGraphViewer");
     if (wasm === undefined) {
         wasm = await init_module(undefined, memory);
