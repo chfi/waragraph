@@ -8,6 +8,8 @@ import init_module, * as wasm_bindgen from './pkg/web.js';
 
 import { OverviewMap } from './overview.js';
 
+import { GraphViewer, initGraphViewer } from './graph_viewer.js';
+
 async function init() {
 
     const handler = await import('./transfer_handlers.js');
@@ -22,6 +24,12 @@ async function init() {
         console.log("graph loaded");
         const worker_obj = Comlink.wrap(worker);
 
+        console.log("initializing graph viewer wasm??");
+        let memory = await worker_obj.getWasmMemory();
+        const graph_viewer = await initGraphViewer(memory);
+        graph_viewer.test_function();
+
+        /*
         let layout_tsv = await fetch("./data/A-3105.layout.tsv").then(l => l.text());
 
         let graph_viewer_canvas = document.getElementById("graph-viewer-2d");
@@ -34,6 +42,7 @@ async function init() {
                                                      Comlink.transfer(graph_viewer_offscreen,
                                                                       [graph_viewer_offscreen]));
         viewer_2d.draw();
+        */
 
 
         let names = await worker_obj.getPathNames();

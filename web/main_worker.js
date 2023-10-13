@@ -168,6 +168,9 @@ class GraphViewerCtx {
 
 async function run() {
     wasm = await init_wasm();
+    console.log("???????????");
+    console.log(wasm);
+    console.log(wasm.memory);
 
     console.log(wasm_bindgen);
 
@@ -240,6 +243,17 @@ async function run() {
 
             return Comlink.proxy(new GraphViewerCtx(viewer, seg_pos));
         },
+
+        getWasmMemory() {
+            // let mem = wasm_bindgen.get_memory();
+            // console.log(mem);
+            // console.log(">>>>>>>>>>>>>>>>> getting memory");
+            // console.log(wasm);
+            // console.log("it's nothing.");
+            return wasm.memory;
+            // return Comlink.transfer(wasm.memory, [wasm.memory]);
+        },
+
         createPathViewer(offscreen_canvas,
                          path_name) {
             console.log("in createPathViewer");

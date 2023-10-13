@@ -8,22 +8,30 @@ import init_module, * as wasm_bindgen from './pkg/web.js';
   and takes care of rendering the 2D graph view.
 */
 
-/*
+let wasm;
+
 class GraphViewer {
-    constructor(wasm, memory) {
-        let wasm = init_module(undefined, memory);
-        this.wasm = wasm;
+    constructor() {
+        // maybe just take the minimum raw data needed here
     }
 
     test_function() {
+        console.log("in test_function");
         wasm_bindgen.test_hello_world();
+        console.log("after call to test_hello_world");
+
+        let val = wasm_bindgen.get_answer();
+        console.log("answer: " + val);
     }
 }
 
-export { GraphViewer,  };
-
-*/
+export { GraphViewer };
 
 export async function initGraphViewer(memory) {
-    let wasm = init_module(undefined, memory);
+    console.log(">>>>>>>>>> in initGraphViewer");
+    if (wasm === undefined) {
+        wasm = await init_module(undefined, memory);
+    }
+
+    return new GraphViewer();
 }
