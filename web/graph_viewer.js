@@ -41,25 +41,48 @@ class GraphViewer {
 
 export { GraphViewer };
 
+let _wasm;
+
 // initializing raving/wgpu works when done here, but not when
 // using the wasm memory shared from the worker
-export async function testRavingCtx() {
+export async function testRavingCtx(wasm_mem, graph) {
     console.log(">>>>>>>>>> in testRavingCtx");
-    if (wasm === undefined) {
-        wasm = await init_module();
+    if (_wasm === undefined) {
+        _wasm = await init_module(undefined, wasm_mem);
         wasm_bindgen.set_panic_hook();
     }
+    // console.log(wasm);
 
     if (_raving_ctx === undefined) {
         console.log("initializing raving ctx");
 
-        try {
-
-        _raving_ctx = await wasm_bindgen.RavingCtx.initialize();
-        } catch (error) {
-            console.log(error);
-        }
+        // try {
+            _raving_ctx = await wasm_bindgen.RavingCtx.initialize();
+        // } catch (error) {
+        //     console.log(error);
+        // }
     }
+
+    console.log("creating segment positions");
+
+    let layout_tsv = await fetch("./data/A-3105.layout.tsv").then(l => l.text());
+    let seg_pos = wasm_bindgen.SegmentPositions.from_tsv(layout_tsv);
+
+    console.log("created segment positions");
+
+    let _graph = wasm_bindgen.ArrowGFAWrapped.__wrap(graph.__wbg_ptr);
+    let seg_count = _graph.segment_count();
+    console.log("segment count: " + seg_count);
+
+    let canvas = document.getElementById("graph-viewer-2d");
+    let offscreen_canvas = canvas.transferControlToOffscreen();
+
+    let viewer = wasm_bindgen.GraphViewer.new_dummy_data(_raving_ctx,
+          _graph,
+          seg_pos,
+          offscreen_canvas);
+
+    viewer.draw();
 
 
 }

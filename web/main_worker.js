@@ -173,6 +173,7 @@ async function run(memory) {
     console.log("???????????");
     console.log(wasm);
     console.log(wasm.memory);
+    console.log(wasm.memory.buffer.byteLength);
 
     console.log(wasm_bindgen);
 
