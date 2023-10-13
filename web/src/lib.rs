@@ -29,16 +29,6 @@ use crate::viewer_1d::CoordSys;
 
 use crate::viewer_2d::layout::NodePositions;
 
-#[wasm_bindgen]
-pub fn test_hello_world() {
-    web_sys::console::log_1(&"lol what".into());
-}
-
-#[wasm_bindgen]
-pub fn get_answer() -> f64 {
-    return 42.0;
-}
-
 #[derive(Clone)]
 pub struct SharedState {
     pub graph: Arc<waragraph_core::graph::PathIndex>,

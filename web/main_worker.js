@@ -153,6 +153,7 @@ class PathViewerCtx {
     
 }
 
+/*
 class GraphViewerCtx {
     constructor(graph_viewer, seg_pos) {
         this.graph_viewer = graph_viewer;
@@ -164,6 +165,7 @@ class GraphViewerCtx {
         console.log("does it get here");
     }
 }
+*/
 
 
 async function run() {
@@ -228,6 +230,7 @@ async function run() {
 
     Comlink.expose({
 
+        /*
         async initialize2DGraphViewer(layout_tsv_text_resp,
                                       offscreen_canvas) {
             console.log("initializing 2D graph viewer");
@@ -243,6 +246,7 @@ async function run() {
 
             return Comlink.proxy(new GraphViewerCtx(viewer, seg_pos));
         },
+        */
 
         getWasmMemory() {
             // let mem = wasm_bindgen.get_memory();
