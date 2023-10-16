@@ -155,21 +155,7 @@ impl GraphViewer {
         todo!();
     }
 
-    pub fn draw_to_offscreen_canvas(
-        &mut self,
-        raving: &RavingCtx,
-        // width: u32,
-        // height: u32,
-    ) {
-        // let mut need_realloc = false;
-        // if let Some(surf) = self.surface.as_ref() {
-        //     if surf.get_capabilities
-        // }
-
-        // if self.surface.is_none() {
-        //     need_realloc = true;
-        // }
-
+    pub fn draw_to_surface(&mut self, raving: &RavingCtx) {
         let Some(surface) = self.surface.as_ref() else {
             return;
         };
@@ -411,8 +397,8 @@ impl GraphViewer {
                 wgpu::Operations {
                     load: wgpu::LoadOp::Clear(wgpu::Color {
                         r: 1.0,
-                        g: 0.0,
-                        b: 0.0,
+                        g: 1.0,
+                        b: 1.0,
                         a: 1.0,
                     }),
                     store: true,
@@ -432,7 +418,6 @@ impl GraphViewer {
 
         Ok(())
     }
-    // surface: &wgpu::Surfa
 }
 
 pub struct Viewer2D {

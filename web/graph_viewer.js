@@ -59,8 +59,10 @@ export async function testRavingCtx(wasm_mem, graph) {
     if (_raving_ctx === undefined) {
         console.log("initializing raving ctx");
 
+        let canvas = document.getElementById('graph-viewer-2d');
+
         // try {
-            _raving_ctx = await wasm_bindgen.RavingCtx.initialize();
+        _raving_ctx = await wasm_bindgen.RavingCtx.initialize_(canvas);
         // } catch (error) {
         //     console.log(error);
         // }
@@ -85,7 +87,7 @@ export async function testRavingCtx(wasm_mem, graph) {
           seg_pos,
           canvas);
 
-    viewer.draw_to_offscreen_canvas(_raving_ctx);
+    viewer.draw_to_surface(_raving_ctx);
 
 
 }
