@@ -48,6 +48,9 @@ let _wasm;
 export async function testRavingCtx(wasm_mem, graph) {
     console.log(">>>>>>>>>> in testRavingCtx");
     if (_wasm === undefined) {
+        console.log("initializing with memory: ");
+        console.log(wasm_mem);
+        console.log(wasm_mem.buffer.byteLength);
         _wasm = await init_module(undefined, wasm_mem);
         wasm_bindgen.set_panic_hook();
     }
@@ -82,7 +85,7 @@ export async function testRavingCtx(wasm_mem, graph) {
           seg_pos,
           offscreen_canvas);
 
-    viewer.draw();
+    // viewer.draw();
 
 
 }

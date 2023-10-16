@@ -24,6 +24,7 @@ async function init() {
         if (event.data === "WORKER_INIT") {
             console.log("received from worker");
             console.log(event.data);
+            console.log(wasm.memory);
             worker.postMessage(wasm.memory);
         } else if (event.data === "GRAPH_READY") {
             worker.onmessage = undefined;
@@ -32,11 +33,20 @@ async function init() {
             const worker_obj = Comlink.wrap(worker);
 
             console.log("initializing graph viewer wasm??");
-            let memory = await worker_obj.getWasmMemory();
+            // let memory = await worker_obj.getWasmMemory();
             const graph = await worker_obj.getGraph();
             console.log(graph);
             console.log("??????????????????????????????????????????????????????????????????");
             console.log(wasm);
+
+            console.log(wasm.memory);
+
+            let wrapped = wasm_bindgen.ArrowGFAWrapped.__wrap(graph.__wbg_ptr);
+
+            // let segc = await worker_obj.getSegmentCount();
+            let segc = wrapped.segment_count();
+            // console.log(" index.js >>>>>>>>>>>>>> " + segc);
+
 
             await testRavingCtx(wasm.memory, graph);
             // const graph_viewer = await initGraphViewer(memory, graph);

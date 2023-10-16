@@ -321,8 +321,10 @@ postMessage("WORKER_INIT");
 
 onmessage = (event) => {
     onmessage = undefined;
+    console.log(event);
     console.log("received message");
-    console.log(typeof event.data[0]);
+    console.log(typeof event.data);
     console.log(event.data);
-    run(event.data[0]);
+
+    run(event.data);
 }
