@@ -94,7 +94,8 @@ impl GraphViewer {
         raving: &RavingCtx,
         graph: &ArrowGFAWrapped,
         pos: &SegmentPositions,
-        offscreen_canvas: OffscreenCanvas,
+        canvas: web_sys::HtmlCanvasElement,
+        // offscreen_canvas: OffscreenCanvas,
     ) -> Result<GraphViewer, JsValue> {
         // let mut node_data = vec![0f32; graph.segment_count()];
         log::warn!("creating node data");
@@ -108,7 +109,8 @@ impl GraphViewer {
         log::warn!("initializing graph viewer");
         let mut viewer = GraphViewer::initialize(
             &raving.gpu_state,
-            format,
+            // format,
+            raving.surface_format,
             &graph.0,
             &pos.xs,
             &pos.ys,
@@ -120,11 +122,12 @@ impl GraphViewer {
 
         // let canvas = OffscreenCanvas::new(800, 600)?;
         log::warn!("initializing surface");
-        let canvas = offscreen_canvas;
+        // let canvas = offscreen_canvas;
         let surface = raving
             .gpu_state
             .instance
-            .create_surface_from_offscreen_canvas(canvas)
+            // .create_surface_from_offscreen_canvas(canvas)
+            .create_surface_from_canvas(canvas)
             .map_err(|err| {
                 JsValue::from(format!("Error initializing surface: {err:?}"))
             })?;

@@ -169,6 +169,7 @@ class GraphViewerCtx {
 
 
 async function run(memory) {
+    console.log(typeof memory);
     wasm = await init_wasm(undefined, memory);
     console.log("???????????");
     console.log(wasm);
@@ -193,6 +194,7 @@ async function run(memory) {
     console.log("parsing GFA");
     // let ctx = wasm_bindgen.initialize_with_data_fetch(gfa, tsv
     let graph = await wasm_bindgen.load_gfa_arrow(gfa);
+    console.log(graph);
 
     let path_name = graph.path_name(0);
     // let path_name = "gi|528476637:29857558-29915771";
@@ -225,6 +227,12 @@ async function run(memory) {
         let view = wasm_bindgen.View1D.new_full(coord_sys.max());
 
     _global_cs_view = new CoordSysView(coord_sys, view);
+
+
+    const new_graph = wasm_bindgen.ArrowGFAWrapped.__wrap(graph.__wbg_ptr);
+
+    let segc = new_graph.segment_count();
+    console.log(">>>>>>>>>>>>>> new wrapped segment count: " + segc);
     // console.log("global cs view: ");
     // console.log(_global_cs_view);
 
@@ -247,6 +255,10 @@ async function run(memory) {
             return Comlink.proxy(new GraphViewerCtx(viewer, seg_pos));
         },
         */
+
+        getSegmentCount() {
+            return new_graph.segment_count();
+        },
 
         getWasmMemory() {
             // let mem = wasm_bindgen.get_memory();

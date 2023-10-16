@@ -78,14 +78,14 @@ export async function testRavingCtx(wasm_mem, graph) {
     console.log("segment count: " + seg_count);
 
     let canvas = document.getElementById("graph-viewer-2d");
-    let offscreen_canvas = canvas.transferControlToOffscreen();
+    // let offscreen_canvas = canvas.transferControlToOffscreen();
 
     let viewer = wasm_bindgen.GraphViewer.new_dummy_data(_raving_ctx,
           _graph,
           seg_pos,
-          offscreen_canvas);
+          canvas);
 
-    // viewer.draw();
+    viewer.draw_to_offscreen_canvas(_raving_ctx);
 
 
 }
