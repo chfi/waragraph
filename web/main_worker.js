@@ -168,23 +168,12 @@ class GraphViewerCtx {
 */
 
 
-async function run(memory) {
-    console.log(typeof memory);
+async function run(memory, gfa_path) {
     wasm = await init_wasm(undefined, memory);
-    console.log("???????????");
-    console.log(wasm);
-    console.log(wasm.memory);
-    console.log(wasm.memory.buffer.byteLength);
-
-    console.log(wasm_bindgen);
 
     wasm_bindgen.set_panic_hook();
 
-    console.log("initializing raving");
-    // _raving_ctx = raving_ctx;
-    console.log("raving context ready");
-
-    const gfa_path = '../data/A-3105.fa.353ea42.34ee7b1.1576367.smooth.fix.gfa';
+    // const gfa_path = '../data/A-3105.fa.353ea42.34ee7b1.1576367.smooth.fix.gfa';
     // const gfa_path = './cerevisiae.pan.fa.gz.d1a145e.417fcdf.7493449.smooth.final.gfa';
 
     console.log("fetching GFA");
@@ -338,5 +327,5 @@ onmessage = (event) => {
     console.log(typeof event.data);
     console.log(event.data);
 
-    run(event.data);
+    run(event.data[0], event.data[1]);
 }

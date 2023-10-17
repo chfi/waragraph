@@ -182,56 +182,6 @@ impl GraphViewer {
 
         texture.present();
     }
-
-    /*
-    pub fn get_offscreen_texture_data(
-        &self,
-        raving: &RavingCtx,
-    ) -> Result<web_sys::ImageData, JsValue> {
-        let memory = wasm_bindgen::memory();
-
-        // copy image to linear memory... hrmmmm.... meaning I need to
-        // copy it to a buffer first
-
-        // let px_len =
-        // let img_data = crate::viewer_1d::create_image_data_impl
-
-        todo!();
-    }
-
-    pub fn draw_to_offscreen_texture(
-        &mut self,
-        raving: &RavingCtx,
-        width: u32,
-        height: u32,
-    ) {
-        // reallocate geometry buffers if needed
-        let alloc_dims = self.geometry_buffers.dims;
-        if alloc_dims[0] < width || alloc_dims[1] < height {
-            let format = wgpu::TextureFormat::Rgba8UnormSrgb;
-            self.geometry_buffers = GeometryBuffers::allocate(
-                &raving.gpu_state,
-                [width, height],
-                format,
-            )
-            .unwrap();
-        }
-
-        // use geometry buffers' color texture as render target
-        let output_view = self
-            .geometry_buffers
-            .node_color_tex
-            .texture
-            .create_view(&wgpu::TextureViewDescriptor::default());
-
-        let result =
-            self.draw(&raving.gpu_state, [width, height], &output_view);
-
-        if let Err(e) = result {
-            log::error!("2D Graph Viewer render error: {e:?}");
-        }
-    }
-    */
 }
 
 impl GraphViewer {
