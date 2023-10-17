@@ -10,7 +10,7 @@ import { OverviewMap } from './overview.js';
 
 import { GraphViewer, initGraphViewer } from './graph_viewer.js';
 
-import { drawVariableThicknessTrack } from './canvas_tracks.js';
+import * as CanvasTracks from './canvas_tracks.js';
 
 const gfa_path = "./data/A-3105.fa.353ea42.34ee7b1.1576367.smooth.fix.gfa";
 const layout_path = "./data/A-3105.layout.tsv";
@@ -127,13 +127,19 @@ async function init() {
                 }
 
                 if (path_ix == 1) {
-                    let ranges = [
-                        { start: 100.0, end: 120.0, thickness: 12.0 },
-                        { start: 120.0, end: 180.0, thickness: 4.0 },
-                        { start: 180.0, end: 230.0, thickness: 12.0 },
-                    ];
+                    // let ranges = [
+                    //     { start: 100.0, end: 120.0, thickness: 12.0 },
+                    //     { start: 120.0, end: 180.0, thickness: 4.0 },
+                    //     { start: 180.0, end: 230.0, thickness: 12.0 },
+                    // ];
+                    // CanvasTracks.drawVariableThicknessTrack(overlay_el, ranges);
 
-                    drawVariableThicknessTrack(overlay_el, ranges);
+                    let ranges = [
+                        { start: 100.0, end: 120.0, thick: true },
+                        { start: 120.0, end: 180.0, thick: false },
+                        { start: 180.0, end: 230.0, thick: true },
+                    ];
+                    CanvasTracks.drawBinaryArrowTrack(overlay_el, ranges);
                 }
 
                 // let parent_w = data_container.clientWidth;
