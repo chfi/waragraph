@@ -29,8 +29,6 @@ export async function initializePathViewer(
     const path_viewer = await worker.createPathViewer(Comlink.transfer(offscreen, [offscreen]),
                                                       path_name);
 
-    addPathViewerLogic(worker, path_viewer, canvas, overview, cs_view);
-
     let view = await cs_view.get();
 
     path_viewer.setView(view.start, view.end);

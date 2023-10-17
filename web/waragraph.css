@@ -52,6 +52,7 @@ canvas.path-data-view {
 
 canvas.path-data-overlay {
     width: 100%;
+    height: 40px;
 }
 
 
