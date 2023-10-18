@@ -6,25 +6,6 @@ use anyhow::Result;
 
 use waragraph_core::graph::{Bp, PathId, PathIndex};
 
-use crate::app::resource::GraphDataCache;
-
-// pub trait Sampler {
-//     fn sample_range_into_bins(&self,
-//                               bin_count: usize,
-//                               path: PathId,
-//                               view: std::ops::Range<Bp>,
-//                               ) -> Vec<
-
-// }
-
-// pub struct SamplerMean {
-//
-// }
-
-pub struct ArrowSampler {
-    //
-}
-
 // #[async_trait]
 pub trait Sampler: Send + Sync {
     fn sample_range(

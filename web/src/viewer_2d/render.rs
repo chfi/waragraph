@@ -467,19 +467,19 @@ impl PolylineRenderer {
         );
     }
 
-    pub fn set_transform(
-        &mut self,
-        queue: &wgpu::Queue,
-        transform: ultraviolet::Mat4,
-    ) {
-        let state = self.state.read();
-        self.transform = transform;
-        queue.write_buffer(
-            &state.projection_uniform,
-            0,
-            &bytemuck::cast_slice(&[transform]),
-        );
-    }
+    // pub fn set_transform(
+    //     &mut self,
+    //     queue: &wgpu::Queue,
+    //     transform: ultraviolet::Mat4,
+    // ) {
+    //     let state = self.state.read();
+    //     self.transform = transform;
+    //     queue.write_buffer(
+    //         &state.projection_uniform,
+    //         0,
+    //         &bytemuck::cast_slice(&[transform]),
+    //     );
+    // }
     // pub fn set_transform(&mut self,
     //                      queue: &wgpu::Queue) {
 
