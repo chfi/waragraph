@@ -89,7 +89,7 @@ async function init() {
             let overview = new OverviewMap(overview_el,  view_max);
             await addOverviewEventHandlers(overview, cs_view);
 
-            let container = document.getElementById('container');
+            let container = document.getElementById('path-viewer-container');
 
             names.forEach(async (name, path_ix) => {
 

@@ -6,21 +6,20 @@
     <link rel="stylesheet" href="waragraph.css"/>
   </head>
   <body>
-    <!-- <canvas id="main_view" width=800 height=600></canvas> -->
 
-    <!-- <canvas id="path_view" width=1024 height=200></canvas> -->
-
-    <canvas id="graph-viewer-2d" width=800 height=600></canvas>
-
-    <div class="path-viewer-list" id="container">
-      <div class="path-viewer-list-row">
-        <div class="path-name"></div>
-        <canvas id="overview-map" width=1024 height=40></canvas>
+    <div id="main-container">
+      <div id="graph-viewer-container">
+        <canvas id="graph-viewer-2d" width=800 height=600></canvas>
+        <canvas id="graph-viewer-2d-overlay" width=800 height=600></canvas>
       </div>
-      <!-- <div class="path-name-column"> </div> -->
-      <!-- <div class="path-data-view-column"> </div> -->
+
+      <div id="path-viewer-container">
+        <div class="path-viewer-list-row">
+          <div class="path-name"></div>
+          <canvas id="overview-map" width=1024 height=40></canvas>
+        </div>
+      </div>
     </div>
-      
 
     <script src='./module-workers-polyfill.min.js'></script>
 

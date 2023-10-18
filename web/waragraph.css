@@ -55,6 +55,29 @@ canvas.path-data-overlay {
     height: 40px;
 }
 
+#main-container {
+    display: grid;
+    grid-template-columns: auto;
+    grid-template-rows: 600px auto;
+}
+
+#graph-viewer-container {
+    display: grid;
+    grid-template-columns: 800px;
+    grid-template-rows: 600px;
+}
+
+canvas#graph-viewer-2d {
+    z-index: 0;
+    grid-column: 1;
+    grid-row: 1;
+}
+
+canvas#graph-viewer-2d-overlay {
+    z-index: 1;
+    grid-column: 1;
+    grid-row: 1;
+}
 
 /* .container { */
 /*     display: grid; */
