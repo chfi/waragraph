@@ -29,6 +29,10 @@ class GraphViewer {
         this.graph_viewer.draw_to_surface(_raving_ctx);
     }
 
+    translate(x, y) {
+        this.next_view.translate_size_rel(x, y);
+    }
+
     get_view_matrix() {
         return this.graph_viewer.get_view_matrix();
     }
@@ -84,25 +88,63 @@ export async function initGraphViewer(wasm_mem, graph, layout_url) {
 
     viewer.draw_to_surface(_raving_ctx);
 
+    let graph_viewer = new GraphViewer(viewer, seg_pos);
+
+    const draw_loop = () => {
+        if (graph_viewer.needRedraw()) {
+            graph_viewer.draw();
+        }
+
+        window.requestAnimationFrame(draw_loop);
+    };
+
+
+    draw_loop();
     
     ////
+
+    let overlay = document.getElementById('graph-viewer-2d-overlay');
+
+    const mouseDown$ = rxjs.fromEvent(overlay, 'mousedown');
+    const mouseUp$ = rxjs.fromEvent(overlay, 'mouseup');
+    const mouseOut$ = rxjs.fromEvent(overlay, 'mouseout');
+    const mouseMove$ = rxjs.fromEvent(overlay, 'mousemove');
+    const drag$ = mouseDown$.pipe(
+        rxjs.switchMap((event) => {
+            return mouseMove$.pipe(
+                rxjs.pairwise(),
+                rxjs.map(([prev, current]) => [current.clientX - prev.clientX,
+                                               current.clientY - prev.clientY]),
+                rxjs.takeUntil(
+                    rxjs.race(mouseUp$, mouseOut$)
+                )
+            )
+        })
+    );
+
+    drag$.subscribe(([dx, dy]) => {
+        let x = dx / overlay.width;
+        let y = dy / overlay.height;
+        graph_viewer.translate(-x, y);
+    });
+
+
 
     /*
     // strokes a (canvas) path along a (graph) path
     let path_name = "gi|157734152:29655295-29712160";
     let path = _graph.path_steps(path_name);
 
-    let view = viewer.get_view();
+    let view = graph_viewer.viewer.get_view();
 
     let path2d = seg_pos.path_to_canvas_space(view, 800, 600, path);
-
-    let overlay = document.getElementById('graph-viewer-2d-overlay');
 
     let ov_ctx = overlay.getContext('2d');
     ov_ctx.stroke(path2d);
     */
 
+
     ////
 
-    return new GraphViewer(viewer, seg_pos);
+    return graph_viewer;
 }

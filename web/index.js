@@ -137,6 +137,7 @@ async function init() {
                     overview_el.width = canvas.clientWidth;
                 }
 
+                /*
                 if (path_ix == 1) {
                     // let ranges = [
                     //     { start: 100.0, end: 120.0, thickness: 12.0 },
@@ -152,6 +153,7 @@ async function init() {
                     ];
                     CanvasTracks.drawBinaryArrowTrack(overlay_el, ranges);
                 }
+                */
 
                 // let parent_w = data_container.clientWidth;
                 // console.log(parent_w);
