@@ -28,6 +28,26 @@ impl View2D {
 
         js_mat
     }
+
+    pub fn equals(&self, other: &View2D) -> bool {
+        self == other
+    }
+
+    pub fn translate_direct(&mut self, dx: f32, dy: f32) {
+        self.center += Vec2::new(dx, dy);
+    }
+
+    #[wasm_bindgen(js_name = "translate_size_rel")]
+    pub fn translate_size_rel_js(&mut self, dx: f32, dy: f32) {
+        let delta = Vec2::new(dx, dy);
+        self.center += delta * self.size;
+    }
+
+    #[wasm_bindgen(js_name = "zoom_with_focus")]
+    pub fn zoom_with_focus_js(&mut self, tx: f32, ty: f32, s: f32) {
+        let t = Vec2::new(tx, ty);
+        self.zoom_with_focus(t, s);
+    }
 }
 
 impl View2D {

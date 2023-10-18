@@ -16,9 +16,16 @@ class GraphViewer {
         // maybe just take the minimum raw data needed here
         this.graph_viewer = viewer;
         this.segment_positions = seg_pos;
+
+        this.next_view = this.graph_viewer.get_view();
+    }
+
+    needRedraw() {
+        return !this.next_view.equals(this.graph_viewer.get_view());
     }
 
     draw() {
+        this.graph_viewer.set_view(this.next_view);
         this.graph_viewer.draw_to_surface(_raving_ctx);
     }
 
