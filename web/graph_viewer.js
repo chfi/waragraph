@@ -12,13 +12,22 @@ let wasm;
 let _raving_ctx;
 
 class GraphViewer {
-    constructor(viewer) {
+    constructor(viewer, seg_pos) {
         // maybe just take the minimum raw data needed here
         this.graph_viewer = viewer;
+        this.segment_positions = seg_pos;
     }
 
     draw() {
         this.graph_viewer.draw_to_surface(_raving_ctx);
+    }
+
+    get_view_matrix() {
+        return this.graph_viewer.get_view_matrix();
+    }
+
+    get_segment_pos(seg) {
+        return this.segment_positions.segment_pos(seg);
     }
 }
 
@@ -68,5 +77,5 @@ export async function initGraphViewer(wasm_mem, graph, layout_url) {
 
     viewer.draw_to_surface(_raving_ctx);
 
-    return new GraphViewer(viewer);
+    return new GraphViewer(viewer, seg_pos);
 }

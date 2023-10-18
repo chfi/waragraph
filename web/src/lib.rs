@@ -29,6 +29,16 @@ use crate::viewer_1d::CoordSys;
 
 use crate::viewer_2d::layout::NodePositions;
 
+#[wasm_bindgen(module = "/js/util.js")]
+extern "C" {
+    pub(crate) fn segment_pos_obj(
+        x0: f32,
+        y0: f32,
+        x1: f32,
+        y1: f32,
+    ) -> JsValue;
+}
+
 #[derive(Clone)]
 pub struct SharedState {
     pub graph: Arc<waragraph_core::graph::PathIndex>,
@@ -121,6 +131,22 @@ pub struct SegmentPositions {
 
 #[wasm_bindgen]
 impl SegmentPositions {
+    // pub fn segment_pos(&self, seg_id: u32) -> JsValue {
+    pub fn segment_pos(&self, seg_id: u32) -> JsValue {
+        let i = (seg_id * 2) as usize;
+
+        if i >= self.xs.len() {
+            return JsValue::NULL;
+        }
+
+        let x0 = self.xs[i];
+        let y0 = self.ys[i];
+        let x1 = self.xs[i + 1];
+        let y1 = self.ys[i + 1];
+
+        segment_pos_obj(x0, y0, x1, y1)
+    }
+
     pub fn from_tsv(
         // tsv_text: js_sys::Promise,
         tsv_text: JsValue,

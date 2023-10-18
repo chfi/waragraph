@@ -12,7 +12,9 @@ import { GraphViewer, initGraphViewer } from './graph_viewer.js';
 
 import * as CanvasTracks from './canvas_tracks.js';
 
-import { mat3 } from './gl-matrix-min.js';
+// import { mat3 } from './gl-matrix-min.js';
+
+const { mat3 } = glMatrix;
 
 const gfa_path = "./data/A-3105.fa.353ea42.34ee7b1.1576367.smooth.fix.gfa";
 const layout_path = "./data/A-3105.layout.tsv";
@@ -62,6 +64,13 @@ async function init() {
 
 
             const graph_viewer = await initGraphViewer(wasm.memory, graph, layout_path);
+            console.log(graph_viewer);
+
+            window.graph_viewer = graph_viewer;
+
+            console.log(" getting the view: ");
+            console.log(graph_viewer.get_view_matrix());
+
 
             let names;
             if (path_names) {
