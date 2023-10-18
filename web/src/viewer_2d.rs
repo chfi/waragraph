@@ -77,6 +77,8 @@ pub struct GraphViewer {
     // offscreen_canvas: Option<OffscreenCanvas>,
     color_texture: wgpu::Texture,
     color_texture_view: wgpu::TextureView,
+
+    viewport: View2D,
 }
 
 #[wasm_bindgen]
@@ -138,13 +140,12 @@ impl GraphViewer {
         Ok(viewer)
     }
 
-    pub fn resize_offscreen_canvas(
-        &mut self,
-        raving: &RavingCtx,
-        width: u32,
-        height: u32,
-    ) {
-        todo!();
+    pub fn get_view_matrix(&self) -> JsValue {
+        self.viewport.to_js_mat3(800., 600.)
+    }
+
+    pub fn set_view_center(&mut self, x: f32, y: f32) {
+        self.viewport.center = Vec2::new(x, y);
     }
 
     pub fn draw_to_surface(&mut self, raving: &RavingCtx) {
@@ -155,6 +156,18 @@ impl GraphViewer {
         let Ok(texture) = surface.get_current_texture() else {
             return;
         };
+
+        let width = texture.texture.width();
+        let height = texture.texture.height();
+
+        let node_width = 30.0;
+
+        self.renderer.update_uniforms(
+            &raving.gpu_state.queue,
+            self.viewport.to_matrix(),
+            [width as f32, height as f32],
+            node_width,
+        );
 
         let tex_view = texture
             .texture
@@ -313,6 +326,7 @@ impl GraphViewer {
             color_texture,
             color_texture_view,
             // offscreen_canvas: None,
+            viewport: view,
         })
     }
 

@@ -12,6 +12,8 @@ import { GraphViewer, initGraphViewer } from './graph_viewer.js';
 
 import * as CanvasTracks from './canvas_tracks.js';
 
+import { mat3 } from './gl-matrix-min.js';
+
 const gfa_path = "./data/A-3105.fa.353ea42.34ee7b1.1576367.smooth.fix.gfa";
 const layout_path = "./data/A-3105.layout.tsv";
 

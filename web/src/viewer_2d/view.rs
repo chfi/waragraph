@@ -2,10 +2,32 @@ use ultraviolet::{
     Isometry2, Isometry3, Mat3, Mat4, Rotor2, Rotor3, Similarity2, Vec2, Vec3,
 };
 
-#[derive(Debug, Clone, PartialEq)]
+use wasm_bindgen::prelude::*;
+
+#[wasm_bindgen(module = "/js/util.js")]
+extern "C" {
+    #[wasm_bindgen]
+    fn create_mat3_impl(mem: JsValue, data_ptr: *const f32) -> JsValue;
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+#[wasm_bindgen]
 pub struct View2D {
     pub(super) center: Vec2,
     pub(super) size: Vec2,
+}
+
+#[wasm_bindgen]
+impl View2D {
+    pub fn to_js_mat3(&self, width: f32, height: f32) -> JsValue {
+        let matrix = self.to_viewport_matrix(Vec2::new(width, height));
+        let memory = wasm_bindgen::memory();
+
+        let ptr = matrix.as_ptr();
+        let js_mat = create_mat3_impl(memory, ptr);
+
+        js_mat
+    }
 }
 
 impl View2D {
