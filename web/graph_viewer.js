@@ -33,6 +33,10 @@ class GraphViewer {
         this.next_view.translate_size_rel(x, y);
     }
 
+    zoom(tx, ty, s) {
+        this.next_view.zoom_with_focus(tx, ty, s);
+    }
+
     get_view_matrix() {
         return this.graph_viewer.get_view_matrix();
     }
@@ -128,6 +132,19 @@ export async function initGraphViewer(wasm_mem, graph, layout_url) {
         graph_viewer.translate(-x, y);
     });
 
+    const wheel$ = rxjs.fromEvent(overlay, 'wheel');
+
+    wheel$.subscribe((event) => {
+        let x = event.clientX;
+        let y = overlay.height - event.clientY;
+
+        let nx = x / overlay.width;
+        let ny = y / overlay.height;
+
+        let scale = event.deltaY > 0.0 ? 1.05 : 0.95;
+
+        graph_viewer.zoom(nx, ny, scale);
+    });
 
 
     /*
