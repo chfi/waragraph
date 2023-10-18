@@ -80,16 +80,20 @@ export async function initGraphViewer(wasm_mem, graph, layout_url) {
     
     ////
 
-    // get path slice from graph
-    // let path = 
+    /*
+    // strokes a (canvas) path along a (graph) path
     let path_name = "gi|157734152:29655295-29712160";
     let path = _graph.path_steps(path_name);
-    console.log(" <><><><><><> steps for " + path_name);
-    console.log(path);
 
     let view = viewer.get_view();
 
     let path2d = seg_pos.path_to_canvas_space(view, 800, 600, path);
+
+    let overlay = document.getElementById('graph-viewer-2d-overlay');
+
+    let ov_ctx = overlay.getContext('2d');
+    ov_ctx.stroke(path2d);
+    */
 
     ////
 
