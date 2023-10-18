@@ -16,12 +16,6 @@ use egui_winit::winit;
 use raving_wgpu::gui::EguiCtx;
 use waragraph_core::{arrow_graph::ArrowGFA, graph::PathIndex};
 use wasm_bindgen_futures::JsFuture;
-use web_sys::HtmlCanvasElement;
-use winit::{
-    event::{ElementState, Event, WindowEvent},
-    event_loop::EventLoop,
-    window::{Fullscreen, WindowBuilder},
-};
 
 use wasm_bindgen::prelude::*;
 
@@ -37,6 +31,12 @@ extern "C" {
         x1: f32,
         y1: f32,
     ) -> JsValue;
+
+    pub(crate) fn uint32_array_helper(
+        memory: JsValue,
+        data_ptr: *const u32,
+        data_len: u32,
+    ) -> js_sys::Uint32Array;
 }
 
 #[derive(Clone)]
@@ -131,6 +131,44 @@ pub struct SegmentPositions {
 
 #[wasm_bindgen]
 impl SegmentPositions {
+    pub fn path_to_canvas_space(
+        &self,
+        view: &viewer_2d::view::View2D,
+        canvas_width: f32,
+        canvas_height: f32,
+        path_slice: &[u32],
+    ) -> Result<web_sys::Path2d, JsValue> {
+        use ultraviolet::{Vec2, Vec3};
+
+        let matrix =
+            view.to_viewport_matrix(Vec2::new(canvas_width, canvas_height));
+
+        let path2d = web_sys::Path2d::new()?;
+        let mut added = 0;
+
+        for &step_handle in path_slice {
+            let seg = step_handle >> 1;
+            let i = (seg * 2) as usize;
+
+            let p0 = Vec2::new(self.xs[i], self.ys[i]);
+            let p1 = Vec2::new(self.xs[i + 1], self.ys[i + 1]);
+
+            let p = p0 + (p1 - p0) * 0.5;
+
+            let p_v3 = Vec3::new(p.x, p.y, 1.0);
+            let q = matrix * p_v3;
+
+            if added == 0 {
+                path2d.move_to(q.x as f64, q.y as f64);
+            } else {
+                path2d.line_to(q.x as f64, q.y as f64);
+            }
+            added += 1;
+        }
+
+        Ok(path2d)
+    }
+
     // pub fn segment_pos(&self, seg_id: u32) -> JsValue {
     pub fn segment_pos(&self, seg_id: u32) -> JsValue {
         let i = (seg_id * 2) as usize;
@@ -216,6 +254,26 @@ impl ArrowGFAWrapped {
                 let _ = f.call1(&this, &val);
             }
         }
+    }
+
+    pub fn path_steps(
+        &self,
+        path_name: &str,
+    ) -> Result<js_sys::Uint32Array, JsValue> {
+        let path_index =
+            self.0.path_name_index(path_name).ok_or_else(|| {
+                JsValue::from_str(&format!("Path `{path_name}` not found"))
+            })?;
+
+        let steps = &self.0.path_steps[path_index as usize];
+        let slice = steps.values().as_slice();
+
+        let ptr = slice.as_ptr();
+
+        let memory = wasm_bindgen::memory();
+        let array = uint32_array_helper(memory, ptr, slice.len() as u32);
+
+        Ok(array)
     }
 
     // returning a Vec<JsValue> seems broken right now, idk why

@@ -140,6 +140,10 @@ impl GraphViewer {
         Ok(viewer)
     }
 
+    pub fn get_view(&self) -> View2D {
+        self.viewport
+    }
+
     pub fn get_view_matrix(&self) -> JsValue {
         self.viewport.to_js_mat3(800., 600.)
     }

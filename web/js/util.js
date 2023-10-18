@@ -19,6 +19,11 @@ export function create_mat3_impl(mem, data_ptr) {
     return dst_view;
 }
 
+export function uint32_array_helper(mem, data_ptr, data_len) {
+    const array = new Uint32Array(mem.buffer, data_ptr, data_len);
+    return array;
+}
+
 export function segment_pos_obj(x0, y0, x1, y1) {
     return { x0, y0, x1, y1 };
 }

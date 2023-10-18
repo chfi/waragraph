@@ -77,5 +77,21 @@ export async function initGraphViewer(wasm_mem, graph, layout_url) {
 
     viewer.draw_to_surface(_raving_ctx);
 
+    
+    ////
+
+    // get path slice from graph
+    // let path = 
+    let path_name = "gi|157734152:29655295-29712160";
+    let path = _graph.path_steps(path_name);
+    console.log(" <><><><><><> steps for " + path_name);
+    console.log(path);
+
+    let view = viewer.get_view();
+
+    let path2d = seg_pos.path_to_canvas_space(view, 800, 600, path);
+
+    ////
+
     return new GraphViewer(viewer, seg_pos);
 }

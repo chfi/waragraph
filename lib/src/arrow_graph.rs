@@ -20,14 +20,14 @@ pub struct ArrowGFA {
     // each page would only need to hold 64 bit offsets at the most,
     // with the array data being 0-offset, so this also provides some
     // compression (especially for e.g. paths)
-    segment_sequences: BinaryArray<i32>,
-    segment_names: Option<Utf8Array<i32>>,
+    pub segment_sequences: BinaryArray<i32>,
+    pub segment_names: Option<Utf8Array<i32>>,
 
-    link_from: UInt32Array,
-    link_to: UInt32Array,
+    pub link_from: UInt32Array,
+    pub link_to: UInt32Array,
 
     pub path_names: Utf8Array<i32>,
-    path_steps: Vec<UInt32Array>,
+    pub path_steps: Vec<UInt32Array>,
 }
 
 pub struct PathMetadata<'a> {
