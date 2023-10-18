@@ -12,7 +12,7 @@ use crate::graph::{Bp, Edge, Node, OrientedNode, PathId};
 
 pub struct ArrowGFA {
     // using 32-bit IDs & indices, even for sequence, for now; since
-    // wasm is limited to 32 bits for the forseeable future (and
+    // wasm is limited to 32 bits for the foreseeable future (and
     // single memories), it's probably better to implement a kind of
     // paging/chunking system so that we can load in only the relevant
     // parts of the graph into the wasm linear memory
@@ -111,6 +111,17 @@ impl ArrowGFA {
         steps.values_iter().copied()
     }
 
+    pub fn path_slice(
+        &self,
+        path_index: u32,
+        start_step: usize,
+        length: usize,
+    ) -> UInt32Array {
+        let steps = &self.path_steps[path_index as usize];
+        let slice = steps.clone().sliced(start_step, length);
+        slice
+    }
+
     /// Returns a CSC matrix that maps handles to links.
     pub fn handle_link_adj_mat(&self) -> sprs::CsMatI<u8, u32> {
         // rows
@@ -179,6 +190,20 @@ impl ArrowGFA {
         let vector = sprs::CsVecI::new(dim, indices, data);
 
         vector
+    }
+
+    pub fn path_step_offsets(
+        &self,
+        path_index: u32,
+    ) -> arrow2::offset::Offsets<i32> {
+        let steps = &self.path_steps[path_index as usize];
+        arrow2::offset::Offsets::try_from_lengths(steps.values_iter().map(
+            |step_handle| {
+                let i = step_handle >> 1;
+                self.segment_len(i)
+            },
+        ))
+        .unwrap()
     }
 }
 
