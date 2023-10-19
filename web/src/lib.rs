@@ -172,7 +172,7 @@ impl SegmentPositions {
         Ok(path2d)
     }
 
-    pub fn bounds_as_view(&self) -> JsValue {
+    pub fn bounds_as_view_obj(&self) -> JsValue {
         let size = self.max_bounds - self.min_bounds;
         let center = self.min_bounds + size * 0.5;
 

@@ -28,6 +28,6 @@ export function segment_pos_obj(x0, y0, x1, y1) {
     return { x0, y0, x1, y1 };
 }
 
-export function create_view(x, y, width, height) {
+export function create_view_obj(x, y, width, height) {
     return { x, y, width, height };
 }

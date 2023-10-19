@@ -24,6 +24,20 @@ class GraphViewer {
         return !this.next_view.equals(this.graph_viewer.get_view());
     }
 
+    fitViewToGraph() {
+        let graph_bounds = this.segment_positions.bounds_as_view_obj();
+        // let view_obj = this.next_view.as_obj();
+
+        let canvas = document.getElementById("graph-viewer-2d");
+        let c_aspect = canvas.width / canvas.height;
+
+        let view_width = graph_bounds.height * c_aspect;
+        let view_height = graph_bounds.height;
+
+        this.next_view.set_center(graph_bounds.x, graph_bounds.y);
+        this.next_view.set_size(view_width, view_height);
+    }
+
     draw() {
         this.graph_viewer.set_view(this.next_view);
         this.graph_viewer.draw_to_surface(_raving_ctx);
@@ -97,6 +111,11 @@ export async function initGraphViewer(wasm_mem, graph, layout_url) {
     canvas.width = dims.width;
     canvas.height = dims.height;
 
+    let overlay = document.getElementById('graph-viewer-2d-overlay');
+
+    overlay.width = dims.width;
+    overlay.height = dims.height;
+
     viewer.resize(_raving_ctx, dims.width, dims.height);
 
     viewer.draw_to_surface(_raving_ctx);
@@ -115,8 +134,6 @@ export async function initGraphViewer(wasm_mem, graph, layout_url) {
     draw_loop();
     
     ////
-
-    let overlay = document.getElementById('graph-viewer-2d-overlay');
 
     const mouseDown$ = rxjs.fromEvent(overlay, 'mousedown');
     const mouseUp$ = rxjs.fromEvent(overlay, 'mouseup');
@@ -154,6 +171,8 @@ export async function initGraphViewer(wasm_mem, graph, layout_url) {
 
         graph_viewer.zoom(nx, ny, scale);
     });
+
+    graph_viewer.fitViewToGraph();
 
 
     /*
