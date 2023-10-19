@@ -29,10 +29,17 @@ class GraphViewer {
         // let view_obj = this.next_view.as_obj();
 
         let canvas = document.getElementById("graph-viewer-2d");
-        let c_aspect = canvas.width / canvas.height;
+        let view_width, view_height;
 
-        let view_width = graph_bounds.height * c_aspect;
-        let view_height = graph_bounds.height;
+        if (graph_bounds.width > graph_bounds.height) {
+            view_width = graph_bounds.width;
+            view_height = graph_bounds.width * (canvas.height / canvas.width);
+        } else {
+            let c_aspect = canvas.width / canvas.height;
+
+            view_width = graph_bounds.height * c_aspect;
+            view_height = graph_bounds.height;
+        }
 
         this.next_view.set_center(graph_bounds.x, graph_bounds.y);
         this.next_view.set_size(view_width, view_height);
