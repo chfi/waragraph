@@ -16,23 +16,22 @@ import * as CanvasTracks from './canvas_tracks.js';
 
 const { mat3 } = glMatrix;
 
-const gfa_path = "./data/A-3105.fa.353ea42.34ee7b1.1576367.smooth.fix.gfa";
-const layout_path = "./data/A-3105.layout.tsv";
+// const gfa_path = "./data/A-3105.fa.353ea42.34ee7b1.1576367.smooth.fix.gfa";
+// const layout_path = "./data/A-3105.layout.tsv";
+// const path_names = undefined;
 
-// const gfa_path = "./MHC/HPRCy1v2.MHC.fa.ce6f12f.417fcdf.0ead406.smooth.final.gfa";
-// const layout_path = "./MHC/HPRCy1v2.MHC.fa.ce6f12f.417fcdf.0ead406.smooth.final.og.lay.tsv";
-
-const path_names = undefined;
-// const path_names = [
-//     "chm13#chr6:28385000-33300000",
-//     "grch38#chr6:28510128-33480000",
-//     "HG00438#1#h1tg000040l:22870040-27725000",
-//     "HG00673#2#h2tg000031l:10256-1959976",
-//     "HG00733#2#h2tg000060l:26405000-27483925",
-//     "HG01175#1#h1tg000188l:192-200000",
-//     "HG02818#2#h2tg000045l:15000-2706770",
-//     "HG03516#2#h2tg000202l:24-441470",
-// ];
+const gfa_path = "./MHC/HPRCy1v2.MHC.fa.ce6f12f.417fcdf.0ead406.smooth.final.gfa";
+const layout_path = "./MHC/HPRCy1v2.MHC.fa.ce6f12f.417fcdf.0ead406.smooth.final.og.lay.tsv";
+const path_names = [
+    "chm13#chr6:28385000-33300000",
+    "grch38#chr6:28510128-33480000",
+    "HG00438#1#h1tg000040l:22870040-27725000",
+    "HG00673#2#h2tg000031l:10256-1959976",
+    "HG00733#2#h2tg000060l:26405000-27483925",
+    "HG01175#1#h1tg000188l:192-200000",
+    "HG02818#2#h2tg000045l:15000-2706770",
+    "HG03516#2#h2tg000202l:24-441470",
+];
 
 async function init() {
 
