@@ -140,6 +140,21 @@ impl GraphViewer {
         Ok(viewer)
     }
 
+    pub fn resize(&self, raving: &RavingCtx, width: u32, height: u32) {
+        if let Some(surface) = self.surface.as_ref() {
+            surface.configure(
+                &raving.gpu_state.device,
+                &surface
+                    .get_default_config(
+                        &raving.gpu_state.adapter,
+                        width,
+                        height,
+                    )
+                    .expect("Error configuring surface"),
+            );
+        }
+    }
+
     pub fn get_view(&self) -> View2D {
         self.viewport
     }

@@ -83,12 +83,21 @@ export async function initGraphViewer(wasm_mem, graph, layout_url) {
     console.log("segment count: " + seg_count);
 
     let canvas = document.getElementById("graph-viewer-2d");
+
+    let container = document.getElementById("graph-viewer-container");
+    let dims = { width: container.clientWidth, height: container.clientHeight };
+
     // let offscreen_canvas = canvas.transferControlToOffscreen();
 
     let viewer = wasm_bindgen.GraphViewer.new_dummy_data(_raving_ctx,
           _graph,
           seg_pos,
           canvas);
+
+    canvas.width = dims.width;
+    canvas.height = dims.height;
+
+    viewer.resize(_raving_ctx, dims.width, dims.height);
 
     viewer.draw_to_surface(_raving_ctx);
 
