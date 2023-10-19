@@ -27,3 +27,7 @@ export function uint32_array_helper(mem, data_ptr, data_len) {
 export function segment_pos_obj(x0, y0, x1, y1) {
     return { x0, y0, x1, y1 };
 }
+
+export function create_view(x, y, width, height) {
+    return { x, y, width, height };
+}

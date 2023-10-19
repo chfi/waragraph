@@ -6,8 +6,14 @@ use wasm_bindgen::prelude::*;
 
 #[wasm_bindgen(module = "/js/util.js")]
 extern "C" {
-    #[wasm_bindgen]
     fn create_mat3_impl(mem: JsValue, data_ptr: *const f32) -> JsValue;
+
+    pub(crate) fn create_view_obj(
+        x: f32,
+        y: f32,
+        width: f32,
+        height: f32,
+    ) -> JsValue;
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -27,6 +33,20 @@ impl View2D {
         let js_mat = create_mat3_impl(memory, ptr);
 
         js_mat
+    }
+
+    pub fn as_obj(&self) -> JsValue {
+        create_view_obj(self.center.x, self.center.y, self.size.x, self.size.y)
+    }
+
+    pub fn set_center(&mut self, x: f32, y: f32) {
+        self.center.x = x;
+        self.center.y = y;
+    }
+
+    pub fn set_size(&mut self, w: f32, h: f32) {
+        self.size.x = w;
+        self.size.y = h;
     }
 
     pub fn equals(&self, other: &View2D) -> bool {

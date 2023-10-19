@@ -174,3 +174,21 @@ export async function initGraphViewer(wasm_mem, graph, layout_url) {
 
     return graph_viewer;
 }
+
+
+
+
+function resize_view_dimensions(v_dims, c_old, c_new) {
+    let [v_w, v_h] = v_d;
+    let [c_old_w, c_old_h] = c_old;
+    let [c_new_w, c_new_h] = c_new;
+
+    let S_w = c_new_w / c_old_w;
+    let S_h = c_new_h / c_old_h;
+    let S = Math.min(S_w, S_h);
+
+    let v_new_w = v_w * S;
+    let v_new_h = v_h * S;
+
+    return [v_new_h, v_new_h];
+}

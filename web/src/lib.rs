@@ -127,6 +127,9 @@ impl RavingCtx {
 pub struct SegmentPositions {
     xs: Vec<f32>,
     ys: Vec<f32>,
+
+    min_bounds: ultraviolet::Vec2,
+    max_bounds: ultraviolet::Vec2,
 }
 
 #[wasm_bindgen]
@@ -169,6 +172,15 @@ impl SegmentPositions {
         Ok(path2d)
     }
 
+    pub fn bounds_as_view(&self) -> JsValue {
+        let size = self.max_bounds - self.min_bounds;
+        let center = self.min_bounds + size * 0.5;
+
+        crate::viewer_2d::view::create_view_obj(
+            center.x, center.y, size.x, size.y,
+        )
+    }
+
     // pub fn segment_pos(&self, seg_id: u32) -> JsValue {
     pub fn segment_pos(&self, seg_id: u32) -> JsValue {
         let i = (seg_id * 2) as usize;
@@ -191,6 +203,7 @@ impl SegmentPositions {
     ) -> Result<SegmentPositions, JsValue> {
         use std::io::prelude::*;
         use std::io::Cursor;
+        use ultraviolet::Vec2;
 
         let tsv_text = tsv_text
             .as_string()
@@ -200,6 +213,9 @@ impl SegmentPositions {
 
         let mut xs = Vec::new();
         let mut ys = Vec::new();
+
+        let mut min_bounds = Vec2::broadcast(std::f32::MAX);
+        let mut max_bounds = Vec2::broadcast(std::f32::MIN);
 
         log::debug!("parsing?????");
         for (i, line) in cursor.lines().enumerate() {
@@ -216,12 +232,20 @@ impl SegmentPositions {
 
             let x = fields.next().unwrap().parse::<f32>().unwrap();
             let y = fields.next().unwrap().parse::<f32>().unwrap();
+            let p = Vec2::new(x, y);
+            min_bounds = min_bounds.min_by_component(p);
+            max_bounds = max_bounds.max_by_component(p);
 
             xs.push(x);
             ys.push(y);
         }
 
-        Ok(SegmentPositions { xs, ys })
+        Ok(SegmentPositions {
+            xs,
+            ys,
+            min_bounds,
+            max_bounds,
+        })
     }
 }
 
