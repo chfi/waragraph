@@ -1,4 +1,7 @@
-use std::{collections::BTreeMap, sync::Arc};
+use std::{
+    collections::{BTreeMap, HashSet},
+    sync::Arc,
+};
 
 use arrow2::{array::PrimitiveArray, offset::OffsetsBuffer};
 use waragraph_core::graph::{Bp, Node, PathId, PathIndex};
@@ -296,8 +299,64 @@ impl CoordSys {
         }
     }
 
+    pub fn path_from_arrow_gfa(
+        graph: &ArrowGFAWrapped,
+        path_index: u32,
+    ) -> Self {
+        let mut seen_nodes = HashSet::new();
+
+        let steps = &graph.0.path_steps[path_index as usize];
+
+        let mut node_order = Vec::with_capacity(steps.len());
+        let mut step_offsets = Vec::with_capacity(steps.len());
+
+        let mut offset = 0i32;
+        step_offsets.push(offset);
+
+        for &handle in steps.values_iter() {
+            let node = handle >> 1;
+            if !seen_nodes.contains(&node) {
+                let seg_size = graph.0.segment_len(node);
+
+                node_order.push(node);
+                seen_nodes.insert(node);
+
+                offset += seg_size as i32;
+                step_offsets.push(offset);
+            }
+        }
+
+        node_order.shrink_to_fit();
+        step_offsets.shrink_to_fit();
+
+        let node_order = arrow2::array::UInt32Array::from_vec(node_order);
+        let step_offsets = OffsetsBuffer::try_from(step_offsets).unwrap();
+
+        Self {
+            node_order,
+            step_offsets,
+        }
+    }
+
     pub fn max(&self) -> u64 {
         *self.step_offsets.last() as u64
+    }
+
+    pub fn max_f64(&self) -> f64 {
+        self.max() as f64
+    }
+
+    #[wasm_bindgen(js_name = "bp_to_step_range")]
+    pub fn bp_to_step_range_js(&self, start: u64, end: u64) -> js_sys::Object {
+        let (s_i, e_i) = self.bp_to_step_range(start, end).into_inner();
+
+        let obj = js_sys::Object::new();
+
+        for (k, v) in [("start", s_i as f64), ("end", e_i as f64)] {
+            js_sys::Reflect::set(obj.as_ref(), &k.into(), &v.into());
+        }
+
+        obj
     }
 }
 

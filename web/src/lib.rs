@@ -270,6 +270,12 @@ impl ArrowGFAWrapped {
         Ok(name.to_string())
     }
 
+    pub fn path_index(&self, path_name: &str) -> Result<u32, JsValue> {
+        self.0.path_name_index(path_name).ok_or_else(|| {
+            JsValue::from_str(&format!("Path `{path_name}` not found"))
+        })
+    }
+
     pub fn with_path_names(&self, f: &js_sys::Function) {
         let this = JsValue::null();
         for path_name in self.0.path_names.iter() {
@@ -284,10 +290,7 @@ impl ArrowGFAWrapped {
         &self,
         path_name: &str,
     ) -> Result<js_sys::Uint32Array, JsValue> {
-        let path_index =
-            self.0.path_name_index(path_name).ok_or_else(|| {
-                JsValue::from_str(&format!("Path `{path_name}` not found"))
-            })?;
+        let path_index = self.path_index(path_name)?;
 
         let steps = &self.0.path_steps[path_index as usize];
         let slice = steps.values().as_slice();

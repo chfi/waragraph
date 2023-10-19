@@ -41,6 +41,12 @@ class GraphViewer {
     draw() {
         this.graph_viewer.set_view(this.next_view);
         this.graph_viewer.draw_to_surface(_raving_ctx);
+
+        let overlay = document
+            .getElementById('graph-viewer-2d-overlay');
+        let ctx = overlay.getContext('2d');
+
+        ctx.clearRect(0, 0, overlay.width, overlay.height);
     }
 
     translate(x, y) {
@@ -173,6 +179,54 @@ export async function initGraphViewer(wasm_mem, graph, layout_url) {
     });
 
     graph_viewer.fitViewToGraph();
+
+
+    let path_name = "gi|157734152:29655295-29712160";
+    let path_i = _graph.path_index(path_name);
+
+    let path_cs = wasm_bindgen.CoordSys.path_from_arrow_gfa(_graph, path_i);
+    let path_max = path_cs.max();
+    console.log(path_max);
+
+    let seg = path_max / 4n;
+
+    let range = path_cs.bp_to_step_range(2n * seg, 3n * seg);
+    console.log(range);
+
+    let path_steps = _graph.path_steps(path_name);
+    console.log(path_steps);
+
+    const draw_path_slice = (start, end) => {
+        let view = graph_viewer.graph_viewer.get_view();
+
+        // console.log(path_steps);
+        console.log(start);
+        console.log(end);
+        let path_slice = path_steps.slice(start, end);
+        console.log(path_slice);
+        let path2d = seg_pos.path_to_canvas_space(view, overlay.width, overlay.height, path_slice);
+
+        let ov_ctx = overlay.getContext('2d');
+        ov_ctx.stroke(path2d);
+    };
+
+    graph_viewer.draw_path_slice = draw_path_slice;
+
+
+    /*
+    let path_name = "HG00438#1#h1tg000040l:22870040-27725000";
+    let path = _graph.path_steps(path_name);
+
+    const draw_path = () => {
+        let view = graph_viewer.graph_viewer.get_view();
+        let path2d = seg_pos.path_to_canvas_space(view, 800, 600, path);
+
+        let ov_ctx = overlay.getContext('2d');
+        ov_ctx.stroke(path2d);
+    };
+
+    graph_viewer.draw_path = draw_path;
+    */
 
 
     /*
