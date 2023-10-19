@@ -113,16 +113,12 @@ async function init() {
                 canvas.classList.add("path-data-view");
 
                 canvas.id = id;
-                // name_container.append(name_el);
-                // data_container.append(canvas);
                 row_el.append(name_el);
                 row_el.append(canvas);
 
                 let overlay_el = document.createElement("canvas");
                 overlay_el.classList.add("path-data-overlay");
                 overlay_el.id = "overlay-" + name;
-                overlay_el.width = 1024;
-                overlay_el.height = 40;
 
                 addPathViewerLogic(worker_obj, path_viewer, overlay_el, overview_el, cs_view);
 
@@ -130,41 +126,18 @@ async function init() {
 
                 container.append(row_el);
 
+                await path_viewer.setCanvasWidth(overlay_el.clientWidth);
+                overlay_el.width = overlay_el.clientWidth;
+                overlay_el.height = 40;
+
                 console.log(canvas);
                 console.log(canvas.clientWidth);
 
                 if (path_ix == 0) {
-                    overview_el.width = canvas.clientWidth;
+                    overview_el.width = overlay_el.clientWidth;
                 }
-
-                /*
-                if (path_ix == 1) {
-                    // let ranges = [
-                    //     { start: 100.0, end: 120.0, thickness: 12.0 },
-                    //     { start: 120.0, end: 180.0, thickness: 4.0 },
-                    //     { start: 180.0, end: 230.0, thickness: 12.0 },
-                    // ];
-                    // CanvasTracks.drawVariableThicknessTrack(overlay_el, ranges);
-
-                    let ranges = [
-                        { start: 100.0, end: 120.0, thick: true },
-                        { start: 120.0, end: 180.0, thick: false },
-                        { start: 180.0, end: 230.0, thick: true },
-                    ];
-                    CanvasTracks.drawBinaryArrowTrack(overlay_el, ranges);
-                }
-                */
-
-                // let parent_w = data_container.clientWidth;
-                // console.log(parent_w);
-                // await path_viewer.setCanvasWidth(parent_w);
 
             });
-
-            // div.path-viewer-list-row:nth-child(2) > div:nth-child(1)
-
-            // let col2 = document.querySelector("canvas.path-data-view");
-            // console.log(col2);
 
 
             window.worker_obj = worker_obj;

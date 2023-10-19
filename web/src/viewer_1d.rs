@@ -80,6 +80,10 @@ impl PathViewer {
             }
             log::debug!("setting canvas width to {width}");
             self.canvas.set_width(size as u32);
+
+            if let Some(target) = self.target_canvas.as_ref() {
+                target.set_width(size as u32);
+            }
         }
     }
 
