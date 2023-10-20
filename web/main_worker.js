@@ -11,14 +11,6 @@ const handler = await import('./transfer_handlers.js');
 
 handler.setTransferHandlers(rxjs, Comlink);
 
-console.log("rxjs");
-console.log(rxjs);
-
-console.log(wasm_bindgen);
-console.log(typeof wasm_bindgen);
-
-// let _raving_ctx;
-
 let _graph;
 
 let _state;
@@ -153,112 +145,33 @@ class PathViewerCtx {
     
 }
 
-/*
-class GraphViewerCtx {
-    constructor(graph_viewer, seg_pos) {
-        this.graph_viewer = graph_viewer;
-        this.segment_pos = seg_pos;
-    }
-
-    draw() {
-        this.graph_viewer.draw_to_offscreen_canvas(_raving_ctx);
-        console.log("does it get here");
-    }
-}
-*/
-
 
 async function run(memory, gfa_path) {
     wasm = await init_wasm(undefined, memory);
 
     wasm_bindgen.set_panic_hook();
 
-    // const gfa_path = '../data/A-3105.fa.353ea42.34ee7b1.1576367.smooth.fix.gfa';
-    // const gfa_path = './cerevisiae.pan.fa.gz.d1a145e.417fcdf.7493449.smooth.final.gfa';
-
     console.log("fetching GFA");
-
     let gfa = fetch(gfa_path);
     
     console.log("parsing GFA");
-    // let ctx = wasm_bindgen.initialize_with_data_fetch(gfa, tsv
     let graph = await wasm_bindgen.load_gfa_arrow(gfa);
-    console.log(graph);
 
-    let path_name = graph.path_name(0);
-    // let path_name = "gi|528476637:29857558-29915771";
     console.log("constructing coordinate system");
     let coord_sys = wasm_bindgen.CoordSys.global_from_arrow_gfa(graph);
-    console.log("deriving depth data");
-    let data = wasm_bindgen.arrow_gfa_depth_data(graph, path_name);
+    // console.log("deriving depth data");
+    // let data = wasm_bindgen.arrow_gfa_depth_data(graph, path_name);
 
-    console.log("initializing path viewer");
-
-    let color_0 = 
-        { r: 0.8, g: 0.3, b: 0.3, a: 1.0 };
-    let color_1 =
-        { r: 0.2, g: 0.2, b: 0.2, a: 1.0 };
-
-    let opts = { bins: 1024, color_0, color_1 };
-
-    let path_viewer = new PathViewerCtx(coord_sys, data, opts);
-
-    coord_sys = path_viewer.path_viewer.coord_sys;
-
-    console.log("_state coord_sys: " + coord_sys);
-
-    _state = { path_name, path_viewer, coord_sys };
+    _state = { coord_sys };
 
     console.log(_state);
 
     _graph = graph;
-    console.log("worker node count: " + _graph.segment_count());
-        let view = wasm_bindgen.View1D.new_full(coord_sys.max());
+    let view = wasm_bindgen.View1D.new_full(coord_sys.max());
 
     _global_cs_view = new CoordSysView(coord_sys, view);
 
-
-    const new_graph = wasm_bindgen.ArrowGFAWrapped.__wrap(graph.__wbg_ptr);
-
-    let segc = new_graph.segment_count();
-    console.log(">>>>>>>>>>>>>> new wrapped segment count: " + segc);
-    // console.log("global cs view: ");
-    // console.log(_global_cs_view);
-
     Comlink.expose({
-
-        /*
-        async initialize2DGraphViewer(layout_tsv_text_resp,
-                                      offscreen_canvas) {
-            console.log("initializing 2D graph viewer");
-            let layout_tsv = layout_tsv_text_resp;
-            let seg_pos = wasm_bindgen.SegmentPositions.from_tsv(layout_tsv);
-            console.log(seg_pos);
-            console.log(_raving_ctx);
-
-            let viewer = wasm_bindgen.GraphViewer.new_dummy_data(_raving_ctx,
-                                                                 graph,
-                                                                 seg_pos,
-                                                                 offscreen_canvas);
-
-            return Comlink.proxy(new GraphViewerCtx(viewer, seg_pos));
-        },
-        */
-
-        getSegmentCount() {
-            return new_graph.segment_count();
-        },
-
-        getWasmMemory() {
-            // let mem = wasm_bindgen.get_memory();
-            // console.log(mem);
-            // console.log(">>>>>>>>>>>>>>>>> getting memory");
-            // console.log(wasm);
-            // console.log("it's nothing.");
-            return wasm.memory;
-            // return Comlink.transfer(wasm.memory, [wasm.memory]);
-        },
-
         createPathViewer(offscreen_canvas,
                          path_name) {
             console.log("in createPathViewer");
@@ -288,15 +201,6 @@ async function run(memory, gfa_path) {
 
             return Comlink.proxy(viewer);
         },
-
-        // connectCanvas(offscreen_canvas) {
-        //     _state.path_viewer.connectCanvas(offscreen_canvas);
-        // },
-
-        globalCoordSys() {
-            return Comlink.proxy(_global_cs_view);
-        },
-
         getPathNames() {
             let names = [];
             _graph.with_path_names((name) => {
@@ -304,12 +208,9 @@ async function run(memory, gfa_path) {
             });
             return names;
         },
-
-        // sampleRange(left, right) {
-        //     _state.path_viewer.setView(left, right);
-        //     _state.path_viewer.sample();
-        // },
-
+        globalCoordSys() {
+            return Comlink.proxy(_global_cs_view);
+        },
         getGraph() {
             return _graph;
         }
