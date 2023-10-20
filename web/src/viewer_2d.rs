@@ -83,6 +83,71 @@ pub struct GraphViewer {
 
 #[wasm_bindgen]
 impl GraphViewer {
+    pub fn new_with_color_data(
+        raving: &RavingCtx,
+        graph: &ArrowGFAWrapped,
+        pos: &SegmentPositions,
+        canvas: web_sys::HtmlCanvasElement,
+        segment_colors: &[u32],
+    ) -> Result<GraphViewer, JsValue> {
+        if segment_colors.len() != graph.segment_count() {
+            return Err(format!(
+                "Expected {} values in color buffer, was {}",
+                graph.segment_count(),
+                segment_colors.len()
+            )
+            .into());
+        }
+
+        // let mut node_data = vec![0f32; graph.segment_count()];
+        log::warn!("creating node data");
+
+        let seg_count = graph.0.segment_count();
+        log::warn!("seg count??? {seg_count}");
+        // let mut node_data = vec![1f32; graph.segment_count()];
+
+        let format = wgpu::TextureFormat::Rgba8UnormSrgb;
+
+        log::warn!("initializing graph viewer");
+        let mut viewer = GraphViewer::initialize(
+            &raving.gpu_state,
+            // format,
+            raving.surface_format,
+            &graph.0,
+            &pos.xs,
+            &pos.ys,
+            segment_colors,
+        )
+        .map_err(|err| -> JsValue {
+            format!("Error initializing GraphViewer: {err:?}").into()
+        })?;
+
+        // let canvas = OffscreenCanvas::new(800, 600)?;
+        log::warn!("initializing surface");
+        // let canvas = offscreen_canvas;
+        let surface = raving
+            .gpu_state
+            .instance
+            // .create_surface_from_offscreen_canvas(canvas)
+            .create_surface_from_canvas(canvas)
+            .map_err(|err| {
+                JsValue::from(format!("Error initializing surface: {err:?}"))
+            })?;
+
+        log::warn!("configuring surface");
+        surface.configure(
+            &raving.gpu_state.device,
+            &surface
+                .get_default_config(&raving.gpu_state.adapter, 800, 600)
+                .expect("Error configuring surface"),
+        );
+
+        viewer.surface = Some(surface);
+        // viewer.offscreen_canvas = Some(OffscreenCanvas::new(300, 150)?);
+
+        Ok(viewer)
+    }
+
     // pub fn new_depth_data(
     pub fn new_dummy_data(
         raving: &RavingCtx,
@@ -96,7 +161,10 @@ impl GraphViewer {
 
         let seg_count = graph.0.segment_count();
         log::warn!("seg count??? {seg_count}");
-        let mut node_data = vec![1f32; graph.segment_count()];
+
+        let color = 0xAAAAAAFFu32;
+        // let color = 0xFF22BBFFu32;
+        let mut node_data = vec![color; graph.segment_count()];
 
         let format = wgpu::TextureFormat::Rgba8UnormSrgb;
 
@@ -219,7 +287,7 @@ impl GraphViewer {
         graph: &ArrowGFA,
         pos_x: &[f32],
         pos_y: &[f32],
-        node_data: &[f32],
+        segment_colors: &[u32],
     ) -> anyhow::Result<Self> {
         let seg_count = graph.segment_count();
 
@@ -257,7 +325,7 @@ impl GraphViewer {
 
         println!("uploading vertex data");
         renderer.upload_vertex_data(state, data)?;
-        renderer.upload_node_data(state, node_data)?;
+        renderer.upload_segment_colors(state, segment_colors)?;
 
         let view = {
             let size = max_p - min_p;

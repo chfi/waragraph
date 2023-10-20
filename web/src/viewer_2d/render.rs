@@ -279,7 +279,7 @@ impl PolylineRenderer {
         console::log_1(&"polyline renderer init".into());
         let shader_src = include_str!(concat!(
             env!("CARGO_MANIFEST_DIR"),
-            "/../app/shaders/path_2d_g_webgl.wgsl"
+            "/shaders/path_2d_direct_color.wgsl" // "/../app/shaders/path_2d_g_webgl.wgsl"
         ));
 
         let graphics_node = raving_wgpu::node::graphics_node(
@@ -307,7 +307,7 @@ impl PolylineRenderer {
                     ["p0", "p1", "node_id"].as_slice(),
                     wgpu::VertexStepMode::Instance,
                 ),
-                (["node_data"].as_slice(), wgpu::VertexStepMode::Instance),
+                (["node_color"].as_slice(), wgpu::VertexStepMode::Instance),
             ],
             [
                 (
@@ -507,21 +507,21 @@ impl PolylineRenderer {
         Ok(())
     }
 
-    pub fn upload_node_data(
+    pub fn upload_segment_colors(
         &mut self,
         // state: &mut State,
         gpu_state: &raving_wgpu::State,
-        segment_data: &[f32],
+        segment_colors: &[u32],
     ) -> Result<()> {
         let mut state = self.state.write();
-        let seg_count = segment_data.len();
+        let seg_count = segment_colors.len();
         let expected = state.segment_count;
 
         if seg_count != expected {
             panic!("Node data doesn't match node count: was {seg_count}, expected {expected}");
         }
 
-        state.data_buffers.upload_slice(gpu_state, segment_data)?;
+        state.data_buffers.upload_slice(gpu_state, segment_colors)?;
 
         self.has_node_data = true;
 
@@ -582,20 +582,20 @@ impl PolylineRenderer {
             state.data_config_uniform.buffer().as_entire_binding(),
         );
 
-        bindings.insert(
-            "u_color_map".into(),
-            state.color_map.buffer().as_entire_binding(),
-        );
+        // bindings.insert(
+        //     "u_color_map".into(),
+        //     state.color_map.buffer().as_entire_binding(),
+        // );
 
-        bindings.insert(
-            "t_sampler".into(),
-            wgpu::BindingResource::Sampler(sampler),
-        );
+        // bindings.insert(
+        //     "t_sampler".into(),
+        //     wgpu::BindingResource::Sampler(sampler),
+        // );
 
-        bindings.insert(
-            "t_colors".into(),
-            wgpu::BindingResource::TextureView(color),
-        );
+        // bindings.insert(
+        //     "t_colors".into(),
+        //     wgpu::BindingResource::TextureView(color),
+        // );
 
         let bind_groups = self
             .graphics_node
