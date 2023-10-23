@@ -10,3 +10,7 @@ resolver = "2"
 
 [profile.dev]
 opt-level = 3
+
+
+[patch.crates-io]
+wasm-bindgen = { git = "https://github.com/rustwasm/wasm-bindgen.git", rev = "2e9ff5dfa3f11415f0efe9b946ee2734500e9ee3" }

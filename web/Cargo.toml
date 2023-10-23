@@ -12,7 +12,10 @@ crate-type = ["cdylib"]
 # raving-wgpu = { git = "https://github.com/chfi/raving-wgpu", branch = "simplify" }
 raving-wgpu = { path = "../../raving-wgpu" }
 
+
 wasm-bindgen = "0.2"
+# wasm-bindgen = { git = "https://github.com/rustwasm/wasm-bindgen.git", rev = "2e9ff5dfa3f11415f0efe9b946ee2734500e9ee3" }
+# wasm-bindgen-shared = { git = "https://github.com/rustwasm/wasm-bindgen.git", rev = "2e9ff5dfa3f11415f0efe9b946ee2734500e9ee3" }
 wasm-bindgen-futures = "0.4"
 js-sys = "0.3"
 web-sys = { version = "0.3", features = [
