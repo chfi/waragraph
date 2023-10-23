@@ -79,15 +79,16 @@ export async function addPathViewerLogic(worker, path_viewer, canvas, overview, 
 
     const wheelScaleDelta$ = wheel$.pipe(
         map(event => {
+            let x = event.clientX / canvas.width;
             if (event.deltaY > 0) {
-                return 1.05;
+                return { scale: 1.05, x };
             } else {
-                return 0.95;
+                return { scale: 0.95, x };
             }
         })
     );
 
-    await cs_view.subscribeZoomCentered(wheelScaleDelta$);
+    await cs_view.subscribeZoomAround(wheelScaleDelta$);
 
     const drag$ = mouseDown$.pipe(
         switchMap((event) => {
@@ -121,6 +122,10 @@ export async function addPathViewerLogic(worker, path_viewer, canvas, overview, 
             path_viewer.setView(view.start, view.end);
             path_viewer.sample();
             path_viewer.forceRedraw();
+
+            let overview_ctx = canvas.getContext('2d');
+            overview_ctx.clearRect(0, 0, canvas.width, canvas.height);
+
         });
     });
 

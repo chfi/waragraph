@@ -47,6 +47,12 @@ class CoordSysView {
         });
     }
 
+    subscribeZoomAround(observable) {
+        let new_sub = observable.subscribe(({ scale, x }) => {
+            this.zoomNorm(x, scale);
+        });
+    }
+
     subscribeZoomCentered(observable) {
         let new_sub = observable.subscribe(scale => {
             this.zoomViewCentered(scale);
@@ -208,7 +214,7 @@ async function run(memory, gfa_path) {
             });
             return names;
         },
-        globalCoordSys() {
+        globalCoordSysView() {
             return Comlink.proxy(_global_cs_view);
         },
         getGraph() {

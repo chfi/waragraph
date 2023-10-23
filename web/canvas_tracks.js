@@ -85,13 +85,15 @@ export function drawSequence(canvas, sequence, subpixel_offset) {
     let y = canvas.height / 2;
 
     ctx.font = "12px monospace";
+    ctx.textAlign = "center";
 
     let base_i = 0;
 
     for (const base of sequence) {
-        let x = base_i * bp_width + 0.5 * bp_width + subpixel_offset;
+        let txt = typeof base === 'string' ? base : String.fromCharCode(base);
 
-        ctx.fillText(base, x, y);
+        let x = base_i * bp_width + 0.5 * bp_width + subpixel_offset;
+        ctx.fillText(txt, x, y);
 
         base_i += 1;
     }

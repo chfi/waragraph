@@ -297,10 +297,25 @@ impl ArrowGFAWrapped {
 
         let ptr = slice.as_ptr();
 
-        let memory = wasm_bindgen::memory();
-        let array = uint32_array_helper(memory, ptr, slice.len() as u32);
+        let memory = js_sys::WebAssembly::Memory::from(wasm_bindgen::memory());
+        Ok(js_sys::Uint32Array::new_with_byte_offset_and_length(
+            &memory,
+            ptr as u32,
+            slice.len() as u32,
+        ))
+    }
 
-        Ok(array)
+    pub fn segment_sequences_array(&self) -> js_sys::Uint8Array {
+        let memory = js_sys::WebAssembly::Memory::from(wasm_bindgen::memory());
+
+        let seq = self.0.segment_sequences.values();
+        let ptr = seq.as_ptr();
+
+        js_sys::Uint8Array::new_with_byte_offset_and_length(
+            &memory.buffer(),
+            ptr as u32,
+            seq.len() as u32,
+        )
     }
 
     // returning a Vec<JsValue> seems broken right now, idk why

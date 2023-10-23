@@ -33,6 +33,10 @@ const path_names = undefined;
 //     "HG03516#2#h2tg000202l:24-441470",
 // ];
 
+function globalViewSequence(graph_raw) {
+    let graph = wasm_bindgen.ArrowGFAWrapped.__wrap(graph_raw.__wbg_ptr);
+}
+
 async function init() {
 
     const handler = await import('./transfer_handlers.js');
@@ -80,7 +84,7 @@ async function init() {
 
             console.log(names);
 
-            let cs_view = await worker_obj.globalCoordSys();
+            let cs_view = await worker_obj.globalCoordSysView();
 
             let view_max = await cs_view.viewMax();
 
