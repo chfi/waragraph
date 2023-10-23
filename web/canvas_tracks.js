@@ -70,3 +70,31 @@ export function drawBinaryArrowTrack(canvas, x_ranges) {
 
     ctx.restore();
 }
+
+
+
+export function drawSequence(canvas, sequence, subpixel_offset) {
+    const ctx = canvas.getContext('2d');
+    ctx.save();
+
+    let view_len = sequence.length;
+    let width = canvas.width;
+
+    let bp_width = width / view_len;
+
+    let y = canvas.height / 2;
+
+    ctx.font = "12px monospace";
+
+    let base_i = 0;
+
+    for (const base of sequence) {
+        let x = base_i * bp_width + 0.5 * bp_width + subpixel_offset;
+
+        ctx.fillText(base, x, y);
+
+        base_i += 1;
+    }
+
+    ctx.restore();
+}
