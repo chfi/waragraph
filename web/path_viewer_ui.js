@@ -7,6 +7,28 @@ import * as handler from './transfer_handlers.js';
 handler.setTransferHandlers(rxjs, Comlink);
 
 
+export async function highlightPathRanges(
+    path_name,
+    pixel_ranges,
+    color
+) {
+    let overlay = document.getElementById("overlay-" + path_name);
+
+    if (overlay === undefined) {
+        return;
+    }
+
+    let ctx = overlay.getContext('2d');
+
+    ctx.save();
+
+    for (const { start, end } of pixel_ranges) {
+        ctx.fillRect(start, 0, end - start, overlay.height);
+    }
+
+    ctx.restore();
+}
+
 
 // creates and attaches a path viewer to a canvas
 // does not attach the canvas element to the DOM

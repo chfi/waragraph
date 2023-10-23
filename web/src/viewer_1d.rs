@@ -13,6 +13,8 @@ use web_sys::{
 
 use crate::{ArrowGFAWrapped, PathIndexWrap};
 
+use self::view::View1D;
+
 pub mod sampler;
 pub mod view;
 
@@ -538,6 +540,78 @@ impl CoordSys {
 }
 
 #[wasm_bindgen]
+pub struct SegmentRanges {
+    ranges: Vec<std::ops::Range<u32>>,
+}
+
+// NB: views and ranges here are all global -- maybe views should be
+// associated with/derived from coordinate systems...
+impl SegmentRanges {
+    pub fn to_canvas_ranges(
+        &self,
+        view: &View1D,
+        canvas_width: f64,
+    ) -> Vec<f32> {
+        let v_range = view.range_bp();
+        let v_len = view.len();
+
+        let v_start = v_range.start as u32;
+        let v_end = v_range.end as u32;
+
+        self.ranges
+            .iter()
+            .filter_map(|range| {
+                // if range overlaps view
+                if range.end < v_start || range.start > v_end {
+                    return None;
+                }
+
+                let l_u = range.start.checked_sub(v_range.start as u32)?;
+                let r_u = range.end.checked_sub(v_range.start as u32)?;
+
+                let l_n = (l_u as f64) / v_len;
+                let r_n = (r_u as f64) / v_len;
+
+                // transform range to view coordinates
+                let l = (l_n * canvas_width) as f32;
+                let r = (r_n * canvas_width) as f32;
+
+                Some([l, r])
+            })
+            .flatten()
+            .collect()
+    }
+}
+
+#[wasm_bindgen]
+pub fn path_slice_to_global_adj_partitions(
+    path_steps: &[u32],
+) -> SegmentRanges {
+    // only handling the global node order for now, so instead of
+    // dealing with an explicit coordinate system just sort
+    let mut sorted = path_steps.into_iter().copied().collect::<Vec<_>>();
+    sorted.sort();
+
+    let mut ranges = Vec::new();
+
+    let mut range_start = path_steps[0];
+    let mut prev_seg_ix = path_steps[0];
+
+    for &handle in path_steps {
+        let seg_ix = handle >> 1;
+
+        if seg_ix.abs_diff(prev_seg_ix) > 1 {
+            ranges.push(range_start..prev_seg_ix);
+            range_start = seg_ix;
+        }
+
+        prev_seg_ix = seg_ix;
+    }
+
+    SegmentRanges { ranges }
+}
+
+#[wasm_bindgen]
 pub struct SparseData {
     indices: arrow2::array::UInt32Array,
     data: arrow2::array::Float32Array,
@@ -620,12 +694,6 @@ impl CoordSys {
             bins,
         );
     }
-}
-
-pub struct CoordSysWindows<'c> {
-    coord_sys: &'c CoordSys,
-
-    bp_range: std::ops::Range<u64>,
 }
 
 pub fn hashed_rgb(name: &str) -> [u8; 3] {
