@@ -241,6 +241,22 @@ impl GraphViewer {
         Ok(())
     }
 
+    pub fn gbuffer_lookup(
+        &self,
+        raving: &RavingCtx,
+        x: f32,
+        y: f32,
+    ) -> Result<u32, JsValue> {
+        if let Some((node, offset)) = self
+            .geometry_buffers
+            .lookup(&raving.gpu_state.device, [x, y])
+        {
+            Ok(node.0)
+        } else {
+            Err(JsValue::NULL)
+        }
+    }
+
     pub fn get_view(&self) -> View2D {
         self.viewport
     }
@@ -291,6 +307,8 @@ impl GraphViewer {
         );
 
         self.draw(&raving.gpu_state, dims, &tex_view, &mut encoder);
+
+        self.geometry_buffers.download_textures(&mut encoder);
 
         raving.gpu_state.queue.submit([encoder.finish()]);
 
@@ -456,19 +474,36 @@ impl GraphViewer {
 
         let state = self.renderer.state.read();
 
+        let node_id_attch =
+            self.geometry_buffers.node_id_tex.view.as_ref().unwrap();
+
         let mut pass = self.renderer.graphics_node.interface.render_pass(
-            &[(
-                tgt_attch,
-                wgpu::Operations {
-                    load: wgpu::LoadOp::Clear(wgpu::Color {
-                        r: 1.0,
-                        g: 1.0,
-                        b: 1.0,
-                        a: 1.0,
-                    }),
-                    store: true,
-                },
-            )],
+            &[
+                (
+                    tgt_attch,
+                    wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(wgpu::Color {
+                            r: 1.0,
+                            g: 1.0,
+                            b: 1.0,
+                            a: 1.0,
+                        }),
+                        store: true,
+                    },
+                ),
+                (
+                    node_id_attch,
+                    wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(wgpu::Color {
+                            r: 0.0,
+                            g: 0.0,
+                            b: 0.0,
+                            a: 0.0,
+                        }),
+                        store: true,
+                    },
+                ),
+            ],
             encoder,
         )?;
 
@@ -567,6 +602,7 @@ impl GeometryBuffers {
         [w, h]
     }
 
+    // TODO: just have the geometry buffer store a CPU vector copy
     fn lookup(
         &self,
         device: &wgpu::Device,

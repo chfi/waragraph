@@ -24,6 +24,16 @@ class GraphViewer {
         return !this.next_view.equals(this.graph_viewer.get_view());
     }
 
+    lookup(x, y) {
+        try {
+            let val = this.graph_viewer.gbuffer_lookup(_raving_ctx, x, y);
+            console.log(val);
+            return val;
+        } catch (e) {
+            return null;
+        }
+    }
+
     fitViewToGraph() {
         let graph_bounds = this.segment_positions.bounds_as_view_obj();
         // let view_obj = this.next_view.as_obj();

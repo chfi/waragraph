@@ -351,18 +351,22 @@ impl PolylineRenderer {
                     "color",
                     wgpu::ColorTargetState {
                         format: surface_format,
-                        blend: Some(wgpu::BlendState::REPLACE),
+                        // NB: webgl doesn't support independent blend ops per attch
+                        // blend: Some(wgpu::BlendState::REPLACE),
+                        blend: None,
                         write_mask: wgpu::ColorWrites::all(),
                     },
                 ),
-                // (
-                //     "node_id",
-                //     wgpu::ColorTargetState {
-                //         format: wgpu::TextureFormat::R32Uint,
-                //         blend: None,
-                //         write_mask: wgpu::ColorWrites::all(),
-                //     },
-                // ),
+                (
+                    "node_id",
+                    wgpu::ColorTargetState {
+                        // format: wgpu::TextureFormat::R32Uint,
+                        format: wgpu::TextureFormat::R32Uint,
+                        blend: None,
+                        // blend: Some(wgpu::BlendState::REPLACE),
+                        write_mask: wgpu::ColorWrites::all(),
+                    },
+                ),
                 // (
                 //     "uv",
                 //     wgpu::ColorTargetState {
@@ -570,6 +574,7 @@ impl PolylineRenderer {
     pub fn create_bind_groups(
         &mut self,
         device: &wgpu::Device,
+        // these are vestigial but a bit annoying to remove right now
         sampler: &wgpu::Sampler,
         color: &wgpu::TextureView,
     ) -> Result<()> {

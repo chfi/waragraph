@@ -105,7 +105,7 @@ fn vs_main(
 
 struct FragmentOut {
   @location(0) color: vec4f,
-  // @location(1) node_id: u32,
+  @location(1) node_id: u32,
   // @location(2) uv: vec2f,
 }
 
@@ -146,6 +146,9 @@ fn fs_main(
   // let color = textureSample(t_colors, t_sampler, c_n);
 
   result.color = node_color;
+
+  // 0 is used to denote no node in the buffer
+  result.node_id = node_id + 1u;
 
   return result;
 }
