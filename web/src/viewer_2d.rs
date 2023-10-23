@@ -208,8 +208,24 @@ impl GraphViewer {
         Ok(viewer)
     }
 
-    pub fn resize(&self, raving: &RavingCtx, width: u32, height: u32) {
+    pub fn resize(
+        &mut self,
+        raving: &RavingCtx,
+        width: u32,
+        height: u32,
+    ) -> Result<(), JsValue> {
         if let Some(surface) = self.surface.as_ref() {
+            self.geometry_buffers = GeometryBuffers::allocate(
+                &raving.gpu_state,
+                [width, height],
+                raving.surface_format,
+            )
+            .map_err(|err| {
+                JsValue::from(format!(
+                    "Error reallocating geometry buffers: {err:?}"
+                ))
+            })?;
+
             surface.configure(
                 &raving.gpu_state.device,
                 &surface
@@ -221,6 +237,8 @@ impl GraphViewer {
                     .expect("Error configuring surface"),
             );
         }
+
+        Ok(())
     }
 
     pub fn get_view(&self) -> View2D {
@@ -344,7 +362,7 @@ impl GraphViewer {
         );
 
         let geometry_buffers =
-            GeometryBuffers::allocate(state, [1024; 2], surface_format)?;
+            GeometryBuffers::allocate(state, [800, 600], surface_format)?;
 
         let sampler = crate::color::create_linear_sampler(&state.device);
 
@@ -527,8 +545,7 @@ fn draw_annotations(
 pub(crate) struct GeometryBuffers {
     dims: [u32; 2],
 
-    pub(crate) node_color_tex: Arc<Texture>,
-
+    // pub(crate) node_color_tex: Arc<Texture>,
     node_id_tex: Texture,
     node_uv_tex: Texture,
 
@@ -720,15 +737,15 @@ impl GeometryBuffers {
         let width = dims[0] as usize;
         let height = dims[1] as usize;
 
-        let node_color_tex = Arc::new(Texture::new(
-            &state.device,
-            width,
-            height,
-            color_format,
-            // wgpu::TextureFormat::Rgba8UnormSrgb,
-            usage | wgpu::TextureUsages::TEXTURE_BINDING,
-            Some("Viewer2D Node ID Attch."),
-        )?);
+        // let node_color_tex = Arc::new(Texture::new(
+        //     &state.device,
+        //     width,
+        //     height,
+        //     color_format,
+        //     // wgpu::TextureFormat::Rgba8UnormSrgb,
+        //     usage | wgpu::TextureUsages::TEXTURE_BINDING,
+        //     Some("Viewer2D Node ID Attch."),
+        // )?);
 
         let node_id_tex = Texture::new(
             &state.device,
@@ -809,7 +826,7 @@ impl GeometryBuffers {
 
         Ok(Self {
             dims,
-            node_color_tex,
+            // node_color_tex,
             node_id_tex,
             node_uv_tex,
             node_id_buf,

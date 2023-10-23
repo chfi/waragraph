@@ -358,6 +358,7 @@ impl App {
     }
 }
 
+/*
 impl App {
     pub fn run(
         mut self,
@@ -501,6 +502,7 @@ impl App {
         );
     }
 }
+*/
 
 impl App {
     fn allocate_offscreen_target(

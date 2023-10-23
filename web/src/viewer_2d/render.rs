@@ -240,6 +240,7 @@ pub(super) struct State {
     data_buffers: PagedBuffers,
 
     data_config_uniform: crate::util::Uniform<DataConfig, 4>,
+    data_page_uniform: DataPageUniform,
 
     vertex_config_uniform: wgpu::Buffer,
     projection_uniform: wgpu::Buffer,
@@ -253,6 +254,42 @@ pub(super) struct State {
         Option<(wgpu::Id<wgpu::TextureView>, wgpu::Id<wgpu::Sampler>)>,
 
     graphics_node: Arc<GraphicsNode>,
+}
+
+// per-page uniforms corresponding to PagedBuffers,
+// using dynamic offsets
+struct DataPageUniform {
+    buffer_offset_alignment: u32,
+
+    buffer: wgpu::Buffer,
+}
+
+impl DataPageUniform {
+    fn new(device: &wgpu::Device, page_count: usize) -> Self {
+        let limits = device.limits();
+        let buffer_offset_alignment =
+            limits.min_uniform_buffer_offset_alignment;
+
+        let el_size = buffer_offset_alignment as usize;
+
+        let mut buffer_data = vec![0u8; el_size * page_count];
+
+        for (i, page_uniform) in buffer_data.chunks_mut(el_size).enumerate() {
+            let uni: &mut [u32] = bytemuck::cast_slice_mut(page_uniform);
+            uni[0] = i as u32;
+        }
+
+        let buffer = device.create_buffer_init(&BufferInitDescriptor {
+            label: Some("DataPageUniform buffer"),
+            contents: buffer_data.as_slice(),
+            usage: wgpu::BufferUsages::UNIFORM,
+        });
+
+        Self {
+            buffer_offset_alignment,
+            buffer,
+        }
+    }
 }
 
 pub struct PolylineRenderer {
@@ -275,8 +312,8 @@ impl PolylineRenderer {
         surface_format: wgpu::TextureFormat,
         max_segments: usize,
     ) -> Result<Self> {
-        use web_sys::console;
-        console::log_1(&"polyline renderer init".into());
+        let limits = device.limits();
+
         let shader_src = include_str!(concat!(
             env!("CARGO_MANIFEST_DIR"),
             "/shaders/path_2d_direct_color.wgsl" // "/../app/shaders/path_2d_g_webgl.wgsl"
@@ -337,7 +374,6 @@ impl PolylineRenderer {
             ],
         )?;
 
-        console::log_1(&"graphics node done".into());
         let vertex_buffers = PagedBuffers::new(
             device,
             wgpu::BufferUsages::VERTEX,
@@ -352,7 +388,9 @@ impl PolylineRenderer {
             std::mem::size_of::<[u32; 1]>() as u64,
             max_segments,
         )?;
-        console::log_1(&"paged buffers done".into());
+
+        let data_page_uniform =
+            DataPageUniform::new(device, data_buffers.page_count());
 
         let transform = ultraviolet::Mat4::identity();
 
@@ -412,6 +450,7 @@ impl PolylineRenderer {
             projection_uniform,
 
             data_config_uniform,
+            data_page_uniform,
 
             color_map,
 
