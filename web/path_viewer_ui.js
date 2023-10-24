@@ -80,6 +80,11 @@ export async function addPathViewerLogic(worker, path_viewer, canvas, overview, 
     const wheelScaleDelta$ = wheel$.pipe(
         map(event => {
             let x = event.clientX / canvas.width;
+            // if (x < 0.03) {
+            //     x = 0.0;
+            // } else if (x > 0.97) {
+            //     x = 1.0;
+            // }
             if (event.deltaY > 0) {
                 return { scale: 1.05, x };
             } else {

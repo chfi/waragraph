@@ -59,15 +59,18 @@ async function init() {
             console.log("graph loaded");
             const worker_obj = Comlink.wrap(worker);
 
-            const graph = await worker_obj.getGraph();
+            const graph_raw = await worker_obj.getGraph();
 
             // let segc = await worker_obj.getSegmentCount();
             // let segc = wrapped.segment_count();
             // console.log(" index.js >>>>>>>>>>>>>> " + segc);
 
 
-            const graph_viewer = await initGraphViewer(wasm.memory, graph, layout_path);
+            const graph_viewer = await initGraphViewer(wasm.memory, graph_raw, layout_path);
             console.log(graph_viewer);
+
+            let graph = wasm_bindgen.ArrowGFAWrapped.__wrap(graph_raw.__wbg_ptr);
+            let seq_array = graph.segment_sequences_array();
 
             window.graph_viewer = graph_viewer;
 
@@ -85,6 +88,26 @@ async function init() {
             console.log(names);
 
             let cs_view = await worker_obj.globalCoordSysView();
+
+            // let path_range = await worker_obj.pathRangeToSteps("gi|568815551:1197321-1201446", 100, 600);
+            // console.log(path_range);
+
+            // let path_cs_ptr = await worker_obj.pathCoordSys("gi|568815551:1197321-1201446");
+            // console.log(path_cs);
+
+            /*
+            window.print_view_seq = async () => {
+                let { start, end, len } = await cs_view.get();
+                if (len < 400) {
+                    let seq = seq_array.slice(start, end);
+                    let el = document.getElementById("overlay-gi|568815551:1197321-1201446");
+                    let subpixel_offset = start - Math.trunc(start);
+                    CanvasTracks.drawSequence(el, seq, subpixel_offset);
+                } else {
+                    console.log("long sequence");
+                }
+            };
+            */
 
             let view_max = await cs_view.viewMax();
 

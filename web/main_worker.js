@@ -151,6 +151,22 @@ class PathViewerCtx {
     
 }
 
+const path_coordinate_systems = new Map();
+
+function getPathCoordinateSystem(path_name) {
+    let cs = path_coordinate_systems.get(path_name);
+
+    if (cs !== undefined) {
+        return cs;
+    }
+
+    let path_index = _graph.path_index(path_name);
+    let path_cs = wasm_bindgen.CoordSys.path_from_arrow_gfa(_graph, path_index);
+
+    path_coordinate_systems.set(path_name, path_cs);
+
+    return path_cs;
+}
 
 async function run(memory, gfa_path) {
     wasm = await init_wasm(undefined, memory);
@@ -219,7 +235,20 @@ async function run(memory, gfa_path) {
         },
         getGraph() {
             return _graph;
+        },
+        pathCoordSys(path_name) {
+            return getPathCoordinateSystem(path_name);
+        },
+        pathRangeToSteps(path_name, range_start, range_end) {
+            let start = typeof range_start == 'bigint'
+                ? range_start : BigInt(range_start);
+            let end = typeof range_end == 'bigint'
+                ? range_end : BigInt(range_end);
+
+            let path_cs = getPathCoordinateSystem(path_name);
+            return path_cs.bp_to_step_range(start, end);
         }
+
     });
 
     postMessage("GRAPH_READY");

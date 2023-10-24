@@ -317,13 +317,13 @@ impl CoordSys {
 
         for &handle in steps.values_iter() {
             let node = handle >> 1;
-            if !seen_nodes.contains(&node) {
-                let seg_size = graph.0.segment_len(node);
+            let seg_size = graph.0.segment_len(node);
+            offset += seg_size as i32;
 
+            if !seen_nodes.contains(&node) {
                 node_order.push(node);
                 seen_nodes.insert(node);
 
-                offset += seg_size as i32;
                 step_offsets.push(offset);
             }
         }
