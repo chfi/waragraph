@@ -149,6 +149,8 @@ impl SegmentPositions {
         let path2d = web_sys::Path2d::new()?;
         let mut added = 0;
 
+        
+
         for &step_handle in path_slice {
             let seg = step_handle >> 1;
             let i = (seg * 2) as usize;
@@ -299,7 +301,7 @@ impl ArrowGFAWrapped {
 
         let memory = js_sys::WebAssembly::Memory::from(wasm_bindgen::memory());
         Ok(js_sys::Uint32Array::new_with_byte_offset_and_length(
-            &memory,
+            &memory.buffer(),
             ptr as u32,
             slice.len() as u32,
         ))

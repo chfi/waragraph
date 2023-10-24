@@ -18,6 +18,8 @@ class GraphViewer {
         this.segment_positions = seg_pos;
 
         this.next_view = this.graph_viewer.get_view();
+
+        this.overlayCallbacks = {};
     }
 
     needRedraw() {
@@ -64,6 +66,11 @@ class GraphViewer {
         let ctx = overlay.getContext('2d');
 
         ctx.clearRect(0, 0, overlay.width, overlay.height);
+
+        for (const key in this.overlayCallbacks) {
+            const callback = this.overlayCallbacks[key];
+            callback(overlay, this.next_view);
+        }
     }
 
     translate(x, y) {
@@ -105,6 +112,8 @@ export async function initGraphViewer(wasm_mem, graph, layout_url) {
         let canvas = document.getElementById('graph-viewer-2d');
 
         _raving_ctx = await wasm_bindgen.RavingCtx.initialize_(canvas);
+
+        _raving_ctx.print_limits();
     }
 
     console.log("creating segment positions");
@@ -272,6 +281,7 @@ export async function initGraphViewer(wasm_mem, graph, layout_url) {
     let ov_ctx = overlay.getContext('2d');
     ov_ctx.stroke(path2d);
     */
+
 
 
     ////

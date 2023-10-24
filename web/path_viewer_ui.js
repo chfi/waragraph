@@ -132,11 +132,12 @@ export async function addPathViewerLogic(worker, path_viewer, overview, cs_view)
             worker_ctx.sample();
             worker_ctx.forceRedraw();
 
-            let overview_ctx = canvas.getContext('2d');
-            overview_ctx.clearRect(0, 0, canvas.width, canvas.height);
+            let overlay_ctx = canvas.getContext('2d');
+            overlay_ctx.clearRect(0, 0, canvas.width, canvas.height);
 
             for (const key in path_viewer.trackCallbacks) {
                 const callback = path_viewer.trackCallbacks[key];
+                console.log(callback);
                 callback(canvas, view);
             }
 

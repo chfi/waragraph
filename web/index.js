@@ -85,6 +85,39 @@ async function init() {
             console.log(graph_viewer);
 
             let graph = wasm_bindgen.ArrowGFAWrapped.__wrap(graph_raw.__wbg_ptr);
+
+
+            /*
+            {
+                let path_name = "gi|157734152:29655295-29712160";
+                let path_range = await worker_obj.pathRangeToStepRange(path_name, 100n, 4000n);
+                let path_steps = graph.path_steps(path_name);
+                let path_slice = path_steps.slice(path_range.start, path_range.end);
+
+                graph_viewer.overlayCallbacks['test'] = (canvas, view) => {
+                    console.log(view);
+                    let path2d = graph_viewer
+                        .segment_positions
+                        .path_to_canvas_space(view, canvas.width, canvas.height, path_slice);
+
+                    let ctx = canvas.getContext('2d');
+                    ctx.save();
+                    ctx.globalAlpha = 0.8;
+                    ctx.globalCompositeOperation = "copy";
+                    ctx.lineWidth = 15;
+                    ctx.strokeStyle = 'black';
+                    ctx.stroke(path2d);
+                    ctx.lineWidth = 10;
+                    ctx.strokeStyle = 'red';
+                    ctx.stroke(path2d);
+                    ctx.restore();
+
+                };
+
+            }
+            */
+
+
             let seq_array = graph.segment_sequences_array();
 
             window.graph_viewer = graph_viewer;
@@ -104,7 +137,7 @@ async function init() {
 
             let cs_view = await worker_obj.globalCoordSysView();
 
-            // let path_range = await worker_obj.pathRangeToSteps("gi|568815551:1197321-1201446", 100, 600);
+            // let path_range = await worker_obj.pathRangeToStepRange("gi|568815551:1197321-1201446", 100, 600);
             // console.log(path_range);
 
             // let path_cs_ptr = await worker_obj.pathCoordSys("gi|568815551:1197321-1201446");
