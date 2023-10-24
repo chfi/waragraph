@@ -441,12 +441,7 @@ impl CoordSys {
         for (i, range) in bin_ranges.iter().enumerate() {
             let start = range.start();
             let end = range.end();
-            // web_sys::console::log_1(
-            //     &format!("bin {i} - range [{start}, {end}]").into(),
-            // );
         }
-
-        // web_sys::console::log_1(&format!("building iterators").into());
 
         let data_iter = {
             let data_indices = &data_indices[data_ix_start..];
@@ -455,20 +450,10 @@ impl CoordSys {
         };
 
         let mut bin_length = 0u64;
-        // web_sys::console::log_1(
-        //     &format!("iterating data ({} steps)", data_iter.len()).into(),
-        // );
 
         let mut bin_lengths = vec![0u64; bins.len()];
 
         for (i, (c_i, val)) in data_iter.enumerate() {
-            // web_sys::console::log_1(&format!("step {i}").into());
-
-            // if i < 10 {
-            //     web_sys::console::log_1(
-            //         &format!("step {i} - data ix {c_i} - val {val}").into(),
-            //     );
-            // }
 
             let seg_offset =
                 *self.step_offsets.buffer().get(c_i).unwrap() as u64;
@@ -485,7 +470,6 @@ impl CoordSys {
             let mut offset = seg_offset;
 
             loop {
-                // let local_offset = offset - *bp_range.start();
 
                 let local_offset =
                     offset.checked_sub(*bp_range.start()).unwrap_or(0);

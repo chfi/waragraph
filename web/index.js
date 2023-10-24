@@ -33,8 +33,28 @@ const path_names = undefined;
 //     "HG03516#2#h2tg000202l:24-441470",
 // ];
 
-function globalViewSequence(graph_raw) {
-    let graph = wasm_bindgen.ArrowGFAWrapped.__wrap(graph_raw.__wbg_ptr);
+function globalSequenceTrack(graph, canvas, view_subject) {
+
+    const min_px_per_bp = 8.0;
+    const seq_array = graph.segment_sequences_array();
+
+    view_subject.pipe(
+        rxjs.distinct(),
+        rxjs.throttleTime(10)
+    ).subscribe((view) => {
+        requestAnimationFrame((time) => {
+            let view_len = view.end - view.start;
+            let px_per_bp = canvas.width / view_len;
+            let ctx = canvas.getContext('2d');
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            if (px_per_bp > min_px_per_bp) {
+                let seq = seq_array.slice(view.start, view.end);
+                let subpixel_offset = view.start - Math.trunc(view.start);
+                CanvasTracks.drawSequence(canvas, seq, subpixel_offset);
+            }
+        });
+    });
 }
 
 function addTestOverlay() {
@@ -65,8 +85,6 @@ async function init() {
 
         if (event.data === "WORKER_INIT") {
             console.log("received from worker");
-            console.log(event.data);
-            console.log(wasm.memory);
             worker.postMessage([wasm.memory, gfa_path]);
         } else if (event.data === "GRAPH_READY") {
             worker.onmessage = undefined;
@@ -75,16 +93,27 @@ async function init() {
             const worker_obj = Comlink.wrap(worker);
 
             const graph_raw = await worker_obj.getGraph();
+            let graph = wasm_bindgen.ArrowGFAWrapped.__wrap(graph_raw.__wbg_ptr);
+
+            window.addTestOverlay = addTestOverlay;
 
             // let segc = await worker_obj.getSegmentCount();
             // let segc = wrapped.segment_count();
             // console.log(" index.js >>>>>>>>>>>>>> " + segc);
 
 
+            let cs_view = await worker_obj.globalCoordSysView();
+
             const graph_viewer = await initGraphViewer(wasm.memory, graph_raw, layout_path);
             console.log(graph_viewer);
 
-            let graph = wasm_bindgen.ArrowGFAWrapped.__wrap(graph_raw.__wbg_ptr);
+            let view_subject = await cs_view.viewSubject();
+
+            globalSequenceTrack(
+                graph,
+                document.getElementById('sequence-view'),
+                view_subject
+            );
 
 
             /*
@@ -118,8 +147,6 @@ async function init() {
             */
 
 
-            let seq_array = graph.segment_sequences_array();
-
             window.graph_viewer = graph_viewer;
 
             console.log(" getting the view: ");
@@ -134,8 +161,6 @@ async function init() {
             }
 
             console.log(names);
-
-            let cs_view = await worker_obj.globalCoordSysView();
 
             // let path_range = await worker_obj.pathRangeToStepRange("gi|568815551:1197321-1201446", 100, 600);
             // console.log(path_range);
@@ -213,6 +238,9 @@ async function init() {
 
                 if (path_ix == 0) {
                     overview_el.width = overlay_el.clientWidth;
+
+                    let seq_view_el = document.getElementById('sequence-view');
+                    seq_view_el.width = overlay_el.clientWidth;
                 }
 
             });
