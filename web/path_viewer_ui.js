@@ -48,20 +48,24 @@ export async function initializePathViewer(
 
     let offscreen = canvas.transferControlToOffscreen();
 
-    const path_viewer = await worker.createPathViewer(Comlink.transfer(offscreen, [offscreen]),
+    const worker_ctx = await worker.createPathViewer(Comlink.transfer(offscreen, [offscreen]),
                                                       path_name);
 
     let view = await cs_view.get();
 
-    path_viewer.setView(view.start, view.end);
-    path_viewer.sample();
-    path_viewer.forceRedraw();
+    worker_ctx.setView(view.start, view.end);
+    worker_ctx.sample();
+    worker_ctx.forceRedraw();
 
-    return { path_viewer, canvas };
+    const trackCallbacks = {};
+
+    return { worker_ctx, canvas, trackCallbacks };
 }
 
 
-export async function addPathViewerLogic(worker, path_viewer, canvas, overview, cs_view) {
+export async function addPathViewerLogic(worker, path_viewer, overview, cs_view) {
+    const { worker_ctx, overlay_canvas } = path_viewer;
+    const canvas = overlay_canvas;
 
     const { fromEvent,
             map,
@@ -116,20 +120,24 @@ export async function addPathViewerLogic(worker, path_viewer, canvas, overview, 
 
     let view_subject = await cs_view.viewSubject();
 
-    path_viewer.sample();
-    path_viewer.forceRedraw();
+    worker_ctx.sample();
+    worker_ctx.forceRedraw();
 
     view_subject.pipe(
         rxjs.distinct(),
         rxjs.throttleTime(10)
     ).subscribe((view) => {
         requestAnimationFrame((time) => {
-            path_viewer.setView(view.start, view.end);
-            path_viewer.sample();
-            path_viewer.forceRedraw();
+            worker_ctx.setView(view.start, view.end);
+            worker_ctx.sample();
+            worker_ctx.forceRedraw();
 
             let overview_ctx = canvas.getContext('2d');
             overview_ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            for (const callback in path_viewer.trackCallbacks) {
+                //
+            }
 
         });
     });

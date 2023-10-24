@@ -121,7 +121,8 @@ async function init() {
 
                 console.log("path: " + name);
 
-                let { path_viewer, canvas } =
+                // let { path_viewer, canvas } =
+                let path_viewer =
                     await initializePathViewer(worker_obj,
                                                overview,
                                                cs_view,
@@ -136,28 +137,30 @@ async function init() {
                 name_el.innerHTML = name;
 
                 let id = "viewer-" + name;
-                canvas.classList.add("path-data-view");
+                path_viewer.canvas.classList.add("path-data-view");
 
-                canvas.id = id;
+                path_viewer.canvas.id = id;
                 row_el.append(name_el);
-                row_el.append(canvas);
+                row_el.append(path_viewer.canvas);
 
                 let overlay_el = document.createElement("canvas");
                 overlay_el.classList.add("path-data-overlay");
                 overlay_el.id = "overlay-" + name;
 
-                addPathViewerLogic(worker_obj, path_viewer, overlay_el, overview_el, cs_view);
+                path_viewer.overlay_canvas = overlay_el;
+
+                addPathViewerLogic(worker_obj, path_viewer, overview_el, cs_view);
 
                 row_el.append(overlay_el);
 
                 container.append(row_el);
 
-                await path_viewer.setCanvasWidth(overlay_el.clientWidth);
+                await path_viewer.worker_ctx.setCanvasWidth(overlay_el.clientWidth);
                 overlay_el.width = overlay_el.clientWidth;
                 overlay_el.height = 40;
 
-                console.log(canvas);
-                console.log(canvas.clientWidth);
+                console.log(path_viewer.canvas);
+                console.log(path_viewer.canvas.clientWidth);
 
                 if (path_ix == 0) {
                     overview_el.width = overlay_el.clientWidth;

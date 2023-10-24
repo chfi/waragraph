@@ -239,7 +239,7 @@ async function run(memory, gfa_path) {
         pathCoordSys(path_name) {
             return getPathCoordinateSystem(path_name);
         },
-        pathRangeToSteps(path_name, range_start, range_end) {
+        pathRangeToStepRange(path_name, range_start, range_end) {
             let start = typeof range_start == 'bigint'
                 ? range_start : BigInt(range_start);
             let end = typeof range_end == 'bigint'
