@@ -100,3 +100,30 @@ export function drawSequence(canvas, sequence, subpixel_offset) {
 
     ctx.restore();
 }
+
+
+/*
+  entries is an array of visualization space ranges and color
+*/
+export function createHighlightCallback(entries) {
+
+    return (canvas, view) => {
+        const ctx = canvas.getContext('2d');
+        ctx.save();
+
+        const view_len = view.end - view.start;
+
+        for (const { start, end, color } of entries) {
+            let x_start = ((start - view.start) / view_len) * canvas.width;
+            let x_end = ((end - view.start) / view_len) * canvas.width;
+            let len = x_end - x_start;
+
+            if (len > 1.0) {
+                ctx.fillStyle = color;
+                ctx.fillRect(x_start, 0, x_end - x_start, canvas.height);
+            }
+        }
+
+        ctx.restore();
+    };
+}

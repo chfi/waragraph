@@ -37,6 +37,21 @@ function globalViewSequence(graph_raw) {
     let graph = wasm_bindgen.ArrowGFAWrapped.__wrap(graph_raw.__wbg_ptr);
 }
 
+function addTestOverlay() {
+    let data_canvas = document.getElementById('viewer-gi|568815551:1197321-1201446');
+    console.log(data_canvas);
+    let path_viewer = data_canvas.path_viewer;
+    console.log(path_viewer);
+
+    let entries = [{ start: 100, end: 1000, color: 'red' },
+                   { start: 2100, end: 5000, color: 'blue' },
+                  ];
+
+    let callback = CanvasTracks.createHighlightCallback(entries);
+
+    path_viewer.trackCallbacks['test'] = callback;
+}
+
 async function init() {
 
     const handler = await import('./transfer_handlers.js');
@@ -128,6 +143,7 @@ async function init() {
                                                cs_view,
                                                name);
 
+                path_viewer.canvas.path_viewer = path_viewer;
 
                 const row_el = document.createElement("div");
                 row_el.classList.add("path-viewer-list-row")
