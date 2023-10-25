@@ -69,16 +69,25 @@ function addTestOverlay(graph, worker_obj) {
 
     // these are global coordinates
     let path_entries = [{ start: 100, end: 1000, color: 'red' },
-                   { start: 2100, end: 5000, color: 'blue' },
+                   { start: 2100, end: 5000, color: 'red' },
                   ];
 
+    let global_entries = [];
 
-    let global_entries = path_entries.map((e) => {
-        let path_range = worker_obj.pathRangeToStepRange(path_name, e.start, e.end);
+    path_entries.forEach((path_entry) => {
+        let path_range = worker_obj.pathRangeToStepRange(path_name, path_entry.start, path_entry.end);
         let slice = path_steps.slice(path_range.start, path_range.end);
         let seg_ranges = wasm_bindgen.path_slice_to_global_adj_partitions(slice);
+        let seg_ranges_arr = seg_ranges.ranges_as_u32_array();
+        let range_count = seg_ranges_arr.length / 2;
+
+        for (let ri = 0; ri < range_count; ri++) {
+            let start = seg_ranges_arr.at(2 * ri);
+            let end = seg_ranges_arr.at(2 * ri + 1);
+            global_entries.push({start, end, color: path_entry.color});
+        }
+        
     });
-    
 
     let callback = CanvasTracks.createHighlightCallback(global_entries);
 
@@ -110,14 +119,9 @@ async function init() {
 
             // window.addTestOverlay = addTestOverlay;
 
-            window.addTestOverlay = () => {
-                addTestOverlay(graph, worker_obj);
-            };
-
-            // let segc = await worker_obj.getSegmentCount();
-            // let segc = wrapped.segment_count();
-            // console.log(" index.js >>>>>>>>>>>>>> " + segc);
-
+            // window.addTestOverlay = () => {
+            //     addTestOverlay(graph, worker_obj);
+            // };
 
             let cs_view = await worker_obj.globalCoordSysView();
 

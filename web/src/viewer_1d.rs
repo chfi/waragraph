@@ -528,6 +528,7 @@ pub struct SegmentRanges {
 
 // NB: views and ranges here are all global -- maybe views should be
 // associated with/derived from coordinate systems...
+#[wasm_bindgen]
 impl SegmentRanges {
     pub fn ranges_as_u32_array(&self) -> js_sys::Uint32Array {
         let ptr = self.ranges.as_ptr();
@@ -588,8 +589,8 @@ pub fn path_slice_to_global_adj_partitions(
 
     let mut ranges = Vec::new();
 
-    let mut range_start = path_steps[0];
-    let mut prev_seg_ix = path_steps[0];
+    let mut range_start = path_steps[0] >> 1;
+    let mut prev_seg_ix = path_steps[0] >> 1;
 
     for &handle in path_steps {
         let seg_ix = handle >> 1;
