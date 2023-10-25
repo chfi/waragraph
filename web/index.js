@@ -8,7 +8,10 @@ import init_module, * as wasm_bindgen from './pkg/web.js';
 
 import { OverviewMap } from './overview.js';
 
-import { GraphViewer, initGraphViewer } from './graph_viewer.js';
+import { GraphViewer,
+         initGraphViewer,
+         preparePathHighlightOverlay
+       } from './graph_viewer.js';
 
 import * as CanvasTracks from './canvas_tracks.js';
 
@@ -57,15 +60,16 @@ function globalSequenceTrack(graph, canvas, view_subject) {
     });
 }
 
-function addTestOverlay(graph, worker_obj) {
+
+
+
+async function addTestOverlay(graph, worker_obj, graph_viewer) {
     let path_name = 'gi|568815551:1197321-1201446';
 
     let data_canvas = document.getElementById('viewer-' + path_name);
-    console.log(data_canvas);
     let path_viewer = data_canvas.path_viewer;
-    console.log(path_viewer);
 
-    let path_steps = graph.path_steps(path_name);
+    const path_steps = graph.path_steps(path_name);
 
     // these are global coordinates
     let path_entries = [{ start: 100, end: 1000, color: 'red' },
@@ -92,6 +96,16 @@ function addTestOverlay(graph, worker_obj) {
     let callback = CanvasTracks.createHighlightCallback(global_entries);
 
     path_viewer.trackCallbacks['test'] = callback;
+
+    let path_cs = await worker_obj.pathCoordSys(path_name);
+
+    let callback_2d =
+        preparePathHighlightOverlay(graph_viewer.segment_positions,
+                                    path_steps,
+                                    path_cs,
+                                    path_entries);
+
+    graph_viewer.overlayCallbacks['test'] = callback_2d;
 }
 
 async function init() {
@@ -119,14 +133,15 @@ async function init() {
 
             // window.addTestOverlay = addTestOverlay;
 
-            // window.addTestOverlay = () => {
-            //     addTestOverlay(graph, worker_obj);
-            // };
-
             let cs_view = await worker_obj.globalCoordSysView();
 
             const graph_viewer = await initGraphViewer(wasm.memory, graph_raw, layout_path);
             console.log(graph_viewer);
+
+
+            window.addTestOverlay = () => {
+                addTestOverlay(graph, worker_obj, graph_viewer);
+            };
 
             let view_subject = await cs_view.viewSubject();
 
@@ -136,44 +151,9 @@ async function init() {
                 view_subject
             );
 
-
-            
-            /*
-            {
-                let path_name = "gi|157734152:29655295-29712160";
-                let path_range = await worker_obj.pathRangeToStepRange(path_name, 100n, 4000n);
-                let path_steps = graph.path_steps(path_name);
-                let path_slice = path_steps.slice(path_range.start, path_range.end);
-
-                graph_viewer.overlayCallbacks['test'] = (canvas, view) => {
-                    console.log(view);
-                    let path2d = graph_viewer
-                        .segment_positions
-                        .path_to_canvas_space(view, canvas.width, canvas.height, path_slice);
-
-                    let ctx = canvas.getContext('2d');
-                    ctx.save();
-                    ctx.globalAlpha = 0.8;
-                    ctx.globalCompositeOperation = "copy";
-                    ctx.lineWidth = 15;
-                    ctx.strokeStyle = 'black';
-                    ctx.stroke(path2d);
-                    ctx.lineWidth = 10;
-                    ctx.strokeStyle = 'red';
-                    ctx.stroke(path2d);
-                    ctx.restore();
-
-                };
-
-            }
-            */
-
-
             window.graph_viewer = graph_viewer;
 
-            console.log(" getting the view: ");
             console.log(graph_viewer.get_view_matrix());
-
 
             let names;
             if (path_names) {
@@ -183,26 +163,6 @@ async function init() {
             }
 
             console.log(names);
-
-            // let path_range = await worker_obj.pathRangeToStepRange("gi|568815551:1197321-1201446", 100, 600);
-            // console.log(path_range);
-
-            // let path_cs_ptr = await worker_obj.pathCoordSys("gi|568815551:1197321-1201446");
-            // console.log(path_cs);
-
-            /*
-            window.print_view_seq = async () => {
-                let { start, end, len } = await cs_view.get();
-                if (len < 400) {
-                    let seq = seq_array.slice(start, end);
-                    let el = document.getElementById("overlay-gi|568815551:1197321-1201446");
-                    let subpixel_offset = start - Math.trunc(start);
-                    CanvasTracks.drawSequence(el, seq, subpixel_offset);
-                } else {
-                    console.log("long sequence");
-                }
-            };
-            */
 
             let view_max = await cs_view.viewMax();
 

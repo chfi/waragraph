@@ -116,7 +116,6 @@ export async function initGraphViewer(wasm_mem, graph, layout_url) {
 
     console.log("creating segment positions");
 
-    // let layout_tsv = await fetch("./data/A-3105.layout.tsv").then(l => l.text());
     let layout_tsv = await fetch(layout_url).then(l => l.text());
     let seg_pos = wasm_bindgen.SegmentPositions.from_tsv(layout_tsv);
 
@@ -130,8 +129,6 @@ export async function initGraphViewer(wasm_mem, graph, layout_url) {
 
     let container = document.getElementById("graph-viewer-container");
     let dims = { width: container.clientWidth, height: container.clientHeight };
-
-    // let offscreen_canvas = canvas.transferControlToOffscreen();
 
     let viewer = wasm_bindgen.GraphViewer.new_dummy_data(_raving_ctx,
           _graph,
@@ -287,6 +284,38 @@ export async function initGraphViewer(wasm_mem, graph, layout_url) {
     ////
 
     return graph_viewer;
+}
+
+// input ranges should be in path space
+export function preparePathHighlightOverlay(seg_pos, path_steps, path_cs_raw, entries) {
+    const path_cs = wasm_bindgen.CoordSys.__wrap(path_cs_raw.__wbg_ptr);
+
+    const processed = [];
+
+    for (const entry of entries) {
+        const { start, end } = entry;
+        const step_range = path_cs.bp_to_step_range(BigInt(start), BigInt(end));
+        const path_slice = path_steps.slice(step_range.start, step_range.end);
+
+        processed.push({ path_slice, color: entry.color });
+    }
+
+    return (canvas, view) => {
+        for (const entry of processed) {
+            let path2d = seg_pos
+                .path_to_canvas_space(view, canvas.width, canvas.height, entry.path_slice);
+
+            let ctx = canvas.getContext('2d');
+            ctx.save();
+            ctx.globalAlpha = 0.8;
+            ctx.globalCompositeOperation = "copy";
+            ctx.lineWidth = 15;
+            ctx.strokeStyle = entry.color;
+            ctx.stroke(path2d);
+            ctx.restore();
+        }
+
+    };
 }
 
 
