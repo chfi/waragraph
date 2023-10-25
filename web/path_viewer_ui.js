@@ -75,7 +75,9 @@ export async function addPathViewerLogic(worker, path_viewer, overview, cs_view)
             takeUntil,
           } = rxjs;
 
-    const wheel$ = rxjs.fromEvent(canvas, 'wheel');
+    const wheel$ = rxjs.fromEvent(canvas, 'wheel').pipe(
+        rxjs.tap(event => event.preventDefault())
+    );
     const mouseDown$ = fromEvent(canvas, 'mousedown');
     const mouseUp$ = fromEvent(canvas, 'mouseup');
     const mouseMove$ = fromEvent(canvas, 'mousemove');

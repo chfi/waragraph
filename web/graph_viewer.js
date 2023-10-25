@@ -188,7 +188,9 @@ export async function initGraphViewer(wasm_mem, graph, layout_url) {
         graph_viewer.translate(-x, y);
     });
 
-    const wheel$ = rxjs.fromEvent(overlay, 'wheel');
+    const wheel$ = rxjs.fromEvent(overlay, 'wheel').pipe(
+        rxjs.tap(event => event.preventDefault())
+    );
 
     wheel$.subscribe((event) => {
         let x = event.clientX;
