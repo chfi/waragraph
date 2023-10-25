@@ -32,11 +32,6 @@ extern "C" {
         y1: f32,
     ) -> JsValue;
 
-    pub(crate) fn uint32_array_helper(
-        memory: JsValue,
-        data_ptr: *const u32,
-        data_len: u32,
-    ) -> js_sys::Uint32Array;
 }
 
 #[derive(Clone)]
@@ -148,8 +143,6 @@ impl SegmentPositions {
 
         let path2d = web_sys::Path2d::new()?;
         let mut added = 0;
-
-        
 
         for &step_handle in path_slice {
             let seg = step_handle >> 1;

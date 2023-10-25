@@ -57,17 +57,30 @@ function globalSequenceTrack(graph, canvas, view_subject) {
     });
 }
 
-function addTestOverlay() {
-    let data_canvas = document.getElementById('viewer-gi|568815551:1197321-1201446');
+function addTestOverlay(graph, worker_obj) {
+    let path_name = 'gi|568815551:1197321-1201446';
+
+    let data_canvas = document.getElementById('viewer-' + path_name);
     console.log(data_canvas);
     let path_viewer = data_canvas.path_viewer;
     console.log(path_viewer);
 
-    let entries = [{ start: 100, end: 1000, color: 'red' },
+    let path_steps = graph.path_steps(path_name);
+
+    // these are global coordinates
+    let path_entries = [{ start: 100, end: 1000, color: 'red' },
                    { start: 2100, end: 5000, color: 'blue' },
                   ];
 
-    let callback = CanvasTracks.createHighlightCallback(entries);
+
+    let global_entries = path_entries.map((e) => {
+        let path_range = worker_obj.pathRangeToStepRange(path_name, e.start, e.end);
+        let slice = path_steps.slice(path_range.start, path_range.end);
+        let seg_ranges = wasm_bindgen.path_slice_to_global_adj_partitions(slice);
+    });
+    
+
+    let callback = CanvasTracks.createHighlightCallback(global_entries);
 
     path_viewer.trackCallbacks['test'] = callback;
 }
@@ -95,7 +108,11 @@ async function init() {
             const graph_raw = await worker_obj.getGraph();
             let graph = wasm_bindgen.ArrowGFAWrapped.__wrap(graph_raw.__wbg_ptr);
 
-            window.addTestOverlay = addTestOverlay;
+            // window.addTestOverlay = addTestOverlay;
+
+            window.addTestOverlay = () => {
+                addTestOverlay(graph, worker_obj);
+            };
 
             // let segc = await worker_obj.getSegmentCount();
             // let segc = wrapped.segment_count();
@@ -116,6 +133,7 @@ async function init() {
             );
 
 
+            
             /*
             {
                 let path_name = "gi|157734152:29655295-29712160";

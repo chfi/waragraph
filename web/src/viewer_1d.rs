@@ -454,7 +454,6 @@ impl CoordSys {
         let mut bin_lengths = vec![0u64; bins.len()];
 
         for (i, (c_i, val)) in data_iter.enumerate() {
-
             let seg_offset =
                 *self.step_offsets.buffer().get(c_i).unwrap() as u64;
 
@@ -470,7 +469,6 @@ impl CoordSys {
             let mut offset = seg_offset;
 
             loop {
-
                 let local_offset =
                     offset.checked_sub(*bp_range.start()).unwrap_or(0);
 
@@ -525,12 +523,24 @@ impl CoordSys {
 
 #[wasm_bindgen]
 pub struct SegmentRanges {
-    ranges: Vec<std::ops::Range<u32>>,
+    ranges: Vec<[u32; 2]>,
 }
 
 // NB: views and ranges here are all global -- maybe views should be
 // associated with/derived from coordinate systems...
 impl SegmentRanges {
+    pub fn ranges_as_u32_array(&self) -> js_sys::Uint32Array {
+        let ptr = self.ranges.as_ptr();
+        let len = self.ranges.len();
+
+        let memory = js_sys::WebAssembly::Memory::from(wasm_bindgen::memory());
+        js_sys::Uint32Array::new_with_byte_offset_and_length(
+            &memory.buffer(),
+            ptr as u32,
+            len as u32,
+        )
+    }
+
     pub fn to_canvas_ranges(
         &self,
         view: &View1D,
@@ -544,14 +554,14 @@ impl SegmentRanges {
 
         self.ranges
             .iter()
-            .filter_map(|range| {
+            .filter_map(|&[r_start, r_end]| {
                 // if range overlaps view
-                if range.end < v_start || range.start > v_end {
+                if r_end < v_start || r_start > v_end {
                     return None;
                 }
 
-                let l_u = range.start.checked_sub(v_range.start as u32)?;
-                let r_u = range.end.checked_sub(v_range.start as u32)?;
+                let l_u = r_start.checked_sub(v_range.start as u32)?;
+                let r_u = r_end.checked_sub(v_range.start as u32)?;
 
                 let l_n = (l_u as f64) / v_len;
                 let r_n = (r_u as f64) / v_len;
@@ -585,7 +595,7 @@ pub fn path_slice_to_global_adj_partitions(
         let seg_ix = handle >> 1;
 
         if seg_ix.abs_diff(prev_seg_ix) > 1 {
-            ranges.push(range_start..prev_seg_ix);
+            ranges.push([range_start, prev_seg_ix]);
             range_start = seg_ix;
         }
 
