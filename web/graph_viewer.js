@@ -112,8 +112,6 @@ export async function initGraphViewer(wasm_mem, graph, layout_url) {
         let canvas = document.getElementById('graph-viewer-2d');
 
         _raving_ctx = await wasm_bindgen.RavingCtx.initialize_(canvas);
-
-        _raving_ctx.print_limits();
     }
 
     console.log("creating segment positions");
