@@ -29,6 +29,10 @@ class CoordSysView {
         this.view_range_subject = new rxjs.BehaviorSubject(view_range);
     }
 
+    segmentOffset(segment) {
+        return this.coord_sys.offset_at(segment);
+    }
+
     viewMax() {
         return this.view.max;
     }

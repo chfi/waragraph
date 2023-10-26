@@ -265,8 +265,12 @@ impl GraphViewer {
         self.viewport = *view;
     }
 
-    pub fn get_view_matrix(&self) -> JsValue {
-        self.viewport.to_js_mat3(800., 600.)
+    pub fn get_view_matrix(
+        &self,
+        canvas_width: f32,
+        canvas_height: f32,
+    ) -> JsValue {
+        self.viewport.to_js_mat3(canvas_width, canvas_height)
     }
 
     pub fn set_view_center(&mut self, x: f32, y: f32) {

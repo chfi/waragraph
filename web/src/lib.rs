@@ -129,6 +129,50 @@ pub struct SegmentPositions {
 
 #[wasm_bindgen]
 impl SegmentPositions {
+    pub fn path_to_canvas_space_alt(
+        &self,
+        view: &viewer_2d::view::View2D,
+        canvas_width: f32,
+        canvas_height: f32,
+        path_slice: &[u32],
+    ) -> JsValue {
+        use ultraviolet::{Vec2, Vec3};
+
+        let matrix =
+            view.to_viewport_matrix(Vec2::new(canvas_width, canvas_height));
+
+        if path_slice.is_empty() {
+            return JsValue::NULL;
+        }
+
+        let map_point = |step_handle: u32| -> Vec3 {
+            let seg = step_handle >> 1;
+            let i = (seg * 2) as usize;
+
+            let p0 = Vec2::new(self.xs[i], self.ys[i]);
+            let p1 = Vec2::new(self.xs[i + 1], self.ys[i + 1]);
+
+            let p = p0 + (p1 - p0) * 0.5;
+
+            let p_v3 = Vec3::new(p.x, p.y, 1.0);
+            let q = matrix * p_v3;
+            q
+        };
+
+        let start = map_point(path_slice[0]);
+        let end = map_point(*path_slice.last().unwrap());
+
+        let obj = segment_pos_obj(start.x, start.y, end.x, end.y);
+
+        obj
+
+        // let obj = js_sys::Object::new();
+
+        // for (k, v) in [("start", s_i as f64), ("end", e_i as f64)] {
+        //     js_sys::Reflect::set(obj.as_ref(), &k.into(), &v.into());
+        // }
+    }
+
     pub fn path_to_canvas_space(
         &self,
         view: &viewer_2d::view::View2D,
@@ -144,7 +188,20 @@ impl SegmentPositions {
         let path2d = web_sys::Path2d::new()?;
         let mut added = 0;
 
+        let mut last_added: Option<Vec2> = None;
+
+        log::warn!("slice length: {}", path_slice.len());
+
+        const MIN_DIST: f32 = 2.0;
+
+        if path_slice.is_empty() {
+            return Err(JsValue::NULL);
+        }
+
+        // let steps = [path_slice[0], *path_slice.last().unwrap()];
+
         for &step_handle in path_slice {
+            // for &step_handle in &steps {
             let seg = step_handle >> 1;
             let i = (seg * 2) as usize;
 
@@ -156,11 +213,19 @@ impl SegmentPositions {
             let p_v3 = Vec3::new(p.x, p.y, 1.0);
             let q = matrix * p_v3;
 
+            if let Some(last) = last_added {
+                if (last - q.xy()).mag() < MIN_DIST {
+                    continue;
+                }
+            }
+
             if added == 0 {
                 path2d.move_to(q.x as f64, q.y as f64);
             } else {
                 path2d.line_to(q.x as f64, q.y as f64);
             }
+            last_added = Some(q.xy());
+
             added += 1;
         }
 
@@ -178,7 +243,10 @@ impl SegmentPositions {
 
     // pub fn segment_pos(&self, seg_id: u32) -> JsValue {
     pub fn segment_pos(&self, seg_id: u32) -> JsValue {
-        let i = (seg_id * 2) as usize;
+        let i = seg_id as usize;
+
+        log::warn!("seg_id: {seg_id}");
+        log::warn!("self.xs.len() {}", self.xs.len());
 
         if i >= self.xs.len() {
             return JsValue::NULL;

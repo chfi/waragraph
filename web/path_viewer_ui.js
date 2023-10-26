@@ -89,9 +89,9 @@ export async function addPathViewerLogic(worker, path_viewer, overview, cs_view)
             let scale;
             if (event.deltaMode === WheelEvent.DOM_DELTA_PIXEL) {
                 if (event.deltaY > 0) {
-                    scale = 1.001;
+                    scale = 1.01;
                 } else {
-                    scale = 0.999;
+                    scale = 0.99;
                 }
             // } else if (event.deltaMode == WheelEvent.DOM_DELTA_LINE) {
             } else {
@@ -146,7 +146,7 @@ export async function addPathViewerLogic(worker, path_viewer, overview, cs_view)
 
             for (const key in path_viewer.trackCallbacks) {
                 const callback = path_viewer.trackCallbacks[key];
-                console.log(callback);
+                // console.log(callback);
                 callback(canvas, view);
             }
 

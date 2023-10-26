@@ -44,15 +44,15 @@ class GraphViewer {
         let canvas = document.getElementById("graph-viewer-2d");
         let view_width, view_height;
 
-        if (graph_bounds.width > graph_bounds.height) {
+        // if (graph_bounds.width > graph_bounds.height) {
             view_width = graph_bounds.width;
             view_height = graph_bounds.width * (canvas.height / canvas.width);
-        } else {
-            let c_aspect = canvas.width / canvas.height;
+        // } else {
+            // let c_aspect = canvas.width / canvas.height;
 
-            view_width = graph_bounds.height * c_aspect;
-            view_height = graph_bounds.height;
-        }
+            // view_width = graph_bounds.height * c_aspect;
+            // view_height = graph_bounds.height;
+        // }
 
         this.next_view.set_center(graph_bounds.x, graph_bounds.y);
         this.next_view.set_size(view_width, view_height);
@@ -68,6 +68,7 @@ class GraphViewer {
 
         ctx.clearRect(0, 0, overlay.width, overlay.height);
 
+        console.log(this.overlayCallbacks);
         for (const key in this.overlayCallbacks) {
             const callback = this.overlayCallbacks[key];
             callback(overlay, this.next_view, this.mousePos);
@@ -304,18 +305,21 @@ export function preparePathHighlightOverlay(seg_pos, path_steps, path_cs_raw, en
 
     const processed = [];
 
+    const { mat3, vec3 } = glMatrix;
+
     for (const entry of entries) {
-        const { start, end } = entry;
+        const { start, end, label } = entry;
         const step_range = path_cs.bp_to_step_range(BigInt(start), BigInt(end));
         const path_slice = path_steps.slice(step_range.start, step_range.end);
 
-        processed.push({ path_slice, color: entry.color });
+        processed.push({ path_slice, color: entry.color, start, end, label });
     }
 
     console.log(processed);
 
     return (canvas, view, mouse_pos) => {
 
+        /*
         {
             let ctx = canvas.getContext('2d');
             ctx.save();
@@ -330,19 +334,94 @@ export function preparePathHighlightOverlay(seg_pos, path_steps, path_cs_raw, en
 
             ctx.restore();
         }
+        */
 
-        for (const entry of processed) {
-            let path2d = seg_pos
-                .path_to_canvas_space(view, canvas.width, canvas.height, entry.path_slice);
+        let view_matrix = view.to_js_mat3(canvas.width, canvas.height);
+        // console.log(view_matrix);
 
             let ctx = canvas.getContext('2d');
             ctx.save();
+
+        for (const entry of processed) {
+
+            /*
+
             ctx.globalAlpha = 0.8;
-            ctx.globalCompositeOperation = "copy";
+            // ctx.globalCompositeOperation = "copy";
             ctx.lineWidth = 15;
             ctx.strokeStyle = entry.color;
-            ctx.stroke(path2d);
 
+            ctx.beginPath();
+            ctx.moveTo(pos_obj.x0, pos_obj.y0);
+            ctx.lineTo(pos_obj.x1, pos_obj.y1);
+            ctx.stroke();
+            ctx.closePath();
+            */
+
+            try {
+            let pos_obj = seg_pos
+                    .path_to_canvas_space_alt(view, canvas.width, canvas.height, entry.path_slice);
+
+            let path2d = seg_pos
+                .path_to_canvas_space(view, canvas.width, canvas.height, entry.path_slice);
+
+            
+            ctx.globalAlpha = 0.8;
+            // ctx.globalCompositeOperation = "copy";
+            ctx.lineWidth = 15;
+            ctx.strokeStyle = entry.color;
+
+            ctx.beginPath();
+            ctx.moveTo(0, 0);
+            ctx.stroke(path2d);
+            ctx.closePath();
+
+            let x = pos_obj.x0 + (pos_obj.x1 - pos_obj.x0) * 0.5;
+            let y = pos_obj.y0 + (pos_obj.y1 - pos_obj.y0) * 0.5;
+
+            ctx.fillText(entry.label, x, y);
+            } catch (e) {
+                //
+            }
+
+            /*
+            try {
+                let path2d = seg_pos
+                    .path_to_canvas_space(view, canvas.width, canvas.height, entry.path_slice);
+
+                
+                ctx.globalAlpha = 0.8;
+                ctx.globalCompositeOperation = "copy";
+                ctx.lineWidth = 15;
+                ctx.strokeStyle = entry.color;
+
+                ctx.beginPath();
+                ctx.moveTo(0, 0);
+                ctx.stroke(path2d);
+                ctx.closePath();
+
+            } catch (e) {
+                console.log(e);
+            }
+            */
+
+            // if (entry.path_slice.length > 0) {
+            //     let start_handle = entry.path_slice.at(0);
+            //     console.log(start_handle);
+
+            //     let start_pos = seg_pos.segment_pos(start_handle);
+            //     let start_vec = vec3.fromValues(start_pos.x0, start_pos.y0, 1.0);
+            //     let start_cv = vec3.create();
+
+            //     vec3.transformMat3(start_cv, start_pos, view_matrix);
+
+            //     // console.log(entry.start);
+            //     console.log(start_cv);
+
+            //     ctx.fillText(entry.label, start_pos.x0, start_pos.y0);
+            // }
+
+            /*
             console.log(mouse_pos);
 
             if (mouse_pos !== null && entry.label) {
@@ -353,10 +432,11 @@ export function preparePathHighlightOverlay(seg_pos, path_steps, path_cs_raw, en
                     console.log(entry.label);
                 }
             }
-
-            ctx.restore();
+            */
 
         }
+
+            ctx.restore();
     };
 }
 

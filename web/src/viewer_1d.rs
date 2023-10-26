@@ -595,7 +595,7 @@ pub fn path_slice_to_global_adj_partitions(
     for &handle in path_steps {
         let seg_ix = handle >> 1;
 
-        if seg_ix.abs_diff(prev_seg_ix) > 1 {
+        if seg_ix.abs_diff(prev_seg_ix) > 2 {
             ranges.push([range_start, prev_seg_ix]);
             range_start = seg_ix;
         }
@@ -688,6 +688,14 @@ impl CoordSys {
             &data.data.values(),
             bins,
         );
+    }
+
+    pub fn offset_at(&self, cs_seg: u32) -> Result<u32, JsValue> {
+        let v = self.step_offsets.get(cs_seg as usize).ok_or_else(|| {
+            JsValue::from(format!("Segment index {cs_seg} not found"))
+        })?;
+
+        Ok(*v as u32)
     }
 }
 

@@ -9,7 +9,7 @@
     display: grid;
     gap: 10px;
     /* grid-template-columns: minmax(230px, auto) auto; */
-    grid-template-columns: 230px auto;
+    grid-template-columns: 320px auto;
     grid-template-rows: 40px;
 }
 

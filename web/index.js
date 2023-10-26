@@ -19,22 +19,29 @@ import * as CanvasTracks from './canvas_tracks.js';
 
 const { mat3 } = glMatrix;
 
-const gfa_path = "./data/A-3105.fa.353ea42.34ee7b1.1576367.smooth.fix.gfa";
-const layout_path = "./data/A-3105.layout.tsv";
-const path_names = undefined;
+// const gfa_path = "./data/A-3105.fa.353ea42.34ee7b1.1576367.smooth.fix.gfa";
+// const layout_path = "./data/A-3105.layout.tsv";
+// const path_names = undefined;
 
-// const gfa_path = "./MHC/HPRCy1v2.MHC.fa.ce6f12f.417fcdf.0ead406.smooth.final.gfa";
-// const layout_path = "./MHC/HPRCy1v2.MHC.fa.ce6f12f.417fcdf.0ead406.smooth.final.og.lay.tsv";
-// const path_names = [
-//     "chm13#chr6:28385000-33300000",
-//     "grch38#chr6:28510128-33480000",
-//     "HG00438#1#h1tg000040l:22870040-27725000",
-//     "HG00673#2#h2tg000031l:10256-1959976",
-//     "HG00733#2#h2tg000060l:26405000-27483925",
-//     "HG01175#1#h1tg000188l:192-200000",
-//     "HG02818#2#h2tg000045l:15000-2706770",
-//     "HG03516#2#h2tg000202l:24-441470",
-// ];
+const gfa_path = "./MHC/HPRCy1v2.MHC.fa.ce6f12f.417fcdf.0ead406.smooth.final.gfa";
+const layout_path = "./MHC/HPRCy1v2.MHC.fa.ce6f12f.417fcdf.0ead406.smooth.final.og.lay.tsv";
+const path_names = [
+    "chm13#chr6:28385000-33300000",
+    "grch38#chr6:28510128-33480000",
+    "HG02717#2#h2tg000061l:22650152-27715000",
+    "HG03516#1#h1tg000073l:22631064-27570000",
+    "HG00733#1#h1tg000070l:28540000-33419448",
+    "HG02055#1#h1tg000074l:0-4714592",
+    "HG01978#1#h1tg000035l:28455000-33469848",
+    "HG02886#2#h2tg000003l:25120800-30214744",
+
+    // "HG00438#1#h1tg000040l:22870040-27725000",
+    // "HG00673#2#h2tg000031l:10256-1959976",
+    // "HG00733#2#h2tg000060l:26405000-27483925",
+    // "HG01175#1#h1tg000188l:192-200000",
+    // "HG02818#2#h2tg000045l:15000-2706770",
+    // "HG03516#2#h2tg000202l:24-441470",
+];
 
 function globalSequenceTrack(graph, canvas, view_subject) {
 
@@ -61,10 +68,67 @@ function globalSequenceTrack(graph, canvas, view_subject) {
 }
 
 
+const MHC_BED = [
+    { path: "grch38#chr6", start: 29722775, end: 29738528, label: "HLA-F" },
+    { path: "grch38#chr6", start: 29726601, end: 29749049, label: "HLA-F-AS1" },
+    { path: "grch38#chr6", start: 29790954, end: 29797811, label: "HLA-V" },
+    { path: "grch38#chr6", start: 29800415, end: 29802425, label: "HLA-P" },
+    { path: "grch38#chr6", start: 29826967, end: 29831125, label: "HLA-G" },
+    { path: "grch38#chr6", start: 29887752, end: 29890482, label: "HLA-H" },
+    { path: "grch38#chr6", start: 29896654, end: 29897786, label: "HLA-T" },
+    { path: "grch38#chr6", start: 29926459, end: 29929232, label: "HLA-K" },
+    { path: "grch38#chr6", start: 29934101, end: 29934286, label: "HLA-U" },
+    { path: "grch38#chr6", start: 29941260, end: 29945884, label: "HLA-A" },
+    { path: "grch38#chr6", start: 29956596, end: 29958570, label: "HLA-W" },
+    { path: "grch38#chr6", start: 30005971, end: 30009956, label: "HLA-J" },
+    { path: "grch38#chr6", start: 30259548, end: 30293015, label: "HLA-L" },
+    { path: "grch38#chr6", start: 30351416, end: 30351550, label: "HLA-N" },
+    { path: "grch38#chr6", start: 30489509, end: 30494194, label: "HLA-E" },
+    { path: "grch38#chr6", start: 31268749, end: 31272130, label: "HLA-C" },
+    { path: "grch38#chr6", start: 31353872, end: 31367067, label: "HLA-B" },
+    { path: "grch38#chr6", start: 31382074, end: 31382288, label: "HLA-S" },
+    { path: "grch38#chr6", start: 32439878, end: 32445046, label: "HLA-DRA" },
+    { path: "grch38#chr6", start: 32459821, end: 32473500, label: "HLA-DRB9" },
+    { path: "grch38#chr6", start: 32517353, end: 32530287, label: "HLA-DRB5" },
+    { path: "grch38#chr6", start: 32552713, end: 32560022, label: "HLA-DRB6" },
+    { path: "grch38#chr6", start: 32577902, end: 32589848, label: "HLA-DRB1" },
+    { path: "grch38#chr6", start: 32628179, end: 32647062, label: "HLA-DQA1" },
+    { path: "grch38#chr6", start: 32659467, end: 32668383, label: "HLA-DQB1" },
+    { path: "grch38#chr6", start: 32659880, end: 32660729, label: "HLA-DQB1-AS1" },
+    { path: "grch38#chr6", start: 32730758, end: 32731695, label: "HLA-DQB3" },
+    { path: "grch38#chr6", start: 32741391, end: 32747198, label: "HLA-DQA2" },
+    { path: "grch38#chr6", start: 32756098, end: 32763532, label: "HLA-DQB2" },
+    { path: "grch38#chr6", start: 32812763, end: 32820466, label: "HLA-DOB" },
+    { path: "grch38#chr6", start: 32896416, end: 32896490, label: "HLA-Z" },
+    { path: "grch38#chr6", start: 32934629, end: 32941028, label: "HLA-DMB" },
+    { path: "grch38#chr6", start: 32948613, end: 32969094, label: "HLA-DMA" },
+    { path: "grch38#chr6", start: 33004182, end: 33009591, label: "HLA-DOA" },
+    { path: "grch38#chr6", start: 33064569, end: 33080775, label: "HLA-DPA1" },
+    { path: "grch38#chr6", start: 33091753, end: 33097295, label: "HLA-DPA2" },
+    { path: "grch38#chr6", start: 33112440, end: 33129084, label: "HLA-DPB2" },
+    { path: "grch38#chr6", start: 33131216, end: 33143325, label: "HLA-DPA3" },
+    { path: "grch38#chr6", start: 33075990, end: 33089696, label: "HLA-DPB1" },
+]
 
+
+/*
+32628179 - 28510128 = 4118051
+32647062 - 28510128 = 4136934
+
+4118051
+4136934
+*/
+
+function getRandomColor() {
+    const r = Math.floor(Math.random() * 256);
+    const g = Math.floor(Math.random() * 256);
+    const b = Math.floor(Math.random() * 256);
+    return `rgb(${r},${g},${b})`;
+}
 
 async function addTestOverlay(graph, worker_obj, graph_viewer) {
-    let path_name = 'gi|568815551:1197321-1201446';
+    // let path_name = 'gi|568815551:1197321-1201446';
+    let path_name = 'grch38#chr6:28510128-33480000';
 
     let data_canvas = document.getElementById('viewer-' + path_name);
     let path_viewer = data_canvas.path_viewer;
@@ -72,26 +136,51 @@ async function addTestOverlay(graph, worker_obj, graph_viewer) {
     const path_steps = graph.path_steps(path_name);
 
     // these are global coordinates
-    let path_entries = [{ start: 100, end: 1000, color: 'red', label: 'AAAA' },
-                        { start: 2100, end: 5000, color: 'red', label: 'BBBB' },
-                  ];
+    // let path_entries = [{ start: 100, end: 1000, color: 'blue', label: 'AAAA' },
+    //                     { start: 2100, end: 5000, color: 'blue', label: 'BBBB' },
+    // let path_entries = [{ start: 100, end: 1000, color: 'blue', label: 'AAAA' },
+    //                     { start: 2100, end: 5000, color: 'blue', label: 'BBBB' },
+    //               ];
+
+
+    const cs_view = await worker_obj.globalCoordSysView();
+
+    const path_offset = 28510128;
+    let path_entries = MHC_BED.map((row) => {
+
+        let color = wasm_bindgen.path_name_hash_color_obj(row.label);
+        console.log(color);
+
+        return { start: row.start - path_offset,
+                 end: row.end - path_offset,
+                 color: `rgb(${color.r * 255}, ${color.g * 255}, ${color.b * 255})`,
+                 label: row.label };
+    });
 
     let global_entries = [];
 
-    path_entries.forEach((path_entry) => {
+    for (const path_entry of path_entries) {
         let path_range = worker_obj.pathRangeToStepRange(path_name, path_entry.start, path_entry.end);
         let slice = path_steps.slice(path_range.start, path_range.end);
+
         let seg_ranges = wasm_bindgen.path_slice_to_global_adj_partitions(slice);
         let seg_ranges_arr = seg_ranges.ranges_as_u32_array();
         let range_count = seg_ranges_arr.length / 2;
 
         for (let ri = 0; ri < range_count; ri++) {
-            let start = seg_ranges_arr.at(2 * ri);
-            let end = seg_ranges_arr.at(2 * ri + 1);
-            global_entries.push({start, end, color: path_entry.color});
+            let start_seg = seg_ranges_arr.at(2 * ri);
+            let end_seg = seg_ranges_arr.at(2 * ri + 1);
+
+            if (start_seg && end_seg) {
+                let start = await cs_view.segmentOffset(start_seg);
+                let end = await cs_view.segmentOffset(end_seg);
+
+                global_entries.push({start, end, color: path_entry.color});
+            }
         }
-        
-    });
+    }
+
+    console.log(global_entries.length);
 
     let callback = CanvasTracks.createHighlightCallback(global_entries);
 
@@ -106,6 +195,18 @@ async function addTestOverlay(graph, worker_obj, graph_viewer) {
                                     path_entries);
 
     graph_viewer.overlayCallbacks['test'] = callback_2d;
+    console.log("?????");
+
+    // for (const entry of path_entries) {
+    //     let callback_2d =
+    //         preparePathHighlightOverlay(graph_viewer.segment_positions,
+    //                                     path_steps,
+    //                                     path_cs,
+    //                                     [entry]);
+
+    //     graph_viewer.overlayCallbacks[entry.label] = callback_2d;
+    // }
+
 }
 
 

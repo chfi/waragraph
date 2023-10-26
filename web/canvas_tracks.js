@@ -106,24 +106,40 @@ export function drawSequence(canvas, sequence, subpixel_offset) {
   entries is an array of visualization space ranges and color
 */
 export function createHighlightCallback(entries) {
+    console.log(">>>>>>> createHighlightCallback");
+    console.log(entries);
 
     return (canvas, view) => {
         const ctx = canvas.getContext('2d');
-        ctx.save();
 
         const view_len = view.end - view.start;
 
+        ctx.save();
+        console.log(entries.length);
         for (const { start, end, color } of entries) {
             let x_start = ((start - view.start) / view_len) * canvas.width;
             let x_end = ((end - view.start) / view_len) * canvas.width;
             let len = x_end - x_start;
 
             if (len > 1.0) {
+                ctx.globalAlpha = 1.0;
+
+                // let c = 'black'
                 ctx.fillStyle = color;
-                ctx.fillRect(x_start, 0, x_end - x_start, canvas.height);
+                ctx.strokeStyle = color;
+
+                let h = canvas.height;
+
+                ctx.beginPath();
+                // ctx.fillRect(x_start, 0.1 * h, x_end - x_start, 0.8 * h);
+                ctx.clearRect(x_start, 0.1 * h, x_end - x_start, 0.8 * h);
+                ctx.rect(x_start, 0.1 * h, x_end - x_start, 0.8 * h);
+                ctx.fill();
+                // ctx.closePath();
+                // ctx.strokeRect(x_start, 0.1 * h, x_end - x_start, 0.8 * h);
             }
         }
-
         ctx.restore();
+
     };
 }
