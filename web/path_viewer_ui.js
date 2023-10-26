@@ -86,16 +86,23 @@ export async function addPathViewerLogic(worker, path_viewer, overview, cs_view)
     const wheelScaleDelta$ = wheel$.pipe(
         map(event => {
             let x = event.clientX / canvas.width;
-            // if (x < 0.03) {
-            //     x = 0.0;
-            // } else if (x > 0.97) {
-            //     x = 1.0;
-            // }
-            if (event.deltaY > 0) {
-                return { scale: 1.05, x };
+            let scale;
+            if (event.deltaMode === WheelEvent.DOM_DELTA_PIXEL) {
+                if (event.deltaY > 0) {
+                    scale = 1.001;
+                } else {
+                    scale = 0.999;
+                }
+            // } else if (event.deltaMode == WheelEvent.DOM_DELTA_LINE) {
             } else {
-                return { scale: 0.95, x };
+                if (event.deltaY > 0) {
+                    scale = 1.05;
+                } else {
+                    scale = 0.95;
+                }
             }
+
+            return { scale, x };
         })
     );
 
@@ -169,10 +176,19 @@ export async function addOverviewEventHandlers(overview, cs_view) {
 
     const wheelScaleDelta$ = wheel$.pipe(
         map(event => {
-            if (event.deltaY > 0) {
-                return 1.05;
+            if (event.deltaMode === WheelEvent.DOM_DELTA_PIXEL) {
+                if (event.deltaY > 0) {
+                    return 1.01;
+                } else {
+                    return 0.99;
+                }
+            // } else if (event.deltaMode == WheelEvent.DOM_DELTA_LINE) {
             } else {
-                return 0.95;
+                if (event.deltaY > 0) {
+                    return 1.05;
+                } else {
+                    return 0.95;
+                }
             }
         })
     );

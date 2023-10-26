@@ -72,8 +72,8 @@ async function addTestOverlay(graph, worker_obj, graph_viewer) {
     const path_steps = graph.path_steps(path_name);
 
     // these are global coordinates
-    let path_entries = [{ start: 100, end: 1000, color: 'red' },
-                   { start: 2100, end: 5000, color: 'red' },
+    let path_entries = [{ start: 100, end: 1000, color: 'red', label: 'AAAA' },
+                        { start: 2100, end: 5000, color: 'red', label: 'BBBB' },
                   ];
 
     let global_entries = [];

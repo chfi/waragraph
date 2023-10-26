@@ -20,6 +20,7 @@ class GraphViewer {
         this.next_view = this.graph_viewer.get_view();
 
         this.overlayCallbacks = {};
+        this.mousePos = null;
     }
 
     needRedraw() {
@@ -69,7 +70,7 @@ class GraphViewer {
 
         for (const key in this.overlayCallbacks) {
             const callback = this.overlayCallbacks[key];
-            callback(overlay, this.next_view);
+            callback(overlay, this.next_view, this.mousePos);
         }
     }
 
@@ -166,6 +167,17 @@ export async function initGraphViewer(wasm_mem, graph, layout_url) {
     const mouseUp$ = rxjs.fromEvent(overlay, 'mouseup');
     const mouseOut$ = rxjs.fromEvent(overlay, 'mouseout');
     const mouseMove$ = rxjs.fromEvent(overlay, 'mousemove');
+
+
+    mouseMove$.subscribe((event) => {
+        // graph_viewer.mousePos = { x: event.clientX, y: event.clientY };
+        graph_viewer.mousePos = { x: event.offsetX, y: event.offsetY };
+    });
+
+    mouseOut$.subscribe((event) => {
+        graph_viewer.mousePos = null;
+    });
+
     const drag$ = mouseDown$.pipe(
         rxjs.switchMap((event) => {
             return mouseMove$.pipe(
@@ -300,7 +312,25 @@ export function preparePathHighlightOverlay(seg_pos, path_steps, path_cs_raw, en
         processed.push({ path_slice, color: entry.color });
     }
 
-    return (canvas, view) => {
+    console.log(processed);
+
+    return (canvas, view, mouse_pos) => {
+
+        {
+            let ctx = canvas.getContext('2d');
+            ctx.save();
+
+            // const path = new Path2D();
+            // path.ellipse(150, 75, 40, 60, Math.PI * 0.25, 0, 2 * Math.PI);
+            // ctx.strokeRect(0, 0, 300, 300);
+            // ctx.stroke(path);
+            ctx.globalAlpha = 1.0;
+            ctx.fillStyle = 'black';
+            ctx.fillRect(0, 0, 300, 300);
+
+            ctx.restore();
+        }
+
         for (const entry of processed) {
             let path2d = seg_pos
                 .path_to_canvas_space(view, canvas.width, canvas.height, entry.path_slice);
@@ -312,9 +342,21 @@ export function preparePathHighlightOverlay(seg_pos, path_steps, path_cs_raw, en
             ctx.lineWidth = 15;
             ctx.strokeStyle = entry.color;
             ctx.stroke(path2d);
-            ctx.restore();
-        }
 
+            console.log(mouse_pos);
+
+            if (mouse_pos !== null && entry.label) {
+                // if (ctx.isPointInPath(path2d, mouse_pos.x, mouse_pos.y)) {
+                // if (ctx.isPointInStroke(path2d, mouse_pos.x, mouse_pos.y)) {
+                if (ctx.isPointInStroke(path2d, 0, 0)) {
+                // if (ctx.isPointInStroke(mouse_pos.x, mouse_pos.y)) {
+                    console.log(entry.label);
+                }
+            }
+
+            ctx.restore();
+
+        }
     };
 }
 
