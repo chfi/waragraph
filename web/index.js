@@ -108,6 +108,32 @@ async function addTestOverlay(graph, worker_obj, graph_viewer) {
     graph_viewer.overlayCallbacks['test'] = callback_2d;
 }
 
+
+async function addViewRangeInputListeners(cs_view) {
+    const start_el = document.getElementById('path-viewer-range-start');
+    const end_el = document.getElementById('path-viewer-range-end');
+
+    let init_view = await cs_view.get();
+
+    start_el.value = init_view.start;
+    end_el.value = init_view.end;
+
+    start_el.addEventListener('change', (event) => {
+        cs_view.set({ start: start_el.value, end: end_el.value });
+    });
+
+    end_el.addEventListener('change', (event) => {
+        cs_view.set({ start: start_el.value, end: end_el.value });
+    });
+
+    const view_subject = await cs_view.viewSubject();
+
+    view_subject.subscribe((view) => {
+        start_el.value = Math.round(view.start);
+        end_el.value = Math.round(view.end);
+    });
+}
+
 async function init() {
 
     const handler = await import('./transfer_handlers.js');
@@ -134,6 +160,8 @@ async function init() {
             // window.addTestOverlay = addTestOverlay;
 
             let cs_view = await worker_obj.globalCoordSysView();
+
+            addViewRangeInputListeners(cs_view);
 
             const graph_viewer = await initGraphViewer(wasm.memory, graph_raw, layout_path);
             console.log(graph_viewer);

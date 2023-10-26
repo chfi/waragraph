@@ -73,6 +73,31 @@ class CoordSysView {
         return this.view.max;
     }
 
+    set(new_range) {
+        let start, end;
+
+        if (new_range.start === undefined) {
+            start = this.view.start;
+        } else {
+            start = new_range.start;
+        }
+
+        if (new_range.end === undefined) {
+            end = this.view.end;
+        } else {
+            end = new_range.end;
+        }
+
+        this.view.set(start, end);
+        console.log("[" + start + " - " + end + "]");
+        this.push();
+
+        let new_start = this.view.start;
+        let new_end = this.view.end;
+
+        // console.log("[" + new_start + " - " + new_end + "]");
+    }
+
     get() {
         let start = this.view.start;
         let end = this.view.end;

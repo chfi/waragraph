@@ -79,6 +79,18 @@ canvas#graph-viewer-2d-overlay {
     grid-row: 1;
 }
 
+
+#path-viewer-range-input {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: auto;
+    width: 100%;
+}
+
+#path-viewer-range-input input {
+    width: 100%;
+}
+
 /* .container { */
 /*     display: grid; */
 /*     grid-template-columns: 200px auto;  /\* 200px for the fixed column and 'auto' for the canvas column *\/ */

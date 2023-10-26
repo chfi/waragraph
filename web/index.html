@@ -15,7 +15,11 @@
 
       <div id="path-viewer-container">
         <div class="path-viewer-list-row">
-          <div class="path-name"></div>
+          <!-- <div class="path-name" id="path-viewer-view-input"></div> -->
+          <div class="path-name" id="path-viewer-range-input">
+            <input type="text" inputmode="numeric" pattern="\d*" id="path-viewer-range-start">
+            <input type="text" inputmode="numeric" pattern="\d*" id="path-viewer-range-end">
+          </div>
           <canvas id="overview-map" width=1024 height=40></canvas>
         </div>
         <div class="path-viewer-list-row">
