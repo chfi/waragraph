@@ -359,27 +359,33 @@ export function preparePathHighlightOverlay(seg_pos, path_steps, path_cs_raw, en
             */
 
             try {
-            let pos_obj = seg_pos
+                let pos_obj = seg_pos
                     .path_to_canvas_space_alt(view, canvas.width, canvas.height, entry.path_slice);
 
-            let path2d = seg_pos
-                .path_to_canvas_space(view, canvas.width, canvas.height, entry.path_slice);
+                const tolerance = 7.5;
 
-            
-            ctx.globalAlpha = 0.8;
-            // ctx.globalCompositeOperation = "copy";
-            ctx.lineWidth = 15;
-            ctx.strokeStyle = entry.color;
+                let path2d = seg_pos
+                    .path_to_canvas_space(view,
+                                          canvas.width,
+                                          canvas.height,
+                                          entry.path_slice,
+                                          tolerance);
 
-            ctx.beginPath();
-            ctx.moveTo(0, 0);
-            ctx.stroke(path2d);
-            ctx.closePath();
+                
+                ctx.globalAlpha = 0.8;
+                // ctx.globalCompositeOperation = "copy";
+                ctx.lineWidth = 15;
+                ctx.strokeStyle = entry.color;
 
-            let x = pos_obj.x0 + (pos_obj.x1 - pos_obj.x0) * 0.5;
-            let y = pos_obj.y0 + (pos_obj.y1 - pos_obj.y0) * 0.5;
+                ctx.beginPath();
+                ctx.moveTo(0, 0);
+                ctx.stroke(path2d);
+                ctx.closePath();
 
-            ctx.fillText(entry.label, x, y);
+                let x = pos_obj.x0 + (pos_obj.x1 - pos_obj.x0) * 0.5;
+                let y = pos_obj.y0 + (pos_obj.y1 - pos_obj.y0) * 0.5;
+
+                ctx.fillText(entry.label, x, y);
             } catch (e) {
                 //
             }

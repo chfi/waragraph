@@ -157,10 +157,29 @@ async function addTestOverlay(graph, worker_obj, graph_viewer) {
                  label: row.label };
     });
 
+
     let global_entries = [];
 
+    /*
+    let some_entries_in = [
+        // { path: "grch38#chr6", start: 32628179, end: 32647062, label: "HLA-DQA1" },
+    // { path: "grch38#chr6", start: 32659880, end: 32660729, label: "HLA-DQB1-AS1" },
+    ];
+    let some_entries = some_entries_in.map((row) => {
+
+        let color = wasm_bindgen.path_name_hash_color_obj(row.label);
+        console.log(color);
+
+        return { start: row.start - path_offset,
+                 end: row.end - path_offset,
+                 color: `rgb(${color.r * 255}, ${color.g * 255}, ${color.b * 255})`,
+                 label: row.label };
+    });
+    */
+
     for (const path_entry of path_entries) {
-        let path_range = worker_obj.pathRangeToStepRange(path_name, path_entry.start, path_entry.end);
+        try {
+        let path_range = await worker_obj.pathRangeToStepRange(path_name, path_entry.start, path_entry.end);
         let slice = path_steps.slice(path_range.start, path_range.end);
 
         let seg_ranges = wasm_bindgen.path_slice_to_global_adj_partitions(slice);
@@ -177,6 +196,9 @@ async function addTestOverlay(graph, worker_obj, graph_viewer) {
 
                 global_entries.push({start, end, color: path_entry.color});
             }
+        }
+        } catch (e) {
+            //
         }
     }
 

@@ -581,18 +581,24 @@ impl SegmentRanges {
 #[wasm_bindgen]
 pub fn path_slice_to_global_adj_partitions(
     path_steps: &[u32],
-) -> SegmentRanges {
+) -> Result<SegmentRanges, JsValue> {
+    if path_steps.is_empty() {
+        return Err(JsValue::from(format!("empty path slice")));
+    }
+
     // only handling the global node order for now, so instead of
     // dealing with an explicit coordinate system just sort
     let mut sorted = path_steps.into_iter().copied().collect::<Vec<_>>();
     sorted.sort();
 
+    log::warn!("sorted.len() {}", sorted.len());
+
     let mut ranges = Vec::new();
 
-    let mut range_start = path_steps[0] >> 1;
-    let mut prev_seg_ix = path_steps[0] >> 1;
+    let mut range_start = sorted[0] >> 1;
+    let mut prev_seg_ix = sorted[0] >> 1;
 
-    for &handle in path_steps {
+    for handle in sorted {
         let seg_ix = handle >> 1;
 
         if seg_ix.abs_diff(prev_seg_ix) > 2 {
@@ -603,7 +609,7 @@ pub fn path_slice_to_global_adj_partitions(
         prev_seg_ix = seg_ix;
     }
 
-    SegmentRanges { ranges }
+    Ok(SegmentRanges { ranges })
 }
 
 #[wasm_bindgen]

@@ -179,6 +179,7 @@ impl SegmentPositions {
         canvas_width: f32,
         canvas_height: f32,
         path_slice: &[u32],
+        tolerance: f32,
     ) -> Result<web_sys::Path2d, JsValue> {
         use ultraviolet::{Vec2, Vec3};
 
@@ -192,13 +193,13 @@ impl SegmentPositions {
 
         log::warn!("slice length: {}", path_slice.len());
 
-        const MIN_DIST: f32 = 2.0;
-
         if path_slice.is_empty() {
             return Err(JsValue::NULL);
         }
 
         // let steps = [path_slice[0], *path_slice.last().unwrap()];
+
+        let mut last_q = None;
 
         for &step_handle in path_slice {
             // for &step_handle in &steps {
@@ -213,8 +214,10 @@ impl SegmentPositions {
             let p_v3 = Vec3::new(p.x, p.y, 1.0);
             let q = matrix * p_v3;
 
+            last_q = Some(q);
+
             if let Some(last) = last_added {
-                if (last - q.xy()).mag() < MIN_DIST {
+                if (last - q.xy()).mag() < tolerance {
                     continue;
                 }
             }
@@ -227,6 +230,12 @@ impl SegmentPositions {
             last_added = Some(q.xy());
 
             added += 1;
+        }
+
+        if added == 1 {
+            if let Some(q) = last_q {
+                path2d.line_to(q.x as f64, q.y as f64);
+            }
         }
 
         Ok(path2d)
