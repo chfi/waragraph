@@ -91,6 +91,21 @@ canvas#graph-viewer-2d-overlay {
     width: 100%;
 }
 
+
+#tooltip {
+    width: max-content;
+    position: absolute;
+    top: 0;
+    left: 0;
+         
+    background: #222;
+    color: white;
+    font-weight: bold;
+    padding: 5px;
+    border-radius: 4px;
+    font-size: 90%;
+}
+
 /* .container { */
 /*     display: grid; */
 /*     grid-template-columns: 200px auto;  /\* 200px for the fixed column and 'auto' for the canvas column *\/ */

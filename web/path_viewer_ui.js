@@ -1,10 +1,11 @@
-
-
-// async function addScrollZoomSub(cs_view
 import * as Comlink from './comlink.mjs';
 
 import * as handler from './transfer_handlers.js';
 handler.setTransferHandlers(rxjs, Comlink);
+
+import * as FloatingUI from 'https://cdn.jsdelivr.net/npm/@floating-ui/dom@1.5.3/+esm';
+
+import { placeTooltipAtPoint } from './tooltip.js';
 
 async function segmentAtCanvasX(
     coord_sys_view,
@@ -99,13 +100,26 @@ export async function addPathViewerLogic(worker, path_viewer, overview, cs_view)
 
     
     mouseMove$.pipe(
-        map((e) => e.clientX),
+        map((e) => [e.clientX, e.clientY]),
         rxjs.distinct(),
         rxjs.throttleTime(50)
-    ).subscribe(async (x) => {
+    ).subscribe(async ([x, y]) => {
         let width = canvas.width;
         let segment = await segmentAtCanvasX(cs_view, width, x);
         console.log("segment at cursor: " + segment);
+
+        let tooltip = document.getElementById('tooltip');
+
+        tooltip.innerHTML = `Segment ${segment}`;
+        placeTooltipAtPoint(x, y);
+
+
+        // let pos = await FloatingUI.computePosition(canvas, tooltip);
+        // Object.assign(tooltip.style, {
+        //     left: `${pos.x}px`,
+        //     top: `${pos.y}px`,
+        // });
+
     });
 
 
