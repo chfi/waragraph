@@ -360,6 +360,17 @@ impl CoordSys {
 
         obj
     }
+
+    pub fn segment_at_pos(&self, pos: u64) -> Result<u32, JsValue> {
+        let pos_i = self
+            .step_offsets
+            .buffer()
+            .binary_search_by_key(&pos, |&o| o as u64);
+
+        let pos_out = pos_i.unwrap_or_else(|i| i - 1);
+
+        Ok(pos_out as u32)
+    }
 }
 
 impl CoordSys {

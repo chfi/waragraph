@@ -29,6 +29,10 @@ class CoordSysView {
         this.view_range_subject = new rxjs.BehaviorSubject(view_range);
     }
 
+    segmentAtOffset(bp) {
+        return this.coord_sys.segment_at_pos(bp);
+    }
+
     segmentOffset(segment) {
         return this.coord_sys.offset_at(segment);
     }

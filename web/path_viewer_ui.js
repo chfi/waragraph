@@ -6,6 +6,20 @@ import * as Comlink from './comlink.mjs';
 import * as handler from './transfer_handlers.js';
 handler.setTransferHandlers(rxjs, Comlink);
 
+async function segmentAtCanvasX(
+    coord_sys_view,
+    canvas_width,
+    x
+) {
+    let { start, end, len } = await coord_sys_view.get();
+
+    let bp_f = start + (x / canvas_width) * len;
+    let bp = BigInt(Math.round(bp_f));
+
+    let segment = await coord_sys_view.segmentAtOffset(bp);
+
+    return segment;
+}
 
 export async function highlightPathRanges(
     path_name,
@@ -82,6 +96,18 @@ export async function addPathViewerLogic(worker, path_viewer, overview, cs_view)
     const mouseUp$ = fromEvent(canvas, 'mouseup');
     const mouseMove$ = fromEvent(canvas, 'mousemove');
     const mouseOut$ = fromEvent(canvas, 'mouseout');
+
+    
+    mouseMove$.pipe(
+        map((e) => e.clientX),
+        rxjs.distinct(),
+        rxjs.throttleTime(50)
+    ).subscribe(async (x) => {
+        let width = canvas.width;
+        let segment = await segmentAtCanvasX(cs_view, width, x);
+        console.log("segment at cursor: " + segment);
+    });
+
 
     const wheelScaleDelta$ = wheel$.pipe(
         map(event => {
