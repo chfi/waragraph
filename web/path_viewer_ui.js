@@ -98,34 +98,36 @@ export async function addPathViewerLogic(worker, path_viewer, overview, cs_view)
     const mouseMove$ = fromEvent(canvas, 'mousemove');
     const mouseOut$ = fromEvent(canvas, 'mouseout');
 
+
+    mouseOut$.subscribe((ev) => {
+        let tooltip = document.getElementById('tooltip');
+        tooltip.innerHTML = "";
+        tooltip.style.display = 'none';
+    });
+        
     
     mouseMove$.pipe(
         map((e) => [e.clientX, e.clientY]),
         rxjs.distinct(),
         rxjs.throttleTime(50)
     ).subscribe(async ([x, y]) => {
+
+        let local_x = x - canvas.offsetLeft;
         let width = canvas.width;
-        let segment = await segmentAtCanvasX(cs_view, width, x);
+        let segment = await segmentAtCanvasX(cs_view, width, local_x);
         console.log("segment at cursor: " + segment);
 
         let tooltip = document.getElementById('tooltip');
 
         tooltip.innerHTML = `Segment ${segment}`;
+        tooltip.style.display = 'block';
         placeTooltipAtPoint(x, y);
-
-
-        // let pos = await FloatingUI.computePosition(canvas, tooltip);
-        // Object.assign(tooltip.style, {
-        //     left: `${pos.x}px`,
-        //     top: `${pos.y}px`,
-        // });
-
     });
 
 
     const wheelScaleDelta$ = wheel$.pipe(
         map(event => {
-            let x = event.clientX / canvas.width;
+            let x = (event.clientX - canvas.offsetLeft) / canvas.width;
             let scale;
             if (event.deltaMode === WheelEvent.DOM_DELTA_PIXEL) {
                 if (event.deltaY > 0) {

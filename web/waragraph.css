@@ -93,6 +93,7 @@ canvas#graph-viewer-2d-overlay {
 
 
 #tooltip {
+    display: none;
     width: max-content;
     position: absolute;
     top: 0;
@@ -104,6 +105,9 @@ canvas#graph-viewer-2d-overlay {
     padding: 5px;
     border-radius: 4px;
     font-size: 90%;
+
+    transition-property: left, top;
+    transition-duration: 50ms;
 }
 
 /* .container { */
