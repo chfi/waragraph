@@ -374,6 +374,18 @@ impl CoordSys {
 }
 
 impl CoordSys {
+    pub fn segment_range(&self, segment: u32) -> Option<std::ops::Range<u64>> {
+        let ix = segment as usize;
+
+        if ix >= self.step_offsets.len() {
+            return None;
+        }
+
+        let (start, end) = self.step_offsets.start_end(ix);
+
+        Some((start as u64)..(end as u64))
+    }
+
     pub fn bp_to_step_range(
         &self,
         start: u64,
@@ -392,6 +404,69 @@ impl CoordSys {
         let end_out = end_i.unwrap_or_else(|i| i - 1);
 
         start_out..=end_out
+    }
+
+    pub fn sample_impl_new(
+        &self,
+        bp_range: std::ops::RangeInclusive<u64>,
+        data_indices: &[u32],
+        data: &[f32],
+        bins: &mut [f32],
+    ) {
+        // clear bins
+        // bins.iter_mut().for_each(|bin| *bin = 0.0);
+
+        // find range in step index using bp_range
+        let indices = self.bp_to_step_range(*bp_range.start(), *bp_range.end());
+
+        // slice `data` according to step range
+        let s_i = *indices.start();
+        let e_i = *indices.end();
+
+        // `indices` is inclusive
+        let len = (e_i + 1) - s_i;
+        // let data_slice = data.sliced(s_i, len);
+
+        let bp_range_len = (*bp_range.end() + 1) - *bp_range.start();
+        let bin_size = bp_range_len / bins.len() as u64;
+
+        let make_bin_range = {
+            let bin_count = bins.len();
+            let s = *bp_range.start();
+            let e = *bp_range.end();
+
+            move |bin_i: usize| -> std::ops::RangeInclusive<u64> {
+                let i = (bin_i.min(bin_count - 1)) as u64;
+                let left = s + i * bin_size;
+                let right = s + (i + 1) * bin_size;
+                left..=right
+            }
+        };
+
+        let mut data_iter = CoordSysDataIter::new(
+            &self,
+            data_indices,
+            data,
+            (s_i as u32)..(e_i as u32 - 1),
+        );
+
+        // let data_ix_start = data_indices
+        //     .binary_search(&(s_i as u32))
+        //     .unwrap_or_else(|i| if i == 0 { 0 } else { i - 1 })
+        //     as usize;
+
+        // let mut data_iter = data_indices[data_ix_start..]
+        //     .iter().enumerate().map(|(i, data)| {
+        //         //
+        //     });
+
+        for (bin_i, bin) in bins.iter_mut().enumerate() {
+            *bin = 0.0;
+
+            let (start, end) = make_bin_range(bin_i).into_inner();
+
+            // iterate through data adding to bin here
+        }
     }
 
     pub fn sample_impl(
@@ -713,6 +788,77 @@ impl CoordSys {
         })?;
 
         Ok(*v as u32)
+    }
+}
+
+struct CoordSysDataIter<'a, 'b> {
+    coord_sys: &'a CoordSys,
+    data_indices: &'b [u32],
+    data_values: &'b [f32],
+    // bp_range:
+}
+
+impl<'a, 'b> CoordSysDataIter<'a, 'b> {
+    fn new(
+        coord_sys: &'a CoordSys,
+        data_indices: &'b [u32],
+        data_values: &'b [f32],
+        segment_range: std::ops::Range<u32>,
+    ) -> Self {
+        // find the indices in `data_indices` that correspond to the `segment_range`
+        let data_ix_start = data_indices
+            .binary_search(&segment_range.start)
+            .unwrap_or_else(|i| if i == 0 { 0 } else { i - 1 })
+            as usize;
+
+        let data_ix_end = data_indices
+            .binary_search(&segment_range.end)
+            .unwrap_or_else(|i| if i == 0 { 0 } else { i - 1 })
+            as usize;
+
+        let data_indices = &data_indices[data_ix_start..data_ix_end];
+        let data_values = &data_values[data_ix_start..data_ix_end];
+
+        Self {
+            coord_sys,
+            data_indices,
+            data_values,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+struct CoordSysDataIterOutput<T> {
+    segment: u32,
+    bp_start: u64,
+    bp_end: u64,
+    value: T,
+}
+
+impl<'a, 'b> Iterator for CoordSysDataIter<'a, 'b> {
+    type Item = CoordSysDataIterOutput<f32>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.data_indices.is_empty() {
+            return None;
+        }
+
+        let segment = self.data_indices[0];
+        let value = self.data_values[0];
+
+        let range = self.coord_sys.segment_range(segment)?;
+
+        if self.data_indices.len() > 1 {
+            self.data_indices = &self.data_indices[1..];
+            self.data_values = &self.data_values[1..];
+        }
+
+        Some(CoordSysDataIterOutput {
+            segment,
+            bp_start: range.start,
+            bp_end: range.end,
+            value,
+        })
     }
 }
 
