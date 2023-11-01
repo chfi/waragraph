@@ -110,15 +110,6 @@ const MHC_BED = [
     { path: "grch38#chr6", start: 33075990, end: 33089696, label: "HLA-DPB1" },
 ]
 
-
-/*
-32628179 - 28510128 = 4118051
-32647062 - 28510128 = 4136934
-
-4118051
-4136934
-*/
-
 function getRandomColor() {
     const r = Math.floor(Math.random() * 256);
     const g = Math.floor(Math.random() * 256);

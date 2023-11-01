@@ -37,6 +37,10 @@ class CoordSysView {
         return this.coord_sys.offset_at(segment);
     }
 
+    segmentRange(segment) {
+        return this.coord_sys.segment_range(segment);
+    }
+
     viewMax() {
         return this.view.max;
     }

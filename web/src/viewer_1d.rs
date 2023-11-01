@@ -361,6 +361,25 @@ impl CoordSys {
         obj
     }
 
+    #[wasm_bindgen(js_name = "segment_range")]
+    pub fn segment_range_js(
+        &self,
+        segment: u32,
+    ) -> Result<js_sys::Object, JsValue> {
+        let Some(range) = self.segment_range(segment) else {
+            return Err(JsValue::from(format!(
+                "Segment `{segment}` not found"
+            )));
+        };
+
+        let obj = js_sys::Object::new();
+        for (k, v) in [("start", range.start), ("end", range.end)] {
+            js_sys::Reflect::set(obj.as_ref(), &k.into(), &v.into());
+        }
+
+        Ok(obj)
+    }
+
     pub fn segment_at_pos(&self, pos: u64) -> Result<u32, JsValue> {
         let pos_i = self
             .step_offsets
@@ -413,9 +432,6 @@ impl CoordSys {
         data: &[f32],
         bins: &mut [f32],
     ) {
-        // clear bins
-        // bins.iter_mut().for_each(|bin| *bin = 0.0);
-
         // find range in step index using bp_range
         let indices = self.bp_to_step_range(*bp_range.start(), *bp_range.end());
 
@@ -450,22 +466,182 @@ impl CoordSys {
             (s_i as u32)..(e_i as u32 - 1),
         );
 
-        // let data_ix_start = data_indices
-        //     .binary_search(&(s_i as u32))
-        //     .unwrap_or_else(|i| if i == 0 { 0 } else { i - 1 })
-        //     as usize;
+        // clear bins
+        bins.iter_mut().for_each(|bin| *bin = 0.0);
+        let mut bin_sizes = vec![0.0; bins.len()];
+        let mut bins_iter = bins.iter_mut().enumerate();
 
-        // let mut data_iter = data_indices[data_ix_start..]
-        //     .iter().enumerate().map(|(i, data)| {
-        //         //
-        //     });
+        let mut current_data = data_iter.next().unwrap();
+        let mut current_bin = bins_iter.next().unwrap();
 
+        let mut cur_bin_range = make_bin_range(current_bin.0);
+
+        log::warn!("iterating bins");
+
+        loop {
+            let (bin_i, bin) = current_bin;
+
+            let data_left = current_data.bp_start;
+            let data_right = current_data.bp_end;
+
+            let (bin_left, bin_right) = cur_bin_range.clone().into_inner();
+
+            if data_right < bin_left {
+                // increment data until overlap with current bin...
+            }
+
+            // add data to bin
+
+            // if the current data ends in the current bin, increment the data iterator
+
+            // if the current data ends beyond the current bin, increment the bin iterator
+        }
+
+        /*
         for (bin_i, bin) in bins.iter_mut().enumerate() {
-            *bin = 0.0;
+            // log::warn!("bin {bin_i}");
 
-            let (start, end) = make_bin_range(bin_i).into_inner();
+            let bin_range = make_bin_range(bin_i);
 
-            // iterate through data adding to bin here
+            let mut no_more_data = false;
+
+            // let mut ic = 0;
+
+            let mut last_step = None;
+
+            loop {
+                let cur_step = (current_data.segment, bin_i);
+                // log::warn!("lol");
+                // log::w
+                // ic += 1;
+                if current_data.bp_start > *bin_range.end() {
+                    // this data starts beyond this bin; keep data and increment bins
+                    // log::warn!("skipping bin");
+                    break;
+                }
+
+                let clipped_start =
+                    current_data.bp_start.max(*bin_range.start());
+                let clipped_end = current_data.bp_end.min(*bin_range.end());
+
+                if let Some(overlap) = clipped_end.checked_sub(clipped_start) {
+                    bin_sizes[bin_i] += overlap as f32;
+                    *bin += current_data.value * overlap as f32;
+                } else {
+                    break;
+                }
+                // let overlap = clipped_end - clipped_start;
+
+                // bin_sizes[bin_i] += overlap as f32;
+                // *bin += current_data.value * overlap as f32;
+
+                if current_data.bp_start > *bin_range.end() {
+                    break;
+                }
+
+                // off-by-one?
+                if current_data.bp_end > *bin_range.end() {
+                    // don't iterate data
+                    // log::warn!("hmmm");
+                    break;
+                } else {
+                    if let Some(next_data) = data_iter.next() {
+                        // log::warn!("iterating data");
+                        current_data = next_data;
+                    } else {
+                        // log::warn!("no more data");
+                        no_more_data = true;
+                        break;
+                    }
+                }
+
+                if let Some(last) = last_step {
+                    if last == cur_step {
+                        log::warn!("abort!");
+                        break;
+                    }
+                }
+
+                last_step = Some(cur_step);
+            }
+
+            if no_more_data {
+                break;
+            }
+
+            /*
+            loop {
+                // if bin_i == 317 {
+                //     log::warn!("ic: {ic}");
+                // }
+                ic += 1;
+                if let Some(data) = current_data {
+                    if bin_i == 317 {
+                        log::warn!("ic: {ic}");
+                    }
+                    // get the overlap between `bin_range` and `data.bp_start..data.bp_end`
+                    // add to bin_sizes
+                    // add value * overlap to bin
+
+                    let start = data.bp_start.max(*bin_range.start());
+                    let end = data.bp_end.min(*bin_range.end());
+
+                    // let overlap = end.checked_sub(start).unwrap_or(0);
+                    if let Some(overlap) = end.checked_sub(start) {
+                        if overlap == 0 {
+                            break;
+                        }
+
+                        bin_sizes[bin_i] += overlap as f32;
+                        *bin += data.value * overlap as f32;
+                        if bin_i == 317 {
+                            log::warn!(
+                                "adding, overlap: {overlap}, segment: {}",
+                                data.segment
+                            );
+                        }
+                    } else {
+                        if bin_i == 317 {
+                            log::warn!("zero overlap");
+                        }
+                        // zero overlap; this bin is done;
+                        break;
+                    }
+
+                    // if data.bp_start < *bin_range.start()
+
+                    // if current data goes beyond the bin range...
+                    if data.bp_end > *bin_range.end() {
+                        if bin_i == 317 {
+                            log::warn!("step over");
+                        }
+                        // the next bin will also use this data value,
+                        // so don't iterate it
+                        break;
+                    }
+                } else {
+                    if bin_i == 317 {
+                        log::warn!("idk");
+                    }
+                    // break? panic?
+                    break;
+                }
+
+                // don't always want to step -- if the data crosses the bin
+                current_data = data_iter.next();
+
+                // if current_data.is_none() {
+                //     break;
+                // }
+            }
+            */
+        }
+        */
+
+        log::warn!("bins done");
+
+        for (value, size) in std::iter::zip(bins, bin_sizes) {
+            *value = *value / size;
         }
     }
 
