@@ -68,6 +68,7 @@ impl PathViewer {
         let bins = &mut self.bins[..bin_count];
 
         self.cs.sample_impl(
+            // self.cs.sample_impl_new(
             range.clone(),
             self.data.indices.values(),
             self.data.data.values(),
@@ -478,6 +479,7 @@ impl CoordSys {
 
         log::warn!("iterating bins");
 
+        /*
         loop {
             let (bin_i, bin) = current_bin;
 
@@ -496,6 +498,7 @@ impl CoordSys {
 
             // if the current data ends beyond the current bin, increment the bin iterator
         }
+        */
 
         /*
         for (bin_i, bin) in bins.iter_mut().enumerate() {
