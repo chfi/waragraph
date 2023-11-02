@@ -46,7 +46,6 @@ class CoordSysView {
 
     subscribeTranslateDeltaNorm(observable) {
         let new_sub = observable.subscribe(delta => {
-            console.log("in sub");
             let delta_bp = delta * this.view.len;
             this.translateView(delta_bp);
         });

@@ -23,9 +23,7 @@ const { mat3 } = glMatrix;
 
 const gfa_path = "./data/A-3105.fa.353ea42.34ee7b1.1576367.smooth.fix.gfa";
 const layout_path = "./data/A-3105.layout.tsv";
-// const path_names = undefined;
-const path_names = [];
-
+const path_names = undefined;
 
 // const path_names = ["gi|568815592:29942469-29945883"];
 
