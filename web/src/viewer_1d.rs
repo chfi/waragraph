@@ -83,7 +83,7 @@ impl PathViewer {
             if self.bins.len() < size {
                 self.bins.resize(size, 0.0);
             }
-            log::debug!("setting canvas width to {width}");
+
             self.canvas.set_width(size as u32);
 
             if let Some(target) = self.target_canvas.as_ref() {
@@ -135,7 +135,6 @@ impl PathViewer {
 
         let bins = vec![0f32; bin_count];
 
-        // web_sys::console::log_1(&format!("BIN COUNT: {bin_count}").into());
         let canvas = OffscreenCanvas::new(bin_count as u32, 1)?;
 
         Ok(PathViewer {
@@ -152,7 +151,6 @@ impl PathViewer {
     }
 
     pub fn set_target_canvas(&mut self, canvas: OffscreenCanvas) {
-        web_sys::console::log_1(&format!("setting canvas").into());
         self.target_canvas = Some(canvas);
     }
 
@@ -185,8 +183,6 @@ impl PathViewer {
 
         let bin_subset = &self.bins[..bin_count];
 
-        // web_sys::console::log_1(&format!("binned data: {bin_subset:?}").into());
-
         for (color, val) in pixels.zip(&self.bins) {
             let c = (self.color_map)(*val);
             color.clone_from_slice(&c);
@@ -211,10 +207,6 @@ impl PathViewer {
 impl PathViewer {
     pub fn render_into_new_buffer(&self) -> Box<[u8]> {
         let mut pixel_data: Vec<u8> = vec![0; self.bins.len() * 4];
-
-        // web_sys::console::log_1(
-        //     &format!("pixel data length: {}", pixel_data.len()).into(),
-        // );
 
         let pixels = pixel_data.chunks_exact_mut(4);
 
@@ -254,9 +246,6 @@ impl PathViewer {
         // let src_width = self.canvas.width() as f64;
         let dst_width = tgt_canvas.width() as f64;
         let dst_height = tgt_canvas.height() as f64;
-
-        // web_sys::console::log_1(&format!("src_width: {src_width}").into());
-        // web_sys::console::log_1(&format!("view size: {view_size}\ndst_width: {dst_width}\ndst_height: {dst_height}").into());
 
         tgt_ctx.clear_rect(0., 0., dst_width, dst_height);
 
@@ -446,15 +435,16 @@ impl CoordSys {
         let bp_range_len = (*bp_range.end() + 1) - *bp_range.start();
         let bin_size = bp_range_len / bins.len() as u64;
 
-        let make_bin_range = {
+        let make_bin_range_f = {
+            let bin_size = (bp_range_len as f64) / bins.len() as f64;
             let bin_count = bins.len();
-            let s = *bp_range.start();
-            let e = *bp_range.end() + 1;
+            let s = *bp_range.start() as f64;
+            let e = (*bp_range.end() + 1) as f64;
 
-            move |bin_i: usize| -> std::ops::Range<u64> {
-                let i = (bin_i.min(bin_count - 1)) as u64;
-                let left = s + i * bin_size;
-                let right = s + (i + 1) * bin_size;
+            move |bin_i: usize| -> std::ops::Range<f64> {
+                let i = (bin_i.min(bin_count - 1)) as f64;
+                let left = s + i * bin_size as f64;
+                let right = s + (i + 1.0) * bin_size as f64;
                 left..right
             }
         };
@@ -480,23 +470,22 @@ impl CoordSys {
         };
         let mut current_bin = bins_iter.next().unwrap();
 
-        let mut cur_bin_range = make_bin_range(current_bin.0);
+        let mut cur_bin_range = make_bin_range_f(current_bin.0);
 
         loop {
-            let data_left = current_data.bp_start;
-            let data_right = current_data.bp_end;
+            let data_left = current_data.bp_start as f64;
+            let data_right = current_data.bp_end as f64;
 
             let bin_i = current_bin.0;
 
             loop {
                 let bin_left = cur_bin_range.start;
                 let bin_right = cur_bin_range.end;
-                // let (bin_left, bin_right) = cur_bin_range.clone().into_inner();
                 if data_left >= bin_right {
                     // increment bin
                     if let Some(next_bin) = bins_iter.next() {
                         current_bin = next_bin;
-                        cur_bin_range = make_bin_range(current_bin.0);
+                        cur_bin_range = make_bin_range_f(current_bin.0);
                     } else {
                         break;
                     }
@@ -504,10 +493,8 @@ impl CoordSys {
                     break;
                 }
             }
-            // log::warn!("skipped {inner_c} bins");
 
             let bin_i = current_bin.0;
-            // let (bin_left, bin_right) = cur_bin_range.clone().into_inner();
             let bin_left = cur_bin_range.start;
             let bin_right = cur_bin_range.end;
             // add data to bin
@@ -515,8 +502,9 @@ impl CoordSys {
                 let start = data_left.max(bin_left);
                 let end = data_right.min(bin_right);
 
-                let overlap = end.checked_sub(start).unwrap_or(0);
-                if let Some(overlap) = end.checked_sub(start) {
+                let overlap = end - start;
+
+                if overlap > 0.0 {
                     bin_sizes[bin_i] += overlap as f32;
                     *current_bin.1 += current_data.value * overlap as f32;
                 }
@@ -533,21 +521,14 @@ impl CoordSys {
                 // if the current data ends beyond the current bin, increment the bin iterator
                 if let Some(next_bin) = bins_iter.next() {
                     current_bin = next_bin;
-                    cur_bin_range = make_bin_range(current_bin.0);
+                    cur_bin_range = make_bin_range_f(current_bin.0);
                 } else {
                     break;
                 }
             }
         }
 
-        log::warn!("bins done");
-
-        let bincount = bins.len();
-
         for (i, (value, size)) in std::iter::zip(bins, bin_sizes).enumerate() {
-            if i < 10 || i > bincount - 10 {
-                log::warn!("bin {i} - {value}, {size}");
-            }
             *value = *value / size;
         }
     }
@@ -622,8 +603,6 @@ pub fn path_slice_to_global_adj_partitions(
     // dealing with an explicit coordinate system just sort
     let mut sorted = path_steps.into_iter().copied().collect::<Vec<_>>();
     sorted.sort();
-
-    log::warn!("sorted.len() {}", sorted.len());
 
     let mut ranges = Vec::new();
 
@@ -761,6 +740,8 @@ impl<'a, 'b> CoordSysDataIter<'a, 'b> {
             .binary_search(&segment_range.end)
             .unwrap_or_else(|i| if i == 0 { 0 } else { i - 1 })
             as usize;
+
+        let data_ix_end = (data_ix_end + 1).max(data_indices.len());
 
         let data_indices = &data_indices[data_ix_start..data_ix_end];
         let data_values = &data_values[data_ix_start..data_ix_end];
