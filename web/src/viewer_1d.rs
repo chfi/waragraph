@@ -450,15 +450,17 @@ impl CoordSys {
         let make_bin_range = {
             let bin_count = bins.len();
             let s = *bp_range.start();
-            let e = *bp_range.end();
+            let e = *bp_range.end() + 1;
 
-            move |bin_i: usize| -> std::ops::RangeInclusive<u64> {
+            move |bin_i: usize| -> std::ops::Range<u64> {
                 let i = (bin_i.min(bin_count - 1)) as u64;
                 let left = s + i * bin_size;
                 let right = s + (i + 1) * bin_size;
-                left..=right
+                left..right
             }
         };
+
+        let bin_count = bins.len();
 
         let mut data_iter = CoordSysDataIter::new(
             &self,
@@ -472,31 +474,25 @@ impl CoordSys {
         let mut bin_sizes = vec![0.0; bins.len()];
         let mut bins_iter = bins.iter_mut().enumerate();
 
-        let mut current_data = data_iter.next().unwrap();
+        let mut current_data = if let Some(data) = data_iter.next() {
+            data
+        } else {
+            return;
+        };
         let mut current_bin = bins_iter.next().unwrap();
 
         let mut cur_bin_range = make_bin_range(current_bin.0);
 
-        log::warn!("iterating bins");
-
-        let mut counter = 0;
-
         loop {
-            counter += 1;
-            // let (bin_i, bin) = current_bin;
-            if counter % 500 == 0 {
-                log::warn!("loop {counter}");
-            }
-
             let data_left = current_data.bp_start;
             let data_right = current_data.bp_end;
 
             let bin_i = current_bin.0;
 
-            let mut inner_c = 0;
-
             loop {
-                let (bin_left, bin_right) = cur_bin_range.clone().into_inner();
+                let bin_left = cur_bin_range.start;
+                let bin_right = cur_bin_range.end;
+                // let (bin_left, bin_right) = cur_bin_range.clone().into_inner();
                 if data_left >= bin_right {
                     inner_c += 1;
                     // increment bin
@@ -513,7 +509,9 @@ impl CoordSys {
             // log::warn!("skipped {inner_c} bins");
 
             let bin_i = current_bin.0;
-            let (bin_left, bin_right) = cur_bin_range.clone().into_inner();
+            // let (bin_left, bin_right) = cur_bin_range.clone().into_inner();
+            let bin_left = cur_bin_range.start;
+            let bin_right = cur_bin_range.end;
             // add data to bin
             {
                 let start = data_left.max(bin_left);
@@ -523,18 +521,12 @@ impl CoordSys {
                 if let Some(overlap) = end.checked_sub(start) {
                     bin_sizes[bin_i] += overlap as f32;
                     *current_bin.1 += current_data.value * overlap as f32;
-                    if overlap == 0 {
-                        log::warn!("zero overlap");
-                    }
-                } else {
-                    log::warn!("no data/bin overlap");
                 }
             }
 
             if data_right <= bin_right {
                 // if the current data ends in the current bin, increment the data iterator
                 if let Some(next_data) = data_iter.next() {
-                    // log::warn!("incrementing data");
                     current_data = next_data;
                 } else {
                     break;
@@ -542,7 +534,6 @@ impl CoordSys {
             } else {
                 // if the current data ends beyond the current bin, increment the bin iterator
                 if let Some(next_bin) = bins_iter.next() {
-                    // log::warn!("incrementing bin");
                     current_bin = next_bin;
                     cur_bin_range = make_bin_range(current_bin.0);
                 } else {
@@ -553,8 +544,10 @@ impl CoordSys {
 
         log::warn!("bins done");
 
+        let bincount = bins.len();
+
         for (i, (value, size)) in std::iter::zip(bins, bin_sizes).enumerate() {
-            if i < 100 {
+            if i < 10 || i > bincount - 10 {
                 log::warn!("bin {i} - {value}, {size}");
             }
             *value = *value / size;
@@ -940,10 +933,8 @@ impl<'a, 'b> Iterator for CoordSysDataIter<'a, 'b> {
 
         let range = self.coord_sys.segment_range(segment)?;
 
-        if self.data_indices.len() > 1 {
-            self.data_indices = &self.data_indices[1..];
-            self.data_values = &self.data_values[1..];
-        }
+        self.data_indices = &self.data_indices[1..];
+        self.data_values = &self.data_values[1..];
 
         Some(CoordSysDataIterOutput {
             segment,
