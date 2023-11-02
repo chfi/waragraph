@@ -15,33 +15,32 @@ import { GraphViewer,
 
 import * as CanvasTracks from './canvas_tracks.js';
 
+// import * as FloatingUI from 'https://cdn.jsdelivr.net/npm/@floating-ui/dom@1.5.3/+esm';
+
 // import { mat3 } from './gl-matrix-min.js';
 
 const { mat3 } = glMatrix;
 
-// const gfa_path = "./data/A-3105.fa.353ea42.34ee7b1.1576367.smooth.fix.gfa";
-// const layout_path = "./data/A-3105.layout.tsv";
+const gfa_path = "./data/A-3105.fa.353ea42.34ee7b1.1576367.smooth.fix.gfa";
+const layout_path = "./data/A-3105.layout.tsv";
 // const path_names = undefined;
+const path_names = [];
 
-const gfa_path = "./MHC/HPRCy1v2.MHC.fa.ce6f12f.417fcdf.0ead406.smooth.final.gfa";
-const layout_path = "./MHC/HPRCy1v2.MHC.fa.ce6f12f.417fcdf.0ead406.smooth.final.og.lay.tsv";
-const path_names = [
-    "chm13#chr6:28385000-33300000",
-    "grch38#chr6:28510128-33480000",
-    "HG02717#2#h2tg000061l:22650152-27715000",
-    "HG03516#1#h1tg000073l:22631064-27570000",
-    "HG00733#1#h1tg000070l:28540000-33419448",
-    "HG02055#1#h1tg000074l:0-4714592",
-    "HG01978#1#h1tg000035l:28455000-33469848",
-    "HG02886#2#h2tg000003l:25120800-30214744",
 
-    // "HG00438#1#h1tg000040l:22870040-27725000",
-    // "HG00673#2#h2tg000031l:10256-1959976",
-    // "HG00733#2#h2tg000060l:26405000-27483925",
-    // "HG01175#1#h1tg000188l:192-200000",
-    // "HG02818#2#h2tg000045l:15000-2706770",
-    // "HG03516#2#h2tg000202l:24-441470",
-];
+// const path_names = ["gi|568815592:29942469-29945883"];
+
+// const gfa_path = "./MHC/HPRCy1v2.MHC.fa.ce6f12f.417fcdf.0ead406.smooth.final.gfa";
+// const layout_path = "./MHC/HPRCy1v2.MHC.fa.ce6f12f.417fcdf.0ead406.smooth.final.og.lay.tsv";
+// const path_names = [
+//     "chm13#chr6:28385000-33300000",
+//     "grch38#chr6:28510128-33480000",
+//     "HG02717#2#h2tg000061l:22650152-27715000",
+//     "HG03516#1#h1tg000073l:22631064-27570000",
+//     "HG00733#1#h1tg000070l:28540000-33419448",
+//     "HG02055#1#h1tg000074l:0-4714592",
+//     "HG01978#1#h1tg000035l:28455000-33469848",
+//     "HG02886#2#h2tg000003l:25120800-30214744",
+// ];
 
 function globalSequenceTrack(graph, canvas, view_subject) {
 
@@ -66,6 +65,10 @@ function globalSequenceTrack(graph, canvas, view_subject) {
         });
     });
 }
+
+const TEST_BED = [
+    { path: "gi|568815569:1240288-1243708", start: 100, end: 3000, label: "TEST" },
+];
 
 
 const MHC_BED = [
@@ -119,7 +122,8 @@ function getRandomColor() {
 
 async function addTestOverlay(graph, worker_obj, graph_viewer) {
     // let path_name = 'gi|568815551:1197321-1201446';
-    let path_name = 'grch38#chr6:28510128-33480000';
+    let path_name = "gi|568815569:1240288-1243708";
+    // let path_name = 'grch38#chr6:28510128-33480000';
 
     let data_canvas = document.getElementById('viewer-' + path_name);
     let path_viewer = data_canvas.path_viewer;
@@ -136,8 +140,8 @@ async function addTestOverlay(graph, worker_obj, graph_viewer) {
 
     const cs_view = await worker_obj.globalCoordSysView();
 
-    const path_offset = 28510128;
-    let path_entries = MHC_BED.map((row) => {
+    const path_offset = 0;
+    let path_entries = TEST_BED.map((row) => {
 
         let color = wasm_bindgen.path_name_hash_color_obj(row.label);
         console.log(color);
@@ -150,23 +154,6 @@ async function addTestOverlay(graph, worker_obj, graph_viewer) {
 
 
     let global_entries = [];
-
-    /*
-    let some_entries_in = [
-        // { path: "grch38#chr6", start: 32628179, end: 32647062, label: "HLA-DQA1" },
-    // { path: "grch38#chr6", start: 32659880, end: 32660729, label: "HLA-DQB1-AS1" },
-    ];
-    let some_entries = some_entries_in.map((row) => {
-
-        let color = wasm_bindgen.path_name_hash_color_obj(row.label);
-        console.log(color);
-
-        return { start: row.start - path_offset,
-                 end: row.end - path_offset,
-                 color: `rgb(${color.r * 255}, ${color.g * 255}, ${color.b * 255})`,
-                 label: row.label };
-    });
-    */
 
     for (const path_entry of path_entries) {
         try {
@@ -255,7 +242,8 @@ async function init() {
 
     const wasm = await init_module();
 
-    const worker = new Worker("main_worker.js", { type: 'module' });
+    // const worker = new Worker("main_worker.js", { type: 'module' });
+    const worker = new Worker(new URL("main_worker.js", import.meta.url), { type: 'module' });
 
     worker.onmessage = async (event) => {
 
@@ -275,6 +263,13 @@ async function init() {
 
             let cs_view = await worker_obj.globalCoordSysView();
 
+            console.log(" >>>>>>>> segment ranges");
+            for (let i = 0; i < 10; i++) {
+                let _range = await cs_view.segmentRange(i);
+                console.log(i + ": " + _range.start + "-" + _range.end + ", length: " + (_range.end - _range.start));
+                // console.log(_range);
+            }
+
             addViewRangeInputListeners(cs_view);
 
             const graph_viewer = await initGraphViewer(wasm.memory, graph_raw, layout_path);
@@ -286,6 +281,22 @@ async function init() {
             };
 
             let view_subject = await cs_view.viewSubject();
+
+            
+            {
+                let state = false;
+            document.getElementById('view-toggle').addEventListener('click', (ev) => {
+
+                if (state) {
+                    state = false;
+                    cs_view.set({ start: 618, end: 4460 });
+                } else {
+                    state = true;
+                    cs_view.set({ start: 638, end: 4442 });
+                }
+
+            });
+            }
 
             globalSequenceTrack(
                 graph,

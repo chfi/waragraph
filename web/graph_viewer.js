@@ -1,5 +1,7 @@
 import init_module, * as wasm_bindgen from './pkg/web.js';
 
+import { placeTooltipAtPoint } from './tooltip.js';
+
 /*
   wgpu/webgl seems to be troublesome with workers, and it's not clear
   what the current state of things is, exactly.
@@ -371,6 +373,7 @@ export function preparePathHighlightOverlay(seg_pos, path_steps, path_cs_raw, en
                                           entry.path_slice,
                                           tolerance);
 
+
                 
                 ctx.globalAlpha = 0.8;
                 // ctx.globalCompositeOperation = "copy";
@@ -380,6 +383,12 @@ export function preparePathHighlightOverlay(seg_pos, path_steps, path_cs_raw, en
                 ctx.beginPath();
                 ctx.moveTo(0, 0);
                 ctx.stroke(path2d);
+                if (ctx.isPointinStroke(mouse_pos.x, mouse_pos.xy)) {
+                    console.log(entry.label);
+                    // tooltip.innerHTML = `Segment ${segment}`;
+                    // tooltip.style.display = 'block';
+                    // placeTooltipAtPoint(x, y);
+                }
                 ctx.closePath();
 
                 let x = pos_obj.x0 + (pos_obj.x1 - pos_obj.x0) * 0.5;

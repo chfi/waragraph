@@ -1,4 +1,5 @@
-import {computePosition} from 'https://cdn.jsdelivr.net/npm/@floating-ui/dom@1.5.3/+esm';
+// import {computePosition} from 'https://cdn.jsdelivr.net/npm/@floating-ui/dom@1.5.3/+esm';
+import {computePosition} from '@floating-ui/dom';
 
 
 export function placeTooltipAtPoint(x, y) {

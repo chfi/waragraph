@@ -3,13 +3,12 @@ import init_wasm, * as wasm_bindgen from './pkg/web.js';
 import * as Comlink from './comlink.mjs';
 
 
-import importUMD from './importUMD.js';
+// import importUMD from './importUMD.js';
 
-const rxjs = await importUMD('./rxjs.umd.min.js');
+import * as rxjs from 'rxjs';
+// const rxjs = await importUMD('./rxjs.umd.min.js');
 
-const handler = await import('./transfer_handlers.js');
-
-handler.setTransferHandlers(rxjs, Comlink);
+const handler = import('./transfer_handlers.js');
 
 let _graph;
 
@@ -291,7 +290,11 @@ async function run(memory, gfa_path) {
     postMessage("GRAPH_READY");
 }
 
-postMessage("WORKER_INIT");
+
+import('./transfer_handlers.js').then((handler) => {
+    handler.setTransferHandlers(rxjs, Comlink);
+    postMessage("WORKER_INIT");
+});
 
 onmessage = (event) => {
     onmessage = undefined;

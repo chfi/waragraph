@@ -1,10 +1,16 @@
 {
   "dependencies": {
-      "rxjs": "^7.8.1",
-      "waragraph": "file:./pkg"
+    "@floating-ui/dom": "^1.5.3",
+    "rxjs": "^7.8.1",
+    "waragraph": "file:./pkg"
   },
   "devDependencies": {
     "esbuild": "0.19.3",
-    "esbuild-plugin-wasm": "^1.1.0"
-  }
+    "esbuild-plugin-wasm": "^1.1.0",
+    "parcel": "^2.10.2"
+  },
+  "browserslist": [
+    "last 1 version",
+    "not dead"
+  ]
 }
