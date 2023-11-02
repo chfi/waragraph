@@ -1,3 +1,6 @@
+import * as rxjs from 'rxjs';
+import { mat3, vec3 } from 'gl-matrix';
+
 import init_module, * as wasm_bindgen from './pkg/web.js';
 
 import { placeTooltipAtPoint } from './tooltip.js';
@@ -306,8 +309,6 @@ export function preparePathHighlightOverlay(seg_pos, path_steps, path_cs_raw, en
     const path_cs = wasm_bindgen.CoordSys.__wrap(path_cs_raw.__wbg_ptr);
 
     const processed = [];
-
-    const { mat3, vec3 } = glMatrix;
 
     for (const entry of entries) {
         const { start, end, label } = entry;

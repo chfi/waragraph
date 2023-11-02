@@ -1,12 +1,8 @@
 
 import init_wasm, * as wasm_bindgen from './pkg/web.js';
-import * as Comlink from './comlink.mjs';
-
-
-// import importUMD from './importUMD.js';
+import * as Comlink from 'comlink';
 
 import * as rxjs from 'rxjs';
-// const rxjs = await importUMD('./rxjs.umd.min.js');
 
 const handler = import('./transfer_handlers.js');
 

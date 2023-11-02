@@ -1,9 +1,10 @@
-import * as Comlink from './comlink.mjs';
+import * as Comlink from 'comlink';
+
+import * as rxjs from 'rxjs';
 
 import * as handler from './transfer_handlers.js';
 handler.setTransferHandlers(rxjs, Comlink);
 
-// import * as FloatingUI from 'https://cdn.jsdelivr.net/npm/@floating-ui/dom@1.5.3/+esm';
 import * as FloatingUI from '@floating-ui/dom';
 
 import { placeTooltipAtPoint } from './tooltip.js';

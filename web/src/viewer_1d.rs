@@ -67,8 +67,7 @@ impl PathViewer {
 
         let bins = &mut self.bins[..bin_count];
 
-        // self.cs.sample_impl(
-        self.cs.sample_impl_new(
+        self.cs.sample_impl(
             range.clone(),
             self.data.indices.values(),
             self.data.data.values(),
@@ -426,7 +425,7 @@ impl CoordSys {
         start_out..=end_out
     }
 
-    pub fn sample_impl_new(
+    pub fn sample_impl(
         &self,
         bp_range: std::ops::RangeInclusive<u64>,
         data_indices: &[u32],
@@ -494,7 +493,6 @@ impl CoordSys {
                 let bin_right = cur_bin_range.end;
                 // let (bin_left, bin_right) = cur_bin_range.clone().into_inner();
                 if data_left >= bin_right {
-                    inner_c += 1;
                     // increment bin
                     if let Some(next_bin) = bins_iter.next() {
                         current_bin = next_bin;
@@ -552,143 +550,6 @@ impl CoordSys {
             }
             *value = *value / size;
         }
-    }
-
-    pub fn sample_impl(
-        &self,
-        bp_range: std::ops::RangeInclusive<u64>,
-        data_indices: &[u32],
-        data: &[f32],
-        bins: &mut [f32],
-    ) {
-        if bins.is_empty() {
-            log::error!("bins are empty -- this should never happen!");
-            return;
-        }
-
-        web_sys::console::log_1(&format!("in sample_impl").into());
-
-        for bin in bins.iter_mut() {
-            *bin = 0.0;
-        }
-
-        // find range in step index using bp_range
-        let indices = self.bp_to_step_range(*bp_range.start(), *bp_range.end());
-
-        // slice `data` according to step range
-        let s_i = *indices.start();
-        let e_i = *indices.end();
-
-        // `indices` is inclusive
-        let len = (e_i + 1) - s_i;
-        // let data_slice = data.sliced(s_i, len);
-
-        let bp_range_len = (*bp_range.end() + 1) - *bp_range.start();
-        let bin_size = bp_range_len / bins.len() as u64;
-
-        // web_sys::console::log_1(&format!("
-
-        let data_ix_start = data_indices
-            .binary_search(&(s_i as u32))
-            .unwrap_or_else(|i| if i == 0 { 0 } else { i - 1 })
-            as usize;
-
-        let make_bin_range = {
-            let bin_count = bins.len();
-            let s = *bp_range.start();
-            let e = *bp_range.end();
-
-            move |bin_i: usize| -> std::ops::RangeInclusive<u64> {
-                let i = (bin_i.min(bin_count - 1)) as u64;
-                let left = s + i * bin_size;
-                let right = s + (i + 1) * bin_size;
-                left..=right
-            }
-        };
-
-        let bin_ranges =
-            (0..bins.len()).map(make_bin_range).collect::<Vec<_>>();
-
-        for (i, range) in bin_ranges.iter().enumerate() {
-            let start = range.start();
-            let end = range.end();
-        }
-
-        let data_iter = {
-            let data_indices = &data_indices[data_ix_start..];
-            let data = &data[data_ix_start..];
-            std::iter::zip(data_indices, data).map(|(i, v)| (*i as usize, *v))
-        };
-
-        let mut bin_length = 0u64;
-
-        let mut bin_lengths = vec![0u64; bins.len()];
-
-        for (i, (c_i, val)) in data_iter.enumerate() {
-            let seg_offset =
-                *self.step_offsets.buffer().get(c_i).unwrap() as u64;
-
-            if c_i > e_i {
-                break;
-            }
-
-            let next_seg_offset =
-                *self.step_offsets.buffer().get(c_i + 1).unwrap() as u64;
-
-            // log::debug!("segment length: {}", next_seg_offset - seg_offset);
-
-            let mut offset = seg_offset;
-
-            loop {
-                let local_offset =
-                    offset.checked_sub(*bp_range.start()).unwrap_or(0);
-
-                let this_bin = (local_offset / bin_size) as usize;
-
-                if this_bin >= bins.len() {
-                    break;
-                }
-
-                let cur_bin_range = &bin_ranges[this_bin];
-                let next_bin_offset = *cur_bin_range.end();
-
-                let boundary = next_seg_offset.min(next_bin_offset);
-
-                let start_offset = offset.max(*cur_bin_range.start());
-
-                // this is kinda busted; just to avoid crashes & infinite loops for now : )
-                if boundary < start_offset {
-                    break;
-                }
-                let this_len = boundary - start_offset;
-                // log::debug!("this_len: {this_len}");
-
-                bins[this_bin] += val * this_len as f32;
-                bin_lengths[this_bin] += this_len;
-
-                offset = boundary;
-
-                if start_offset == next_seg_offset {
-                    // web_sys::console::log_1(
-                    //     &format!("break; cur offset matches next seg, {offset} == {next_seg_offset}").into(),
-                    // );
-
-                    break;
-                }
-            }
-        }
-
-        // web_sys::console::log_1(&format!("{bin_lengths:?}").into());
-
-        for (val, len) in bins.iter_mut().zip(bin_lengths) {
-            if len != 0 {
-                *val = *val / len as f32;
-            } else {
-                *val = 0f32;
-            }
-        }
-
-        // web_sys::console::log_1(&format!("sample_impl done").into());
     }
 }
 

@@ -1,6 +1,6 @@
-import * as Comlink from './comlink.mjs';
-
-const { Observable } = rxjs;
+import * as Comlink from 'comlink';
+import { Observable } from 'rxjs';
+import * as rxjs from 'rxjs';
 
 import { initializePathViewer, addOverviewEventHandlers, addPathViewerLogic } from './path_viewer_ui.js';
 
@@ -14,12 +14,6 @@ import { GraphViewer,
        } from './graph_viewer.js';
 
 import * as CanvasTracks from './canvas_tracks.js';
-
-// import * as FloatingUI from 'https://cdn.jsdelivr.net/npm/@floating-ui/dom@1.5.3/+esm';
-
-// import { mat3 } from './gl-matrix-min.js';
-
-const { mat3 } = glMatrix;
 
 const gfa_path = "./data/A-3105.fa.353ea42.34ee7b1.1576367.smooth.fix.gfa";
 const layout_path = "./data/A-3105.layout.tsv";
