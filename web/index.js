@@ -2,6 +2,8 @@ import * as Comlink from 'comlink';
 import { Observable } from 'rxjs';
 import * as rxjs from 'rxjs';
 
+import Split from 'split-grid';
+
 import { initializePathViewer, addOverviewEventHandlers, addPathViewerLogic } from './path_viewer_ui.js';
 
 import init_module, * as wasm_bindgen from './pkg/web.js';
@@ -236,6 +238,19 @@ async function init() {
 
     // const worker = new Worker("main_worker.js", { type: 'module' });
     const worker = new Worker(new URL("main_worker.js", import.meta.url), { type: 'module' });
+
+    const split = Split({
+        rowGutters: [{
+            track: 1,
+            element: document.querySelector('.gutter-row-1')
+        }],
+        rowMinSizes: { 0: 600 },
+        onDragEnd: (dir, track) => {
+            console.log(dir);
+            console.log(track);
+        },
+    });
+
 
     worker.onmessage = async (event) => {
 

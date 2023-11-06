@@ -4,6 +4,7 @@
     "comlink": "^4.4.1",
     "gl-matrix": "^3.4.3",
     "rxjs": "^7.8.1",
+    "split-grid": "^1.0.11",
     "waragraph": "file:./pkg"
   },
   "devDependencies": {

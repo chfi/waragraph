@@ -58,7 +58,7 @@ canvas.path-data-overlay {
 #main-container {
     display: grid;
     grid-template-columns: auto;
-    grid-template-rows: 600px auto;
+    grid-template-rows: 1fr 10px 1fr;
 }
 
 #graph-viewer-container {
@@ -108,6 +108,15 @@ canvas#graph-viewer-2d-overlay {
 
     transition-property: left, top;
     transition-duration: 50ms;
+}
+
+.gutter-row {
+    grid-column: 1/-1;
+    cursor: row-resize;
+}
+
+.gutter-row-1 {
+    grid-row: 2;
 }
 
 /* .container { */
