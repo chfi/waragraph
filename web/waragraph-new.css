@@ -1,0 +1,190 @@
+
+
+.path-viewer-column {
+    display: flex;
+    flex-direction: column;
+}
+
+.path-list-flex-item {
+    /* flex-basis:  */
+}
+
+
+
+
+.path-viewer-list {
+    /* display: flex; */
+    /* flex-direction: column; */
+}
+
+.path-viewer-list-row {
+    /* flex-basis: 40px; */
+    /* display: grid; */
+    /* gap: 10px; */
+    /* grid-template-columns: 320px auto; */
+    /* grid-template-rows: 40px; */
+}
+
+#overview-map {
+    /* grid-column: 2; */
+}
+
+.path-name-column {
+    /* grid-column: 1; */
+}
+.path-data-view-column {
+    /* grid-column: 2; */
+}
+
+.path-name {
+    /* grid-column: 1; */
+    /* grid-row: 1; */
+    /* font-family: monospace; */
+    /* overflow-wrap: break-word; */
+    /* word-break: break-all; */
+    /* height: 40px; */
+}
+.path-data-view {
+    /* grid-column: 2; */
+    /* z-index: 0; */
+    /* grid-column: 2 / 3; */
+    /* grid-row: 1; */
+}
+
+.path-data-overlay {
+    /* z-index: 1; */
+    /* grid-column: 2 / 3; */
+    /* grid-row: 1; */
+}
+
+canvas.path-data-view {
+    /* width: 100%; */
+    /* height: 40px; */
+}
+
+canvas.path-data-overlay {
+    /* width: 100%; */
+    /* height: 40px; */
+}
+
+#main-container {
+    display: grid;
+    grid-template-rows: 1fr 10px 1fr;
+}
+
+#graph-viewer-container {
+    display: grid;
+    grid-template-columns: 800px;
+    grid-template-rows: 600px;
+}
+
+canvas#graph-viewer-2d {
+    z-index: 0;
+    grid-column: 1;
+    grid-row: 1;
+}
+
+canvas#graph-viewer-2d-overlay {
+    z-index: 1;
+    grid-column: 1;
+    grid-row: 1;
+}
+
+
+#path-viewer-range-input {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: auto;
+    width: 100%;
+}
+
+#path-viewer-range-input input {
+    width: 100%;
+}
+
+
+#tooltip {
+    display: none;
+    width: max-content;
+    position: absolute;
+    top: 0;
+    left: 0;
+         
+    background: #222;
+    color: white;
+    font-weight: bold;
+    padding: 5px;
+    border-radius: 4px;
+    font-size: 90%;
+
+    transition-property: left, top;
+    transition-duration: 50ms;
+}
+
+/* .gutter-row { */
+/*     grid-column: 1/-1; */
+/*     cursor: row-resize; */
+/* } */
+
+/* .gutter-row-1 { */
+/*     grid-row: 2; */
+/* } */
+
+/* .container { */
+/*     display: grid; */
+/*     grid-template-columns: 200px auto;  /\* 200px for the fixed column and 'auto' for the canvas column *\/ */
+/*     height: 100vh; */
+/* } */
+
+/* .canvas-column { */
+/*     overflow-y: auto; /\* if you want to allow scrolling if the canvases exceed viewport height *\/ */
+/* } */
+
+
+
+html, body, .outer-grid {
+  margin: 0;
+  padding: 0;
+  height: 100%; /* Fill the entire height of the viewport */
+  width: 100%; /* Fill the entire width of the viewport */
+}
+
+body {
+  display: flex; /* Use flexbox to make the child div take up full height */
+  flex-direction: column; /* Stack children vertically */
+}
+
+.outer-grid {
+  display: grid; /* Use CSS Grid to layout the child divs */
+  grid-template-rows: 1fr 10px 1fr; /* Top row, resizable middle row, bottom row */
+  overflow: hidden; /* Prevents scrollbars from affecting the layout */
+}
+
+#path-viewer-container {
+    display: grid;
+    grid-template-columns: 1fr 10px 3fr;
+}
+
+.inner-grid {
+  display: grid; 
+  /* grid-template-rows: 1fr 10px 1fr;  */
+  grid-template-columns: 1fr 10px 1fr; 
+  /* overflow: hidden;  */
+}
+
+/* Style for the gutters for visual distinction */
+.gutter-row {
+  background: #eee; /* Just an example color for the gutters */
+  cursor: row-resize; /* Indicates the row is resizable */
+}
+
+.gutter-column {
+  background: #eee;
+  cursor: col-resize; 
+}
+
+/* If you want the content divs to be visible for testing */
+.outer-grid > div:not(.gutter-row) {
+  background-color: #f8f8f8; /* Light gray background for the content divs */
+  border: 1px solid #ccc; /* Adds a border to the content divs */
+}

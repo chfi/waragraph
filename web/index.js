@@ -229,6 +229,39 @@ async function addViewRangeInputListeners(cs_view) {
     });
 }
 
+
+
+
+function appendPathListElements(height, left_tag, right_tag) {
+    const left = document.createElement(left_tag);
+    const right = document.createElement(right_tag);
+
+    const setStyles = (el) => {
+        el.style.setProperty("flex-basis", height + "px");
+    };
+
+    setStyles(left);
+    setStyles(right);
+
+    document.getElementById("path-viewer-left-column").append(left);
+    document.getElementById("path-viewer-right-column").append(right);
+
+    return { left, right };
+}
+
+
+onload = (e) => {
+    let els = appendPathListElements(40, "div", "div");
+    els.left.innerHTML = "hello";
+    els.right.innerHTML = "world";
+
+    let els2 = appendPathListElements(40, "div", "div");
+    els2.left.innerHTML = "and";
+    els2.right.innerHTML = "another row";
+
+};
+
+
 async function init() {
 
     const handler = await import('./transfer_handlers.js');
@@ -396,4 +429,4 @@ async function init() {
 
 }
 
-init();
+// init();

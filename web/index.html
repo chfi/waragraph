@@ -3,10 +3,32 @@
     <meta content="text/html;charset=utf-8" http-equiv="Content-Type"/>
     <title>Waragraph Web</title>
 
-    <link rel="stylesheet" href="waragraph.css"/>
+    <link rel="stylesheet" href="waragraph-new.css"/>
   </head>
   <body>
 
+
+    <div class="outer-grid" id="main-container">
+
+      <div id="graph-viewer-container">
+      </div>
+
+      <div class="gutter-row gutter-row-1"></div>
+
+      <div id="path-viewer-container">
+        <div class="path-viewer-column" id="path-viewer-left-column">
+        </div>
+
+        <div class="gutter-column gutter-column-1"></div>
+
+        <div class="path-viewer-column" id="path-viewer-right-column">
+        </div>
+      </div>
+
+
+    </div>
+
+    <!--
     <div id="main-container">
       <div id="graph-viewer-container">
         <canvas id="graph-viewer-2d" width=800 height=600></canvas>
@@ -17,7 +39,6 @@
 
       <div id="path-viewer-container">
         <div class="path-viewer-list-row">
-          <!-- <div class="path-name" id="path-viewer-view-input"></div> -->
           <div class="path-name" id="path-viewer-range-input">
             <input type="text" inputmode="numeric" pattern="\d*" id="path-viewer-range-start">
             <input type="text" inputmode="numeric" pattern="\d*" id="path-viewer-range-end">
@@ -30,6 +51,7 @@
         </div>
       </div>
     </div>
+    -->
 
     <div id="tooltip" role="tooltip">tooltip</div>
 
