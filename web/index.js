@@ -235,58 +235,6 @@ async function addViewRangeInputListeners(cs_view) {
 
 
 
-
-
-/*
-onload = (e) => {
-    const cont_2d = document.getElementById("graph-viewer-container");
-
-    let c1 = document.createElement("canvas");
-    let c2 = document.createElement("canvas");
-
-    c1.style.setProperty("z-index", "0");
-    c2.style.setProperty("z-index", "1");
-
-    console.log(cont_2d);
-
-    for (const canv of [c1, c2]) {
-        canv.width = cont_2d.clientWidth;
-        canv.height = cont_2d.clientHeight;
-    }
-
-
-    cont_2d.append(c1);
-    cont_2d.append(c2);
-
-
-    let els = appendPathListElements(40, "div", "div");
-    els.left.innerHTML = "hello";
-    els.right.innerHTML = "world";
-
-    let els2 = appendPathListElements(40, "div", "div");
-    els2.left.innerHTML = "and";
-    els2.right.innerHTML = "another row";
-
-    const split = Split({
-        rowGutters: [{
-            track: 1,
-            element: document.querySelector('.gutter-row-1')
-        }],
-        columnGutters: [{
-            track: 1,
-            element: document.querySelector('.gutter-column-1')
-        }],
-        rowMinSizes: { 0: 300 },
-        onDragEnd: (dir, track) => {
-            console.log(dir);
-            console.log(track);
-        },
-    });
-
-};
-*/
-
-
 function appendPathListElements(height, left_tag, right_tag) {
     const left = document.createElement(left_tag);
     const right = document.createElement(right_tag);
@@ -352,13 +300,22 @@ onload = async () => {
 
             const graph_viewer = await initializeGraphViewer(wasm.memory, graph_raw, layout_path);
 
-            const split_on_drag_end = new rxjs.Subject();
+            const resize_obs = new rxjs.Subject();
 
-            // TODO: merge with (throttled) window resize events
-            const resize_obs = split_on_drag_end;
+            let names;
+            if (path_names) {
+                names = path_names;
+            } else {
+                names = await worker_obj.getPathNames();
+            }
 
-            appendPathView(worker_obj, resize_obs, "gi|568815592:29942469-29945883");
+            for (const path_name of names) {
+                appendPathView(worker_obj, resize_obs, path_name);
+            }
 
+            // TODO: overview map & range input
+            // TODO: sequence track
+            // TODO: additional tracks
 
             const split = Split({
                 rowGutters: [{
@@ -379,6 +336,13 @@ onload = async () => {
                         split_on_drag_end.next();
                     }
                 },
+            });
+
+            rxjs.fromEvent(window, 'resize').pipe(
+                rxjs.throttleTime(100),
+            ).subscribe(() => {
+                graph_viewer.resize();
+                resize_obs.next();
             });
         }
     };

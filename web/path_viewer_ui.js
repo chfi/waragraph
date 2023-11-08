@@ -81,8 +81,8 @@ export async function initializePathViewer(
     data_canvas.style.setProperty('z-index', 0);
     overlay_canvas.style.setProperty('z-index', 1);
 
-    data_canvas.style.setProperty('position', 'absolute');
-    overlay_canvas.style.setProperty('position', 'absolute');
+    data_canvas.classList.add('path-data-canvas');
+    overlay_canvas.classList.add('path-data-canvas');
 
     await worker_ctx.setCanvasWidth(width);
 
