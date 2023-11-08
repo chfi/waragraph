@@ -73,21 +73,21 @@ canvas.path-data-overlay {
 }
 
 #graph-viewer-container {
-    display: grid;
-    grid-template-columns: 800px;
-    grid-template-rows: 600px;
+    /* display: grid; */
+    /* grid-template-columns: 800px; */
+    /* grid-template-rows: 600px; */
+}
+
+#graph-viewer-container > canvas {
+    position: absolute;
 }
 
 canvas#graph-viewer-2d {
     z-index: 0;
-    grid-column: 1;
-    grid-row: 1;
 }
 
 canvas#graph-viewer-2d-overlay {
     z-index: 1;
-    grid-column: 1;
-    grid-row: 1;
 }
 
 

@@ -473,3 +473,122 @@ function resize_view_dimensions(v_dims, c_old, c_new) {
 
     return [v_new_h, v_new_h];
 }
+
+
+
+export async function initializeGraphViewer(wasm_mem, graph_raw, layout_url) {
+    if (_wasm === undefined) {
+        _wasm = await init_module(undefined, wasm_mem);
+        wasm_bindgen.set_panic_hook();
+    }
+
+    // create canvases
+
+    let gpu_canvas = document.createElement('canvas');
+    let overlay_canvas = document.createElement('canvas');
+
+    gpu_canvas.id = 'graph-viewer-2d';
+    overlay_canvas.id = 'graph-viewer-2d-overlay';
+
+    gpu_canvas.style.setProperty('z-index', '0');
+    overlay_canvas.style.setProperty('z-index', '1');
+
+    let container = document.getElementById('graph-viewer-container');
+
+    container.append(gpu_canvas);
+    container.append(overlay_canvas);
+
+    let width = container.clientWidth;
+    let height = container.clientHeight;
+
+    gpu_canvas.width = container.clientWidth;
+    gpu_canvas.height = container.clientHeight;
+    overlay_canvas.width = container.clientWidth;
+    overlay_canvas.height = container.clientHeight;
+
+    if (_raving_ctx === undefined) {
+        // let canvas = document.getElementById('graph-viewer-2d');
+        _raving_ctx = await wasm_bindgen.RavingCtx.initialize_(gpu_canvas);
+    }
+
+    let layout_tsv = await fetch(layout_url).then(l => l.text());
+    let seg_pos = wasm_bindgen.SegmentPositions.from_tsv(layout_tsv);
+
+    let graph = wasm_bindgen.ArrowGFAWrapped.__wrap(graph_raw.__wbg_ptr);
+
+    let viewer = wasm_bindgen.GraphViewer.new_dummy_data(
+        _raving_ctx,
+        seg_pos,
+        gpu_canvas
+    );
+
+    viewer.resize(_raving_ctx, width, height);
+    viewer.draw_to_surface(_raving_ctx);
+
+    let graph_viewer = new GraphViewer(viewer, seg_pos);
+        
+    const draw_loop = () => {
+        if (graph_viewer.needRedraw()) {
+            graph_viewer.draw();
+        }
+
+        window.requestAnimationFrame(draw_loop);
+    };
+
+    draw_loop();
+
+    const mouseDown$ = rxjs.fromEvent(overlay, 'mousedown');
+    const mouseUp$ = rxjs.fromEvent(overlay, 'mouseup');
+    const mouseOut$ = rxjs.fromEvent(overlay, 'mouseout');
+    const mouseMove$ = rxjs.fromEvent(overlay, 'mousemove');
+
+
+    mouseMove$.subscribe((event) => {
+        // graph_viewer.mousePos = { x: event.clientX, y: event.clientY };
+        graph_viewer.mousePos = { x: event.offsetX, y: event.offsetY };
+    });
+
+    mouseOut$.subscribe((event) => {
+        graph_viewer.mousePos = null;
+    });
+
+    const drag$ = mouseDown$.pipe(
+        rxjs.switchMap((event) => {
+            return mouseMove$.pipe(
+                rxjs.pairwise(),
+                rxjs.map(([prev, current]) => [current.clientX - prev.clientX,
+                                               current.clientY - prev.clientY]),
+                rxjs.takeUntil(
+                    rxjs.race(mouseUp$, mouseOut$)
+                )
+            )
+        })
+    );
+
+    drag$.subscribe(([dx, dy]) => {
+        let x = dx / overlay.width;
+        let y = dy / overlay.height;
+        graph_viewer.translate(-x, y);
+    });
+
+    const wheel$ = rxjs.fromEvent(overlay, 'wheel').pipe(
+        rxjs.tap(event => event.preventDefault())
+    );
+
+    wheel$.subscribe((event) => {
+        let x = event.clientX;
+        let y = overlay.height - event.clientY;
+
+        let nx = x / overlay.width;
+        let ny = y / overlay.height;
+
+        let scale = event.deltaY > 0.0 ? 1.05 : 0.95;
+
+        graph_viewer.zoom(nx, ny, scale);
+    });
+
+    graph_viewer.fitViewToGraph();
+
+
+    return graph_viewer;
+}

@@ -92,7 +92,7 @@ export function drawSequence(canvas, sequence, subpixel_offset) {
     for (const base of sequence) {
         let txt = typeof base === 'string' ? base : String.fromCharCode(base);
 
-        let x = base_i * bp_width + 0.5 * bp_width + subpixel_offset;
+        let x = base_i * bp_width + 0.5 * bp_width;
         ctx.fillText(txt, x, y);
 
         base_i += 1;
