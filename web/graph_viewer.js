@@ -75,15 +75,6 @@ class GraphViewer {
         this.fitViewToGraph();
     }
 
-    /*
-    resize(width, height) {
-        const valid = (v) = Number.isInteger(v) && v > 1;
-        if (valid(width) && valid(height)) {
-            viewer.resize(_raving_ctx, width, height);
-        }
-    }
-    */
-
     draw() {
         this.graph_viewer.set_view(this.next_view);
         this.graph_viewer.draw_to_surface(_raving_ctx);

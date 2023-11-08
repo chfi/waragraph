@@ -51,36 +51,74 @@ export async function highlightPathRanges(
 // does not attach the canvas element to the DOM
 export async function initializePathViewer(
     worker,
-    overview,
     cs_view,
     path_name,
-    canvas
+    container,
+    resize_subject,
 ) {
-    if (canvas === undefined) {
-        canvas = document.createElement('canvas');
-    }
+    // if (canvas === undefined) {
+    //     canvas = document.createElement('canvas');
+    // }
 
-    canvas.width = 1024;
-    canvas.height = 40;
+    const data_canvas = document.createElement('canvas');
 
-    let offscreen = canvas.transferControlToOffscreen();
+    let width = container.clientWidth;
+    let height = container.clientHeight;
+
+    data_canvas.width = width;
+    data_canvas.height = height;
+
+    let offscreen = data_canvas.transferControlToOffscreen();
 
     const worker_ctx = await worker.createPathViewer(Comlink.transfer(offscreen, [offscreen]),
                                                       path_name);
 
+
+    const overlay_canvas = document.createElement('canvas');
+    overlay_canvas.width = width;
+    overlay_canvas.height = height;
+
+    data_canvas.style.setProperty('z-index', 0);
+    overlay_canvas.style.setProperty('z-index', 1);
+
+    data_canvas.style.setProperty('position', 'absolute');
+    overlay_canvas.style.setProperty('position', 'absolute');
+
+    await worker_ctx.setCanvasWidth(width);
+
+    container.append(data_canvas);
+    container.append(overlay_canvas);
+
     let view = await cs_view.get();
 
-    worker_ctx.setView(view.start, view.end);
-    worker_ctx.sample();
-    worker_ctx.forceRedraw();
+    await worker_ctx.setView(view.start, view.end);
+    await worker_ctx.sample();
+    await worker_ctx.forceRedraw();
+
+
+    resize_subject.subscribe(async () => {
+        let w = container.clientWidth;
+        let h = container.clientHeight;
+
+        console.log(container);
+
+        await worker_ctx.setCanvasWidth(w);
+        await worker_ctx.resizeTargetCanvas(w, h);
+        await worker_ctx.sample();
+        await worker_ctx.forceRedraw();
+
+        overlay_canvas.width = w;
+        overlay_canvas.height = h;
+    });
+
 
     const trackCallbacks = {};
 
-    return { worker_ctx, canvas, trackCallbacks };
+    return { worker_ctx, data_canvas, overlay_canvas, trackCallbacks };
 }
 
 
-export async function addPathViewerLogic(worker, path_viewer, overview, cs_view) {
+export async function addPathViewerLogic(worker, path_viewer, cs_view) {
     const { worker_ctx, overlay_canvas } = path_viewer;
     const canvas = overlay_canvas;
 

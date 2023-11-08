@@ -154,6 +154,13 @@ impl PathViewer {
         self.target_canvas = Some(canvas);
     }
 
+    pub fn resize_target_canvas(&self, width: u32, height: u32) {
+        if let Some(canvas) = self.target_canvas.as_ref() {
+            canvas.set_width(width);
+            canvas.set_height(height);
+        }
+    }
+
     /*
     pub fn new_canvas(
         &mut self,

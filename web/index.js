@@ -236,23 +236,6 @@ async function addViewRangeInputListeners(cs_view) {
 
 
 
-function appendPathListElements(height, left_tag, right_tag) {
-    const left = document.createElement(left_tag);
-    const right = document.createElement(right_tag);
-
-    const setStyles = (el) => {
-        el.style.setProperty("flex-basis", height + "px");
-    };
-
-    setStyles(left);
-    setStyles(right);
-
-    document.getElementById("path-viewer-left-column").append(left);
-    document.getElementById("path-viewer-right-column").append(right);
-
-    return { left, right };
-}
-
 
 /*
 onload = (e) => {
@@ -304,6 +287,55 @@ onload = (e) => {
 */
 
 
+function appendPathListElements(height, left_tag, right_tag) {
+    const left = document.createElement(left_tag);
+    const right = document.createElement(right_tag);
+
+    const setStyles = (el) => {
+        el.style.setProperty("flex-basis", height + "px");
+    };
+
+    setStyles(left);
+    setStyles(right);
+
+    document.getElementById("path-viewer-left-column").append(left);
+    document.getElementById("path-viewer-right-column").append(right);
+
+    return { left, right };
+}
+
+async function appendPathView(worker_obj, resize_subject, path_name) {
+
+
+    const name_column = document.getElementById('path-viewer-left-column');
+    const data_column = document.getElementById('path-viewer-right-column');
+
+    const name_el = document.createElement('div');
+    const data_el = document.createElement('div');
+
+    name_el.classList.add('path-list-flex-item', 'path-name');
+    data_el.classList.add('path-list-flex-item');
+
+    name_el.innerHTML = path_name;
+
+    let cs_view = await worker_obj.globalCoordSysView();
+
+    name_column.append(name_el);
+    data_column.append(data_el);
+
+    let path_viewer = await initializePathViewer(worker_obj,
+                                                 cs_view,
+                                                 path_name,
+                                                 data_el,
+                                                resize_subject);
+
+
+    addPathViewerLogic(worker_obj, path_viewer, cs_view, resize_subject);
+
+
+
+}
+
 onload = async () => {
     const wasm = await init_module();
     const worker = new Worker(new URL("main_worker.js", import.meta.url), { type: 'module' });
@@ -317,9 +349,15 @@ onload = async () => {
             const worker_obj = Comlink.wrap(worker);
 
             const graph_raw = await worker_obj.getGraph();
+
             const graph_viewer = await initializeGraphViewer(wasm.memory, graph_raw, layout_path);
 
+            const split_on_drag_end = new rxjs.Subject();
 
+            // TODO: merge with (throttled) window resize events
+            const resize_obs = split_on_drag_end;
+
+            appendPathView(worker_obj, resize_obs, "gi|568815592:29942469-29945883");
 
 
             const split = Split({
@@ -327,15 +365,19 @@ onload = async () => {
                     track: 1,
                     element: document.querySelector('.gutter-row-1')
                 }],
+                columnGutters: [{
+                    track: 1,
+                    element: document.querySelector('.gutter-column-1')
+                }],
                 rowMinSizes: { 0: 200 },
                 onDragEnd: (dir, track) => {
                     if (dir === "row" && track === 1) {
                         // 2D view resize
                         graph_viewer.resize();
+                    } else if (dir === "column" && track === 1) {
+                        // 1D view resize
+                        split_on_drag_end.next();
                     }
-
-                    console.log(dir);
-                    console.log(track);
                 },
             });
         }
@@ -454,7 +496,6 @@ async function init() {
                 // let { path_viewer, canvas } =
                 let path_viewer =
                     await initializePathViewer(worker_obj,
-                                               overview,
                                                cs_view,
                                                name);
 
@@ -480,7 +521,7 @@ async function init() {
 
                 path_viewer.overlay_canvas = overlay_el;
 
-                addPathViewerLogic(worker_obj, path_viewer, overview_el, cs_view);
+                addPathViewerLogic(worker_obj, path_viewer, cs_view);
 
                 row_el.append(overlay_el);
 

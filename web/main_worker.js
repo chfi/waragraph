@@ -165,6 +165,12 @@ class PathViewerCtx {
         this.path_viewer.draw_to_canvas();
     }
 
+    resizeTargetCanvas(width, height) {
+        const valid = (v) => Number.isInteger(v) && v > 0;
+        if (valid(width) && valid(height)) {
+            this.path_viewer.resize_target_canvas(width, height);
+        }
+    }
 
     coordSys() {
         return this.path_viewer.coord_sys;
