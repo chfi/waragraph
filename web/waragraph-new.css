@@ -174,11 +174,13 @@ body {
 
 /* Style for the gutters for visual distinction */
 .gutter-row {
+  z-index: 1;
   background: #eee; /* Just an example color for the gutters */
   cursor: row-resize; /* Indicates the row is resizable */
 }
 
 .gutter-column {
+  z-index: 1;
   background: #eee;
   cursor: col-resize; 
 }

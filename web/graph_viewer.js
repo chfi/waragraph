@@ -63,6 +63,27 @@ class GraphViewer {
         this.next_view.set_size(view_width, view_height);
     }
 
+    resize() {
+        // let el = document.getElementById('graph-viewer-2d-overlay');
+        let el = document.getElementById('graph-viewer-2d-overlay');
+        // let container = el.parentNode;
+
+        let width = el.parentNode.clientWidth;
+        let height = el.parentNode.clientHeight;
+
+        this.graph_viewer.resize(_raving_ctx, Math.round(width), Math.round(height));
+        this.fitViewToGraph();
+    }
+
+    /*
+    resize(width, height) {
+        const valid = (v) = Number.isInteger(v) && v > 1;
+        if (valid(width) && valid(height)) {
+            viewer.resize(_raving_ctx, width, height);
+        }
+    }
+    */
+
     draw() {
         this.graph_viewer.set_view(this.next_view);
         this.graph_viewer.draw_to_surface(_raving_ctx);
@@ -490,8 +511,10 @@ export async function initializeGraphViewer(wasm_mem, graph_raw, layout_url) {
     gpu_canvas.id = 'graph-viewer-2d';
     overlay_canvas.id = 'graph-viewer-2d-overlay';
 
-    gpu_canvas.style.setProperty('z-index', '0');
-    overlay_canvas.style.setProperty('z-index', '1');
+    gpu_canvas.style.setProperty('z-index', 0);
+    overlay_canvas.style.setProperty('z-index', 1);
+    // gpu_canvas.style.setProperty('z-index', '0');
+    // overlay_canvas.style.setProperty('z-index', '1');
 
     let container = document.getElementById('graph-viewer-container');
 
@@ -518,6 +541,7 @@ export async function initializeGraphViewer(wasm_mem, graph_raw, layout_url) {
 
     let viewer = wasm_bindgen.GraphViewer.new_dummy_data(
         _raving_ctx,
+        graph,
         seg_pos,
         gpu_canvas
     );
@@ -537,10 +561,10 @@ export async function initializeGraphViewer(wasm_mem, graph_raw, layout_url) {
 
     draw_loop();
 
-    const mouseDown$ = rxjs.fromEvent(overlay, 'mousedown');
-    const mouseUp$ = rxjs.fromEvent(overlay, 'mouseup');
-    const mouseOut$ = rxjs.fromEvent(overlay, 'mouseout');
-    const mouseMove$ = rxjs.fromEvent(overlay, 'mousemove');
+    const mouseDown$ = rxjs.fromEvent(overlay_canvas, 'mousedown');
+    const mouseUp$ = rxjs.fromEvent(overlay_canvas, 'mouseup');
+    const mouseOut$ = rxjs.fromEvent(overlay_canvas, 'mouseout');
+    const mouseMove$ = rxjs.fromEvent(overlay_canvas, 'mousemove');
 
 
     mouseMove$.subscribe((event) => {
@@ -566,21 +590,21 @@ export async function initializeGraphViewer(wasm_mem, graph_raw, layout_url) {
     );
 
     drag$.subscribe(([dx, dy]) => {
-        let x = dx / overlay.width;
-        let y = dy / overlay.height;
+        let x = dx / overlay_canvas.width;
+        let y = dy / overlay_canvas.height;
         graph_viewer.translate(-x, y);
     });
 
-    const wheel$ = rxjs.fromEvent(overlay, 'wheel').pipe(
+    const wheel$ = rxjs.fromEvent(overlay_canvas, 'wheel').pipe(
         rxjs.tap(event => event.preventDefault())
     );
 
     wheel$.subscribe((event) => {
         let x = event.clientX;
-        let y = overlay.height - event.clientY;
+        let y = overlay_canvas.height - event.clientY;
 
-        let nx = x / overlay.width;
-        let ny = y / overlay.height;
+        let nx = x / overlay_canvas.width;
+        let ny = y / overlay_canvas.height;
 
         let scale = event.deltaY > 0.0 ? 1.05 : 0.95;
 

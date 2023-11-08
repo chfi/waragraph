@@ -2,6 +2,9 @@ import * as Comlink from 'comlink';
 import { Observable } from 'rxjs';
 import * as rxjs from 'rxjs';
 
+import * as handler from './transfer_handlers.js';
+handler.setTransferHandlers(rxjs, Comlink);
+
 import Split from 'split-grid';
 
 import { initializePathViewer, addOverviewEventHandlers, addPathViewerLogic } from './path_viewer_ui.js';
@@ -12,6 +15,7 @@ import { OverviewMap } from './overview.js';
 
 import { GraphViewer,
          initGraphViewer,
+         initializeGraphViewer,
          preparePathHighlightOverlay
        } from './graph_viewer.js';
 
@@ -250,6 +254,7 @@ function appendPathListElements(height, left_tag, right_tag) {
 }
 
 
+/*
 onload = (e) => {
     const cont_2d = document.getElementById("graph-viewer-container");
 
@@ -296,12 +301,53 @@ onload = (e) => {
     });
 
 };
+*/
+
+
+onload = async () => {
+    const wasm = await init_module();
+    const worker = new Worker(new URL("main_worker.js", import.meta.url), { type: 'module' });
+
+    worker.onmessage = async (event) => {
+        if (event.data === "WORKER_INIT") {
+            worker.postMessage([wasm.memory, gfa_path]);
+        } else if (event.data === "GRAPH_READY") {
+            worker.onmessage = undefined;
+
+            const worker_obj = Comlink.wrap(worker);
+
+            const graph_raw = await worker_obj.getGraph();
+            const graph_viewer = await initializeGraphViewer(wasm.memory, graph_raw, layout_path);
+
+
+
+
+            const split = Split({
+                rowGutters: [{
+                    track: 1,
+                    element: document.querySelector('.gutter-row-1')
+                }],
+                rowMinSizes: { 0: 200 },
+                onDragEnd: (dir, track) => {
+                    if (dir === "row" && track === 1) {
+                        // 2D view resize
+                        graph_viewer.resize();
+                    }
+
+                    console.log(dir);
+                    console.log(track);
+                },
+            });
+        }
+    };
+
+};
 
 
 async function init() {
 
-    const handler = await import('./transfer_handlers.js');
-    handler.setTransferHandlers(rxjs, Comlink);
+    // const handler = await import('./transfer_handlers.js');
+    // handler.setTransferHandlers(rxjs, Comlink);
 
     const wasm = await init_module();
 
