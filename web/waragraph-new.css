@@ -34,11 +34,11 @@
     display: grid;
     grid-template-columns: 1fr 1fr;
     grid-template-rows: auto;
-    width: 100%;
+    /* width: 100%; */
 }
 
 #path-viewer-range-input input {
-    width: 100%;
+    /* width: 100%; */
 }
 
 

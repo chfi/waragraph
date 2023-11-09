@@ -280,8 +280,6 @@ async function appendPathView(worker_obj, resize_subject, path_name) {
 
     addPathViewerLogic(worker_obj, path_viewer, cs_view, resize_subject);
 
-
-
 }
 
 onload = async () => {
@@ -307,6 +305,40 @@ onload = async () => {
                 names = path_names;
             } else {
                 names = await worker_obj.getPathNames();
+            }
+
+            {
+                // TODO: factor out overview & range input bits
+                const overview_slots = appendPathListElements(40, 'div', 'div');
+
+                const cs_view = await worker_obj.globalCoordSysView();
+                const view_max = await cs_view.viewMax();
+                // const view_subject = await cs_view.viewSubject();
+                const overview_canvas = document.createElement('canvas');
+                overview_canvas.width = overview_slots.right.clientWidth;
+                overview_canvas.height = overview_slots.right.clientHeight;
+                overview_slots.right.append(overview_canvas);
+                const overview = new OverviewMap(overview_canvas, view_max);
+                await addOverviewEventHandlers(overview, cs_view);
+
+                // range input
+                const range_input = document.createElement('div');
+                // range_input.classList.add('path-name');
+                range_input.id = 'path-viewer-range-input';
+
+                overview_slots.left.append(range_input);
+
+                for (const id of ["path-viewer-range-start", "path-viewer-range-end"]) {
+                    const input = document.createElement('input');
+                    input.id = id;
+                    input.setAttribute('type', 'text');
+                    input.setAttribute('inputmode', 'numeric');
+                    input.setAttribute('pattern', '\d*');
+                    input.style.setProperty('height', '100%');
+                    range_input.append(input);
+                }
+
+                await addViewRangeInputListeners(cs_view);
             }
 
             for (const path_name of names) {

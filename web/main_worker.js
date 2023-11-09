@@ -233,14 +233,9 @@ async function run(memory, gfa_path) {
     Comlink.expose({
         createPathViewer(offscreen_canvas,
                          path_name) {
-            console.log("in createPathViewer");
-            console.log(path_name);
-            // console.log("in createPathViewer with " + path_name);
-            // let path_name = "gi|528476637:29857558-29915771";
-            let coord_sys = _state.coord_sys;
-            console.log("getting coord_sys: " + coord_sys);
 
-            console.log("deriving depth data");
+            let coord_sys = _state.coord_sys;
+
             let data = wasm_bindgen.arrow_gfa_depth_data(graph, path_name);
 
             // let color_0 = 
@@ -249,8 +244,6 @@ async function run(memory, gfa_path) {
                 { r: 0.0, g: 0.0, b: 0.0, a: 0.0 };
 
             let color_1 = wasm_bindgen.path_name_hash_color_obj(path_name);
-            console.log("color_1: " + color_1);
-            console.log(color_1);
 
             let opts = { bins: 1024, color_0, color_1 };
 
