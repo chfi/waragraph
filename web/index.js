@@ -83,59 +83,7 @@ function globalSequenceTrack(graph, canvas, view_subject) {
     return { draw_last };
 }
 
-const TEST_BED = [
-    { path: "gi|568815569:1240288-1243708", start: 100, end: 3000, label: "TEST" },
-];
 
-
-const MHC_BED = [
-    { path: "grch38#chr6", start: 29722775, end: 29738528, label: "HLA-F" },
-    { path: "grch38#chr6", start: 29726601, end: 29749049, label: "HLA-F-AS1" },
-    { path: "grch38#chr6", start: 29790954, end: 29797811, label: "HLA-V" },
-    { path: "grch38#chr6", start: 29800415, end: 29802425, label: "HLA-P" },
-    { path: "grch38#chr6", start: 29826967, end: 29831125, label: "HLA-G" },
-    { path: "grch38#chr6", start: 29887752, end: 29890482, label: "HLA-H" },
-    { path: "grch38#chr6", start: 29896654, end: 29897786, label: "HLA-T" },
-    { path: "grch38#chr6", start: 29926459, end: 29929232, label: "HLA-K" },
-    { path: "grch38#chr6", start: 29934101, end: 29934286, label: "HLA-U" },
-    { path: "grch38#chr6", start: 29941260, end: 29945884, label: "HLA-A" },
-    { path: "grch38#chr6", start: 29956596, end: 29958570, label: "HLA-W" },
-    { path: "grch38#chr6", start: 30005971, end: 30009956, label: "HLA-J" },
-    { path: "grch38#chr6", start: 30259548, end: 30293015, label: "HLA-L" },
-    { path: "grch38#chr6", start: 30351416, end: 30351550, label: "HLA-N" },
-    { path: "grch38#chr6", start: 30489509, end: 30494194, label: "HLA-E" },
-    { path: "grch38#chr6", start: 31268749, end: 31272130, label: "HLA-C" },
-    { path: "grch38#chr6", start: 31353872, end: 31367067, label: "HLA-B" },
-    { path: "grch38#chr6", start: 31382074, end: 31382288, label: "HLA-S" },
-    { path: "grch38#chr6", start: 32439878, end: 32445046, label: "HLA-DRA" },
-    { path: "grch38#chr6", start: 32459821, end: 32473500, label: "HLA-DRB9" },
-    { path: "grch38#chr6", start: 32517353, end: 32530287, label: "HLA-DRB5" },
-    { path: "grch38#chr6", start: 32552713, end: 32560022, label: "HLA-DRB6" },
-    { path: "grch38#chr6", start: 32577902, end: 32589848, label: "HLA-DRB1" },
-    { path: "grch38#chr6", start: 32628179, end: 32647062, label: "HLA-DQA1" },
-    { path: "grch38#chr6", start: 32659467, end: 32668383, label: "HLA-DQB1" },
-    { path: "grch38#chr6", start: 32659880, end: 32660729, label: "HLA-DQB1-AS1" },
-    { path: "grch38#chr6", start: 32730758, end: 32731695, label: "HLA-DQB3" },
-    { path: "grch38#chr6", start: 32741391, end: 32747198, label: "HLA-DQA2" },
-    { path: "grch38#chr6", start: 32756098, end: 32763532, label: "HLA-DQB2" },
-    { path: "grch38#chr6", start: 32812763, end: 32820466, label: "HLA-DOB" },
-    { path: "grch38#chr6", start: 32896416, end: 32896490, label: "HLA-Z" },
-    { path: "grch38#chr6", start: 32934629, end: 32941028, label: "HLA-DMB" },
-    { path: "grch38#chr6", start: 32948613, end: 32969094, label: "HLA-DMA" },
-    { path: "grch38#chr6", start: 33004182, end: 33009591, label: "HLA-DOA" },
-    { path: "grch38#chr6", start: 33064569, end: 33080775, label: "HLA-DPA1" },
-    { path: "grch38#chr6", start: 33091753, end: 33097295, label: "HLA-DPA2" },
-    { path: "grch38#chr6", start: 33112440, end: 33129084, label: "HLA-DPB2" },
-    { path: "grch38#chr6", start: 33131216, end: 33143325, label: "HLA-DPA3" },
-    { path: "grch38#chr6", start: 33075990, end: 33089696, label: "HLA-DPB1" },
-]
-
-function getRandomColor() {
-    const r = Math.floor(Math.random() * 256);
-    const g = Math.floor(Math.random() * 256);
-    const b = Math.floor(Math.random() * 256);
-    return `rgb(${r},${g},${b})`;
-}
 
 async function addTestOverlay(graph, worker_obj, graph_viewer) {
     // let path_name = 'gi|568815551:1197321-1201446';
@@ -202,28 +150,6 @@ async function addTestOverlay(graph, worker_obj, graph_viewer) {
     let callback = CanvasTracks.createHighlightCallback(global_entries);
 
     path_viewer.trackCallbacks['test'] = callback;
-
-    let path_cs = await worker_obj.pathCoordSys(path_name);
-
-    let callback_2d =
-        preparePathHighlightOverlay(graph_viewer.segment_positions,
-                                    path_steps,
-                                    path_cs,
-                                    path_entries);
-
-    graph_viewer.overlayCallbacks['test'] = callback_2d;
-    console.log("?????");
-
-    // for (const entry of path_entries) {
-    //     let callback_2d =
-    //         preparePathHighlightOverlay(graph_viewer.segment_positions,
-    //                                     path_steps,
-    //                                     path_cs,
-    //                                     [entry]);
-
-    //     graph_viewer.overlayCallbacks[entry.label] = callback_2d;
-    // }
-
 }
 
 

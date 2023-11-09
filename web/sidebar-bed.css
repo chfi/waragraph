@@ -53,3 +53,19 @@
     background-color: #BBB;
     color: #333;
 }
+
+
+#sidebar-bed-context-menu {
+    display: none;
+    flex-direction: column;
+
+    width: max-content;
+    position: absolute;
+    top: 0;
+    left: 0;
+    background: #ddd;
+    color: #333;
+    border-radius: 4px;
+
+    z-index: 10;
+}
