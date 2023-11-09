@@ -301,6 +301,21 @@ async function appendPathView(worker_obj, resize_subject, path_name) {
 
 }
 
+class WaragraphViz {
+    constructor(
+        wasm,
+        worker_obj,
+                graph_viewer,
+               ) {
+        this.wasm = wasm;
+        this.worker_obj = worker_obj;
+        this.graph_viewer = graph_viewer;
+    }
+
+    // TODO API for interfacing with graph and viewers/views here
+                
+}
+
 const init = async () => {
     const wasm = await init_module();
     const worker = new Worker(new URL("main_worker.js", import.meta.url), { type: 'module' });
@@ -317,7 +332,9 @@ const init = async () => {
 
             const graph_viewer = await initializeGraphViewer(wasm.memory, graph_raw, layout_path);
 
-            await BedSidebar.initializeBedSidebarPanel(worker_obj);
+            const warapi = new WaragraphViz(wasm, worker_obj, graph_viewer);
+
+            await BedSidebar.initializeBedSidebarPanel(warapi);
 
             const resize_obs = new rxjs.Subject();
 
