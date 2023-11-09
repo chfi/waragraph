@@ -7,8 +7,34 @@ import '../sidebar-bed.css';
 
 let pathNamesMap = new Map();
 
+function findPathName(cand) {
+    if (pathNamesMap.has(cand)) {
+        return pathNamesMap.get(cand);
+    }
+
+    for (const path_name of pathNamesMap.keys()) {
+        if (path_name.startsWith(cand)) {
+            return path_name;
+        }
+    }
+}
+
+
 let waragraph_viz = null;
 let wasm = null;
+
+function createPathOffsetMap(path_name) {
+    const regex = /.+:(\d+)-(\d+)$/;
+    const found = path_name.match(regex);
+
+    if (found === null) {
+        return (x) => x;
+    }
+
+    const start = Number(found[1]);
+
+    return (bp) => bp - start;
+}
 
 function transformBedRange(bed_entry) {
     let name = bed_entry.chrom;
@@ -32,7 +58,8 @@ function transformBedRange(bed_entry) {
 }
 
 async function createDrawBedEntryFn(bed_entry) {
-    let path_name = bed_entry.chrom;
+    let path_name = findPathName(bed_entry.chrom);
+    let path_offset_map = createPathOffsetMap(path_name);
 
     let seg_pos = waragraph_viz.graph_viewer.segment_positions;
 
@@ -42,20 +69,18 @@ async function createDrawBedEntryFn(bed_entry) {
 
     let path_cs = await waragraph_viz.worker_obj.pathCoordSys(path_name);
 
-    let entry = { start: bed_entry.chromStart, end: bed_entry.chromEnd,
+    let entry = { start: path_offset_map(bed_entry.chromStart),
+                  end: path_offset_map(bed_entry.chromEnd),
                   label: bed_entry.name };
 
-    // @gmod/bed outputs 0,0,0 even if there's no color in the data,
-    // so there's no way to distinguish black from missing color
-    if (bed_entry.itemRgb === "0,0,0") {
-        let {r,g,b} = wasm_bindgen.path_name_hash_color_obj(entry.label);
-        entry.color = `rgb(${r * 255},${g * 255},${b * 255})`;
-        console.log(entry.color);
-    } else if (typeof bed_entry === "string") {
+    if (typeof bed_entry.itemRgb === "string") {
         let [r,g,b] = bed_entry.split(',');
         entry.color = `rgb(${r * 255},${g * 255},${b * 255})`;
     } else if (bed_entry.color) {
         entry.color = bed_entry.color;
+    } else {
+        let {r,g,b} = wasm_bindgen.path_name_hash_color_obj(entry.label);
+        entry.color = `rgb(${r * 255},${g * 255},${b * 255})`;
     }
 
     let callback_2d = 
