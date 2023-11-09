@@ -105,19 +105,52 @@ async function loadBedFile(file) {
 
             const entry_div = document.createElement('div');
             entry_div.classList.add('bed-file-row');
-            entry_div.innerHTML = entry.name;
-            entry_div.addEventListener('click', (e) => {
-                console.log("start: " + entry.chromStart + ", end: " + entry.chromEnd);
-                console.log(entry);
+            // entry_div.style.setProperty('flex-basis', '20px');
 
-                if (active === true) {
-                    active = false;
-                    delete waragraph_viz.graph_viewer.overlayCallbacks[cb_key];
+            const label_div = document.createElement('div');
+            label_div.innerHTML = entry.name;
+            label_div.classList.add('bed-row-label');
+
+            const tgl_1d = document.createElement('button');
+            tgl_1d.innerHTML = "1D";
+            tgl_1d.classList.add('bed-row-1d', 'highlight-disabled');
+            tgl_1d.style.setProperty('display', 'block');
+
+            const tgl_2d = document.createElement('button');
+            tgl_2d.innerHTML = "2D";
+            tgl_2d.classList.add('bed-row-2d', 'highlight-disabled');
+            tgl_2d.style.setProperty('display', 'block');
+
+            entry_div.append(label_div);
+            entry_div.append(tgl_1d);
+            entry_div.append(tgl_2d);
+
+            const toggle_highlight_class = (el) => {
+                if (el.classList.contains('highlight-enabled')) {
+                    el.classList.remove('highlight-enabled');
+                    el.classList.add('highlight-disabled');
+                    return false;
                 } else {
-                    active = true;
-                    waragraph_viz.graph_viewer.overlayCallbacks[cb_key] = draw_bed;
+                    el.classList.remove('highlight-disabled');
+                    el.classList.add('highlight-enabled');
+                    return true;
                 }
+            };
 
+            tgl_1d.addEventListener('click', (e) => {
+                if (toggle_highlight_class(tgl_1d)) {
+                    // TODO add callback
+                } else {
+                    // TODO remove callback
+                }
+            });
+
+            tgl_2d.addEventListener('click', (e) => {
+                if (toggle_highlight_class(tgl_2d)) {
+                    waragraph_viz.graph_viewer.registerOverlayCallback(cb_key, draw_bed);
+                } else {
+                    waragraph_viz.graph_viewer.removeOverlayCallback(cb_key);
+                }
             });
 
             entries_list.append(entry_div);

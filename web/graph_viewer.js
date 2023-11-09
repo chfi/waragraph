@@ -71,6 +71,9 @@ class GraphViewer {
         let width = el.parentNode.clientWidth;
         let height = el.parentNode.clientHeight;
 
+        el.width = width;
+        el.height = height;
+
         this.graph_viewer.resize(_raving_ctx, Math.round(width), Math.round(height));
         this.fitViewToGraph();
     }
@@ -79,6 +82,10 @@ class GraphViewer {
         this.graph_viewer.set_view(this.next_view);
         this.graph_viewer.draw_to_surface(_raving_ctx);
 
+        this.drawOverlays();
+    }
+
+    drawOverlays() {
         let overlay = document
             .getElementById('graph-viewer-2d-overlay');
         let ctx = overlay.getContext('2d');
@@ -90,6 +97,16 @@ class GraphViewer {
             const callback = this.overlayCallbacks[key];
             callback(overlay, this.next_view, this.mousePos);
         }
+    }
+
+    registerOverlayCallback(cb_key, callback) {
+        this.overlayCallbacks[cb_key] = callback;
+        this.drawOverlays();
+    }
+
+    removeOverlayCallback(cb_key) {
+        delete this.overlayCallbacks[cb_key];
+        this.drawOverlays();
     }
 
     translate(x, y) {

@@ -26,5 +26,30 @@
 }
 
 .bed-file-row {
+    flex-basis: 20px;
+    display: grid;
+    grid-template-columns: 5fr 1fr 1fr;
+}
+
+.bed-row-label {
     font-family: monospace;
+    grid-column: 1;
+}
+
+.bed-row-1d {
+    grid-column: 2;
+}
+
+.bed-row-2d {
+    grid-column: 3;
+}
+
+.highlight-enabled {
+    background-color: #EEE;
+    color: #111;
+}
+
+.highlight-disabled {
+    background-color: #BBB;
+    color: #333;
 }
