@@ -31,6 +31,9 @@ let wasm = null;
 function createPathOffsetMap(path_name) {
     const regex = /.+:(\d+)-(\d+)$/;
     console.log(path_name);
+    if (!path_name) {
+        throw `Path ${path_name} not found`;
+    }
     const found = path_name.match(regex);
 
     if (found === null) {
@@ -44,9 +47,15 @@ function createPathOffsetMap(path_name) {
 function transformBedRange(bed_entry) {
     let name = bed_entry.chrom;
 
+    let path_name = findPathName(name);
+
+    if (!path_name) {
+        throw `Path ${path_name} not found`;
+    }
+
     const regex = /.+:(\d+)-(\d+)$/;
 
-    const found = name.match(regex);
+    const found = path_name.match(regex);
 
     if (found === null) {
         return bed_entry;
@@ -62,7 +71,7 @@ function transformBedRange(bed_entry) {
     return new_entry;
 }
 
-async function createDrawBedEntryFn(bed_entry) {
+async function createDrawBedEntryFn(bed_entry, color_fn) {
     console.log(bed_entry);
     let path_name = findPathName(bed_entry.chrom);
     console.log(path_name);
@@ -76,16 +85,9 @@ async function createDrawBedEntryFn(bed_entry) {
 
     let path_cs = await waragraph_viz.worker_obj.pathCoordSys(path_name);
 
-    console.log(bed_entry.chromStart);
-
-    // need to sort this logic out
-    // let entry = { start: bed_entry.chromStart,
-    //               end: bed_entry.chromEnd,
-    let entry = { start: path_offset_map(bed_entry.chromStart),
-                  end: path_offset_map(bed_entry.chromEnd),
+    let entry = { start: bed_entry.chromStart,
+                  end: bed_entry.chromEnd,
                   label: bed_entry.name };
-
-    console.log(entry);
 
     if (typeof bed_entry.itemRgb === "string") {
         let [r,g,b] = bed_entry.itemRgb.split(',');
@@ -95,6 +97,10 @@ async function createDrawBedEntryFn(bed_entry) {
     } else {
         let {r,g,b} = wasm_bindgen.path_name_hash_color_obj(entry.label);
         entry.color = `rgb(${r * 255},${g * 255},${b * 255})`;
+    }
+
+    if (typeof color_fn === 'function') {
+        entry.color = color_fn(bed_entry);
     }
 
     let callback_2d = 
@@ -135,7 +141,16 @@ async function loadBedFile(file) {
             const entry = transformBedRange(bed_entry);
             console.log(entry);
 
-            const draw_bed = await createDrawBedEntryFn(entry);
+            // const draw_bed = await createDrawBedEntryFn(entry);
+            const draw_bed = await createDrawBedEntryFn(entry, (record) => {
+                if (record.itemRgb === undefined || record.itemRgb === "0,0,0") {
+                    let {r,g,b} = wasm_bindgen.path_name_hash_color_obj(record.name);
+                    return `rgb(${r * 255},${g * 255},${b * 255})`;
+                } else if (typeof record.itemRgb === 'string') {
+                    let [r,g,b] = record.itemRgb.split(',');
+                    return `rgb(${r * 255},${g * 255},${b * 255})`;
+                }
+            });
             console.log(draw_bed);
 
             const cb_key = file.name + ":" + entry.name;
@@ -239,6 +254,8 @@ function bedSidebarPanel() {
     const file_button = document.createElement('button');
     file_button.innerHTML = 'Load';
 
+    // const 
+
     file_button.addEventListener('click', (ev) => {
         for (const file of file_entry.files) {
             loadBedFile(file);
@@ -270,6 +287,18 @@ function bedSidebarPanel() {
 
         const focus_2d_btn = document.createElement('button');
         focus_2d_btn.innerHTML = 'Focus 2D view';
+        focus_2d_btn.addEventListener('click', async (ev) => {
+            if (_context_menu_entry === null) {
+                return;
+            }
+
+            // get path steps?
+            // then find center
+
+            // or store the center somewhere earlier
+            // idk
+
+        });
 
         context_menu_el.append(copy_name_btn);
         context_menu_el.append(focus_2d_btn);
