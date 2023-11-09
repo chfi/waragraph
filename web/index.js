@@ -45,23 +45,39 @@ function globalSequenceTrack(graph, canvas, view_subject) {
     const min_px_per_bp = 8.0;
     const seq_array = graph.segment_sequences_array();
 
+    let last_view = null;
+
+    const draw_view = (view) => {
+        let view_len = view.end - view.start;
+        let px_per_bp = canvas.width / view_len;
+        let ctx = canvas.getContext('2d');
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        if (px_per_bp > min_px_per_bp) {
+            let seq = seq_array.slice(view.start, view.end);
+            let subpixel_offset = view.start - Math.trunc(view.start);
+            CanvasTracks.drawSequence(canvas, seq, subpixel_offset);
+
+            last_view = view;
+        }
+    };
+
     view_subject.pipe(
         rxjs.distinct(),
         rxjs.throttleTime(10)
     ).subscribe((view) => {
         requestAnimationFrame((time) => {
-            let view_len = view.end - view.start;
-            let px_per_bp = canvas.width / view_len;
-            let ctx = canvas.getContext('2d');
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-            if (px_per_bp > min_px_per_bp) {
-                let seq = seq_array.slice(view.start, view.end);
-                let subpixel_offset = view.start - Math.trunc(view.start);
-                CanvasTracks.drawSequence(canvas, seq, subpixel_offset);
-            }
+            draw_view(view);
         });
     });
+
+    const draw_last = () => {
+        if (last_view !== null) {
+            draw_view(last_view);
+        }
+    };
+
+    return { draw_last };
 }
 
 const TEST_BED = [
@@ -315,6 +331,8 @@ onload = async () => {
                 const view_max = await cs_view.viewMax();
                 // const view_subject = await cs_view.viewSubject();
                 const overview_canvas = document.createElement('canvas');
+                overview_canvas.style.setProperty('position', 'absolute');
+                overview_canvas.style.setProperty('overflow', 'hidden');
                 overview_canvas.width = overview_slots.right.clientWidth;
                 overview_canvas.height = overview_slots.right.clientHeight;
                 overview_slots.right.append(overview_canvas);
@@ -339,14 +357,44 @@ onload = async () => {
                 }
 
                 await addViewRangeInputListeners(cs_view);
+
+                // TODO: factor out sequence track bit maybe
+
+                const seq_slots = appendPathListElements(20, 'div', 'div');
+
+                const seq_canvas = document.createElement('canvas');
+                seq_canvas.width = seq_slots.right.clientWidth;
+                seq_canvas.height = seq_slots.right.clientHeight;
+                seq_canvas.style.setProperty('position', 'absolute');
+                seq_canvas.style.setProperty('overflow', 'hidden');
+
+                seq_slots.right.append(seq_canvas);
+
+                let view_subject = await cs_view.viewSubject();
+
+                let graph = wasm_bindgen.ArrowGFAWrapped.__wrap(graph_raw.__wbg_ptr);
+                let seq_track = globalSequenceTrack(
+                    graph,
+                    seq_canvas,
+                    view_subject
+                );
+
+                resize_obs.subscribe(() => {
+                    overview_canvas.width = overview_slots.right.clientWidth;
+                    overview_canvas.height = overview_slots.right.clientHeight;
+                    seq_canvas.width = seq_slots.right.clientWidth;
+                    seq_canvas.height = seq_slots.right.clientHeight;
+
+                    overview.draw();
+                    seq_track.draw_last();
+                });
+
             }
 
             for (const path_name of names) {
                 appendPathView(worker_obj, resize_obs, path_name);
             }
 
-            // TODO: overview map & range input
-            // TODO: sequence track
             // TODO: additional tracks
 
             const split = Split({
@@ -365,7 +413,7 @@ onload = async () => {
                         graph_viewer.resize();
                     } else if (dir === "column" && track === 1) {
                         // 1D view resize
-                        split_on_drag_end.next();
+                        resize_obs.next();
                     }
                 },
             });

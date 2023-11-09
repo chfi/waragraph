@@ -9,6 +9,14 @@ class OverviewMap {
     }
 
     draw(view) {
+        if (view === undefined) {
+            view = this.latest_view;
+        }
+
+        if (!view) {
+            return;
+        }
+
         const ctx = this.canvas.getContext('2d');
 
         // console.log("drawing overview");
