@@ -21,6 +21,9 @@ import { GraphViewer,
 
 import * as CanvasTracks from './canvas_tracks.js';
 
+
+import * as BedSidebar from './js/sidebar-bed.js';
+
 const gfa_path = "./data/A-3105.fa.353ea42.34ee7b1.1576367.smooth.fix.gfa";
 const layout_path = "./data/A-3105.layout.tsv";
 const path_names = undefined;
@@ -313,6 +316,8 @@ const init = async () => {
             const graph_raw = await worker_obj.getGraph();
 
             const graph_viewer = await initializeGraphViewer(wasm.memory, graph_raw, layout_path);
+
+            await BedSidebar.initializeBedSidebarPanel(worker_obj);
 
             const resize_obs = new rxjs.Subject();
 

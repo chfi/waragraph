@@ -1,0 +1,30 @@
+.sidebar {
+    display: flex;
+    flex-direction: column;
+    overflow: scroll;
+}
+
+.bed-panel {
+    padding: 4px;
+    display: flex;
+    flex-direction: column;
+}
+
+.bed-file-list {
+    display: flex;
+    flex-direction: column;
+}
+
+.bed-file-entry {
+    display: flex;
+    flex-direction: column;
+}
+
+.bed-file-name {
+    font-family: sans-serif;
+    font-weight: bold;
+}
+
+.bed-file-row {
+    font-family: monospace;
+}
