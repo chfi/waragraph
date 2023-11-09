@@ -298,7 +298,7 @@ async function appendPathView(worker_obj, resize_subject, path_name) {
 
 }
 
-onload = async () => {
+const init = async () => {
     const wasm = await init_module();
     const worker = new Worker(new URL("main_worker.js", import.meta.url), { type: 'module' });
 
@@ -397,7 +397,18 @@ onload = async () => {
 
             // TODO: additional tracks
 
-            const split = Split({
+            const split_root = Split({
+                columnGutters: [{
+                    track: 1,
+                    element: document.querySelector('.gutter-column-sidebar'),
+                }],
+                onDragEnd: (dir, track) => {
+                    graph_viewer.resize();
+                    resize_obs.next();
+                },
+            });
+
+            const split_viz = Split({
                 rowGutters: [{
                     track: 1,
                     element: document.querySelector('.gutter-row-1')
@@ -429,171 +440,4 @@ onload = async () => {
 
 };
 
-
-async function init() {
-
-    // const handler = await import('./transfer_handlers.js');
-    // handler.setTransferHandlers(rxjs, Comlink);
-
-    const wasm = await init_module();
-
-    // const worker = new Worker("main_worker.js", { type: 'module' });
-    const worker = new Worker(new URL("main_worker.js", import.meta.url), { type: 'module' });
-
-    const split = Split({
-        rowGutters: [{
-            track: 1,
-            element: document.querySelector('.gutter-row-1')
-        }],
-        rowMinSizes: { 0: 600 },
-        onDragEnd: (dir, track) => {
-            console.log(dir);
-            console.log(track);
-        },
-    });
-
-
-    worker.onmessage = async (event) => {
-
-        if (event.data === "WORKER_INIT") {
-            console.log("received from worker");
-            worker.postMessage([wasm.memory, gfa_path]);
-        } else if (event.data === "GRAPH_READY") {
-            worker.onmessage = undefined;
-
-            console.log("graph loaded");
-            const worker_obj = Comlink.wrap(worker);
-
-            const graph_raw = await worker_obj.getGraph();
-            let graph = wasm_bindgen.ArrowGFAWrapped.__wrap(graph_raw.__wbg_ptr);
-
-            // window.addTestOverlay = addTestOverlay;
-
-            let cs_view = await worker_obj.globalCoordSysView();
-
-            console.log(" >>>>>>>> segment ranges");
-            for (let i = 0; i < 10; i++) {
-                let _range = await cs_view.segmentRange(i);
-                console.log(i + ": " + _range.start + "-" + _range.end + ", length: " + (_range.end - _range.start));
-                // console.log(_range);
-            }
-
-            addViewRangeInputListeners(cs_view);
-
-            const graph_viewer = await initGraphViewer(wasm.memory, graph_raw, layout_path);
-            console.log(graph_viewer);
-
-
-            window.addTestOverlay = () => {
-                addTestOverlay(graph, worker_obj, graph_viewer);
-            };
-
-            let view_subject = await cs_view.viewSubject();
-
-            
-            {
-                let state = false;
-            document.getElementById('view-toggle').addEventListener('click', (ev) => {
-
-                if (state) {
-                    state = false;
-                    cs_view.set({ start: 618, end: 4460 });
-                } else {
-                    state = true;
-                    cs_view.set({ start: 638, end: 4442 });
-                }
-
-            });
-            }
-
-            globalSequenceTrack(
-                graph,
-                document.getElementById('sequence-view'),
-                view_subject
-            );
-
-            window.graph_viewer = graph_viewer;
-
-            console.log(graph_viewer.get_view_matrix());
-
-            let names;
-            if (path_names) {
-                names = path_names;
-            } else {
-                names = await worker_obj.getPathNames();
-            }
-
-            console.log(names);
-
-            let view_max = await cs_view.viewMax();
-
-            let overview_el = document.getElementById('overview-map');
-            let overview = new OverviewMap(overview_el,  view_max);
-            await addOverviewEventHandlers(overview, cs_view);
-
-            let container = document.getElementById('path-viewer-container');
-
-            names.forEach(async (name, path_ix) => {
-
-                console.log("path: " + name);
-
-                // let { path_viewer, canvas } =
-                let path_viewer =
-                    await initializePathViewer(worker_obj,
-                                               cs_view,
-                                               name);
-
-                path_viewer.canvas.path_viewer = path_viewer;
-
-                const row_el = document.createElement("div");
-                row_el.classList.add("path-viewer-list-row")
-
-                const name_el = document.createElement("div");
-                name_el.classList.add("path-name");
-                name_el.innerHTML = name;
-
-                let id = "viewer-" + name;
-                path_viewer.canvas.classList.add("path-data-view");
-
-                path_viewer.canvas.id = id;
-                row_el.append(name_el);
-                row_el.append(path_viewer.canvas);
-
-                let overlay_el = document.createElement("canvas");
-                overlay_el.classList.add("path-data-overlay");
-                overlay_el.id = "overlay-" + name;
-
-                path_viewer.overlay_canvas = overlay_el;
-
-                addPathViewerLogic(worker_obj, path_viewer, cs_view);
-
-                row_el.append(overlay_el);
-
-                container.append(row_el);
-
-                await path_viewer.worker_ctx.setCanvasWidth(overlay_el.clientWidth);
-                overlay_el.width = overlay_el.clientWidth;
-                overlay_el.height = 40;
-
-                console.log(path_viewer.canvas);
-                console.log(path_viewer.canvas.clientWidth);
-
-                if (path_ix == 0) {
-                    overview_el.width = overlay_el.clientWidth;
-
-                    let seq_view_el = document.getElementById('sequence-view');
-                    seq_view_el.width = overlay_el.clientWidth;
-                }
-
-            });
-
-
-            window.worker_obj = worker_obj;
-        }
-
-        
-    };
-
-}
-
-// init();
+onload = init;

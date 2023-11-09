@@ -1,22 +1,20 @@
 <!DOCTYPE html>
-  <head>
-    <meta content="text/html;charset=utf-8" http-equiv="Content-Type"/>
-    <title>Waragraph Web</title>
+<head>
+  <meta content="text/html;charset=utf-8" http-equiv="Content-Type"/>
+  <title>Waragraph Web</title>
 
-    <link rel="stylesheet" href="waragraph-new.css"/>
-  </head>
-  <body>
+  <link rel="stylesheet" href="waragraph.css"/>
+</head>
+<body>
 
+  <div class="root-grid root-sidebar-closed" id="root-container">
 
-<!--
-          <div class="path-name" id="path-viewer-range-input">
-            <input type="text" inputmode="numeric" pattern="\d*" id="path-viewer-range-start">
-            <input type="text" inputmode="numeric" pattern="\d*" id="path-viewer-range-end">
-          </div>
--->
+    <div class="sidebar" id="sidebar">
+    </div>
 
-    <div class="outer-grid" id="main-container">
+    <div class="gutter-column gutter-column-sidebar"></div>
 
+    <div class="viz-grid" id="viz-container">
       <div id="graph-viewer-container">
       </div>
 
@@ -31,18 +29,18 @@
         <div class="path-viewer-column" id="path-viewer-right-column">
         </div>
       </div>
-
-
     </div>
+  </div>
 
-    <div id="tooltip" role="tooltip">tooltip</div>
+
+  <div id="tooltip" role="tooltip">tooltip</div>
 
 
-    <!-- <div id="view-toggle">toggle view</div> -->
-    <!-- <button id="view-toggle">toggle view</button> -->
+  <!-- <div id="view-toggle">toggle view</div> -->
+  <!-- <button id="view-toggle">toggle view</button> -->
 
-    <script type="module" src='./index.js'></script>
+  <script type="module" src='./index.js'></script>
 
-  </body>
+</body>
 </html>
 
