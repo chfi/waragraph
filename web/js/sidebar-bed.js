@@ -34,13 +34,10 @@ function createPathOffsetMap(path_name) {
     const found = path_name.match(regex);
 
     if (found === null) {
-        console.log("using identity");
         return (x) => x;
     }
 
     const start = Number(found[1]);
-
-        console.log("using translated by " + start);
     return (bp) => bp - start;
 }
 
@@ -80,8 +77,12 @@ async function createDrawBedEntryFn(bed_entry) {
     let path_cs = await waragraph_viz.worker_obj.pathCoordSys(path_name);
 
     console.log(bed_entry.chromStart);
-    let entry = { start: bed_entry.chromStart,
-                  end: bed_entry.chromEnd,
+
+    // need to sort this logic out
+    // let entry = { start: bed_entry.chromStart,
+    //               end: bed_entry.chromEnd,
+    let entry = { start: path_offset_map(bed_entry.chromStart),
+                  end: path_offset_map(bed_entry.chromEnd),
                   label: bed_entry.name };
 
     console.log(entry);
@@ -279,7 +280,7 @@ function bedSidebarPanel() {
     document.addEventListener('click', (ev) => {
         let tgt = ev.target;
         let id = "sidebar-bed-context-menu";
-        let ctx_closed = document.getElementById(id).style.display === 'flex';
+        let ctx_open = document.getElementById(id).style.display === 'flex';
         if (!tgt.closest('#' + id) && ctx_open) {
             ctx.style.setProperty('display', 'none');
             _context_menu_entry = null;
