@@ -217,8 +217,8 @@ export async function initGraphViewer(wasm_mem, graph, layout_url) {
         rxjs.switchMap((event) => {
             return mouseMove$.pipe(
                 rxjs.pairwise(),
-                rxjs.map(([prev, current]) => [current.clientX - prev.clientX,
-                                               current.clientY - prev.clientY]),
+                rxjs.map(([prev, current]) => [current.offsetX - prev.offsetX,
+                                               current.offsetY - prev.offsetY]),
                 rxjs.takeUntil(
                     rxjs.race(mouseUp$, mouseOut$)
                 )
@@ -237,8 +237,8 @@ export async function initGraphViewer(wasm_mem, graph, layout_url) {
     );
 
     wheel$.subscribe((event) => {
-        let x = event.clientX;
-        let y = overlay.height - event.clientY;
+        let x = event.offsetX;
+        let y = overlay.height - event.offsetY;
 
         let nx = x / overlay.width;
         let ny = y / overlay.height;
