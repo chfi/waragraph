@@ -303,7 +303,7 @@ impl CoordSys {
     ) -> Self {
         let mut seen_nodes = HashSet::new();
 
-        let steps = &graph.0.path_steps[path_index as usize];
+        let steps = &graph.0.path_steps(path_index);
 
         let mut node_order = Vec::with_capacity(steps.len());
         let mut step_offsets = Vec::with_capacity(steps.len());

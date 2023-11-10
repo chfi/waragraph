@@ -455,7 +455,7 @@ impl ArrowGFAWrapped {
     ) -> Result<js_sys::Uint32Array, JsValue> {
         let path_index = self.path_index(path_name)?;
 
-        let steps = &self.0.path_steps[path_index as usize];
+        let steps = &self.0.path_steps(path_index);
         let slice = steps.values().as_slice();
 
         let ptr = slice.as_ptr();

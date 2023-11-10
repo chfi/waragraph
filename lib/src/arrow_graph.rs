@@ -1,8 +1,8 @@
 use ahash::{AHashMap, HashMap};
 use arrow2::{
     array::{
-        BinaryArray, ListArray, PrimitiveArray, StructArray, UInt32Array,
-        Utf8Array,
+        BinaryArray, ListArray, MutableListArray, MutablePrimitiveArray,
+        PrimitiveArray, StructArray, TryPush, UInt32Array, Utf8Array,
     },
     buffer::Buffer,
     chunk::Chunk,
@@ -32,7 +32,10 @@ pub struct ArrowGFA {
 
     pub path_names: Utf8Array<i32>,
     // TODO: path_steps should be a ListArray
-    pub path_steps: Vec<UInt32Array>,
+    path_steps: Vec<UInt32Array>,
+
+    // TODO: finish this!!
+    path_step_list: ListArray<i32>,
 }
 
 pub struct PathIndex {
@@ -132,6 +135,10 @@ impl ArrowGFA {
 
     pub fn path_count(&self) -> usize {
         self.path_names.len()
+    }
+
+    pub fn path_steps(&self, path_index: u32) -> &UInt32Array {
+        &self.path_steps[path_index as usize]
     }
 
     pub fn segment_sequence(&self, segment_index: u32) -> &[u8] {
@@ -456,8 +463,11 @@ pub fn arrow_graph_from_gfa<S: BufRead + Seek>(
     let mut path_name_offsets: Vec<i32> = Vec::new();
     let mut path_name_str: Vec<u8> = Vec::new();
 
+    let mut path_step_offsets: Vec<i32> = Vec::new();
+    let mut path_step_offset = 0;
     // each step as handle, per path
     let mut path_step_arrs: Vec<UInt32Array> = Vec::new();
+    let mut path_step_array: Vec<u32> = Vec::new();
 
     gfa_reader.rewind()?;
 
@@ -503,15 +513,41 @@ pub fn arrow_graph_from_gfa<S: BufRead + Seek>(
             let is_rev = seg_orient == b"-";
 
             let seg_i = seg_step_to_handle(seg_name, is_rev);
-            step_vec.push(seg_i);
+            // step_vec.push(seg_i);
+            path_step_array.push(seg_i);
         }
 
+        path_step_offsets.push(path_step_offset);
+        path_step_offset += step_vec.len() as i32;
         path_step_arrs.push(UInt32Array::from_vec(step_vec));
     }
 
     let name_offset = path_name_str.len();
     path_name_offsets.push(name_offset as i32);
     let name_offsets = OffsetsBuffer::try_from(path_name_offsets).unwrap();
+
+    path_step_offsets.push(path_step_offset);
+    let path_step_offsets = OffsetsBuffer::try_from(path_step_offsets).unwrap();
+
+    let path_step_list = ListArray::new(
+        DataType::List(Box::new(Field::new("steps", DataType::UInt32, false))),
+        path_step_offsets,
+        UInt32Array::from_vec(path_step_array).boxed(),
+        None,
+    );
+
+    // let arr: MutablePrimitiveArray<u32> = MutablePrimitiveArray::default();
+    // let mut steps_list = MutableListArray::new_with_field(arr, "steps", false);
+
+    // for steps in path_step_arrs.iter() {
+    //     let array = steps.clone().boxed();
+    //     steps_list.try_push(array);
+    // }
+
+    // steps_list.try_push(
+
+    // let path_step_list = ListArray::new(DataType::List(Box::new(Field::new("steps", DataType::UInt32, false))),
+    //                                     path_step_offsets,
 
     let path_name_arr = Utf8Array::new(
         DataType::Utf8,
@@ -527,6 +563,8 @@ pub fn arrow_graph_from_gfa<S: BufRead + Seek>(
         link_to: link_to_arr,
         path_names: path_name_arr,
         path_steps: path_step_arrs,
+
+        path_step_list,
     })
 }
 
