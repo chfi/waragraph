@@ -575,8 +575,18 @@ export async function initializeGraphViewer(wasm_mem, graph_raw, layout_url) {
     const mouseMove$ = rxjs.fromEvent(overlay_canvas, 'mousemove');
 
 
+    const hoveredSegment$ = mouseMove$.pipe(
+        rxjs.map((ev) => ({ x: ev.offsetX, y: ev.offsetY })),
+        rxjs.map(({x, y}) => graph_viewer.lookup(x, y)),
+    );
+
+    hoveredSegment$.subscribe((segment) => {
+        if (segment !== null) {
+            // hovered segment
+        }
+    })
+
     mouseMove$.subscribe((event) => {
-        // graph_viewer.mousePos = { x: event.clientX, y: event.clientY };
         graph_viewer.mousePos = { x: event.offsetX, y: event.offsetY };
     });
 

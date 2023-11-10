@@ -352,7 +352,7 @@ impl PolylineRenderer {
                     wgpu::ColorTargetState {
                         format: surface_format,
                         // NB: webgl doesn't support independent blend ops per attch
-                        // blend: Some(wgpu::BlendState::REPLACE),
+                        // and R32Uint isn't blendable at all
                         blend: None,
                         write_mask: wgpu::ColorWrites::all(),
                     },
@@ -360,10 +360,8 @@ impl PolylineRenderer {
                 (
                     "node_id",
                     wgpu::ColorTargetState {
-                        // format: wgpu::TextureFormat::R32Uint,
                         format: wgpu::TextureFormat::R32Uint,
                         blend: None,
-                        // blend: Some(wgpu::BlendState::REPLACE),
                         write_mask: wgpu::ColorWrites::all(),
                     },
                 ),
