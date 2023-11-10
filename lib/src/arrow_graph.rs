@@ -1,9 +1,13 @@
 use ahash::{AHashMap, HashMap};
 use arrow2::{
-    array::{BinaryArray, PrimitiveArray, StructArray, UInt32Array, Utf8Array},
+    array::{
+        BinaryArray, ListArray, PrimitiveArray, StructArray, UInt32Array,
+        Utf8Array,
+    },
     buffer::Buffer,
-    datatypes::{DataType, Field, Schema},
-    offset::OffsetsBuffer,
+    chunk::Chunk,
+    datatypes::{DataType, Field, Metadata, Schema},
+    offset::{Offsets, OffsetsBuffer},
 };
 
 use std::io::prelude::*;
@@ -22,11 +26,12 @@ pub struct ArrowGFA {
     // compression (especially for e.g. paths)
     pub segment_sequences: BinaryArray<i32>,
     pub segment_names: Option<Utf8Array<i32>>,
-
+    // pub segment_id_offset: Option<i32>, // TODO handle this maybe
     pub link_from: UInt32Array,
     pub link_to: UInt32Array,
 
     pub path_names: Utf8Array<i32>,
+    // TODO: path_steps should be a ListArray
     pub path_steps: Vec<UInt32Array>,
 }
 
@@ -523,6 +528,150 @@ pub fn arrow_graph_from_gfa<S: BufRead + Seek>(
         path_names: path_name_arr,
         path_steps: path_step_arrs,
     })
+}
+
+impl ArrowGFA {
+    // need one schema for segments, one for links, etc., as each will need
+    // its own set of record batches
+
+    fn segment_schema() -> Schema {
+        let mut fields = vec![];
+        fields.push(Field::new("segment_sequences", DataType::Binary, false));
+        fields.push(Field::new("segment_names", DataType::Utf8, true));
+        Schema {
+            fields,
+            metadata: Metadata::default(),
+        }
+    }
+
+    fn links_schema() -> Schema {
+        let links = DataType::Struct(vec![
+            Field::new("from", DataType::UInt32, false),
+            Field::new("to", DataType::UInt32, false),
+        ]);
+        Schema {
+            fields: vec![Field::new("links", links, false)],
+            metadata: Metadata::default(),
+        }
+    }
+
+    fn paths_schema() -> Schema {
+        let mut fields = vec![];
+        fields.push(Field::new("path_names", DataType::Utf8, true));
+        fields.push(Field::new(
+            "path_steps",
+            DataType::List(Box::new(Field::new(
+                "steps",
+                DataType::UInt32,
+                false,
+            ))),
+            true,
+        ));
+        Schema {
+            fields,
+            metadata: Metadata::default(),
+        }
+    }
+
+    pub fn write_arrow_ipc<W: std::io::Write>(
+        &self,
+        mut writer: W,
+    ) -> arrow2::error::Result<()> {
+        macro_rules! create_writer {
+            ($schema:expr) => {
+                arrow2::io::ipc::write::FileWriter::try_new(
+                    &mut writer,
+                    $schema,
+                    None,
+                    arrow2::io::ipc::write::WriteOptions { compression: None },
+                )?
+                // .map_err(|e| {
+                //     std::io::Error::new(
+                //         std::io::ErrorKind::Other,
+                //         format!("Error creating Arrow IPC writer: {e:?}"),
+                //     )
+                // })?
+            };
+        }
+        // let create_writer = |writer, schema| {
+        //     arrow2::io::ipc::write::FileWriter::try_new(
+        //         writer,
+        //         schema,
+        //         None,
+        //         arrow2::io::ipc::write::WriteOptions { compression: None },
+        //     )
+        //     .map_err(|e| {
+        //         std::io::Error::new(
+        //             std::io::ErrorKind::Other,
+        //             format!("Error creating Arrow IPC writer: {e:?}"),
+        //         )
+        //     })
+        // };
+
+        {
+            let schema = Self::segment_schema();
+            let mut msg_writer = create_writer!(schema);
+
+            let seqs = self.segment_sequences.clone().boxed();
+            if let Some(names) = self.segment_names.clone() {
+                // this might not even be ecorrect
+                msg_writer
+                    .write(&Chunk::new(vec![seqs, names.boxed()]), None)?;
+            } else {
+                msg_writer.write(&Chunk::new(vec![seqs]), None)?;
+            }
+        }
+
+        {
+            let schema = Self::links_schema();
+
+            let from = self.link_from.clone().boxed();
+            let to = self.link_to.clone().boxed();
+
+            let links = StructArray::new(
+                DataType::Struct(schema.fields.clone()),
+                vec![from, to],
+                None,
+            );
+
+            let mut msg_writer = create_writer!(schema);
+
+            msg_writer.write(&Chunk::new(vec![links.boxed()]), None)?;
+        }
+
+        {
+            let schema = Self::paths_schema();
+
+            let names = self.path_names.clone().boxed();
+            // let steps = ListArray (use arrow2::array::List
+            let steps_list_offsets: Offsets<i32> = Offsets::try_from_lengths(
+                self.path_steps.iter().map(|s| s.len()),
+            )
+            .unwrap();
+            todo!();
+            // let steps = ListArray::new(
+            //     DataType::List(Box::new(Field::new("steps", DataType::UInt32, false))),
+            //     OffsetsBuffer::from(steps_list_offsets),
+        }
+
+        /*
+        let mut writer = arrow2::io::ipc::write::FileWriter::try_new(
+            writer,
+            schema.clone(),
+            None,
+            arrow2::io::ipc::write::WriteOptions { compression: None },
+        )
+        .map_err(|e| {
+            std::io::Error::new(
+                std::io::ErrorKind::Other,
+                format!("Error creating Arrow IPC writer: {e:?}"),
+            )
+        });
+        */
+
+        //
+        Ok(())
+    }
 }
 
 #[cfg(test)]
