@@ -30,6 +30,86 @@ pub struct ArrowGFA {
     pub path_steps: Vec<UInt32Array>,
 }
 
+pub struct PathIndex {
+    pub path_segment_sets: roaring::RoaringBitmap,
+    pub segment_path_matrix: SegmentPathMatrix,
+}
+
+pub struct SegmentPathMatrix {
+    storage: sprs::CompressedStorage,
+    shape: (usize, usize),
+    indptr_array: UInt32Array,
+    ind_array: UInt32Array,
+    data_array: UInt32Array,
+}
+
+impl SegmentPathMatrix {
+    pub fn from_arrow_gfa(gfa: &ArrowGFA) -> Self {
+        let mut segment_paths: HashMap<u32, HashMap<u32, u32>> =
+            HashMap::default();
+
+        for (path_i, steps) in gfa.path_steps.iter().enumerate() {
+            let path_index = path_i as u32;
+            let bitset_index = path_index / 32;
+
+            for step_handle in steps.values_iter() {
+                let segment = step_handle >> 1;
+
+                let bitmap = segment_paths.entry(segment).or_default();
+                *bitmap.entry(bitset_index).or_default() |= path_index % 32;
+            }
+        }
+
+        let rows = (gfa.path_steps.len() as f32 / 32.0).ceil() as usize;
+        let cols = gfa.segment_count();
+
+        let mut tri: sprs::TriMatI<u32, u32> = sprs::TriMatI::new((rows, cols));
+
+        for (segment, bitmap) in segment_paths {
+            let col = segment as usize;
+            for (bitset_index, value) in bitmap {
+                let row = bitset_index as usize;
+                tri.add_triplet(row, col, value);
+            }
+        }
+
+        let mat = tri.to_csc::<u32>();
+
+        let storage = mat.storage();
+        let shape = mat.shape();
+
+        let (indptr, ind, data) = mat.into_raw_storage();
+
+        let indptr_array = UInt32Array::from_vec(indptr);
+        let ind_array = UInt32Array::from_vec(ind);
+        let data_array = UInt32Array::from_vec(data);
+
+        SegmentPathMatrix {
+            storage,
+            shape,
+            indptr_array,
+            ind_array,
+            data_array,
+        }
+    }
+
+    pub fn matrix(&self) -> sprs::CsMatViewI<'_, u32, u32, u32> {
+        // safe since we know it's a correct sparse matrix
+        unsafe {
+            let indptr = self.indptr_array.values();
+            let ind = self.ind_array.values();
+            let data = self.data_array.values();
+            sprs::CsMatViewI::new_unchecked(
+                self.storage,
+                self.shape,
+                indptr,
+                ind,
+                data,
+            )
+        }
+    }
+}
+
 pub struct PathMetadata<'a> {
     name: &'a str,
     step_count: usize,
