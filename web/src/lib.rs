@@ -127,8 +127,99 @@ pub struct SegmentPositions {
     max_bounds: ultraviolet::Vec2,
 }
 
+use ultraviolet::Vec2;
+
+#[derive(Debug, Clone)]
+#[wasm_bindgen]
+pub struct CanvasPathTrace {
+    // path2d: JsValue,
+    points: Vec<Vec2>,
+}
+
+#[wasm_bindgen]
+impl CanvasPathTrace {
+    // pub fn get_path2d(&self) -> &web_sys::Path2d {
+    // pub fn get_path2d(&self) -> &JsValue {
+    //     &self.path2d
+    // }
+
+    pub fn with_points(&self, f: &js_sys::Function) {
+        let this = JsValue::null();
+        for point in &self.points {
+            // let val = JsValue::from_str(name);
+            let _ = f.call2(&this, &point.x.into(), &point.y.into());
+        }
+    }
+
+    pub fn points_array(&self) -> js_sys::Float32Array {
+        let ptr = self.points.as_ptr();
+
+        let memory = js_sys::WebAssembly::Memory::from(wasm_bindgen::memory());
+        js_sys::Float32Array::new_with_byte_offset_and_length(
+            &memory.buffer(),
+            ptr as u32,
+            self.points.len() as u32,
+        )
+    }
+}
+
 #[wasm_bindgen]
 impl SegmentPositions {
+    pub fn sample_canvas_space_path(
+        &self,
+        view: &viewer_2d::view::View2D,
+        canvas_width: f32,
+        canvas_height: f32,
+        path_slice: &[u32],
+        tolerance: f32,
+    ) -> Result<CanvasPathTrace, JsValue> {
+        use ultraviolet::Vec3;
+
+        if path_slice.is_empty() {
+            return Err("Empty path".into());
+        }
+
+        let matrix =
+            view.to_viewport_matrix(Vec2::new(canvas_width, canvas_height));
+
+        // TODO could use SIMD here maybe
+
+        let mut points: Vec<Vec2> = Vec::new();
+
+        let path_vertices = path_slice.iter().flat_map(|&step_handle| {
+            let seg = step_handle >> 1;
+            let i = (seg * 2) as usize;
+
+            let p0 = Vec2::new(self.xs[i], self.ys[i]);
+            let p1 = Vec2::new(self.xs[i + 1], self.ys[i + 1]);
+
+            [p0, p1]
+            // let tan = p1 - p0;
+
+            // let q0 = matrix * Vec3::new(p0.x, p0.y, 1.0);
+            // let q1 = matrix * Vec3::new(p1.x, p1.y, 1.0);
+        });
+
+        let tol_sq = tolerance * tolerance;
+
+        for p in path_vertices {
+            let q = matrix * Vec3::new(p.x, p.y, 1.0);
+
+            if let Some(last_q) = points.last().copied() {
+                let delta = q.xy() - last_q;
+                let dist_sq = delta.mag_sq();
+
+                if delta.mag_sq() >= tol_sq {
+                    points.push(q.xy());
+                }
+            } else {
+                points.push(q.xy());
+            }
+        }
+
+        Ok(CanvasPathTrace { points })
+    }
+
     pub fn path_to_canvas_space_alt(
         &self,
         view: &viewer_2d::view::View2D,
@@ -194,7 +285,7 @@ impl SegmentPositions {
         log::warn!("slice length: {}", path_slice.len());
 
         if path_slice.is_empty() {
-            return Err(JsValue::NULL);
+            return Err("Empty path".into());
         }
 
         // let steps = [path_slice[0], *path_slice.last().unwrap()];
