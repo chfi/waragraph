@@ -24,24 +24,24 @@ import * as CanvasTracks from './canvas_tracks.js';
 
 import * as BedSidebar from './js/sidebar-bed.js';
 
-const gfa_path = "./data/A-3105.fa.353ea42.34ee7b1.1576367.smooth.fix.gfa";
-const layout_path = "./data/A-3105.layout.tsv";
-const path_names = undefined;
+// const gfa_path = "./data/A-3105.fa.353ea42.34ee7b1.1576367.smooth.fix.gfa";
+// const layout_path = "./data/A-3105.layout.tsv";
+// const path_names = undefined;
 
 // const path_names = ["gi|568815592:29942469-29945883"];
 
-// const gfa_path = "./MHC/HPRCy1v2.MHC.fa.ce6f12f.417fcdf.0ead406.smooth.final.gfa";
-// const layout_path = "./MHC/HPRCy1v2.MHC.fa.ce6f12f.417fcdf.0ead406.smooth.final.og.lay.tsv";
-// const path_names = [
-//     "chm13#chr6:28385000-33300000",
-//     "grch38#chr6:28510128-33480000",
-//     "HG02717#2#h2tg000061l:22650152-27715000",
-//     "HG03516#1#h1tg000073l:22631064-27570000",
-//     "HG00733#1#h1tg000070l:28540000-33419448",
-//     "HG02055#1#h1tg000074l:0-4714592",
-//     "HG01978#1#h1tg000035l:28455000-33469848",
-//     "HG02886#2#h2tg000003l:25120800-30214744",
-// ];
+const gfa_path = "./MHC/HPRCy1v2.MHC.fa.ce6f12f.417fcdf.0ead406.smooth.final.gfa";
+const layout_path = "./MHC/HPRCy1v2.MHC.fa.ce6f12f.417fcdf.0ead406.smooth.final.og.lay.tsv";
+const path_names = [
+    "chm13#chr6:28385000-33300000",
+    "grch38#chr6:28510128-33480000",
+    "HG02717#2#h2tg000061l:22650152-27715000",
+    "HG03516#1#h1tg000073l:22631064-27570000",
+    "HG00733#1#h1tg000070l:28540000-33419448",
+    "HG02055#1#h1tg000074l:0-4714592",
+    "HG01978#1#h1tg000035l:28455000-33469848",
+    "HG02886#2#h2tg000003l:25120800-30214744",
+];
 
 function globalSequenceTrack(graph, canvas, view_subject) {
 

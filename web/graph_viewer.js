@@ -332,6 +332,16 @@ export async function initGraphViewer(wasm_mem, graph, layout_url) {
     return graph_viewer;
 }
 
+let pathHighlightTolerance = 5;
+
+export function getPathTolerance() {
+    return pathHighlightTolerance;
+}
+
+export function setPathTolerance(tol) {
+    pathHighlightTolerance = tol;
+}
+
 // input ranges should be in path space
 export function preparePathHighlightOverlay(seg_pos, path_steps, path_cs_raw, entries) {
     const path_cs = wasm_bindgen.CoordSys.__wrap(path_cs_raw.__wbg_ptr);
@@ -376,20 +386,63 @@ export function preparePathHighlightOverlay(seg_pos, path_steps, path_cs_raw, en
 
         for (const entry of processed) {
 
+            try {
+                let canv_path = seg_pos.sample_canvas_space_path(
+                    view,
+                    canvas.width,
+                    canvas.height,
+                    entry.path_slice,
+                    pathHighlightTolerance,
+                )
+
+                // TODO handle zero length path cases
+                let len = canv_path.length;
+                console.warn("canvas path length: ", len);
+
+                ctx.beginPath();
+
+                let start = canv_path.get_point(0);
+                ctx.moveTo(start.x, start.y);
+
+                canv_path.with_points((x, y) => {
+                    ctx.lineTo(x, y);
+                });
+
+                ctx.globalAlpha = 0.8;
+                // ctx.globalCompositeOperation = "copy";
+                ctx.lineWidth = 15;
+                ctx.strokeStyle = entry.color;
+                ctx.stroke();
+
+                /*
+                if (ctx.isPointinStroke(mouse_pos.x, mouse_pos.xy)) {
+                    console.log(entry.label);
+                    // tooltip.innerHTML = `Segment ${segment}`;
+                    // tooltip.style.display = 'block';
+                    // placeTooltipAtPoint(x, y);
+                }
+                */
+                ctx.closePath();
+
+                // ctx.strokeStyle = 'black';
+                // ctx.fillStyle = 'black';
+
+                let ends = canv_path.get_endpoints();
+
+                if (ends !== null) {
+                    console.warn(ends);
+
+                    let x = ends.start.x + (ends.end.x - ends.start.x) * 0.5;
+                    let y = ends.start.y + (ends.end.y - ends.start.y) * 0.5;
+                    ctx.fillText(entry.label, x, y);
+                }
+
+            } catch (e) {
+                console.error("oh no: ", e);
+                //
+            }
+
             /*
-
-            ctx.globalAlpha = 0.8;
-            // ctx.globalCompositeOperation = "copy";
-            ctx.lineWidth = 15;
-            ctx.strokeStyle = entry.color;
-
-            ctx.beginPath();
-            ctx.moveTo(pos_obj.x0, pos_obj.y0);
-            ctx.lineTo(pos_obj.x1, pos_obj.y1);
-            ctx.stroke();
-            ctx.closePath();
-            */
-
             try {
                 let pos_obj = seg_pos
                     .path_to_canvas_space_alt(view, canvas.width, canvas.height, entry.path_slice);
@@ -428,56 +481,8 @@ export function preparePathHighlightOverlay(seg_pos, path_steps, path_cs_raw, en
             } catch (e) {
                 //
             }
-
-            /*
-            try {
-                let path2d = seg_pos
-                    .path_to_canvas_space(view, canvas.width, canvas.height, entry.path_slice);
-
-                
-                ctx.globalAlpha = 0.8;
-                ctx.globalCompositeOperation = "copy";
-                ctx.lineWidth = 15;
-                ctx.strokeStyle = entry.color;
-
-                ctx.beginPath();
-                ctx.moveTo(0, 0);
-                ctx.stroke(path2d);
-                ctx.closePath();
-
-            } catch (e) {
-                console.log(e);
-            }
             */
 
-            // if (entry.path_slice.length > 0) {
-            //     let start_handle = entry.path_slice.at(0);
-            //     console.log(start_handle);
-
-            //     let start_pos = seg_pos.segment_pos(start_handle);
-            //     let start_vec = vec3.fromValues(start_pos.x0, start_pos.y0, 1.0);
-            //     let start_cv = vec3.create();
-
-            //     vec3.transformMat3(start_cv, start_pos, view_matrix);
-
-            //     // console.log(entry.start);
-            //     console.log(start_cv);
-
-            //     ctx.fillText(entry.label, start_pos.x0, start_pos.y0);
-            // }
-
-            /*
-            console.log(mouse_pos);
-
-            if (mouse_pos !== null && entry.label) {
-                // if (ctx.isPointInPath(path2d, mouse_pos.x, mouse_pos.y)) {
-                // if (ctx.isPointInStroke(path2d, mouse_pos.x, mouse_pos.y)) {
-                if (ctx.isPointInStroke(path2d, 0, 0)) {
-                // if (ctx.isPointInStroke(mouse_pos.x, mouse_pos.y)) {
-                    console.log(entry.label);
-                }
-            }
-            */
 
         }
 

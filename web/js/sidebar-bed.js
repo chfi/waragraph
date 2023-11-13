@@ -32,17 +32,10 @@ let wasm = null;
 
 function createPathOffsetMap(path_name) {
     const regex = /.+:(\d+)-(\d+)$/;
-    console.log(path_name);
     if (!path_name) {
         throw `Path ${path_name} not found`;
     }
     const found = path_name.match(regex);
-
-    // if (found === null) {
-    //     return (x) => x;
-    // }
-
-    // const start = Number(found[1]);
 
     const start = found === null ? 0 : Number(found[1]);
 
@@ -124,6 +117,8 @@ async function createDrawBedEntryFn1d(bed_entry, color_fn) {
 
         let slice = path_steps.slice(path_range.start, path_range.end);
 
+        console.log("steps in ", bed_entry.name, ": ", slice.length);
+
         let seg_ranges = wasm_bindgen.path_slice_to_global_adj_partitions(slice);
         let seg_ranges_arr = seg_ranges.ranges_as_u32_array();
         let range_count = seg_ranges_arr.length / 2;
@@ -150,9 +145,9 @@ async function createDrawBedEntryFn1d(bed_entry, color_fn) {
 }
 
 async function createDrawBedEntryFn2d(bed_entry, color_fn) {
-    console.log(bed_entry);
+    // console.log(bed_entry);
     let path_name = findPathName(bed_entry.chrom);
-    console.log(path_name);
+    // console.log(path_name);
     let path_offset_map = createPathOffsetMap(path_name);
 
     let seg_pos = waragraph_viz.graph_viewer.segment_positions;
@@ -213,7 +208,7 @@ async function loadBedFile(file) {
         if (!Number.isNaN(bed_entry.chromStart)
             && !Number.isNaN(bed_entry.chromEnd)) {
             const entry = transformBedRange(bed_entry);
-            console.log(entry);
+            // console.log(entry);
 
             // const draw_bed = await createDrawBedEntryFn(entry);
 

@@ -143,10 +143,44 @@ impl CanvasPathTrace {
     //     &self.path2d
     // }
 
+    #[wasm_bindgen(js_name = length, getter)]
+    pub fn len(&self) -> usize {
+        self.points.len()
+    }
+
+    pub fn get_endpoints(&self) -> JsValue {
+        if self.points.is_empty() {
+            return JsValue::null();
+        }
+
+        let start = self.get_point(0).unwrap();
+        let end = self.get_point(self.points.len() - 1).unwrap();
+
+        let obj = js_sys::Object::default();
+        js_sys::Reflect::set(obj.as_ref(), &"start".into(), start.as_ref());
+        js_sys::Reflect::set(obj.as_ref(), &"end".into(), end.as_ref());
+        obj.into()
+    }
+
+    pub fn get_point(&self, ix: usize) -> Result<js_sys::Object, JsValue> {
+        let p = self.points.get(ix).ok_or_else(|| {
+            JsValue::from(format!(
+                "Point {ix} does not exist in path (length {})",
+                self.points.len()
+            ))
+        })?;
+
+        let obj = js_sys::Object::default();
+        js_sys::Reflect::set(obj.as_ref(), &"x".into(), &p.x.into());
+        js_sys::Reflect::set(obj.as_ref(), &"y".into(), &p.y.into());
+        Ok(obj)
+    }
+
     pub fn with_points(&self, f: &js_sys::Function) {
         let this = JsValue::null();
-        for point in &self.points {
-            // let val = JsValue::from_str(name);
+        // for (i, point) in self.points.iter().enumerate() {
+        for point in self.points.iter() {
+            // let _ = f.call3(&this, &point.x.into(), &point.y.into(), &i.into());
             let _ = f.call2(&this, &point.x.into(), &point.y.into());
         }
     }
@@ -202,7 +236,10 @@ impl SegmentPositions {
 
         let tol_sq = tolerance * tolerance;
 
+        let mut last_vertex = None;
+
         for p in path_vertices {
+            last_vertex = Some(p);
             let q = matrix * Vec3::new(p.x, p.y, 1.0);
 
             if let Some(last_q) = points.last().copied() {
@@ -214,6 +251,15 @@ impl SegmentPositions {
                 }
             } else {
                 points.push(q.xy());
+            }
+        }
+
+        if points.len() == 1 {
+            if let Some(p) = last_vertex {
+                let q = matrix * Vec3::new(p.x, p.y, 1.0);
+                if q.xy() != points[0] {
+                    points.push(q.xy());
+                }
             }
         }
 
