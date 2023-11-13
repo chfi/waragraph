@@ -91,11 +91,13 @@ export async function initializePathViewer(
     container.append(data_canvas);
     container.append(overlay_canvas);
 
-    let view = await cs_view.get();
+    {
+        let view = await cs_view.get();
 
-    await worker_ctx.setView(view.start, view.end);
-    await worker_ctx.sample();
-    await worker_ctx.forceRedraw();
+        await worker_ctx.setView(view.start, view.end);
+        await worker_ctx.sample();
+        await worker_ctx.forceRedraw();
+    }
 
 
     resize_subject.subscribe(async () => {
@@ -116,7 +118,20 @@ export async function initializePathViewer(
 
     const trackCallbacks = {};
 
-    const path_viewer = { worker_ctx, data_canvas, overlay_canvas, trackCallbacks }
+    const path_viewer = { worker_ctx, data_canvas, overlay_canvas, trackCallbacks };
+
+    path_viewer.drawOverlays = async () => {
+        let canvas = overlay_canvas;
+        let overlay_ctx = canvas.getContext('2d');
+        overlay_ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        let view = await cs_view.get();
+
+        for (const key in path_viewer.trackCallbacks) {
+            const callback = path_viewer.trackCallbacks[key];
+            callback(canvas, view);
+        }
+    };
 
     data_canvas.path_viewer = path_viewer;
 
@@ -242,7 +257,6 @@ export async function addPathViewerLogic(worker, path_viewer, cs_view) {
 
             for (const key in path_viewer.trackCallbacks) {
                 const callback = path_viewer.trackCallbacks[key];
-                // console.log(callback);
                 callback(canvas, view);
             }
 

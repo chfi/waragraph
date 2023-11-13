@@ -205,7 +205,6 @@ export async function initGraphViewer(wasm_mem, graph, layout_url) {
 
 
     mouseMove$.subscribe((event) => {
-        // graph_viewer.mousePos = { x: event.clientX, y: event.clientY };
         graph_viewer.mousePos = { x: event.offsetX, y: event.offsetY };
     });
 
@@ -345,9 +344,10 @@ export function preparePathHighlightOverlay(seg_pos, path_steps, path_cs_raw, en
         const path_slice = path_steps.slice(step_range.start, step_range.end);
 
         processed.push({ path_slice, color: entry.color, start, end, label });
+        console.log("steps in ", entry.label, ": ", path_slice.length);
     }
 
-    console.log(processed);
+    // console.log(processed);
 
     return (canvas, view, mouse_pos) => {
 
@@ -577,6 +577,8 @@ export async function initializeGraphViewer(wasm_mem, graph_raw, layout_url) {
 
     const hoveredSegment$ = mouseMove$.pipe(
         rxjs.map((ev) => ({ x: ev.offsetX, y: ev.offsetY })),
+        rxjs.distinct(),
+        rxjs.throttleTime(40),
         rxjs.map(({x, y}) => graph_viewer.lookup(x, y)),
     );
 
@@ -598,8 +600,8 @@ export async function initializeGraphViewer(wasm_mem, graph_raw, layout_url) {
         rxjs.switchMap((event) => {
             return mouseMove$.pipe(
                 rxjs.pairwise(),
-                rxjs.map(([prev, current]) => [current.clientX - prev.clientX,
-                                               current.clientY - prev.clientY]),
+                rxjs.map(([prev, current]) => [current.offsetX - prev.offsetX,
+                                               current.offsetY - prev.offsetY]),
                 rxjs.takeUntil(
                     rxjs.race(mouseUp$, mouseOut$)
                 )
@@ -618,8 +620,8 @@ export async function initializeGraphViewer(wasm_mem, graph_raw, layout_url) {
     );
 
     wheel$.subscribe((event) => {
-        let x = event.clientX;
-        let y = overlay_canvas.height - event.clientY;
+        let x = event.offsetX;
+        let y = overlay_canvas.height - event.offsetY;
 
         let nx = x / overlay_canvas.width;
         let ny = y / overlay_canvas.height;

@@ -85,7 +85,7 @@ function bedEntryColorOrFn(bed_entry, color_fn) {
     } else if (bed_entry.color) {
         color = bed_entry.color;
     } else {
-        let {r,g,b} = wasm_bindgen.path_name_hash_color_obj(entry.label);
+        let {r,g,b} = wasm_bindgen.path_name_hash_color_obj(bed_entry.name);
         color = `rgb(${r * 255},${g * 255},${b * 255})`;
     }
 
@@ -200,6 +200,14 @@ async function loadBedFile(file) {
 
     const bed_lines = bed_text.split('\n').map(line => parser.parseLine(line));
 
+    const tgl_button = (dim) => {
+        const el = document.createElement('button');
+        el.innerHTML = dim + 'D';
+        el.classList.add('bed-row-' + dim + 'd', 'highlight-disabled');
+        el.style.setProperty('display', 'block');
+        return el;
+    };
+
     for (const bed_entry of bed_lines) {
 
         if (!Number.isNaN(bed_entry.chromStart)
@@ -239,13 +247,6 @@ async function loadBedFile(file) {
             });
 
 
-            const tgl_button = (dim) => {
-                const el = document.createElement('button');
-                el.innerHTML = dim + 'D';
-                el.classList.add('bed-row-' + dim + 'd', 'highlight-disabled');
-                el.style.setProperty('display', 'block');
-                return el;
-            };
 
             const tgl_1d = tgl_button('1');
             const tgl_2d = tgl_button('2');
@@ -266,7 +267,18 @@ async function loadBedFile(file) {
                 }
             };
 
-            const draw_bed_1d = await createDrawBedEntryFn1d(entry);
+            const hash_black_color = (record) => {
+                if (record.itemRgb === undefined || record.itemRgb === "0,0,0") {
+                    let {r,g,b} = wasm_bindgen.path_name_hash_color_obj(record.name);
+                    return `rgb(${r * 255},${g * 255},${b * 255})`;
+                } else if (typeof record.itemRgb === 'string') {
+                    let [r,g,b] = record.itemRgb.split(',');
+                    return `rgb(${r * 255},${g * 255},${b * 255})`;
+                }
+            };
+
+            /*
+            const draw_bed_1d = await createDrawBedEntryFn1d(entry, hash_black_color);
             const path_name = findPathName(bed_entry.chrom);
             const el_id = 'viewer-' + path_name;
             console.log(el_id);
@@ -277,23 +289,15 @@ async function loadBedFile(file) {
 
             tgl_1d.addEventListener('click', (e) => {
                 if (toggle_highlight_class(tgl_1d)) {
-                    // TODO add/remove callbacks so that the overlays get refreshed
                     path_viewer.trackCallbacks[cb_key] = draw_bed_1d;
                 } else {
-                    // TODO remove callback
                     delete path_viewer.trackCallbacks[cb_key];
                 }
+                path_viewer.drawOverlays();
             });
+            */
 
-            const draw_bed_2d = await createDrawBedEntryFn2d(entry, (record) => {
-                if (record.itemRgb === undefined || record.itemRgb === "0,0,0") {
-                    let {r,g,b} = wasm_bindgen.path_name_hash_color_obj(record.name);
-                    return `rgb(${r * 255},${g * 255},${b * 255})`;
-                } else if (typeof record.itemRgb === 'string') {
-                    let [r,g,b] = record.itemRgb.split(',');
-                    return `rgb(${r * 255},${g * 255},${b * 255})`;
-                }
-            });
+            const draw_bed_2d = await createDrawBedEntryFn2d(entry, hash_black_color);
 
             tgl_2d.addEventListener('click', (e) => {
                 if (toggle_highlight_class(tgl_2d)) {
@@ -307,6 +311,41 @@ async function loadBedFile(file) {
         }
 
     }
+
+    const toggle_div = document.createElement('div');
+    toggle_div.classList.add('bed-file-row');
+    toggle_div.innerHTML = `
+<button class="bed-row-2d">2D</button>
+<button class="bed-row-1d">1D</button>`;
+
+    // let tgl_1d = tgl_button('1');
+    // let tgl_2d = tgl_button('2');
+    // toggle_div.append(tgl_1d);
+    // toggle_div.append(tgl_2d);
+
+    toggle_div.querySelector('button.bed-row-2d').addEventListener('click', (e) => {
+    // tgl_2d.addEventListener('click', (e) => {
+        let buttons = document.querySelectorAll("#bed-file-list > div > div > button.bed-row-2d");
+        buttons.forEach((el) => {
+            if (e.target !== el) {
+                el.click()
+            }
+        });
+    });
+
+    toggle_div.querySelector('button.bed-row-1d').addEventListener('click', (e) => {
+    // tgl_1d.querySelector('button.bed-row-1d').addEventListener('click', (e) => {
+        let buttons = document.querySelectorAll("#bed-file-list > div > div > button.bed-row-1d");
+        // buttons.forEach((el) => el.click());
+        buttons.forEach((el) => {
+            if (e.target !== el) {
+                el.click()
+            }
+        });
+    });
+
+    entries_list.append(toggle_div);
+
 
 }
 
