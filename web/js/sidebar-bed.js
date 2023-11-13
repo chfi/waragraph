@@ -272,7 +272,7 @@ async function loadBedFile(file) {
                 }
             };
 
-            /*
+            
             const draw_bed_1d = await createDrawBedEntryFn1d(entry, hash_black_color);
             const path_name = findPathName(bed_entry.chrom);
             const el_id = 'viewer-' + path_name;
@@ -290,7 +290,6 @@ async function loadBedFile(file) {
                 }
                 path_viewer.drawOverlays();
             });
-            */
 
             const draw_bed_2d = await createDrawBedEntryFn2d(entry, hash_black_color);
 

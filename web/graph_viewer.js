@@ -442,47 +442,6 @@ export function preparePathHighlightOverlay(seg_pos, path_steps, path_cs_raw, en
                 //
             }
 
-            /*
-            try {
-                let pos_obj = seg_pos
-                    .path_to_canvas_space_alt(view, canvas.width, canvas.height, entry.path_slice);
-
-                const tolerance = 7.5;
-
-                let path2d = seg_pos
-                    .path_to_canvas_space(view,
-                                          canvas.width,
-                                          canvas.height,
-                                          entry.path_slice,
-                                          tolerance);
-
-
-                
-                ctx.globalAlpha = 0.8;
-                // ctx.globalCompositeOperation = "copy";
-                ctx.lineWidth = 15;
-                ctx.strokeStyle = entry.color;
-
-                ctx.beginPath();
-                ctx.moveTo(0, 0);
-                ctx.stroke(path2d);
-                if (ctx.isPointinStroke(mouse_pos.x, mouse_pos.xy)) {
-                    console.log(entry.label);
-                    // tooltip.innerHTML = `Segment ${segment}`;
-                    // tooltip.style.display = 'block';
-                    // placeTooltipAtPoint(x, y);
-                }
-                ctx.closePath();
-
-                let x = pos_obj.x0 + (pos_obj.x1 - pos_obj.x0) * 0.5;
-                let y = pos_obj.y0 + (pos_obj.y1 - pos_obj.y0) * 0.5;
-
-                ctx.fillText(entry.label, x, y);
-            } catch (e) {
-                //
-            }
-            */
-
 
         }
 

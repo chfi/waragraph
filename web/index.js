@@ -246,6 +246,8 @@ const init = async () => {
     const wasm = await init_module();
     const worker = new Worker(new URL("main_worker.js", import.meta.url), { type: 'module' });
 
+    window.wasm_bindgen = wasm;
+
     worker.onmessage = async (event) => {
         if (event.data === "WORKER_INIT") {
             worker.postMessage([wasm.memory, gfa_path]);
@@ -259,6 +261,17 @@ const init = async () => {
             const graph_viewer = await initializeGraphViewer(wasm.memory, graph_raw, layout_path);
 
             const warapi = new WaragraphViz(wasm, worker_obj, graph_viewer);
+
+            window.getPathCoordSys = async (path_name) => {
+                return await worker_obj.pathCoordSys(path_name);
+            };
+
+            // getPathRange("grch38#chr6:28510128-33480000", 1841288n, 1841422n)
+            window.getPathRange = async (path_name, start, end) => {
+                let cs_raw = await worker_obj.pathCoordSys(path_name);
+                let cs = wasm_bindgen.CoordSys.__wrap(cs_raw.__wbg_ptr);
+                return cs.bp_to_step_range(start, end);
+            };
 
             await BedSidebar.initializeBedSidebarPanel(warapi);
 
