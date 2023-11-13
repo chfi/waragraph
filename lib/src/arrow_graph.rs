@@ -14,6 +14,7 @@ use std::io::prelude::*;
 
 use crate::graph::{Bp, Edge, Node, OrientedNode, PathId};
 
+#[derive(Debug, Clone)]
 pub struct ArrowGFA {
     // using 32-bit IDs & indices, even for sequence, for now; since
     // wasm is limited to 32 bits for the foreseeable future (and
@@ -33,16 +34,25 @@ pub struct ArrowGFA {
     pub path_names: Utf8Array<i32>,
     // TODO: path_steps should be a ListArray
     path_steps: Vec<UInt32Array>,
-
     // TODO: finish this!!
-    path_step_list: ListArray<i32>,
+    // path_step_list: ListArray<i32>,
 }
 
+#[derive(Debug, Clone)]
 pub struct PathIndex {
-    pub path_segment_sets: roaring::RoaringBitmap,
     pub segment_path_matrix: SegmentPathMatrix,
 }
 
+impl PathIndex {
+    pub fn from_arrow_gfa(gfa: &ArrowGFA) -> Self {
+        let segment_path_matrix = SegmentPathMatrix::from_arrow_gfa(gfa);
+        Self {
+            segment_path_matrix,
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
 pub struct SegmentPathMatrix {
     storage: sprs::CompressedStorage,
     shape: (usize, usize),
@@ -115,6 +125,23 @@ impl SegmentPathMatrix {
                 data,
             )
         }
+    }
+
+    pub fn paths_on_segment(&self, segment: u32) -> sprs::CsVecI<u32, u32> {
+        let matrix = self.matrix();
+        // let rows = matrix.rows();
+
+        let mut rhs: sprs::CsVecI<u32, u32> =
+            sprs::CsVecI::empty(matrix.cols());
+        rhs.append(segment as usize, 1);
+
+        log::warn!("rhs: {:?}", rhs);
+
+        let result = &matrix * &rhs;
+
+        log::warn!("result: {result:?}");
+
+        result
     }
 }
 
@@ -467,7 +494,7 @@ pub fn arrow_graph_from_gfa<S: BufRead + Seek>(
     let mut path_step_offset = 0;
     // each step as handle, per path
     let mut path_step_arrs: Vec<UInt32Array> = Vec::new();
-    let mut path_step_array: Vec<u32> = Vec::new();
+    // let mut path_step_array: Vec<u32> = Vec::new();
 
     gfa_reader.rewind()?;
 
@@ -513,8 +540,8 @@ pub fn arrow_graph_from_gfa<S: BufRead + Seek>(
             let is_rev = seg_orient == b"-";
 
             let seg_i = seg_step_to_handle(seg_name, is_rev);
-            // step_vec.push(seg_i);
-            path_step_array.push(seg_i);
+            step_vec.push(seg_i);
+            // path_step_array.push(seg_i);
         }
 
         path_step_offsets.push(path_step_offset);
@@ -526,15 +553,15 @@ pub fn arrow_graph_from_gfa<S: BufRead + Seek>(
     path_name_offsets.push(name_offset as i32);
     let name_offsets = OffsetsBuffer::try_from(path_name_offsets).unwrap();
 
-    path_step_offsets.push(path_step_offset);
-    let path_step_offsets = OffsetsBuffer::try_from(path_step_offsets).unwrap();
+    // path_step_offsets.push(path_step_offset);
+    // let path_step_offsets = OffsetsBuffer::try_from(path_step_offsets).unwrap();
 
-    let path_step_list = ListArray::new(
-        DataType::List(Box::new(Field::new("steps", DataType::UInt32, false))),
-        path_step_offsets,
-        UInt32Array::from_vec(path_step_array).boxed(),
-        None,
-    );
+    // let path_step_list = ListArray::new(
+    //     DataType::List(Box::new(Field::new("steps", DataType::UInt32, false))),
+    //     path_step_offsets,
+    //     UInt32Array::from_vec(path_step_array).boxed(),
+    //     None,
+    // );
 
     // let arr: MutablePrimitiveArray<u32> = MutablePrimitiveArray::default();
     // let mut steps_list = MutableListArray::new_with_field(arr, "steps", false);
@@ -563,8 +590,7 @@ pub fn arrow_graph_from_gfa<S: BufRead + Seek>(
         link_to: link_to_arr,
         path_names: path_name_arr,
         path_steps: path_step_arrs,
-
-        path_step_list,
+        // path_step_list,
     })
 }
 

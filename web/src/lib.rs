@@ -14,7 +14,7 @@ use parking_lot::RwLock;
 
 use egui_winit::winit;
 use raving_wgpu::gui::EguiCtx;
-use waragraph_core::{arrow_graph::ArrowGFA, graph::PathIndex};
+use waragraph_core::arrow_graph::{ArrowGFA, PathIndex};
 use wasm_bindgen_futures::JsFuture;
 
 use wasm_bindgen::prelude::*;
@@ -381,6 +381,7 @@ impl SegmentPositions {
         let mut max_bounds = Vec2::broadcast(std::f32::MIN);
 
         log::debug!("parsing?????");
+        let t0 = instant::now();
         for (i, line) in cursor.lines().enumerate() {
             if i == 0 {
                 continue;
@@ -402,6 +403,8 @@ impl SegmentPositions {
             xs.push(x);
             ys.push(y);
         }
+        let t1 = instant::now();
+        log::warn!("layout TSV parsing took {:.2} ms", t1 - t0);
 
         Ok(SegmentPositions {
             xs,
@@ -416,7 +419,37 @@ impl SegmentPositions {
 pub struct ArrowGFAWrapped(pub(crate) ArrowGFA);
 
 #[wasm_bindgen]
+pub struct PathIndexWrapped(pub(crate) PathIndex);
+
+#[wasm_bindgen]
+impl PathIndexWrapped {
+    pub fn paths_on_segment(&self, segment: u32) -> () {
+        let bitmap = self.0.segment_path_matrix.paths_on_segment(segment);
+
+        for (ix, &bits) in bitmap.iter() {
+            println!("{ix} - {:b}", bits);
+        }
+
+        // bitmap
+        // for set in bitmap {
+        // }
+        // let matrix = self.0.segment_path_matrix.matrix();
+        // let rows = matrix.rows();
+
+        // let rhs: CsVec = sprs::CsVecI::empty();
+        // let result = vec![0; rows];
+
+        // let mut out = vec![0; rows];
+    }
+}
+
+#[wasm_bindgen]
 impl ArrowGFAWrapped {
+    pub fn generate_path_index(&self) -> PathIndexWrapped {
+        let path_index = PathIndex::from_arrow_gfa(&self.0);
+        PathIndexWrapped(path_index)
+    }
+
     pub fn segment_count(&self) -> usize {
         self.0.segment_count()
     }
@@ -516,20 +549,6 @@ pub async fn load_gfa_arrow(
     .unwrap();
 
     Ok(ArrowGFAWrapped(graph))
-}
-
-#[wasm_bindgen]
-pub struct PathIndexWrap(pub(crate) PathIndex);
-
-#[wasm_bindgen]
-impl PathIndexWrap {
-    pub fn node_count(&self) -> usize {
-        self.0.node_count
-    }
-
-    pub fn path_count(&self) -> usize {
-        self.0.path_names.len()
-    }
 }
 
 #[wasm_bindgen]

@@ -68,6 +68,8 @@ export async function initializePathViewer(
     data_canvas.width = width;
     data_canvas.height = height;
 
+    data_canvas.id = 'viewer-' + path_name;
+
     let offscreen = data_canvas.transferControlToOffscreen();
 
     const worker_ctx = await worker.createPathViewer(Comlink.transfer(offscreen, [offscreen]),
@@ -114,7 +116,11 @@ export async function initializePathViewer(
 
     const trackCallbacks = {};
 
-    return { worker_ctx, data_canvas, overlay_canvas, trackCallbacks };
+    const path_viewer = { worker_ctx, data_canvas, overlay_canvas, trackCallbacks }
+
+    data_canvas.path_viewer = path_viewer;
+
+    return path_viewer;
 }
 
 
@@ -162,6 +168,14 @@ export async function addPathViewerLogic(worker, path_viewer, cs_view) {
         tooltip.innerHTML = `Segment ${segment}`;
         tooltip.style.display = 'block';
         placeTooltipAtPoint(x, y);
+
+        /*
+        if (segment) {
+            let paths = await worker.pathsOnSegment(segment);
+            console.log("paths!!!");
+            console.log(paths);
+        }
+        */
     });
 
 

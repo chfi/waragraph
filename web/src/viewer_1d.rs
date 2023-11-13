@@ -11,7 +11,7 @@ use web_sys::{
     CanvasRenderingContext2d, HtmlCanvasElement, ImageData, OffscreenCanvas,
 };
 
-use crate::{ArrowGFAWrapped, PathIndexWrap};
+use crate::{ArrowGFAWrapped, PathIndexWrapped};
 
 use self::view::View1D;
 
@@ -659,9 +659,10 @@ pub fn arrow_gfa_depth_data(
     })
 }
 
+/*
 #[wasm_bindgen]
 pub fn generate_depth_data(
-    graph: &PathIndexWrap,
+    graph: &PathIndexWrapped,
     path_name: &str,
 ) -> Result<SparseData, JsValue> {
     let graph = &graph.0;
@@ -690,6 +691,7 @@ pub fn generate_depth_data(
         data: Float32Array::from_vec(data),
     })
 }
+*/
 
 #[wasm_bindgen]
 impl CoordSys {

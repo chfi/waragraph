@@ -7,6 +7,7 @@ import * as rxjs from 'rxjs';
 const handler = import('./transfer_handlers.js');
 
 let _graph;
+let _path_index;
 
 let _state;
 
@@ -214,10 +215,18 @@ async function run(memory, gfa_path) {
     let gfa = fetch(gfa_path);
     
     console.log("parsing GFA");
+    let timer0_ = Date.now();
     let graph = await wasm_bindgen.load_gfa_arrow(gfa);
+    let timer1_ = Date.now();
+    console.warn("parsing GFA took ", timer1_ - timer0_, " ms");
+
+    // let path_index = await graph.generate_path_index();
+    // _path_index = path_index;
 
     console.log("constructing coordinate system");
     let coord_sys = wasm_bindgen.CoordSys.global_from_arrow_gfa(graph);
+    // let timer1_ = Date.now();
+    // console.log(timer2_);
     // console.log("deriving depth data");
     // let data = wasm_bindgen.arrow_gfa_depth_data(graph, path_name);
 
@@ -269,6 +278,12 @@ async function run(memory, gfa_path) {
         pathCoordSys(path_name) {
             return getPathCoordinateSystem(path_name);
         },
+        // pathsOnSegment(segment) {
+        //     return path_index.paths_on_segment(segment);
+        // },
+        // pathIndex() {
+        //     return path_index;
+        // },
         pathRangeToStepRange(path_name, range_start, range_end) {
             let start = typeof range_start == 'bigint'
                 ? range_start : BigInt(range_start);

@@ -6,6 +6,8 @@ import {computePosition} from '@floating-ui/dom';
 
 import { preparePathHighlightOverlay } from '../graph_viewer.js';
 
+import * as CanvasTracks from '../canvas_tracks.js';
+
 import '../sidebar-bed.css';
 
 let pathNamesMap = new Map();
@@ -36,11 +38,14 @@ function createPathOffsetMap(path_name) {
     }
     const found = path_name.match(regex);
 
-    if (found === null) {
-        return (x) => x;
-    }
+    // if (found === null) {
+    //     return (x) => x;
+    // }
 
-    const start = Number(found[1]);
+    // const start = Number(found[1]);
+
+    const start = found === null ? 0 : Number(found[1]);
+
     return (bp) => bp - start;
 }
 
@@ -71,7 +76,80 @@ function transformBedRange(bed_entry) {
     return new_entry;
 }
 
-async function createDrawBedEntryFn(bed_entry, color_fn) {
+function bedEntryColorOrFn(bed_entry, color_fn) {
+    let color;
+
+    if (typeof bed_entry.itemRgb === "string") {
+        let [r,g,b] = bed_entry.itemRgb.split(',');
+        color = `rgb(${r * 255},${g * 255},${b * 255})`;
+    } else if (bed_entry.color) {
+        color = bed_entry.color;
+    } else {
+        let {r,g,b} = wasm_bindgen.path_name_hash_color_obj(entry.label);
+        color = `rgb(${r * 255},${g * 255},${b * 255})`;
+    }
+
+    if (typeof color_fn === 'function') {
+        color = color_fn(bed_entry);
+    }
+
+    return color;
+}
+
+async function createDrawBedEntryFn1d(bed_entry, color_fn) {
+    //
+    let path_name = findPathName(bed_entry.chrom);
+    let path_offset_map = createPathOffsetMap(path_name);
+
+    let graph_raw = await waragraph_viz.worker_obj.getGraph();
+    let graph = wasm_bindgen.ArrowGFAWrapped.__wrap(graph_raw.__wbg_ptr);
+    let path_steps = graph.path_steps(path_name);
+
+    // let color = bedEntryColorOrFn(bed_entry, color_fn);
+
+    let entry = { start: bed_entry.chromStart,
+                  end: bed_entry.chromEnd,
+                  label: bed_entry.name };
+
+    entry.color = bedEntryColorOrFn(bed_entry, color_fn);
+
+    const cs_view = await waragraph_viz.worker_obj.globalCoordSysView();
+
+    let global_entries = [];
+
+    try {
+        let path_range = await waragraph_viz
+            .worker_obj
+            .pathRangeToStepRange(path_name, entry.start, entry.end);
+
+        let slice = path_steps.slice(path_range.start, path_range.end);
+
+        let seg_ranges = wasm_bindgen.path_slice_to_global_adj_partitions(slice);
+        let seg_ranges_arr = seg_ranges.ranges_as_u32_array();
+        let range_count = seg_ranges_arr.length / 2;
+
+        for (let ri = 0; ri < range_count; ri++) {
+            let start_seg = seg_ranges_arr.at(2 * ri);
+            let end_seg = seg_ranges_arr.at(2 * ri + 1);
+
+            if (start_seg && end_seg) {
+                let start = await cs_view.segmentOffset(start_seg);
+                let end = await cs_view.segmentOffset(end_seg);
+
+                global_entries.push({start, end, color: entry.color});
+            }
+        }
+    } catch (e) {
+        // TODO
+        throw "Error creating 1D highlight track: " + e;
+    }
+
+    let callback = CanvasTracks.createHighlightCallback(global_entries);
+
+    return callback;
+}
+
+async function createDrawBedEntryFn2d(bed_entry, color_fn) {
     console.log(bed_entry);
     let path_name = findPathName(bed_entry.chrom);
     console.log(path_name);
@@ -89,19 +167,7 @@ async function createDrawBedEntryFn(bed_entry, color_fn) {
                   end: bed_entry.chromEnd,
                   label: bed_entry.name };
 
-    if (typeof bed_entry.itemRgb === "string") {
-        let [r,g,b] = bed_entry.itemRgb.split(',');
-        entry.color = `rgb(${r * 255},${g * 255},${b * 255})`;
-    } else if (bed_entry.color) {
-        entry.color = bed_entry.color;
-    } else {
-        let {r,g,b} = wasm_bindgen.path_name_hash_color_obj(entry.label);
-        entry.color = `rgb(${r * 255},${g * 255},${b * 255})`;
-    }
-
-    if (typeof color_fn === 'function') {
-        entry.color = color_fn(bed_entry);
-    }
+    entry.color = bedEntryColorOrFn(bed_entry, color_fn);
 
     let callback_2d = 
         preparePathHighlightOverlay(seg_pos,
@@ -142,16 +208,6 @@ async function loadBedFile(file) {
             console.log(entry);
 
             // const draw_bed = await createDrawBedEntryFn(entry);
-            const draw_bed = await createDrawBedEntryFn(entry, (record) => {
-                if (record.itemRgb === undefined || record.itemRgb === "0,0,0") {
-                    let {r,g,b} = wasm_bindgen.path_name_hash_color_obj(record.name);
-                    return `rgb(${r * 255},${g * 255},${b * 255})`;
-                } else if (typeof record.itemRgb === 'string') {
-                    let [r,g,b] = record.itemRgb.split(',');
-                    return `rgb(${r * 255},${g * 255},${b * 255})`;
-                }
-            });
-            console.log(draw_bed);
 
             const cb_key = file.name + ":" + entry.name;
 
@@ -183,15 +239,16 @@ async function loadBedFile(file) {
             });
 
 
-            const tgl_1d = document.createElement('button');
-            tgl_1d.innerHTML = "1D";
-            tgl_1d.classList.add('bed-row-1d', 'highlight-disabled');
-            tgl_1d.style.setProperty('display', 'block');
+            const tgl_button = (dim) => {
+                const el = document.createElement('button');
+                el.innerHTML = dim + 'D';
+                el.classList.add('bed-row-' + dim + 'd', 'highlight-disabled');
+                el.style.setProperty('display', 'block');
+                return el;
+            };
 
-            const tgl_2d = document.createElement('button');
-            tgl_2d.innerHTML = "2D";
-            tgl_2d.classList.add('bed-row-2d', 'highlight-disabled');
-            tgl_2d.style.setProperty('display', 'block');
+            const tgl_1d = tgl_button('1');
+            const tgl_2d = tgl_button('2');
 
             entry_div.append(label_div);
             entry_div.append(tgl_1d);
@@ -209,17 +266,38 @@ async function loadBedFile(file) {
                 }
             };
 
+            const draw_bed_1d = await createDrawBedEntryFn1d(entry);
+            const path_name = findPathName(bed_entry.chrom);
+            const el_id = 'viewer-' + path_name;
+            console.log(el_id);
+            const path_viewer_canvas = document.getElementById('viewer-' + path_name);
+            console.log(path_viewer_canvas);
+            const path_viewer = document
+                  .getElementById('viewer-' + path_name).path_viewer;
+
             tgl_1d.addEventListener('click', (e) => {
                 if (toggle_highlight_class(tgl_1d)) {
-                    // TODO add callback
+                    // TODO add/remove callbacks so that the overlays get refreshed
+                    path_viewer.trackCallbacks[cb_key] = draw_bed_1d;
                 } else {
                     // TODO remove callback
+                    delete path_viewer.trackCallbacks[cb_key];
+                }
+            });
+
+            const draw_bed_2d = await createDrawBedEntryFn2d(entry, (record) => {
+                if (record.itemRgb === undefined || record.itemRgb === "0,0,0") {
+                    let {r,g,b} = wasm_bindgen.path_name_hash_color_obj(record.name);
+                    return `rgb(${r * 255},${g * 255},${b * 255})`;
+                } else if (typeof record.itemRgb === 'string') {
+                    let [r,g,b] = record.itemRgb.split(',');
+                    return `rgb(${r * 255},${g * 255},${b * 255})`;
                 }
             });
 
             tgl_2d.addEventListener('click', (e) => {
                 if (toggle_highlight_class(tgl_2d)) {
-                    waragraph_viz.graph_viewer.registerOverlayCallback(cb_key, draw_bed);
+                    waragraph_viz.graph_viewer.registerOverlayCallback(cb_key, draw_bed_2d);
                 } else {
                     waragraph_viz.graph_viewer.removeOverlayCallback(cb_key);
                 }
