@@ -416,7 +416,7 @@ impl CoordSys {
             .binary_search_by_key(&end, |&o| o as u64);
 
         let start_out = start_i.unwrap_or_else(|i| i - 1);
-        let end_out = end_i.unwrap_or_else(|i| i - 1);
+        let end_out = end_i.unwrap_or_else(|i| i);
 
         start_out..=end_out
     }

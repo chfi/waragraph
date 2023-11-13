@@ -92,7 +92,7 @@ class GraphViewer {
 
         ctx.clearRect(0, 0, overlay.width, overlay.height);
 
-        console.log(this.overlayCallbacks);
+        // console.log(this.overlayCallbacks);
         for (const key in this.overlayCallbacks) {
             const callback = this.overlayCallbacks[key];
             callback(overlay, this.next_view, this.mousePos);
@@ -397,7 +397,7 @@ export function preparePathHighlightOverlay(seg_pos, path_steps, path_cs_raw, en
 
                 // TODO handle zero length path cases
                 let len = canv_path.length;
-                console.warn("canvas path length: ", len);
+                // console.warn("canvas path length: ", len);
 
                 ctx.beginPath();
 
@@ -430,7 +430,7 @@ export function preparePathHighlightOverlay(seg_pos, path_steps, path_cs_raw, en
                 let ends = canv_path.get_endpoints();
 
                 if (ends !== null) {
-                    console.warn(ends);
+                    // console.warn(ends);
 
                     let x = ends.start.x + (ends.end.x - ends.start.x) * 0.5;
                     let y = ends.start.y + (ends.end.y - ends.start.y) * 0.5;

@@ -61,8 +61,16 @@ function transformBedRange(bed_entry) {
 
     const start = Number(found[1]);
 
-    const chromStart = bed_entry.chromStart - start;
-    const chromEnd = bed_entry.chromEnd - start;
+    let chromStart = bed_entry.chromStart - start;
+    let chromEnd = bed_entry.chromEnd - start;
+
+    if (chromStart < 0) {
+        chromStart = 0;
+    }
+
+    // TODO pass coordinate max in here, maybe;
+    // if (chromEnd > max) {
+    // }
 
     const new_entry = Object.assign({}, bed_entry, { chromStart, chromEnd });
 
@@ -111,13 +119,16 @@ async function createDrawBedEntryFn1d(bed_entry, color_fn) {
     let global_entries = [];
 
     try {
+        // console.warn(entry);
         let path_range = await waragraph_viz
             .worker_obj
             .pathRangeToStepRange(path_name, entry.start, entry.end);
 
+        // console.warn(path_range);
         let slice = path_steps.slice(path_range.start, path_range.end);
+        // console.warn(slice);
 
-        console.log("steps in ", bed_entry.name, ": ", slice.length);
+        // console.log("steps in ", bed_entry.name, ": ", slice.length);
 
         let seg_ranges = wasm_bindgen.path_slice_to_global_adj_partitions(slice);
         let seg_ranges_arr = seg_ranges.ranges_as_u32_array();

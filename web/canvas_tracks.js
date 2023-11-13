@@ -115,7 +115,7 @@ export function createHighlightCallback(entries) {
         const view_len = view.end - view.start;
 
         ctx.save();
-        console.log(entries.length);
+        // console.log(entries.length);
         for (const { start, end, color } of entries) {
             let x_start = ((start - view.start) / view_len) * canvas.width;
             let x_end = ((end - view.start) / view_len) * canvas.width;
@@ -131,12 +131,9 @@ export function createHighlightCallback(entries) {
                 let h = canvas.height;
 
                 ctx.beginPath();
-                // ctx.fillRect(x_start, 0.1 * h, x_end - x_start, 0.8 * h);
                 ctx.clearRect(x_start, 0.1 * h, x_end - x_start, 0.8 * h);
                 ctx.rect(x_start, 0.1 * h, x_end - x_start, 0.8 * h);
                 ctx.fill();
-                // ctx.closePath();
-                // ctx.strokeRect(x_start, 0.1 * h, x_end - x_start, 0.8 * h);
             }
         }
         ctx.restore();
