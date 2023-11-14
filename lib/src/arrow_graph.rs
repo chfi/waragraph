@@ -1,4 +1,4 @@
-use ahash::{AHashMap, HashMap};
+use ahash::{AHashMap, AHashSet};
 use arrow2::{
     array::{
         BinaryArray, ListArray, MutableListArray, MutablePrimitiveArray,
@@ -9,6 +9,7 @@ use arrow2::{
     datatypes::{DataType, Field, Metadata, Schema},
     offset::{Offsets, OffsetsBuffer},
 };
+use smallvec::SmallVec;
 
 use std::io::prelude::*;
 
@@ -63,33 +64,61 @@ pub struct SegmentPathMatrix {
 
 impl SegmentPathMatrix {
     pub fn from_arrow_gfa(gfa: &ArrowGFA) -> Self {
-        let mut segment_paths: HashMap<u32, HashMap<u32, u32>> =
-            HashMap::default();
+        // use ahash::AHashMap;
+        // let mut segment_paths: Vec<AHashMap<u32, u32>> =
+        //     vec![AHashMap::default(); gfa.segment_count()];
 
+        let mut segment_paths: Vec<SmallVec<[(u32, u32); 4]>> =
+            vec![SmallVec::default(); gfa.segment_count()];
+
+        let insert_segment = |map: &mut SmallVec<[(u32, u32); 4]>,
+                              path_index: u32| {
+            let bits_ix = path_index / 32;
+            let modulo = path_index % 32;
+            let val = 1 << modulo;
+
+            let result = map.binary_search_by_key(&bits_ix, |(k, _v)| *k);
+
+            match result {
+                Ok(ix) => map[ix].1 |= val,
+                Err(ix) => map.insert(ix, (bits_ix, val)),
+            }
+        };
+
+        let t0 = instant::now();
         for (path_i, steps) in gfa.path_steps.iter().enumerate() {
             let path_index = path_i as u32;
-            let bitset_index = path_index / 32;
+            // let bitset_index = path_index / 32;
 
             for step_handle in steps.values_iter() {
                 let segment = step_handle >> 1;
-
-                let bitmap = segment_paths.entry(segment).or_default();
-                *bitmap.entry(bitset_index).or_default() |= path_index % 32;
+                let bitmap = &mut segment_paths[segment as usize];
+                insert_segment(bitmap, path_index);
             }
         }
+
+        let t1 = instant::now();
+        log::warn!("took {} ms to iterate paths", t1 - t0);
 
         let rows = (gfa.path_steps.len() as f32 / 32.0).ceil() as usize;
         let cols = gfa.segment_count();
 
         let mut tri: sprs::TriMatI<u32, u32> = sprs::TriMatI::new((rows, cols));
 
-        for (segment, bitmap) in segment_paths {
-            let col = segment as usize;
-            for (bitset_index, value) in bitmap {
+        let mut bitmap_vec = Vec::new();
+
+        for (segment, bitmap) in segment_paths.into_iter().enumerate() {
+            bitmap_vec.clear();
+            bitmap_vec.extend(bitmap.into_iter());
+            bitmap_vec.sort();
+            let col = segment;
+            for &(bitset_index, value) in bitmap_vec.iter() {
                 let row = bitset_index as usize;
                 tri.add_triplet(row, col, value);
             }
         }
+        let t2 = instant::now();
+        log::warn!("took {} ms to construct sparse matrix", t2 - t1);
 
         let mat = tri.to_csc::<u32>();
 
@@ -102,13 +131,15 @@ impl SegmentPathMatrix {
         let ind_array = UInt32Array::from_vec(ind);
         let data_array = UInt32Array::from_vec(data);
 
-        SegmentPathMatrix {
+        let result = SegmentPathMatrix {
             storage,
             shape,
             indptr_array,
             ind_array,
             data_array,
-        }
+        };
+
+        result
     }
 
     pub fn matrix(&self) -> sprs::CsMatViewI<'_, u32, u32, u32> {
@@ -129,7 +160,6 @@ impl SegmentPathMatrix {
 
     pub fn paths_on_segment(&self, segment: u32) -> sprs::CsVecI<u32, u32> {
         let matrix = self.matrix();
-        // let rows = matrix.rows();
 
         let mut rhs: sprs::CsVecI<u32, u32> =
             sprs::CsVecI::empty(matrix.cols());
