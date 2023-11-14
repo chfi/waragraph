@@ -376,7 +376,7 @@ impl CoordSys {
         Ok(obj)
     }
 
-    pub fn segment_at_pos(&self, pos: u64) -> Result<u32, JsValue> {
+    pub fn segment_at_pos(&self, pos: u64) -> u32 {
         let pos_i = self
             .step_offsets
             .buffer()
@@ -384,7 +384,7 @@ impl CoordSys {
 
         let pos_out = pos_i.unwrap_or_else(|i| i - 1);
 
-        Ok(pos_out as u32)
+        pos_out as u32
     }
 }
 

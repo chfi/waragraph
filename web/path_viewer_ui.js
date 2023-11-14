@@ -168,13 +168,14 @@ export async function addPathViewerLogic(worker, path_viewer, cs_view) {
         
     
     mouseMove$.pipe(
-        map((e) => [e.clientX, e.clientY]),
+        map((e) => [e.offsetX, e.offsetY]),
         rxjs.distinct(),
         rxjs.throttleTime(50)
     ).subscribe(async ([x, y]) => {
 
         let local_x = x - canvas.offsetLeft;
         let width = canvas.width;
+
         let segment = await segmentAtCanvasX(cs_view, width, local_x);
         console.log("segment at cursor: " + segment);
 
@@ -183,20 +184,16 @@ export async function addPathViewerLogic(worker, path_viewer, cs_view) {
         tooltip.innerHTML = `Segment ${segment}`;
         tooltip.style.display = 'block';
         placeTooltipAtPoint(x, y);
-
-        /*
-        if (segment) {
-            let paths = await worker.pathsOnSegment(segment);
-            console.log("paths!!!");
-            console.log(paths);
-        }
-        */
+        
+        let paths = await worker.pathsOnSegment(segment);
+        console.log("paths!!!");
+        console.log(paths);
     });
 
 
     const wheelScaleDelta$ = wheel$.pipe(
         map(event => {
-            let x = (event.clientX - canvas.offsetLeft) / canvas.width;
+            let x = (event.offsetX - canvas.offsetLeft) / canvas.width;
             let scale;
             if (event.deltaMode === WheelEvent.DOM_DELTA_PIXEL) {
                 if (event.deltaY > 0) {
@@ -223,7 +220,7 @@ export async function addPathViewerLogic(worker, path_viewer, cs_view) {
         switchMap((event) => {
             return mouseMove$.pipe(
                 pairwise(),
-                map(([prev, current]) => current.clientX - prev.clientX),
+                map(([prev, current]) => current.offsetX - prev.offsetX),
                 takeUntil(
                     race(mouseUp$, mouseOut$)
                 )
@@ -308,7 +305,7 @@ export async function addOverviewEventHandlers(overview, cs_view) {
     const mouseAt$ = mouseDown$.pipe(
         switchMap((event) => {
             return mouseMove$.pipe(
-                map((ev) => (ev.clientX / overview.canvas.width) * view_max),
+                map((ev) => (ev.offsetX / overview.canvas.width) * view_max),
                 takeUntil(
                     race(mouseUp$, mouseOut$)
                 )

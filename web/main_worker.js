@@ -220,8 +220,8 @@ async function run(memory, gfa_path) {
     let timer1_ = Date.now();
     console.warn("parsing GFA took ", timer1_ - timer0_, " ms");
 
-    // let path_index = await graph.generate_path_index();
-    // _path_index = path_index;
+    let path_index = await graph.generate_path_index();
+    _path_index = path_index;
 
     console.log("constructing coordinate system");
     let coord_sys = wasm_bindgen.CoordSys.global_from_arrow_gfa(graph);
@@ -278,12 +278,12 @@ async function run(memory, gfa_path) {
         pathCoordSys(path_name) {
             return getPathCoordinateSystem(path_name);
         },
-        // pathsOnSegment(segment) {
-        //     return path_index.paths_on_segment(segment);
-        // },
-        // pathIndex() {
-        //     return path_index;
-        // },
+        pathsOnSegment(segment) {
+            return path_index.paths_on_segment(segment);
+        },
+        pathIndex() {
+            return path_index;
+        },
         pathRangeToStepRange(path_name, range_start, range_end) {
             let start = typeof range_start == 'bigint'
                 ? range_start : BigInt(range_start);
