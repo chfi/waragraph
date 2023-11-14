@@ -82,6 +82,11 @@ pub struct GraphViewer {
 }
 
 #[wasm_bindgen]
+pub struct GraphViewerData {
+    buffers: render::PagedBuffers,
+}
+
+#[wasm_bindgen]
 impl GraphViewer {
     pub fn new_with_color_data(
         raving: &RavingCtx,

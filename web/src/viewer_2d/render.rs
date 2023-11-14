@@ -12,12 +12,13 @@ use wgpu::util::{BufferInitDescriptor, DeviceExt, RenderEncoder};
 
 use crate::color::ColorMap;
 
+#[derive(Clone)]
 pub struct PagedBuffers {
     page_size: u64, // bytes
     stride: u64,    // bytes
     len: usize,
 
-    pages: Vec<Arc<wgpu::Buffer>>,
+    pages: Arc<Vec<wgpu::Buffer>>,
 }
 
 impl PagedBuffers {
@@ -57,8 +58,10 @@ impl PagedBuffers {
                 mapped_at_creation: false,
             });
 
-            pages.push(Arc::new(buffer));
+            pages.push(buffer);
         }
+
+        let pages = Arc::new(pages);
 
         let result = Self {
             page_size,
@@ -124,7 +127,7 @@ impl PagedBuffers {
         self.stride
     }
 
-    pub fn pages(&self) -> &[Arc<wgpu::Buffer>] {
+    pub fn pages(&self) -> &Arc<Vec<wgpu::Buffer>> {
         &self.pages
     }
 
@@ -649,6 +652,48 @@ impl PolylineRenderer {
         state.color_sampler_ids = Some((color_id, sampler_id));
 
         Ok(())
+    }
+
+    pub(super) fn draw_in_pass_with_buffers_indexed<'a: 'b, 'b, 'c: 'b>(
+        state: &'a State,
+        pass: &mut wgpu::RenderPass<'b>,
+        viewport: egui::Rect,
+        vertex_buffers: &'c PagedBuffers,
+        data_buffers: &'c PagedBuffers,
+        index_buffers: &'c PagedBuffers,
+    ) {
+        todo!();
+    }
+
+    pub(super) fn draw_in_pass_with_buffers<'a: 'b, 'b, 'c: 'b>(
+        state: &'a State,
+        pass: &mut wgpu::RenderPass<'b>,
+        viewport: egui::Rect,
+        vertex_buffers: &'c PagedBuffers,
+        data_buffers: &'c PagedBuffers,
+    ) {
+        pass.set_pipeline(&state.graphics_node.pipeline);
+
+        let size = viewport.size();
+        pass.set_viewport(0., 0., size.x, size.y, 0., 1.);
+
+        // "step through" the vertex and data buffers simultaneously
+        // using the smaller (in elements) page size
+
+        let vx_ranges =
+            vertex_buffers.zip_as_vertex_buffer_slices(data_buffers);
+
+        for (geo_buf, data_buf, instances) in vx_ranges {
+            pass.set_vertex_buffer(0, geo_buf);
+            pass.set_vertex_buffer(1, data_buf);
+
+            let empty_offsets = [];
+            for (i, bind_group) in state.bind_groups.iter().enumerate() {
+                pass.set_bind_group(i as u32, bind_group, &empty_offsets);
+            }
+
+            pass.draw(0..6, instances);
+        }
     }
 
     pub(super) fn draw_in_pass_impl<'a: 'b, 'b>(
