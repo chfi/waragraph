@@ -470,12 +470,20 @@ pub struct PathIndexWrapped(pub(crate) PathIndex);
 #[wasm_bindgen]
 impl PathIndexWrapped {
     pub fn paths_on_segment(&self, segment: u32) -> Vec<u32> {
-        let bitmap = self.0.segment_path_matrix.paths_on_segment(segment);
+        if let Some(bitmap) =
+            self.0.segment_path_matrix.paths_on_segment(segment)
+        {
+            let mut paths = Vec::new();
 
-        let mut paths = Vec::new();
+            for (ix, &bits) in bitmap.iter() {
+                log::warn!("{ix} - {:b}", bits);
+            }
 
-        for (ix, &bits) in bitmap.iter() {
-            log::warn!("{ix} - {:b}", bits);
+            paths
+        } else {
+            log::error!("segment out of bounds");
+
+            Vec::new()
         }
 
         // bitmap

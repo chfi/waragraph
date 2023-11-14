@@ -172,8 +172,7 @@ export async function addPathViewerLogic(worker, path_viewer, cs_view) {
         rxjs.distinct(),
         rxjs.throttleTime(50)
     ).subscribe(async ([x, y]) => {
-
-        let local_x = x - canvas.offsetLeft;
+        let local_x = x;
         let width = canvas.width;
 
         let segment = await segmentAtCanvasX(cs_view, width, local_x);
@@ -193,7 +192,7 @@ export async function addPathViewerLogic(worker, path_viewer, cs_view) {
 
     const wheelScaleDelta$ = wheel$.pipe(
         map(event => {
-            let x = (event.offsetX - canvas.offsetLeft) / canvas.width;
+            let x = event.offsetX / canvas.width;
             let scale;
             if (event.deltaMode === WheelEvent.DOM_DELTA_PIXEL) {
                 if (event.deltaY > 0) {

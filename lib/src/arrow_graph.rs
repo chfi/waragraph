@@ -158,8 +158,15 @@ impl SegmentPathMatrix {
         }
     }
 
-    pub fn paths_on_segment(&self, segment: u32) -> sprs::CsVecI<u32, u32> {
+    pub fn paths_on_segment(
+        &self,
+        segment: u32,
+    ) -> Option<sprs::CsVecI<u32, u32>> {
         let matrix = self.matrix();
+
+        if segment as usize >= matrix.cols() {
+            return None;
+        }
 
         let mut rhs: sprs::CsVecI<u32, u32> =
             sprs::CsVecI::empty(matrix.cols());
@@ -171,7 +178,7 @@ impl SegmentPathMatrix {
 
         log::warn!("result: {result:?}");
 
-        result
+        Some(result)
     }
 }
 
