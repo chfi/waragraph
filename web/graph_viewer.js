@@ -41,15 +41,17 @@ class GraphViewer {
         let canvas = document.getElementById("graph-viewer-2d");
         let view_width, view_height;
 
-        // if (graph_bounds.width > graph_bounds.height) {
-            view_width = graph_bounds.width;
-            view_height = graph_bounds.width * (canvas.height / canvas.width);
-        // } else {
-            // let c_aspect = canvas.width / canvas.height;
+        let c_aspect = canvas.width / canvas.height;
+        let g_aspect = graph_bounds.width / graph_bounds.height;
 
-            // view_width = graph_bounds.height * c_aspect;
-            // view_height = graph_bounds.height;
-        // }
+        if (g_aspect > c_aspect) {
+            view_width = graph_bounds.width;
+            view_height = view_width * canvas.height / canvas.width;
+        } else {
+            view_height = graph_bounds.height;
+            view_width = view_height * canvas.width / canvas.height;
+        }
+
 
         this.next_view.set_center(graph_bounds.x, graph_bounds.y);
         this.next_view.set_size(view_width, view_height);
