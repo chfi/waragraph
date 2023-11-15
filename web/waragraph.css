@@ -5,6 +5,15 @@ html, body, .root-grid {
   width: 100%; /* Fill the entire width of the viewport */
 }
 
+.sidebar {
+    display: flex;
+    flex-direction: column;
+    overflow: scroll;
+
+    grid-column: 1;
+    grid-row: 1;
+}
+
 body {
   display: flex; /* Use flexbox to make the child div take up full height */
   flex-direction: column; /* Stack children vertically */
@@ -16,6 +25,7 @@ body {
   overflow: hidden; /* Prevents scrollbars from affecting the layout */
 
   grid-column: 3 / 4;
+  grid-row: 1;
   height: 100%;
   width: 100%;
 }
@@ -64,6 +74,11 @@ body {
     grid-template-rows: 1fr 10px 1fr;
 }
 
+#graph-viewer-container {
+    grid-column: 1;
+    grid-row: 1;
+}
+
 #graph-viewer-container > canvas {
     position: absolute;
 }
@@ -102,8 +117,11 @@ body {
 
 
 #path-viewer-container {
+    grid-column: 1;
+    grid-row: 3;
+
     display: grid;
-    grid-template-columns: 1fr 10px 3fr;
+    grid-template-columns: 1fr 10px 5fr;
     z-index: 2;
 }
 
@@ -115,10 +133,19 @@ body {
   cursor: row-resize; /* Indicates the row is resizable */
 }
 
+.gutter-row-1 {
+    grid-column: 1;
+    grid-row: 2;
+}
+
 .gutter-column {
   z-index: 1;
   background: #eee;
   cursor: col-resize; 
+}
+
+.gutter-column-1 {
+    grid-column: 2;
 }
 
 /* If you want the content divs to be visible for testing */

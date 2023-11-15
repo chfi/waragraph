@@ -401,4 +401,35 @@ const init = async () => {
 
 };
 
+const test_svg = async () => {
+
+    const body = `
+<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"
+     opacity="0%">
+  <!--
+  with relative unit such as percentage, the visual size
+  of the square looks unchanged regardless of the viewBox
+  -->
+
+  <!--
+  with a large viewBox the circle looks small
+  as it is using user units for the r attribute:
+  4 resolved against 100 as set in the viewBox
+  -->
+  <circle cx="50%" cy="50%" r="4" fill="white" />
+</svg>
+`;
+    let parent = document.createElement('div');
+    parent.style.setProperty('grid-column', '1');
+    parent.style.setProperty('grid-row', '1 / -1');
+    document.getElementById('viz-container').append(parent);
+
+    let el = document.createElement('svg');
+
+    parent.append(el);
+    el.style.setProperty('position', 'absolute');
+    el.outerHTML = body;
+
+};
+
 onload = init;
