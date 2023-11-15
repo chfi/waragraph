@@ -395,9 +395,7 @@ fill="none"
         let x = (x1 + x0) / 2;
         let y = (y1 + y0) / 2;
 
-
-
-
+        this.graph_viewer.setViewCenter(x, y);
     }
 
     async segmentScreenPos2d(segment) {

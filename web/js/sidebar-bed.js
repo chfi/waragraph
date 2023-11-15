@@ -235,11 +235,20 @@ async function loadBedFile(file) {
             label_div.innerHTML = entry.name;
             label_div.classList.add('bed-row-label');
 
+            const path_name = findPathName(entry.chrom);
+            // const path_range =
+            //       await waragraph_viz.worker_obj.pathRangeToStepRange(path_name
+            const path_range = await waragraph_viz
+                  .worker_obj
+                  .pathRangeToStepRange(path_name, entry.chromStart, entry.chromEnd);
+
             label_div.addEventListener('click', (ev) => {
                 ev.stopPropagation();
                 let ctx_menu_el = document.getElementById('sidebar-bed-context-menu');
                 _context_menu_entry = { bed_entry,
                                         processed: entry,
+                                        path_name, 
+                                        path_range,
                                       };
 
                 computePosition(label_div, ctx_menu_el).then(({x, y}) => {
@@ -285,7 +294,6 @@ async function loadBedFile(file) {
 
             
             const draw_bed_1d = await createDrawBedEntryFn1d(entry, hash_black_color);
-            const path_name = findPathName(bed_entry.chrom);
             const el_id = 'viewer-' + path_name;
             console.log(el_id);
             const path_viewer_canvas = document.getElementById('viewer-' + path_name);
@@ -354,7 +362,7 @@ async function loadBedFile(file) {
 
 }
 
-function bedSidebarPanel() {
+async function bedSidebarPanel() {
     const bed_pane = document.createElement('div');
     bed_pane.classList.add('bed-panel');
 
@@ -390,6 +398,9 @@ function bedSidebarPanel() {
 
     {
 
+        let graph_raw = await waragraph_viz.worker_obj.getGraph();
+        let graph = wasm_bindgen.ArrowGFAWrapped.__wrap(graph_raw.__wbg_ptr);
+
         const context_menu_el = document.createElement('div');
         context_menu_el.id = 'sidebar-bed-context-menu';
 
@@ -414,12 +425,17 @@ function bedSidebarPanel() {
                 return;
             }
 
-            // get path steps?
-            // then find center
+            // TODO use something sensible; not just the first step
 
-            // or store the center somewhere earlier
-            // idk
+            let path_name = _context_menu_entry.path_name;
+            let path_range = _context_menu_entry.path_range;
 
+            let { start, end } = path_range;
+
+            let path_steps = graph.path_steps(path_name);
+            let seg = path_steps[start];
+
+            waragraph_viz.centerViewOnSegment2d(seg);
         });
 
         context_menu_el.append(copy_name_btn);
@@ -431,9 +447,10 @@ function bedSidebarPanel() {
     document.addEventListener('click', (ev) => {
         let tgt = ev.target;
         let id = "sidebar-bed-context-menu";
-        let ctx_open = document.getElementById(id).style.display === 'flex';
+        let ctx_menu_el = document.getElementById(id);
+        let ctx_open = ctx_menu_el.style.display === 'flex';
         if (!tgt.closest('#' + id) && ctx_open) {
-            ctx.style.setProperty('display', 'none');
+            ctx_menu_el.style.setProperty('display', 'none');
             _context_menu_entry = null;
         }
     });
@@ -458,7 +475,7 @@ export async function initializeBedSidebarPanel(warapi) {
 
     document
         .getElementById('sidebar')
-        .append(bedSidebarPanel());
+        .append(await bedSidebarPanel());
 
 
 }
