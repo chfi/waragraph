@@ -241,9 +241,6 @@ class WaragraphViz {
     // Temporary test
     async updateSvgLink(path_name, segment) {
         const svg = document.getElementById('viz-svg-overlay');
-        // const par = svg.parentNode
-
-        // svg.viewBox = `0 0 ${par.width} ${par.height}`;
 
         const id = 'segment-link-' + segment;
 
@@ -255,10 +252,10 @@ class WaragraphViz {
             svg.append(g_el);
         }
 
-        g_el.innerHTML = "";
+        const svg_rect = svg.getBoundingClientRect();
 
-        let pos_2d = await this.segmentScreenPos2d(segment);
-        let pos_1d = await this.segmentScreenPos1d(path_name, segment);
+        const pos_2d = await this.segmentScreenPos2d(segment);
+        const pos_1d = await this.segmentScreenPos1d(path_name, segment);
 
         if (pos_2d !== null) {
             let canv_2d = document.getElementById('graph-viewer-2d-overlay');
@@ -267,7 +264,6 @@ class WaragraphViz {
             let y2d = pos_2d.start[1];
 
             let height_prop = canv_2d.height / svg.clientHeight;
-            console.log(height_prop);
 
             let cx = (x2d / canv_2d.width) * 100;
             let cy = (y2d / canv_2d.height) * 100 * height_prop;
@@ -277,51 +273,83 @@ class WaragraphViz {
                 el = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
             }
 
-            // const el = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-
             const svg_2d = `
 <circle cx="${cx}" cy="${cy}" r="1" fill="transparent" stroke="red" />
 `;
-            console.log(svg_2d);
 
             g_el.append(el);
             el.outerHTML = svg_2d;
-            console.log(el);
         }
+
+
+        let svg_rect_1d;
+        {
+            const canvas_1d = document.getElementById("viewer-" + path_name);
+            const rect = canvas_1d.getBoundingClientRect();
+
+            let x0 = 100 * (rect.left - svg_rect.left) / svg_rect.width;
+            let y0 = 100 * (rect.top - svg_rect.top) / svg_rect.height;
+
+            let width = 100 * (rect.width / svg_rect.width)
+            let height = 100 * (rect.height / svg_rect.height);
+
+            let x1 = x0 + width;
+            let y1 = y0 + height;
+
+            svg_rect_1d = { x0, y0, x1, y1, width, height};
+        }
+
+        // console.warn(svg_rect_1d);
 
         if (pos_1d !== null) {
             let { x0, y0, x1, y1 } = pos_1d;
 
-            let svg_rect = svg.getBoundingClientRect();
+            const canvas_1d = document.getElementById("viewer-" + path_name);
+            const rect = canvas_1d.getBoundingClientRect();
 
-            console.log(pos_1d);
-            console.log(svg);
+            // console.log(pos_1d);
+            // console.log(svg);
             let left = svg.clientLeft;
-            console.log(left);
-
+            // console.log(left);
 
             let x = 100 * (x0 - svg_rect.left) / svg_rect.width;
             let y = 100 * (y0 - svg_rect.top) / svg_rect.height;
 
-            let width = (x1 - x0) / (svg_rect.left + svg_rect.width);
-            let height = (y1 - y0) / (svg_rect.top + svg_rect.height);
+            let width = 100 * (x1 - x0) / svg_rect.width;
+            let height = 100 * (y1 - y0) / svg_rect.height;
 
-            // let x = x0 - left;
-            // let y = y0;
+            let el = svg.querySelector('rect');
+            if (!el) {
+                el = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+            }
 
-            // let width = (x1 - x0) * 100;
-            // let height = (y1 - y0) * 100;
+            /*
+            let clip_el = svg.querySelector('clipPath');
+            if (!clip_el) {
+                clip_el = document.createElementNS('http://www.w3.org/2000/svg', 'clipPath');
+                clip_el.id = 'clip-path-' + path_name;
+                clip_el.innerHTML = `<circle cx="1" cy="1" r="1" />`;
+                g_el.append(clip_el);
+            }
+      // clip-path="url(#${'clip_el.id'})"
+            */
 
-
+            let r = svg_rect_1d;
             const svg_1d = `
 <rect x="${x}" y="${y}" width="${width}" height="${height}"
+      clip-path="polygon(0% 0%, 100% 0%, 100% 100%, 0% 100%)"
       stroke="red"
 />`;
-            console.log(svg_1d);
 
-            const el = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
             g_el.append(el);
             el.outerHTML = svg_1d;
+            // let clip_path = "polygon(0% 0%, 10% 0%, 10% 10%, 0% 10%)"
+            // let str = 
+            //     `path("M ${r.x0},${r.y0} L ${r.x1},${r.y0} L ${r.x1},${r.y1} L ${r.x0},${r.y1}")`;
+            // console.log(str);
+            // el.style.setProperty('clip-path', clip_path);
+
+            // console.log(el.style);
         }
     }
 
@@ -333,7 +361,6 @@ class WaragraphViz {
         }
 
         let { start, end } = seg_pos;
-        console.log(start, " -> ", end);
 
         return seg_pos;
     }
@@ -352,25 +379,15 @@ class WaragraphViz {
         }
 
         // segmentRange returns BigInts
-        console.log(seg_range);
-        console.log(view);
         let seg_s = Number(seg_range.start);
         let seg_e = Number(seg_range.end);
 
         let seg_start = (seg_s - view.start) / view.len;
         let seg_end = (seg_e - view.start) / view.len;
-        console.log(seg_start);
-
-        console.log(el);
 
         let width = el_rect.width;
         let y0 = el_rect.y;
         let y1 = el_rect.y + el_rect.height;
-        console.log(y0);
-        console.log(y1);
-
-        console.log("seg_start", seg_start);
-        console.log("seg_end", seg_end);
 
         let x0 = el_rect.left + seg_start * width;
         let x1 = el_rect.left + seg_end * width;

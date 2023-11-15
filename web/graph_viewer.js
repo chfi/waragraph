@@ -127,17 +127,11 @@ class GraphViewer {
 
         const mat = this.getViewMatrix();
 
-        console.log(mat);
         const p0 = vec2.fromValues(x0, y0);
         const p1 = vec2.fromValues(x1, y1);
-        console.log(p0);
 
         const q0 = vec2.create();
         const q1 = vec2.create();
-
-        console.log(q0);
-
-        console.log(vec2);
 
         vec2.transformMat3(q0, p0, mat);
         vec2.transformMat3(q1, p1, mat);
