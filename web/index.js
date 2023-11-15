@@ -629,6 +629,7 @@ const test_svg = async () => {
 </svg>
 `;
     let parent = document.createElement('div');
+    parent.id = 'svg-container';
     parent.style.setProperty('z-index', '10');
     parent.style.setProperty('grid-column', '1');
     parent.style.setProperty('grid-row', '1 / -1');
@@ -639,8 +640,13 @@ const test_svg = async () => {
     let el = document.createElement('svg');
 
     parent.append(el);
+
     el.outerHTML = body;
     el.style.setProperty('position', 'absolute');
+
+
+    // const rect = el.getBoundingClientRect();
+    // el.setAttribute('viewBox', `0 0 ${rect.width} ${rect.width}`);
 
 };
 

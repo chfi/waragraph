@@ -168,21 +168,23 @@ export async function addPathViewerLogic(worker, path_viewer, cs_view) {
         
     
     mouseMove$.pipe(
-        map((e) => [e.offsetX, e.offsetY]),
         rxjs.distinct(),
         rxjs.throttleTime(50)
-    ).subscribe(async ([x, y]) => {
-        let local_x = x;
+    ).subscribe(async (e) => {
+        let x = e.offsetX;
+        let y = e.offsetY;
         let width = canvas.width;
 
-        let segment = await segmentAtCanvasX(cs_view, width, local_x);
+        let segment = await segmentAtCanvasX(cs_view, width, x);
         console.log("segment at cursor: " + segment);
 
         let tooltip = document.getElementById('tooltip');
 
         tooltip.innerHTML = `Segment ${segment}`;
         tooltip.style.display = 'block';
-        placeTooltipAtPoint(x, y);
+        console.warn("x: ", e.clientX, ", y: ", e.clientY);
+        placeTooltipAtPoint(e.clientX, e.clientY);
+        // placeTooltipAtPoint(x, y);
         
         let paths = await worker.pathsOnSegment(segment);
         console.log("paths!!!");

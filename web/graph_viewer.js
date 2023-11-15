@@ -365,8 +365,24 @@ export async function initializeGraphViewer(wasm_mem, graph_raw, layout_url) {
     );
 
     hoveredSegment$.subscribe((segment) => {
-        if (segment !== null) {
-            // hovered segment
+        let tooltip = document.getElementById('tooltip');
+
+        if (segment === null) {
+            tooltip.innerHTML = "";
+            tooltip.style.display = 'none';
+        } else if (graph_viewer.mousePos !== null) {
+            tooltip.innerHTML = `Segment ${segment}`;
+            tooltip.style.display = 'block';
+
+            let rect = document
+                .getElementById('graph-viewer-2d-overlay')
+                .getBoundingClientRect();
+            let { x, y } = graph_viewer.mousePos;
+
+            let gx = x + rect.left;
+            let gy = y + rect.top;
+
+            placeTooltipAtPoint(gx, gy);
         }
     })
 

@@ -98,6 +98,7 @@ body {
 #tooltip {
     display: none;
     width: max-content;
+
     position: absolute;
     top: 0;
     left: 0;
@@ -111,6 +112,9 @@ body {
 
     transition-property: left, top;
     transition-duration: 50ms;
+
+    z-index: 100;
+    pointer-events: none;
 }
 
 
