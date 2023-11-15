@@ -24,24 +24,24 @@ import * as CanvasTracks from './canvas_tracks.js';
 
 import * as BedSidebar from './js/sidebar-bed.js';
 
-// const gfa_path = "./data/A-3105.fa.353ea42.34ee7b1.1576367.smooth.fix.gfa";
-// const layout_path = "./data/A-3105.layout.tsv";
-// const path_names = undefined;
+const gfa_path = "./data/A-3105.fa.353ea42.34ee7b1.1576367.smooth.fix.gfa";
+const layout_path = "./data/A-3105.layout.tsv";
+const path_names = undefined;
 
 // const path_names = ["gi|568815592:29942469-29945883"];
 
-const gfa_path = "./MHC/HPRCy1v2.MHC.fa.ce6f12f.417fcdf.0ead406.smooth.final.gfa";
-const layout_path = "./MHC/HPRCy1v2.MHC.fa.ce6f12f.417fcdf.0ead406.smooth.final.og.lay.tsv";
-const path_names = [
-    "chm13#chr6:28385000-33300000",
-    "grch38#chr6:28510128-33480000",
-    "HG02717#2#h2tg000061l:22650152-27715000",
-    "HG03516#1#h1tg000073l:22631064-27570000",
-    "HG00733#1#h1tg000070l:28540000-33419448",
-    "HG02055#1#h1tg000074l:0-4714592",
-    "HG01978#1#h1tg000035l:28455000-33469848",
-    "HG02886#2#h2tg000003l:25120800-30214744",
-];
+// const gfa_path = "./MHC/HPRCy1v2.MHC.fa.ce6f12f.417fcdf.0ead406.smooth.final.gfa";
+// const layout_path = "./MHC/HPRCy1v2.MHC.fa.ce6f12f.417fcdf.0ead406.smooth.final.og.lay.tsv";
+// const path_names = [
+//     "chm13#chr6:28385000-33300000",
+//     "grch38#chr6:28510128-33480000",
+//     "HG02717#2#h2tg000061l:22650152-27715000",
+//     "HG03516#1#h1tg000073l:22631064-27570000",
+//     "HG00733#1#h1tg000070l:28540000-33419448",
+//     "HG02055#1#h1tg000074l:0-4714592",
+//     "HG01978#1#h1tg000035l:28455000-33469848",
+//     "HG02886#2#h2tg000003l:25120800-30214744",
+// ];
 
 function globalSequenceTrack(graph, canvas, view_subject) {
 
@@ -231,20 +231,111 @@ class WaragraphViz {
     constructor(
         wasm,
         worker_obj,
-                graph_viewer,
-               ) {
+        graph_viewer,
+    ) {
         this.wasm = wasm;
         this.worker_obj = worker_obj;
         this.graph_viewer = graph_viewer;
     }
 
-    // TODO API for interfacing with graph and viewers/views here
+    // Temporary test
+    async updateSvgLink(path_name, segment) {
+        const svg = document.getElementById('viz-svg-overlay');
+        // const par = svg.parentNode
+
+        // svg.viewBox = `0 0 ${par.width} ${par.height}`;
+
+        const id = 'segment-link-' + segment;
+
+        let el = svg.getElementById(id);
+
+        if (!el) {
+            el = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+            el.id = id;
+            svg.append(el);
+        }
+
+        let pos_2d = await this.segmentScreenPos2d(segment);
+        let pos_1d = await this.segmentScreenPos1d(path_name, segment);
+
+        if (pos_1d === null || pos_2d === null) {
+            console.warn("updateSvgLink aborting");
+            return;
+        }
+
+        console.warn(pos_2d);
+
+        let canv_2d = document.getElementById('graph-viewer-2d-overlay');
+
+        let x2d = pos_2d.start[0];
+        let y2d = pos_2d.start[1];
+
+        let height_prop = canv_2d.height / svg.clientHeight;
+        console.log(height_prop);
+
+        let cx = (x2d / canv_2d.width) * 100;
+        let cy = (y2d / canv_2d.height) * 100 * height_prop;
+
+        const svg_2d = `
+<circle cx="${cx}" cy="${cy}" r="1" fill="transparent" stroke="red" />
+`;
+        console.log(svg_2d);
+
+        el.innerHTML = svg_2d;
+        console.log(el);
+    }
+
+    async segmentScreenPos2d(segment) {
+        let seg_pos = this.graph_viewer.getSegmentScreenPos(segment);
+
+        if (seg_pos === null) {
+            return null;
+        }
+
+        let { start, end } = seg_pos;
+        console.log(start, " -> ", end);
+
+        return seg_pos;
+    }
+
+    async segmentScreenPos1d(path_name, segment) {
+        let cs_view = await this.worker_obj.globalCoordSysView();
+        let view = await cs_view.get();
+        let seg_range = await cs_view.segmentRange(segment);
+
+        let el = document.getElementById('viewer-' + path_name);
+
+        if (!el) {
+            return null;
+        }
+
+        // segmentRange returns BigInts
+        let seg_s = Number(seg_range.start);
+        let seg_e = Number(seg_range.end);
+
+        let seg_start = (seg_s - view.start) / view.len;
+        let seg_end = (seg_e - view.start) / view.len;
+
+        let width = el.width;
+        let y0 = el.clientY;
+        let y1 = el.clientY + el.height;
+
+        let x0 = el.clientX + seg_s * width;
+        let x1 = el.clientX + seg_e * width;
+
+        return { x0, y0, x1, y1 };
+    }
                 
 }
 
 const init = async () => {
+
     const wasm = await init_module();
     const worker = new Worker(new URL("main_worker.js", import.meta.url), { type: 'module' });
+
+    test_svg();
+
+
 
     window.wasm_bindgen = wasm;
 
@@ -265,6 +356,22 @@ const init = async () => {
             window.getPathCoordSys = async (path_name) => {
                 return await worker_obj.pathCoordSys(path_name);
             };
+
+            window.waragraph_viz = warapi;
+
+            {
+                let iv_id;
+                window.testSvgLink = () => {
+                    if (iv_id) {
+                        window.clearInterval(iv_id);
+                        iv_id = undefined;
+                    } else {
+                        iv_id = window.setInterval(() => {
+                            waragraph_viz.updateSvgLink("gi|528476637:29857558-29915771", 5);
+                        }, 100);
+                    }
+                };
+            }
 
             // getPathRange("grch38#chr6:28510128-33480000", 1841288n, 1841422n)
             window.getPathRange = async (path_name, start, end) => {
@@ -405,30 +512,23 @@ const test_svg = async () => {
 
     const body = `
 <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"
-     opacity="0%">
-  <!--
-  with relative unit such as percentage, the visual size
-  of the square looks unchanged regardless of the viewBox
-  -->
-
-  <!--
-  with a large viewBox the circle looks small
-  as it is using user units for the r attribute:
-  4 resolved against 100 as set in the viewBox
-  -->
-  <circle cx="50%" cy="50%" r="4" fill="white" />
+     id="viz-svg-overlay"
+>
 </svg>
 `;
     let parent = document.createElement('div');
+    parent.style.setProperty('z-index', '10');
     parent.style.setProperty('grid-column', '1');
     parent.style.setProperty('grid-row', '1 / -1');
+    parent.style.setProperty('background-color', 'transparent');
+    parent.style.setProperty('pointer-events', 'none');
     document.getElementById('viz-container').append(parent);
 
     let el = document.createElement('svg');
 
     parent.append(el);
-    el.style.setProperty('position', 'absolute');
     el.outerHTML = body;
+    el.style.setProperty('position', 'absolute');
 
 };
 

@@ -1,5 +1,5 @@
 import * as rxjs from 'rxjs';
-import { mat3, vec3 } from 'gl-matrix';
+import { mat3, vec2, vec3 } from 'gl-matrix';
 
 import init_module, * as wasm_bindgen from './pkg/web.js';
 
@@ -56,9 +56,7 @@ class GraphViewer {
     }
 
     resize() {
-        // let el = document.getElementById('graph-viewer-2d-overlay');
         let el = document.getElementById('graph-viewer-2d-overlay');
-        // let container = el.parentNode;
 
         let width = el.parentNode.clientWidth;
         let height = el.parentNode.clientHeight;
@@ -109,12 +107,42 @@ class GraphViewer {
         this.next_view.zoom_with_focus(tx, ty, s);
     }
 
-    get_view_matrix() {
-        return this.graph_viewer.get_view_matrix();
+    getViewMatrix() {
+        let overlay = document
+            .getElementById('graph-viewer-2d-overlay');
+        return this.graph_viewer.get_view_matrix(overlay.width, overlay.height);
     }
 
-    get_segment_pos(seg) {
-        return this.segment_positions.segment_pos(seg);
+    getSegmentPos(segment) {
+        return this.segment_positions.segment_pos(segment);
+    }
+
+    getSegmentScreenPos(segment) {
+        const pos = this.getSegmentPos(segment);
+        if (pos === null) {
+            return null;
+        }
+
+        const {x0, y0, x1, y1} = pos;
+
+        const mat = this.getViewMatrix();
+
+        console.log(mat);
+        const p0 = vec2.fromValues(x0, y0);
+        const p1 = vec2.fromValues(x1, y1);
+        console.log(p0);
+
+        const q0 = vec2.create();
+        const q1 = vec2.create();
+
+        console.log(q0);
+
+        console.log(vec2);
+
+        vec2.transformMat3(q0, p0, mat);
+        vec2.transformMat3(q1, p1, mat);
+
+        return { start: q0, end: q1 };
     }
 }
 
