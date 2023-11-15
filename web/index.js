@@ -257,6 +257,9 @@ class WaragraphViz {
         const pos_2d = await this.segmentScreenPos2d(segment);
         const pos_1d = await this.segmentScreenPos1d(path_name, segment);
 
+        let svg_pos_2d;
+        let svg_pos_1d;
+
         if (pos_2d !== null) {
             let canv_2d = document.getElementById('graph-viewer-2d-overlay');
 
@@ -274,8 +277,11 @@ class WaragraphViz {
             }
 
             const svg_2d = `
-<circle cx="${cx}" cy="${cy}" r="1" fill="transparent" stroke="red" />
+<circle cx="${cx}" cy="${cy}" r="1" fill="transparent" stroke="red"
+stroke-width="0.5" />
 `;
+
+            svg_pos_2d = { cx, cy };
 
             g_el.append(el);
             el.outerHTML = svg_2d;
@@ -341,16 +347,57 @@ class WaragraphViz {
       stroke="red"
 />`;
 
+            svg_pos_1d = { x, y, width, height };
+
             g_el.append(el);
             el.outerHTML = svg_1d;
-            // let clip_path = "polygon(0% 0%, 10% 0%, 10% 10%, 0% 10%)"
-            // let str = 
-            //     `path("M ${r.x0},${r.y0} L ${r.x1},${r.y0} L ${r.x1},${r.y1} L ${r.x0},${r.y1}")`;
-            // console.log(str);
-            // el.style.setProperty('clip-path', clip_path);
-
-            // console.log(el.style);
         }
+
+        if (svg_pos_1d && svg_pos_2d) {
+            let el = svg.getElementById('link-path');
+            if (!el) {
+                // el = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                el = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+                el.id = 'link-path';
+                g_el.append(el);
+            }
+
+            let cx = svg_pos_1d.x;
+            let cy = svg_pos_1d.y - 1;
+            el.innerHTML = `
+<path d="M ${svg_pos_2d.cx},${svg_pos_2d.cy} S ${cx},${cy} ${svg_pos_1d.x},${svg_pos_1d.y}"
+stroke-width="0.1"
+stroke="red"
+fill="none"
+/>
+<path d="M ${svg_pos_2d.cx},${svg_pos_2d.cy} S ${cx + svg_pos_1d.width},${cy} ${svg_pos_1d.x + svg_pos_1d.width},${svg_pos_1d.y}"
+stroke-width="0.1"
+stroke="red"
+fill="none"
+/>
+`;
+
+
+        }
+
+
+    }
+
+    centerViewOnSegment2d(segment) {
+        let seg_pos = this.graph_viewer.getSegmentPos(segment);
+
+        if (seg_pos === null) {
+            return null;
+        }
+
+        let { x0, y0, x1, y1 } = seg_pos;
+
+        let x = (x1 + x0) / 2;
+        let y = (y1 + y0) / 2;
+
+
+
+
     }
 
     async segmentScreenPos2d(segment) {
@@ -359,8 +406,6 @@ class WaragraphViz {
         if (seg_pos === null) {
             return null;
         }
-
-        let { start, end } = seg_pos;
 
         return seg_pos;
     }
@@ -436,7 +481,7 @@ const init = async () => {
                         iv_id = undefined;
                     } else {
                         iv_id = window.setInterval(() => {
-                            waragraph_viz.updateSvgLink("gi|528476637:29857558-29915771", 5);
+                            waragraph_viz.updateSvgLink("gi|528476637:29857558-29915771", 1772);
                         }, 100);
                     }
                 };

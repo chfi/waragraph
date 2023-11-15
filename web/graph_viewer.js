@@ -101,6 +101,10 @@ class GraphViewer {
         this.drawOverlays();
     }
 
+    setViewCenter(x, y) {
+        this.next_view.set_center(x, y);
+    }
+
     translate(x, y) {
         this.next_view.translate_size_rel(x, y);
     }

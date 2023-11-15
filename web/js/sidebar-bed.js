@@ -97,15 +97,6 @@ function bedEntryColorOrFn(bed_entry, color_fn) {
     return color;
 }
 
-
-
-async function drawEntryLinkSvg(segment, path_name, text) {
-    // 2d position
-    // waragraph_viz.graph_viewer.segment_positions(
-
-    // 1d position (in specific path canvas)
-}
-
 async function createDrawBedEntryFn1d(bed_entry, color_fn) {
     //
     let path_name = findPathName(bed_entry.chrom);
