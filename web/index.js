@@ -247,42 +247,82 @@ class WaragraphViz {
 
         const id = 'segment-link-' + segment;
 
-        let el = svg.getElementById(id);
+        let g_el = svg.getElementById(id);
 
-        if (!el) {
-            el = document.createElementNS('http://www.w3.org/2000/svg', 'g');
-            el.id = id;
-            svg.append(el);
+        if (!g_el) {
+            g_el = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+            g_el.id = id;
+            svg.append(g_el);
         }
+
+        g_el.innerHTML = "";
 
         let pos_2d = await this.segmentScreenPos2d(segment);
         let pos_1d = await this.segmentScreenPos1d(path_name, segment);
 
-        if (pos_1d === null || pos_2d === null) {
-            console.warn("updateSvgLink aborting");
-            return;
-        }
+        if (pos_2d !== null) {
+            let canv_2d = document.getElementById('graph-viewer-2d-overlay');
 
-        console.warn(pos_2d);
+            let x2d = pos_2d.start[0];
+            let y2d = pos_2d.start[1];
 
-        let canv_2d = document.getElementById('graph-viewer-2d-overlay');
+            let height_prop = canv_2d.height / svg.clientHeight;
+            console.log(height_prop);
 
-        let x2d = pos_2d.start[0];
-        let y2d = pos_2d.start[1];
+            let cx = (x2d / canv_2d.width) * 100;
+            let cy = (y2d / canv_2d.height) * 100 * height_prop;
 
-        let height_prop = canv_2d.height / svg.clientHeight;
-        console.log(height_prop);
+            let el = svg.querySelector('circle');
+            if (!el) {
+                el = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+            }
 
-        let cx = (x2d / canv_2d.width) * 100;
-        let cy = (y2d / canv_2d.height) * 100 * height_prop;
+            // const el = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
 
-        const svg_2d = `
+            const svg_2d = `
 <circle cx="${cx}" cy="${cy}" r="1" fill="transparent" stroke="red" />
 `;
-        console.log(svg_2d);
+            console.log(svg_2d);
 
-        el.innerHTML = svg_2d;
-        console.log(el);
+            g_el.append(el);
+            el.outerHTML = svg_2d;
+            console.log(el);
+        }
+
+        if (pos_1d !== null) {
+            let { x0, y0, x1, y1 } = pos_1d;
+
+            let svg_rect = svg.getBoundingClientRect();
+
+            console.log(pos_1d);
+            console.log(svg);
+            let left = svg.clientLeft;
+            console.log(left);
+
+
+            let x = 100 * (x0 - svg_rect.left) / svg_rect.width;
+            let y = 100 * (y0 - svg_rect.top) / svg_rect.height;
+
+            let width = (x1 - x0) / (svg_rect.left + svg_rect.width);
+            let height = (y1 - y0) / (svg_rect.top + svg_rect.height);
+
+            // let x = x0 - left;
+            // let y = y0;
+
+            // let width = (x1 - x0) * 100;
+            // let height = (y1 - y0) * 100;
+
+
+            const svg_1d = `
+<rect x="${x}" y="${y}" width="${width}" height="${height}"
+      stroke="red"
+/>`;
+            console.log(svg_1d);
+
+            const el = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+            g_el.append(el);
+            el.outerHTML = svg_1d;
+        }
     }
 
     async segmentScreenPos2d(segment) {
@@ -305,23 +345,35 @@ class WaragraphViz {
 
         let el = document.getElementById('viewer-' + path_name);
 
+        let el_rect = el.getBoundingClientRect();
+
         if (!el) {
             return null;
         }
 
         // segmentRange returns BigInts
+        console.log(seg_range);
+        console.log(view);
         let seg_s = Number(seg_range.start);
         let seg_e = Number(seg_range.end);
 
         let seg_start = (seg_s - view.start) / view.len;
         let seg_end = (seg_e - view.start) / view.len;
+        console.log(seg_start);
 
-        let width = el.width;
-        let y0 = el.clientY;
-        let y1 = el.clientY + el.height;
+        console.log(el);
 
-        let x0 = el.clientX + seg_s * width;
-        let x1 = el.clientX + seg_e * width;
+        let width = el_rect.width;
+        let y0 = el_rect.y;
+        let y1 = el_rect.y + el_rect.height;
+        console.log(y0);
+        console.log(y1);
+
+        console.log("seg_start", seg_start);
+        console.log("seg_end", seg_end);
+
+        let x0 = el_rect.left + seg_start * width;
+        let x1 = el_rect.left + seg_end * width;
 
         return { x0, y0, x1, y1 };
     }
