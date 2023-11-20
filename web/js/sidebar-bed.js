@@ -42,6 +42,31 @@ function createPathOffsetMap(path_name) {
     return (bp) => bp - start;
 }
 
+function bedToPathRange(bed_entry, path_name) {
+    if (!path_name) {
+        throw `Path ${path_name} not found`;
+    }
+
+    const regex = /.+:(\d+)-(\d+)$/;
+
+    const found = path_name.match(regex);
+
+    if (found === null) {
+        return bed_entry;
+    }
+
+    const start = Number(found[1]);
+
+    let chromStart = bed_entry.chromStart - start;
+    let chromEnd = bed_entry.chromEnd - start;
+
+    if (chromStart < 0) {
+        chromStart = 0;
+    }
+
+    return { start: chromStart, end: chromEnd };
+}
+
 function transformBedRange(bed_entry) {
     let name = bed_entry.chrom;
 
@@ -184,6 +209,47 @@ async function createDrawBedEntryFn2d(bed_entry, color_fn) {
     return callback_2d;
 }
                             
+
+class BedFile {
+    constructor(file_name, record_lines) {
+        this.records = [];
+
+        // per record: 
+        // { canvas_1d: Map<Path, bool>,
+        //   canvas_2d: bool,
+        //   svg_shared: svg element
+        this.records_viz_state = [];
+
+        for (const bed_record of record_lines) {
+            if (Number.isNaN(bed_record.chromStart)
+                || Number.isNaN(bed_record.chromEnd)) {
+                continue;
+            }
+
+            const record_i = this.records.length;
+
+            const path_name = findPathName(bed_entry.chrom);
+            const path_range = bedToPathRange(bed_entry, path_name);
+
+            const record = {
+                record_index: record_i,
+                bed_record,
+                path_name,
+                path_range,
+            };
+
+            this.records.push(record);
+            this.records_viz_state.push({});
+
+        }
+    }
+
+    updateSvg() {
+        
+    }
+
+
+}
 
 async function loadBedFile(file) {
     const bed_list = document.getElementById('bed-file-list');
@@ -361,6 +427,7 @@ async function loadBedFile(file) {
 
 
 }
+
 
 async function bedSidebarPanel() {
     const bed_pane = document.createElement('div');

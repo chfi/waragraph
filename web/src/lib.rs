@@ -185,6 +185,29 @@ impl CanvasPathTrace {
         }
     }
 
+    pub fn with_points_tangents(&self, f: &js_sys::Function) {
+        let this = JsValue::null();
+        // for point in self.points.
+        for win in self.points.windows(2) {
+            let [p0, p1] = win else { unreachable!() };
+
+            let d = *p1 - *p0;
+
+            let arr: js_sys::Array = js_sys::Array::from_iter(
+                [p0.x, p0.y, d.x, d.y].into_iter().map(JsValue::from),
+            );
+
+            let _ = f.apply(&this, &arr);
+            // let _ = f.call4(
+            //     &this,
+            //     &p0.x.into(),
+            //     &p0.y.into(),
+            //     &d.x.into(),
+            //     &d.y.into(),
+            // );
+        }
+    }
+
     pub fn points_array(&self) -> js_sys::Float32Array {
         let ptr = self.points.as_ptr();
 
