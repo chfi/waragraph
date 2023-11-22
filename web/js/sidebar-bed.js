@@ -211,14 +211,22 @@ async function createDrawBedEntryFn2d(bed_entry, color_fn) {
                             
 
 class BedFile {
-    constructor(file_name, record_lines) {
+    // constructor(file_name, record_lines) {
+    constructor(file_name) {
+        this.file_name = file_name;
         this.records = [];
+        this.records_viz_state = [];
 
         // per record: 
         // { canvas_1d: Map<Path, bool>,
         //   canvas_2d: bool,
         //   svg_shared: svg element
-        this.records_viz_state = [];
+    }
+
+    async appendRecords(record_lines) {
+
+        const graph_raw = await waragraph_viz.worker_obj.getGraph();
+        const graph = wasm_bindgen.ArrowGFAWrapped.__wrap(graph_raw.__wbg_ptr);
 
         for (const bed_record of record_lines) {
             if (Number.isNaN(bed_record.chromStart)
@@ -231,11 +239,21 @@ class BedFile {
             const path_name = findPathName(bed_entry.chrom);
             const path_range = bedToPathRange(bed_entry, path_name);
 
+            const path_cs = await waragraph_viz.worker_obj.pathCoordSys(path_name);
+            // const path_step_range = 
+
+            const path_steps = graph.path_steps(path_name);
+
+            // const step_range = path_cs.bp_to_step_range(BigInt(start), BigInt(end));
+            const step_range = path_cs.bp_to_step_range(path_range.start, path_range.end);
+            const path_step_slice = path_steps.slice(step_range.start, step_range.end);
+
             const record = {
                 record_index: record_i,
                 bed_record,
                 path_name,
                 path_range,
+                path_step_slice,
             };
 
             this.records.push(record);
@@ -244,7 +262,41 @@ class BedFile {
         }
     }
 
-    updateSvg() {
+    createListElement() {
+        const entries_list = document.createElement('div');
+        entries_list.classList.add('bed-file-entry');
+
+        const name_el = document.createElement('div');
+        name_el.innerHTML = this.file_name;
+        name_el.classList.add('bed-file-name');
+        name_el.style.setProperty('flex-basis', '30px');
+
+        for (const record of this.records) {
+
+            const entry_div = document.createElement('div');
+            entry_div.classList.add('bed-file-row');
+            // entry_div.style.setProperty('flex-basis', '20px');
+
+            const label_div = document.createElement('div');
+            label_div.innerHTML = entry.name;
+            label_div.classList.add('bed-row-label');
+
+            // add checkboxes/buttons for toggling... or just selection?
+            // still want something to signal visibility in 1d & 2d, e.g. "eye icons"
+        }
+
+    }
+
+    drawOverlayCanvas2d(canvas, view) {
+        //
+    }
+
+    updateSvg(view) {
+        for (const record of this.records) {
+            const i = record.record_index;
+
+            //
+        }
         
     }
 
