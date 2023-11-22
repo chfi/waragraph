@@ -89,6 +89,20 @@ export class AnnotationPainter {
         const w = canvas.width;
         const h = canvas.height;
 
+        // const canvas_rect = canvas.getBoundingClientRect();
+
+        const svg_rect =
+              document.getElementById('viz-svg-overlay')
+              .getBoundingClientRect();
+
+
+        const height_prop = canvas.height / svg_rect.height;
+        const map_canvas_to_svg = ( {x, y} ) => {
+            let x_ = 100 * x / canvas.width;
+            let y_ = 100 * height_prop * y / canvas.height;
+            return { x: x_, y: y_ };
+        };
+
         for (const { svg_g, record, cached_path, enabled } of this.record_states) {
             if (!enabled || cached_path === null) {
                 // svg_g.innerHTML = '';
@@ -99,13 +113,12 @@ export class AnnotationPainter {
             let svg_path = "";
 
             cached_path.with_points((x, y) => {
-                const x_ = (x / w) * 100;
-                const y_ = (y / h) * 100;
+                const p = map_canvas_to_svg({x, y});
                 
                 if (svg_path.length === 0) {
-                    svg_path += `M ${x_},${y_}`;
+                    svg_path += `M ${p.x},${p.y}`;
                 } else {
-                    svg_path += ` L ${x_},${y_}`;
+                    svg_path += ` L ${p.x},${p.y}`;
                 }
             });
 
