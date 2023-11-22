@@ -16,6 +16,8 @@ class GraphViewer {
 
         this.next_view = this.graph_viewer.get_view();
 
+        this.view_subject = new rxjs.BehaviorSubject(this.next_view.as_obj());
+
         this.overlayCallbacks = {};
         this.mousePos = null;
     }
@@ -85,6 +87,8 @@ class GraphViewer {
     draw() {
         this.graph_viewer.set_view(this.next_view);
         this.graph_viewer.draw_to_surface(_raving_ctx);
+
+        this.view_subject.next(this.next_view.as_obj());
 
         this.drawOverlays();
     }

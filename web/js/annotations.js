@@ -15,14 +15,18 @@ function createSVGElement(tag) {
 
 let _wasm;
 
-class AnnotationPainter {
+export class AnnotationPainter {
     constructor(waragraph, name, records) {
+        this.callback_key = "painter-" + name;
+
         if (!_wasm) {
-            _wasm = await init_module(undefined, waragraph.wasm.memory);
-            wasm_bindgen.set_panic_hook();
+            init_module(undefined, waragraph.wasm.memory)
+                .then((module) => {
+                    _wasm = module;
+                    wasm_bindgen.set_panic_hook();
+                });
         }
 
-        this.callback_key = "painter-" + name;
 
         // this.record_svg_gs = [];
 

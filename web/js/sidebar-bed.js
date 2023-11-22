@@ -240,16 +240,17 @@ class BEDFile {
 
             const record_i = this.records.length;
 
-            const path_name = findPathName(bed_entry.chrom);
-            const path_range = bedToPathRange(bed_entry, path_name);
+            const path_name = findPathName(bed_record.chrom);
+            const path_range = bedToPathRange(bed_record, path_name);
 
-            const path_cs = await waragraph_viz.worker_obj.pathCoordSys(path_name);
+            const path_cs_raw = await waragraph_viz.worker_obj.pathCoordSys(path_name);
+            const path_cs = wasm_bindgen.CoordSys.__wrap(path_cs_raw.__wbg_ptr);
             // const path_step_range = 
 
             const path_steps = graph.path_steps(path_name);
 
-            // const step_range = path_cs.bp_to_step_range(BigInt(start), BigInt(end));
-            const step_range = path_cs.bp_to_step_range(path_range.start, path_range.end);
+            const step_range = path_cs.bp_to_step_range(BigInt(path_range.start), BigInt(path_range.end));
+            // const step_range = path_cs.bp_to_step_range(path_range.start, path_range.end);
             const path_step_slice = path_steps.slice(step_range.start, step_range.end);
 
             const record = {
@@ -274,7 +275,7 @@ class BEDFile {
 
         // TODO: there are other cases when this should run, especially once
         // there's more than just 2D-focused SVG
-        this.waragraph_viz
+        waragraph_viz
             .graph_viewer
             .view_subject
             .subscribe((view_2d) => {
@@ -282,19 +283,21 @@ class BEDFile {
 
                 let update_pos = false;
 
-                if (prev.width !== width
-                    || prev.height !== height) {
+                if (prev_view.width !== width
+                    || prev_view.height !== height) {
                     update_pos = true;
 
                     this.annotation_painter.resample2DPaths(view_2d);
                 }
 
-                if (prev.x != x || prev.y !== y || update_pos) {
+                if (prev_view.x != x || prev_view.y !== y || update_pos) {
                     // update SVG path offsets;
                     // should also happen on resample
 
                     this.annotation_painter.updateSVGPaths(view_2d);
                 }
+
+                prev_view = view_2d;
             });
 
     }
@@ -316,11 +319,31 @@ class BEDFile {
             // entry_div.style.setProperty('flex-basis', '20px');
 
             const label_div = document.createElement('div');
-            label_div.innerHTML = entry.name;
+            label_div.innerHTML = record.bed_record.name;
             label_div.classList.add('bed-row-label');
 
             // add checkboxes/buttons for toggling... or just selection?
             // still want something to signal visibility in 1d & 2d, e.g. "eye icons"
+
+            label_div.addEventListener('click', (ev) => {
+                ev.stopPropagation();
+                let ctx_menu_el = document.getElementById('sidebar-bed-context-menu');
+                _context_menu_entry = { record };
+                // _context_menu_entry = { bed_entry,
+                //                         processed: entry,
+                //                         path_name, 
+                //                         path_range,
+                //                       };
+
+                computePosition(label_div, ctx_menu_el).then(({x, y}) => {
+                    ctx_menu_el.style.setProperty('display', 'flex');
+                    ctx_menu_el.focus();
+                    Object.assign(ctx_menu_el.style, {
+                        left: `${x}px`,
+                        top: `${y}px`,
+                    });
+                });
+            });
 
             entry_div.append(label_div);
 
@@ -338,6 +361,7 @@ class BEDFile {
 
 async function loadBedFileNew(file) {
     const bed_file = new BEDFile(file.name);
+    const bed_text = await file.text();
 
     const parser = new BED();
     const bed_lines = bed_text.split('\n').map(line => parser.parseLine(line));
@@ -345,7 +369,6 @@ async function loadBedFileNew(file) {
     await bed_file.appendRecords(bed_lines);
 
     bed_file.initializeAnnotationPainter();
-
     
     const bed_list = document.getElementById('bed-file-list');
 
@@ -580,7 +603,7 @@ async function bedSidebarPanel() {
         copy_name_btn.innerHTML = 'Copy name';
         copy_name_btn.addEventListener('click', (ev) => {
             if (_context_menu_entry !== null) {
-                let name = _context_menu_entry.bed_entry.name;
+                let name = _context_menu_entry.bed_record.name;
                 if (typeof name === "string") {
                     navigator.clipboard.writeText(name);
                     // context_menu_el.style.setProperty('display', 'none');
