@@ -273,6 +273,9 @@ class BEDFile {
 
         let prev_view = waragraph_viz.graph_viewer.getView();
 
+        document.getElementById('viz-svg-overlay')
+            .append(this.annotation_painter.svg_root);
+
         // TODO: there are other cases when this should run, especially once
         // there's more than just 2D-focused SVG
         waragraph_viz

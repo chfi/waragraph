@@ -65,16 +65,19 @@ export class AnnotationPainter {
 
         this.last_2d_view = view_2d_obj;
 
-        for (const { record, cached_path, enabled } of this.record_states) {
-            if (!enabled) {
+        // for (let { record, cached_path, enabled } of this.record_states) {
+        for (const state of this.record_states) {
+            if (!state.enabled) {
                 continue;
             }
 
-            const { path_name, path_step_slice, bed_record } = record;
+            const { path_name, path_step_slice, bed_record } = state.record;
 
-            cached_path =
+            state.cached_path =
                 this.waragraph.graph_viewer
                 .sampleCanvasSpacePath(path_step_slice, path_tolerance);
+
+            console.warn(state.cached_path);
         }
 
         // TODO store view... scale? & use to decide when to resample
@@ -85,8 +88,6 @@ export class AnnotationPainter {
         const canvas = document.getElementById("graph-viewer-2d");
         const w = canvas.width;
         const h = canvas.height;
-
-
 
         for (const { svg_g, record, cached_path, enabled } of this.record_states) {
             if (!enabled || cached_path === null) {
@@ -107,6 +108,7 @@ export class AnnotationPainter {
                     svg_path += ` L ${x_},${y_}`;
                 }
             });
+
 
             svg_g.innerHTML =
                 `<path d="${svg_path}" stroke-width="0.5" stroke="red" fill="none" />`;
