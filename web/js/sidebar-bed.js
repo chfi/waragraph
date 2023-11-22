@@ -6,6 +6,8 @@ import {computePosition} from '@floating-ui/dom';
 
 import { preparePathHighlightOverlay } from '../graph_viewer.js';
 
+import { AnnotationPainter } from './annotations.js';
+
 import * as CanvasTracks from '../canvas_tracks.js';
 
 import '../sidebar-bed.css';
@@ -210,12 +212,14 @@ async function createDrawBedEntryFn2d(bed_entry, color_fn) {
 }
                             
 
-class BedFile {
+class BEDFile {
     // constructor(file_name, record_lines) {
     constructor(file_name) {
         this.file_name = file_name;
         this.records = [];
         this.records_viz_state = [];
+
+        this.annotation_painter = null;
 
         // per record: 
         // { canvas_1d: Map<Path, bool>,
@@ -262,6 +266,39 @@ class BedFile {
         }
     }
 
+    initializeAnnotationPainter() {
+        this.annotation_painter =
+            new AnnotationPainter(waragraph_viz, this.file_name, this.records);
+
+        let prev_view = waragraph_viz.graph_viewer.getView();
+
+        // TODO: there are other cases when this should run, especially once
+        // there's more than just 2D-focused SVG
+        this.waragraph_viz
+            .graph_viewer
+            .view_subject
+            .subscribe((view_2d) => {
+                const { x, y, width, height } = view_2d;
+
+                let update_pos = false;
+
+                if (prev.width !== width
+                    || prev.height !== height) {
+                    update_pos = true;
+
+                    this.annotation_painter.resample2DPaths(view_2d);
+                }
+
+                if (prev.x != x || prev.y !== y || update_pos) {
+                    // update SVG path offsets;
+                    // should also happen on resample
+
+                    this.annotation_painter.updateSVGPaths(view_2d);
+                }
+            });
+
+    }
+
     createListElement() {
         const entries_list = document.createElement('div');
         entries_list.classList.add('bed-file-entry');
@@ -270,6 +307,7 @@ class BedFile {
         name_el.innerHTML = this.file_name;
         name_el.classList.add('bed-file-name');
         name_el.style.setProperty('flex-basis', '30px');
+        entries_list.append(name_el);
 
         for (const record of this.records) {
 
@@ -283,23 +321,36 @@ class BedFile {
 
             // add checkboxes/buttons for toggling... or just selection?
             // still want something to signal visibility in 1d & 2d, e.g. "eye icons"
+
+            entry_div.append(label_div);
+
+            entries_list.append(entry_div);
         }
 
+        return entries_list;
     }
 
     drawOverlayCanvas2d(canvas, view) {
         //
     }
 
-    updateSvg(view) {
-        for (const record of this.records) {
-            const i = record.record_index;
+}
 
-            //
-        }
-        
-    }
+async function loadBedFileNew(file) {
+    const bed_file = new BEDFile(file.name);
 
+    const parser = new BED();
+    const bed_lines = bed_text.split('\n').map(line => parser.parseLine(line));
+
+    await bed_file.appendRecords(bed_lines);
+
+    bed_file.initializeAnnotationPainter();
+
+    
+    const bed_list = document.getElementById('bed-file-list');
+
+    const bed_list_el = bed_file.createListElement();
+    bed_list.append(bed_list_el);
 
 }
 
@@ -507,7 +558,8 @@ async function bedSidebarPanel() {
 
     file_button.addEventListener('click', (ev) => {
         for (const file of file_entry.files) {
-            loadBedFile(file);
+            // loadBedFile(file);
+            loadBedFileNew(file);
         }
     });
 
@@ -581,8 +633,10 @@ async function bedSidebarPanel() {
 export async function initializeBedSidebarPanel(warapi) {
     waragraph_viz = warapi;
 
-    wasm = await init_module(undefined, waragraph_viz.wasm.memory);
-    wasm_bindgen.set_panic_hook();
+    if (!wasm) {
+        wasm = await init_module(undefined, waragraph_viz.wasm.memory);
+        wasm_bindgen.set_panic_hook();
+    }
 
     let path_names = await warapi.worker_obj.getPathNames();
     let path_index = 0;

@@ -13,8 +13,15 @@ function createSVGElement(tag) {
     return document.createElementNS('http://www.w3.org/2000/svg', tag);
 }
 
+let _wasm;
+
 class AnnotationPainter {
     constructor(waragraph, name, records) {
+        if (!_wasm) {
+            _wasm = await init_module(undefined, waragraph.wasm.memory);
+            wasm_bindgen.set_panic_hook();
+        }
+
         this.callback_key = "painter-" + name;
 
         // this.record_svg_gs = [];
@@ -49,7 +56,7 @@ class AnnotationPainter {
     }
 
 
-    async resample2DPaths(view_2d_obj) {
+    resample2DPaths(view_2d_obj) {
         const path_tolerance = 8;
 
         this.last_2d_view = view_2d_obj;

@@ -34,6 +34,18 @@ class GraphViewer {
         }
     }
 
+    sampleCanvasSpacePath(path_step_slice, tolerance) {
+        const canvas = document.getElementById("graph-viewer-2d");
+
+        return this.segment_positions.sample_canvas_space_path(
+            this.next_view,
+            canvas.width,
+            canvas.height,
+            path_step_slice,
+            tolerance
+        );
+    }
+
     fitViewToGraph() {
         let graph_bounds = this.segment_positions.bounds_as_view_obj();
         // let view_obj = this.next_view.as_obj();
@@ -111,6 +123,10 @@ class GraphViewer {
 
     zoom(tx, ty, s) {
         this.next_view.zoom_with_focus(tx, ty, s);
+    }
+
+    getView() {
+        return this.next_view.as_obj();
     }
 
     getViewMatrix() {
