@@ -272,7 +272,7 @@ class BEDFile {
         this.annotation_painter =
             new AnnotationPainter(waragraph_viz, this.file_name, this.records);
 
-        await this.annotation_painter.prepare1DRanges();
+        await this.annotation_painter.prepareRecords();
 
         let prev_view = waragraph_viz.graph_viewer.getView();
 

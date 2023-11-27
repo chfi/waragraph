@@ -76,18 +76,42 @@ export class AnnotationPainter {
         }
     }
 
-    async prepare1DRanges() {
+    async prepareRecords() {
+
+
         const cs_view = await this.waragraph.worker_obj.globalCoordSysView();
 
         for (const state of this.record_states) {
             const { path_name, path_step_slice } = state.record;
 
-            console.warn(path_step_slice);
+            const bed = state.record.bed_record;
+
+            //// set the stroke and fill colors on the root svg element
+
+            let color;
+
+            if (typeof bed.itemRgb === "string") {
+                let [r,g,b] = bed.itemRgb.split(',');
+                color = `rgb(${r * 255},${g * 255},${b * 255})`;
+            } else {
+                let {r,g,b} = wasm_bindgen.path_name_hash_color_obj(bed.name);
+                color = `rgb(${r * 255},${g * 255},${b * 255})`;
+            }
+
+            state.color = color;
+            console.warn('color: ', color);
+
+            // state.svg_g.setAttribute('stroke', color);
+            state.svg_g.setAttribute('color', color);
+
+            //// global coordinate space rectangles for the 1D path views
+
+            // console.warn(path_step_slice);
             const record_ranges = wasm_bindgen.path_slice_to_global_adj_partitions(path_step_slice);
-            console.warn(record_ranges);
+            // console.warn(record_ranges);
 
             const ranges_arr = record_ranges.ranges_as_u32_array();
-            console.warn(ranges_arr);
+            // console.warn(ranges_arr);
             const range_count = ranges_arr.length / 2;
 
             const global_ranges = [];
@@ -140,7 +164,7 @@ export class AnnotationPainter {
 
         const view_len = view_1d.end - view_1d.start;
 
-        for (const { svg_g, record, global_ranges, enabled } of this.record_states) {
+        for (const { svg_g, record, global_ranges, enabled, color } of this.record_states) {
             if (global_ranges === null) {
                 continue;
             }
@@ -173,7 +197,7 @@ export class AnnotationPainter {
                 let height = 100 * data_rect.height / svg_rect.height;
 
                 el_rect.outerHTML = `<rect x="${x}" y="${y}" width="${width}" height="${height}"
-fill="red"
+fill="${color}"
 />`;
             }
 
@@ -200,7 +224,7 @@ fill="red"
             return { x: x_, y: y_ };
         };
 
-        for (const { svg_g, record, cached_path, enabled } of this.record_states) {
+        for (const { svg_g, record, cached_path, enabled, color } of this.record_states) {
 
             if (!enabled || cached_path === null) {
                 // svg_g.innerHTML = '';
@@ -222,7 +246,9 @@ fill="red"
 
             svg_g.querySelector('.svg-overlay-2d').innerHTML =
             // svg_g.innerHTML =
-                `<path d="${svg_path}" stroke-width="0.5" stroke="red" fill="none" />`;
+                // `<path d="${svg_path}" stroke-width="0.5" fill="none" />`;
+            `<path d="${svg_path}" stroke-width="0.5" stroke="${color}" fill="none" />`;
+                // `<path d="${svg_path}" stroke-width="0.5" stroke="red" fill="none" />`;
         }
 
     }
