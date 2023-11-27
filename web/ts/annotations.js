@@ -1,4 +1,4 @@
-import init_module, * as wasm_bindgen from '../pkg/web.js';
+import init_module, * as wasm_bindgen from 'waragraph';
 
 // import BED from '@gmod/bed';
 
@@ -6,7 +6,7 @@ import init_module, * as wasm_bindgen from '../pkg/web.js';
 
 // import { preparePathHighlightOverlay } from '../graph_viewer.js';
 
-import * as CanvasTracks from '../canvas_tracks.js';
+import * as CanvasTracks from './canvas_tracks';
 
 
 function createSVGElement(tag) {

@@ -1,8 +1,8 @@
-import init_module, * as wasm_bindgen from '../pkg/web.js';
+import init_module, * as wasm_bindgen from 'waragraph';
 
-import { preparePathHighlightOverlay } from '../graph_viewer.js';
-import { AnnotationPainter } from './annotations.js';
-import * as CanvasTracks from '../canvas_tracks.js';
+import { preparePathHighlightOverlay } from '../graph_viewer';
+import { AnnotationPainter } from './annotations';
+import * as CanvasTracks from '../canvas_tracks';
 
 import BED from '@gmod/bed';
 

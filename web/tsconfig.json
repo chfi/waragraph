@@ -1,0 +1,12 @@
+{
+    "compilerOptions": {
+        "outDir": "ts_dist",
+        "allowJs": true,
+        "isolatedModules": true,
+        "lib": ["ESNext", "dom"],
+        "module": "esnext",
+        "target": "esnext",
+        "moduleResolution": "bundler"
+    },
+    "include": ["./ts/**/*"]
+}
