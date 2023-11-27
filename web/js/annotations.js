@@ -55,6 +55,10 @@ export class AnnotationPainter {
             const g_2d = createSVGElement('g');
             g_2d.classList.add('svg-overlay-2d');
 
+            g_1d.setAttribute('display', 'none');
+            g_2d.setAttribute('display', 'none');
+
+
             g_el.append(g_1d);
             g_el.append(g_2d);
 
@@ -62,7 +66,7 @@ export class AnnotationPainter {
                 svg_g: g_el,
                 record,
 
-                enabled: true,
+                enabled: false,
 
                 global_ranges: null,
                 cached_path: null,

@@ -123,6 +123,7 @@ function bedEntryColorOrFn(bed_entry, color_fn) {
     return color;
 }
 
+/*
 async function createDrawBedEntryFn1d(bed_entry, color_fn) {
     //
     let path_name = findPathName(bed_entry.chrom);
@@ -209,6 +210,7 @@ async function createDrawBedEntryFn2d(bed_entry, color_fn) {
 
     return callback_2d;
 }
+*/
                             
 
 class BEDFile {
@@ -320,6 +322,10 @@ class BEDFile {
 
     }
 
+    recordAnnotationVizState(record_index) {
+        return this.annotation_painter.record_states[record_index];
+    }
+
     createListElement() {
         const entries_list = document.createElement('div');
         entries_list.classList.add('bed-file-entry');
@@ -339,10 +345,35 @@ class BEDFile {
             const label_div = document.createElement('div');
             label_div.innerHTML = record.bed_record.name;
             label_div.classList.add('bed-row-label');
+            // label_div.classList.add('highlight-enabled');
+
 
             // add checkboxes/buttons for toggling... or just selection?
             // still want something to signal visibility in 1d & 2d, e.g. "eye icons"
 
+            const viz_states = this.annotation_painter.record_states;
+
+            label_div.addEventListener('click', (ev) => {
+                let state = viz_states[record.record_index];
+
+                let svg_g_1d = state.svg_g.querySelector('.svg-overlay-1d');
+                let svg_g_2d = state.svg_g.querySelector('.svg-overlay-2d');
+
+                if (state.enabled) {
+                    ev.target.classList.remove('highlight-enabled');
+                    svg_g_1d.setAttribute('display', 'none');
+                    svg_g_2d.setAttribute('display', 'none');
+                    state.enabled = false;
+                } else {
+                    ev.target.classList.add('highlight-enabled');
+                    svg_g_1d.setAttribute('display', 'inline');
+                    svg_g_2d.setAttribute('display', 'inline');
+                    state.enabled = true;
+                }
+            });
+
+            // disabling context menu for now
+            /*
             label_div.addEventListener('click', (ev) => {
                 ev.stopPropagation();
                 let ctx_menu_el = document.getElementById('sidebar-bed-context-menu');
@@ -362,6 +393,7 @@ class BEDFile {
                     });
                 });
             });
+            */
 
             entry_div.append(label_div);
 
@@ -395,6 +427,7 @@ async function loadBedFileNew(file) {
 
 }
 
+/*
 async function loadBedFile(file) {
     const bed_list = document.getElementById('bed-file-list');
 
@@ -571,6 +604,7 @@ async function loadBedFile(file) {
 
 
 }
+*/
 
 
 async function bedSidebarPanel() {
@@ -621,7 +655,7 @@ async function bedSidebarPanel() {
         copy_name_btn.innerHTML = 'Copy name';
         copy_name_btn.addEventListener('click', (ev) => {
             if (_context_menu_entry !== null) {
-                let name = _context_menu_entry.bed_record.name;
+                let name = _context_menu_entry.record.name;
                 if (typeof name === "string") {
                     navigator.clipboard.writeText(name);
                     // context_menu_el.style.setProperty('display', 'none');
@@ -630,6 +664,8 @@ async function bedSidebarPanel() {
             }
         })
 
+        // TODO context menu needs access to the viz. state
+        /*
         const focus_2d_btn = document.createElement('button');
         focus_2d_btn.innerHTML = 'Focus 2D view';
         focus_2d_btn.addEventListener('click', async (ev) => {
@@ -640,18 +676,21 @@ async function bedSidebarPanel() {
             // TODO use something sensible; not just the first step
 
             let path_name = _context_menu_entry.path_name;
-            let path_range = _context_menu_entry.path_range;
+            let path_slice = _context_menu_entry.path_step_slice;
 
-            let { start, end } = path_range;
+            let first_node = path_slice[0] / 2;
+
+            // let { start, end } = path_range;
 
             let path_steps = graph.path_steps(path_name);
-            let seg = path_steps[start];
+            let seg = path_steps[first_node];
 
             waragraph_viz.centerViewOnSegment2d(seg);
         });
+        */
 
         context_menu_el.append(copy_name_btn);
-        context_menu_el.append(focus_2d_btn);
+        // context_menu_el.append(focus_2d_btn);
 
         document.body.append(context_menu_el);
     }
