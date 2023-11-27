@@ -1,6 +1,4 @@
 
-
-
 // function createHorizontalArrowPattern(head_height, head_length, separation) {
 function createHorizontalArrowPattern() {
     const canvas = new OffscreenCanvas(32, 32);

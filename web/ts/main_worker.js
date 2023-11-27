@@ -6,8 +6,6 @@ import * as rxjs from 'rxjs';
 
 import * as handler from './transfer_handlers';
 
-// const handler = import('./transfer_handlers.js');
-
 let _graph;
 let _path_index;
 

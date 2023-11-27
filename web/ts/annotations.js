@@ -4,7 +4,7 @@ import init_module, * as wasm_bindgen from 'waragraph';
 
 // import {computePosition} from '@floating-ui/dom';
 
-// import { preparePathHighlightOverlay } from '../graph_viewer.js';
+// import { preparePathHighlightOverlay } from '../graph_viewer';
 
 import * as CanvasTracks from './canvas_tracks';
 

@@ -17,12 +17,12 @@ import { GraphViewer,
          initGraphViewer,
          initializeGraphViewer,
          preparePathHighlightOverlay
-       } from './graph_viewer.js';
+       } from './graph_viewer';
 
 import * as CanvasTracks from './canvas_tracks';
 
 
-import * as BedSidebar from './sidebar-bed.js';
+import * as BedSidebar from './sidebar-bed';
 
 const gfa_path = "./data/A-3105.fa.353ea42.34ee7b1.1576367.smooth.fix.gfa";
 const layout_path = "./data/A-3105.layout.tsv";
