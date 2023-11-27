@@ -48,14 +48,60 @@ export class AnnotationPainter {
         for (const record of records) {
             const g_el = createSVGElement('g');
 
+            const g_1d = createSVGElement('g');
+            g_1d.classList.add('svg-overlay-1d');
+
+
+            const g_2d = createSVGElement('g');
+            g_2d.classList.add('svg-overlay-2d');
+
+            g_el.append(g_1d);
+            g_el.append(g_2d);
+
             this.record_states.push({
                 svg_g: g_el,
                 record,
-                cached_path: null,
+
                 enabled: true,
+
+                global_ranges: null,
+                cached_path: null,
             });
 
             this.svg_root.append(g_el);
+        }
+    }
+
+    async prepare1DRanges() {
+        const cs_view = await this.waragraph.worker_obj.globalCoordSysView();
+
+        for (const state of this.record_states) {
+            const { path_name, path_step_slice } = state.record;
+
+            console.warn(path_step_slice);
+            const record_ranges = wasm_bindgen.path_slice_to_global_adj_partitions(path_step_slice);
+            console.warn(record_ranges);
+
+            const ranges_arr = record_ranges.ranges_as_u32_array();
+            console.warn(ranges_arr);
+            const range_count = ranges_arr.length / 2;
+
+            const global_ranges = [];
+
+            for (let ri = 0; ri < range_count; ri++) {
+                let start_seg = ranges_arr.at(2 * ri);
+                let end_seg = ranges_arr.at(2 * ri + 1);
+                // this... is probably pretty slow
+                // TODO optimize
+                if (start_seg !== undefined && end_seg !== undefined) {
+                    let start = await cs_view.segmentOffset(start_seg);
+                    let end = await cs_view.segmentOffset(end_seg);
+
+                    global_ranges.push({ start, end });
+                }
+            }
+
+            state.global_ranges = global_ranges;
         }
     }
 
@@ -84,6 +130,53 @@ export class AnnotationPainter {
         // probably do that in caller
     }
 
+    updateSVG1D(view_1d) {
+
+        const svg_rect = document.getElementById('viz-svg-overlay').getBoundingClientRect();
+
+        const view_len = view_1d.end - view_1d.start;
+
+        for (const { svg_g, record, global_ranges, enabled } of this.record_states) {
+            if (global_ranges === null) {
+                continue;
+            }
+
+            const svg_g_1d = svg_g.querySelector('.svg-overlay-1d');
+
+            // console.warn(`updating for record ${record}`);
+            // console.warn(svg_g_1d);
+
+            const data_canvas = document.getElementById('viewer-' + record.path_name);
+            const data_rect = data_canvas.getBoundingClientRect();
+
+            svg_g_1d.innerHTML = "";
+            for (const { start, end } of global_ranges) {
+                const el_rect = createSVGElement('rect');
+
+                svg_g_1d.append(el_rect);
+
+                // map global range to `data_rect` via `view_1d`
+
+                let r_start = (start - view_1d.start) / view_len;
+                let r_end = (end - view_1d.start) / view_len;
+
+                let screen_rs_x = data_rect.left + r_start * data_rect.width;
+
+                let y = 100 * (data_rect.top - svg_rect.top) / svg_rect.height;
+                let x = 100 * (screen_rs_x - svg_rect.left) / svg_rect.width;
+
+                let width = 100 * (r_end - r_start) * data_rect.width;
+                let height = 100 * data_rect.height / svg_rect.height;
+
+                el_rect.outerHTML = `<rect x="${x}" y="${y}" width="${width}" height="${height}"
+fill="red"
+/>`;
+            }
+
+        }
+
+    }
+
     updateSVGPaths(view_2d) {
         const canvas = document.getElementById("graph-viewer-2d");
         const w = canvas.width;
@@ -104,6 +197,7 @@ export class AnnotationPainter {
         };
 
         for (const { svg_g, record, cached_path, enabled } of this.record_states) {
+
             if (!enabled || cached_path === null) {
                 // svg_g.innerHTML = '';
                 // svg_g.style.setProperty('display', 'none');
@@ -122,8 +216,8 @@ export class AnnotationPainter {
                 }
             });
 
-
-            svg_g.innerHTML =
+            svg_g.querySelector('.svg-overlay-2d').innerHTML =
+            // svg_g.innerHTML =
                 `<path d="${svg_path}" stroke-width="0.5" stroke="red" fill="none" />`;
         }
 

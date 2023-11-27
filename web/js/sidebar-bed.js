@@ -1,14 +1,13 @@
 import init_module, * as wasm_bindgen from '../pkg/web.js';
 
+import { preparePathHighlightOverlay } from '../graph_viewer.js';
+import { AnnotationPainter } from './annotations.js';
+import * as CanvasTracks from '../canvas_tracks.js';
+
 import BED from '@gmod/bed';
 
+import * as rxjs from 'rxjs';
 import {computePosition} from '@floating-ui/dom';
-
-import { preparePathHighlightOverlay } from '../graph_viewer.js';
-
-import { AnnotationPainter } from './annotations.js';
-
-import * as CanvasTracks from '../canvas_tracks.js';
 
 import '../sidebar-bed.css';
 
@@ -165,7 +164,7 @@ async function createDrawBedEntryFn1d(bed_entry, color_fn) {
             let start_seg = seg_ranges_arr.at(2 * ri);
             let end_seg = seg_ranges_arr.at(2 * ri + 1);
 
-            if (start_seg && end_seg) {
+            if (start_seg !== undefined && end_seg !== undefined) {
                 let start = await cs_view.segmentOffset(start_seg);
                 let end = await cs_view.segmentOffset(end_seg);
 
@@ -267,9 +266,11 @@ class BEDFile {
         }
     }
 
-    initializeAnnotationPainter() {
+    async initializeAnnotationPainter() {
         this.annotation_painter =
             new AnnotationPainter(waragraph_viz, this.file_name, this.records);
+
+        await this.annotation_painter.prepare1DRanges();
 
         let prev_view = waragraph_viz.graph_viewer.getView();
 
@@ -286,22 +287,36 @@ class BEDFile {
 
                 let update_pos = false;
 
-                if (prev_view.width !== width
-                    || prev_view.height !== height) {
-                    update_pos = true;
+                // add this back when paths' transforms are just updated on pan
+                // if (prev_view.width !== width
+                //     || prev_view.height !== height) {
+                //     update_pos = true;
 
-                    this.annotation_painter.resample2DPaths(view_2d);
-                }
+                //     this.annotation_painter.resample2DPaths(view_2d);
+                // }
 
                 if (prev_view.x != x || prev_view.y !== y || update_pos) {
                     // update SVG path offsets;
                     // should also happen on resample
 
+                    this.annotation_painter.resample2DPaths(view_2d);
                     this.annotation_painter.updateSVGPaths(view_2d);
+                    prev_view = view_2d;
                 }
 
-                prev_view = view_2d;
             });
+
+        const cs_view = await waragraph_viz.worker_obj.globalCoordSysView();
+        const view_1d_subject = await cs_view.viewSubject();
+
+        view_1d_subject
+            .pipe(rxjs.distinct(),
+                  rxjs.throttleTime(50),
+            )
+            .subscribe((view_1d) => {
+            this.annotation_painter.updateSVG1D(view_1d);
+        });
+        
 
     }
 
