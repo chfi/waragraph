@@ -231,7 +231,7 @@ export interface WorkerCtxInterface {
   // getGraph: () => wasm_bindgen.ArrowGFAWrapped;
   // getGraph: () => { __wbg_ptr: number };
   getGraph: () => any;
-  pathCoordSys: (path_name: string) => wasm_bindgen.CoordSys;
+  pathCoordSys: (path_name: string) => wasm_bindgen.CoordSys & { __wbg_ptr: number };
   pathsOnSegment: (segment: number) => Uint32Array;
   // pathIndex: () => wasm_bindgen.PathIndexWrapped;
   // pathIndex: () => { __wbg_ptr: number };

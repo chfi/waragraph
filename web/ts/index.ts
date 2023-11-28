@@ -159,7 +159,7 @@ async function appendPathView(worker_obj, resize_subject, path_name) {
 
 }
 
-class WaragraphViz {
+export class WaragraphViz {
   wasm: wasm_bindgen.InitOutput;
   worker_obj: Comlink.Remote<WorkerCtxInterface>;
   graph_viewer: GraphViewer;
