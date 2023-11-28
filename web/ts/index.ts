@@ -21,6 +21,8 @@ import {
 
 import * as CanvasTracks from './canvas_tracks';
 
+import { wrapWasmPtr } from './wrap';
+
 
 import * as BedSidebar from './sidebar-bed';
 
@@ -488,7 +490,8 @@ const init = async () => {
 
         let view_subject = await cs_view.viewSubject();
 
-        let graph = wasm_bindgen.ArrowGFAWrapped.__wrap(graph_raw.__wbg_ptr);
+        let graph = wrapWasmPtr(wasm_bindgen.ArrowGFAWrapped, graph_raw.__wbg_ptr);
+        // let graph = wasm_bindgen.ArrowGFAWrapped.__wrap(graph_raw.__wbg_ptr);
         let seq_track = globalSequenceTrack(
           graph,
           seq_canvas,
