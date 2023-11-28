@@ -20,6 +20,8 @@ handler.setTransferHandlers(rxjs, Comlink);
 
 import Split from 'split-grid';
 
+import type { WorkerCtxInterface } from './main_worker';
+
 import type { Bp } from './types';
 
 
@@ -159,12 +161,12 @@ async function appendPathView(worker_obj, resize_subject, path_name) {
 
 class WaragraphViz {
   wasm: wasm_bindgen.InitOutput;
-  worker_obj: Comlink.Remote<any>;
+  worker_obj: Comlink.Remote<WorkerCtxInterface>;
   graph_viewer: GraphViewer;
 
   constructor(
     wasm: wasm_bindgen.InitOutput,
-    worker_obj: Comlink.Remote<any>,
+    worker_obj: Comlink.Remote<WorkerCtxInterface>,
     graph_viewer: GraphViewer,
   ) {
     this.wasm = wasm;
@@ -379,7 +381,7 @@ fill="none"
 const init = async () => {
 
   const wasm = await init_module();
-  const worker = new Worker(new URL("main_worker.js", import.meta.url), { type: 'module' });
+  const worker = new Worker(new URL("main_worker.ts", import.meta.url), { type: 'module' });
 
   svgViewport();
 
@@ -391,7 +393,7 @@ const init = async () => {
     } else if (event.data === "GRAPH_READY") {
       worker.onmessage = null;
 
-      const worker_obj = Comlink.wrap(worker) as Comlink.Remote<any>;
+      const worker_obj = Comlink.wrap(worker) as Comlink.Remote<WorkerCtxInterface>;
 
       const graph_raw = await worker_obj.getGraph();
 
