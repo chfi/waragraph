@@ -1,3 +1,16 @@
+import init_module, * as wasm_bindgen from 'waragraph';
+
+import { initializePathViewer, addOverviewEventHandlers, addPathViewerLogic } from './path_viewer_ui';
+import { OverviewMap } from './overview';
+import {
+  GraphViewer,
+  initializeGraphViewer,
+  preparePathHighlightOverlay
+} from './graph_viewer';
+import * as CanvasTracks from './canvas_tracks';
+import * as BedSidebar from './sidebar-bed';
+import { wrapWasmPtr } from './wrap';
+
 import * as Comlink from 'comlink';
 import { Observable } from 'rxjs';
 import * as rxjs from 'rxjs';
@@ -7,24 +20,8 @@ handler.setTransferHandlers(rxjs, Comlink);
 
 import Split from 'split-grid';
 
-import { initializePathViewer, addOverviewEventHandlers, addPathViewerLogic } from './path_viewer_ui';
+import type { Bp } from './types';
 
-import init_module, * as wasm_bindgen from 'waragraph';
-
-import { OverviewMap } from './overview';
-
-import {
-  GraphViewer,
-  initializeGraphViewer,
-  preparePathHighlightOverlay
-} from './graph_viewer';
-
-import * as CanvasTracks from './canvas_tracks';
-
-import { wrapWasmPtr } from './wrap';
-
-
-import * as BedSidebar from './sidebar-bed';
 
 const gfa_path = "./data/A-3105.fa.353ea42.34ee7b1.1576367.smooth.fix.gfa";
 const layout_path = "./data/A-3105.layout.tsv";
@@ -125,14 +122,13 @@ function appendPathListElements(height, left_tag, right_tag) {
   setStyles(left);
   setStyles(right);
 
-  document.getElementById("path-viewer-left-column").append(left);
-  document.getElementById("path-viewer-right-column").append(right);
+  document.getElementById("path-viewer-left-column")?.append(left);
+  document.getElementById("path-viewer-right-column")?.append(right);
 
   return { left, right };
 }
 
 async function appendPathView(worker_obj, resize_subject, path_name) {
-
 
   const name_column = document.getElementById('path-viewer-left-column');
   const data_column = document.getElementById('path-viewer-right-column');
@@ -147,8 +143,8 @@ async function appendPathView(worker_obj, resize_subject, path_name) {
 
   let cs_view = await worker_obj.globalCoordSysView();
 
-  name_column.append(name_el);
-  data_column.append(data_el);
+  name_column?.append(name_el);
+  data_column?.append(data_el);
 
   let path_viewer = await initializePathViewer(worker_obj,
     cs_view,
@@ -162,14 +158,14 @@ async function appendPathView(worker_obj, resize_subject, path_name) {
 }
 
 class WaragraphViz {
-  wasm: any;
-  worker_obj: any;
+  wasm: wasm_bindgen.InitOutput;
+  worker_obj: Comlink.Remote<any>;
   graph_viewer: GraphViewer;
 
   constructor(
-    wasm,
-    worker_obj,
-    graph_viewer,
+    wasm: wasm_bindgen.InitOutput,
+    worker_obj: Comlink.Remote<any>,
+    graph_viewer: GraphViewer,
   ) {
     this.wasm = wasm;
     this.worker_obj = worker_obj;
@@ -348,7 +344,7 @@ fill="none"
     return seg_pos;
   }
 
-  async segmentScreenPos1d(path_name, segment) {
+  async segmentScreenPos1d(path_name: string, segment) {
     let cs_view = await this.worker_obj.globalCoordSysView();
     let view = await cs_view.get();
     let seg_range = await cs_view.segmentRange(segment);
@@ -393,7 +389,7 @@ const init = async () => {
     if (event.data === "WORKER_INIT") {
       worker.postMessage([wasm.memory, gfa_path]);
     } else if (event.data === "GRAPH_READY") {
-      worker.onmessage = undefined;
+      worker.onmessage = null;
 
       const worker_obj = Comlink.wrap(worker) as Comlink.Remote<any>;
 
@@ -577,7 +573,7 @@ const svgViewport = () => {
   parent.style.setProperty('grid-row', '1 / -1');
   parent.style.setProperty('background-color', 'transparent');
   parent.style.setProperty('pointer-events', 'none');
-  document.getElementById('viz-container').append(parent);
+  document.getElementById('viz-container')?.append(parent);
 
   let el = document.createElement('svg');
 
