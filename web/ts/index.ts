@@ -193,8 +193,8 @@ async updateSvgLink(path_name, segment) {
 
     const svg_rect = svg.getBoundingClientRect();
 
-    const pos_2d = await this.segmentScreenPos2d(segment);
-    const pos_1d = await this.segmentScreenPos1d(path_name, segment);
+    const pos_2d = this.segmentScreenPos2d(segment);
+    const pos_1d = this.segmentScreenPos1d(path_name, segment);
 
     let svg_pos_2d;
     let svg_pos_1d;
@@ -336,7 +336,7 @@ fill="none"
     this.graph_viewer.setViewCenter(x, y);
   }
 
-  async segmentScreenPos2d(segment) {
+  segmentScreenPos2d(segment) {
     let seg_pos = this.graph_viewer.getSegmentScreenPos(segment);
 
     if (seg_pos === null) {

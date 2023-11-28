@@ -381,13 +381,23 @@ class BEDFile {
 
         if (state.enabled) {
           ev_tgt.classList.remove('highlight-enabled');
-          svg_g_1d.setAttribute('display', 'none');
-          svg_g_2d.setAttribute('display', 'none');
+          // svg_g_1d.setAttribute('display', 'none');
+          // svg_g_2d.setAttribute('display', 'none');
+
+          for (const child of state.svg_g.children) {
+            child.setAttribute('display', 'none');
+          }
+
           state.enabled = false;
         } else {
           ev_tgt.classList.add('highlight-enabled');
-          svg_g_1d.setAttribute('display', 'inline');
-          svg_g_2d.setAttribute('display', 'inline');
+          // svg_g_1d.setAttribute('display', 'inline');
+          // svg_g_2d.setAttribute('display', 'inline');
+
+          for (const child of state.svg_g.children) {
+            child.setAttribute('display', 'inline');
+          }
+
           state.enabled = true;
         }
       });

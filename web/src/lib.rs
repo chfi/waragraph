@@ -412,7 +412,9 @@ impl SegmentPositions {
 
     // pub fn segment_pos(&self, seg_id: u32) -> JsValue {
     pub fn segment_pos(&self, seg_id: u32) -> JsValue {
-        let i = seg_id as usize;
+        let i = seg_id as usize * 2;
+
+        // let i = seg_id as usize;
 
         // log::warn!("seg_id: {seg_id}");
         // log::warn!("self.xs.len() {}", self.xs.len());

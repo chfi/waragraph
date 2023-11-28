@@ -6,6 +6,8 @@ import init_module, * as wasm_bindgen from 'waragraph';
 
 // import { preparePathHighlightOverlay } from '../graph_viewer';
 
+import { BEDRecord } from './sidebar-bed';
+
 import { WaragraphViz } from './index';
 
 import * as CanvasTracks from './canvas_tracks';
@@ -17,7 +19,7 @@ function createSVGElement(tag) {
 
 interface AnnotationRecord {
   svg_g: SVGGElement;
-  record: any; // TODO
+  record: BEDRecord;
   enabled: boolean;
 
   global_ranges: Array<{ start: number, end: number }> | null;
@@ -76,13 +78,16 @@ export class AnnotationPainter {
       const g_2d = createSVGElement('g');
       g_2d.classList.add('svg-overlay-2d');
 
-      const g_link_start = createSVGElement('g');
-      const g_link_end = createSVGElement('g');
+      const g_link_start = createSVGElement('line');
+      const g_link_end = createSVGElement('line');
       g_link_start.classList.add('svg-overlay-link-start');
       g_link_end.classList.add('svg-overlay-link-end');
 
       g_1d.setAttribute('display', 'none');
       g_2d.setAttribute('display', 'none');
+
+      g_link_start.setAttribute('stroke-width', '0.3');
+      g_link_end.setAttribute('stroke-width', '0.3');
       g_link_start.setAttribute('display', 'none');
       g_link_end.setAttribute('display', 'none');
 
@@ -128,19 +133,15 @@ export class AnnotationPainter {
       }
 
       state.color = color;
-      console.warn('color: ', color);
 
       // state.svg_g.setAttribute('stroke', color);
       state.svg_g.setAttribute('color', color);
 
       //// global coordinate space rectangles for the 1D path views
 
-      // console.warn(path_step_slice);
       const record_ranges = wasm_bindgen.path_slice_to_global_adj_partitions(path_step_slice);
-      // console.warn(record_ranges);
 
       const ranges_arr = record_ranges.ranges_as_u32_array();
-      // console.warn(ranges_arr);
       const range_count = ranges_arr.length / 2;
 
       const global_ranges = [];
@@ -180,23 +181,60 @@ export class AnnotationPainter {
         this.waragraph.graph_viewer
           .sampleCanvasSpacePath(path_step_slice, path_tolerance);
 
-      console.warn(state.cached_path);
+      // console.warn(state.cached_path);
     }
 
     // TODO store view... scale? & use to decide when to resample
     // probably do that in caller
   }
 
-  updateSVG1D(view_1d) {
+  async updateSVG1D(view_1d) {
 
     const svg_rect = document.getElementById('viz-svg-overlay').getBoundingClientRect();
 
     const view_len = view_1d.end - view_1d.start;
 
-    for (const { svg_g, record, global_ranges, enabled, color } of this.record_states) {
+
+      const map_pos = (x, y) => {
+        return { x: 100 * (x - svg_rect.left) / svg_rect.width,
+          y: 100 * (y - svg_rect.top) / svg_rect.height };
+      };
+
+    // for (const { svg_g, record, global_ranges, enabled, color } of this.record_states) {
+    for (const record_state of this.record_states) {
+      const { svg_g, record, global_ranges, color } = record_state;
+
       if (global_ranges === null) {
         continue;
       }
+
+      const link_start = svg_g.querySelector('.svg-overlay-link-start') as SVGLineElement;
+      const link_end = svg_g.querySelector('.svg-overlay-link-end') as SVGLineElement;
+
+      const first_seg = record.path_step_slice.at(0) >> 1;
+      const last_seg = record.path_step_slice.at(-1) >> 1;
+
+      const first_pos = await this.waragraph.segmentScreenPos1d(record.path_name, first_seg);
+      const last_pos = await this.waragraph.segmentScreenPos1d(record.path_name, last_seg);
+
+      const f_p = map_pos(first_pos.x0, first_pos.y0);
+      const l_p = map_pos(last_pos.x1, last_pos.y1);
+
+      // const f_p_x = 100 * (first_pos.start[0] - svg_rect.left) / svg_rect.width;
+      // const f_p_y = 100 * (first_pos.start[1] - svg_rect.top) / svg_rect.height;
+
+      // const l_p_x = 100 * (last_pos.end[0] - svg_rect.left) / svg_rect.width;
+      // const l_p_y = 100 * (last_pos.end[1] - svg_rect.top) / svg_rect.height;
+
+      // const f_p = map_canvas_to_svg({ x: first_pos.start[0], y: first_pos.start[1] });
+      // const l_p = map_canvas_to_svg({ x: last_pos.end[0], y: last_pos.end[1] });
+
+      link_start.setAttribute('x2', String(f_p.x));
+      link_start.setAttribute('y2', String(f_p.y));
+      link_end.setAttribute('x2', String(l_p.x));
+      link_end.setAttribute('y2', String(l_p.y));
+
+
 
       const svg_g_1d = svg_g.querySelector('.svg-overlay-1d');
 
@@ -217,15 +255,20 @@ export class AnnotationPainter {
         let r_start = (start - view_1d.start) / view_len;
         let r_end = (end - view_1d.start) / view_len;
 
-        let screen_rs_x = data_rect.left + r_start * data_rect.width;
+        let screen_rs_xl = data_rect.left + r_start * data_rect.width;
+        let screen_rs_xr = data_rect.left + r_end * data_rect.width;
+
+        // console.warn(screen_rs_xl, ", ", screen_rs_xr);
 
         let y = 100 * (data_rect.top - svg_rect.top) / svg_rect.height;
-        let x = 100 * (screen_rs_x - svg_rect.left) / svg_rect.width;
+        let xl = 100 * (screen_rs_xl - svg_rect.left) / svg_rect.width;
+        let xr = 100 * (screen_rs_xr - svg_rect.left) / svg_rect.width;
 
-        let width = 100 * (r_end - r_start) * data_rect.width;
+        // let width = 100 * (r_end - r_start) * data_rect.width;
+        let width = xr - xl;
         let height = 100 * data_rect.height / svg_rect.height;
 
-        el_rect.outerHTML = `<rect x="${x}" y="${y}" width="${width}" height="${height}"
+        el_rect.outerHTML = `<rect x="${xl}" y="${y}" width="${width}" height="${height}"
 fill="${color}"
 />`;
       }
@@ -245,20 +288,44 @@ fill="${color}"
       document.getElementById('viz-svg-overlay')
         .getBoundingClientRect();
 
+    const svg_height_prop = canvas.height / svg_rect.height;
 
-    const height_prop = canvas.height / svg_rect.height;
     const map_canvas_to_svg = ({ x, y }) => {
       let x_ = 100 * x / canvas.width;
-      let y_ = 100 * height_prop * y / canvas.height;
+      let y_ = 100 * svg_height_prop * y / canvas.height;
       return { x: x_, y: y_ };
     };
 
-    for (const { svg_g, record, cached_path, enabled, color } of this.record_states) {
+    // for (const { svg_g, record, cached_path, enabled, color } of this.record_states) {
+    for (const record_state of this.record_states) {
+      const { svg_g, record, cached_path, enabled, color } = record_state;
 
       if (!enabled || cached_path === null) {
         // svg_g.innerHTML = '';
         // svg_g.style.setProperty('display', 'none');
         continue;
+      }
+
+      const link_start = svg_g.querySelector('.svg-overlay-link-start') as SVGLineElement;
+      const link_end = svg_g.querySelector('.svg-overlay-link-end') as SVGLineElement;
+
+      const first_seg = record.path_step_slice.at(0) >> 1;
+      const last_seg = record.path_step_slice.at(-1) >> 1;
+
+      const first_pos = this.waragraph.segmentScreenPos2d(first_seg);
+      const last_pos = this.waragraph.segmentScreenPos2d(last_seg);
+
+      const f_p = map_canvas_to_svg({ x: first_pos.start[0], y: first_pos.start[1] });
+      const l_p = map_canvas_to_svg({ x: last_pos.end[0], y: last_pos.end[1] });
+
+      link_start.setAttribute('x1', String(f_p.x));
+      link_start.setAttribute('y1', String(f_p.y));
+      link_end.setAttribute('x1', String(l_p.x));
+      link_end.setAttribute('y1', String(l_p.y));
+
+      if (color !== undefined) {
+        link_start.setAttribute('stroke', color);
+        link_end.setAttribute('stroke', color);
       }
 
       let svg_path = "";
@@ -304,6 +371,28 @@ fill="${color}"
   }
   */
 
+
+  // this would be nice to have, but the cached paths are entirely
+  // canvas space -- what i want is to have the sampled paths in world
+  // space (i.e. the number of samples should depend on the apparent
+  // size of the path on the canvas, but the points are in world
+  // space)
+    /*
+  followAnnotationPath(record_name) {
+    const record = this.record_states.find((state) => state.record.bed_record.name == record_name);
+    if (record === undefined) {
+      return;
+    }
+
+    const cached_path = record.cached_path;
+
+    if (cached_path === null) {
+      return;
+    }
+
+
+  }
+     */
 
 }
 
