@@ -162,7 +162,37 @@ export class AnnotationPainter {
 
 
   resample2DPaths(view_2d_obj) {
+
+    const canvas = document.getElementById("graph-viewer-2d") as HTMLCanvasElement;
+    const svg_rect =
+      document.getElementById('viz-svg-overlay')
+        .getBoundingClientRect();
+
+    const svg_height_prop = canvas.height / svg_rect.height;
+
+    const map_canvas_to_svg = ({ x, y }) => {
+      let x_ = 100 * x / canvas.width;
+      let y_ = 100 * svg_height_prop * y / canvas.height;
+      return { x: x_, y: y_ };
+    };
+    
     const path_tolerance = 8;
+
+    let resample = false;
+
+    if (this.last_2d_view === null) {
+      resample = true;
+    } else {
+      let { width, height } = this.last_2d_view;
+      if (view_2d_obj.width !== width
+        || view_2d_obj.height !== height) {
+        resample = true;
+      }
+    }
+
+    if (resample === false) {
+      return;
+    }
 
     this.last_2d_view = view_2d_obj;
 
@@ -178,11 +208,27 @@ export class AnnotationPainter {
         this.waragraph.graph_viewer
           .sampleCanvasSpacePath(path_step_slice, path_tolerance);
 
+
+      let svg_path = "";
+
+      state.cached_path.with_points((x, y) => {
+        const p = map_canvas_to_svg({ x, y });
+
+        if (svg_path.length === 0) {
+          svg_path += `M ${p.x},${p.y}`;
+        } else {
+          svg_path += ` L ${p.x},${p.y}`;
+        }
+      });
+
+      state.svg_g.querySelector('.svg-overlay-2d').innerHTML =
+        // svg_g.innerHTML =
+        // `<path d="${svg_path}" stroke-width="0.5" fill="none" />`;
+        `<path d="${svg_path}" stroke-width="0.5" stroke="${state.color}" fill="none" />`;
+      // `<path d="${svg_path}" stroke-width="0.5" stroke="red" fill="none" />`;
+
       // console.warn(state.cached_path);
     }
-
-    // TODO store view... scale? & use to decide when to resample
-    // probably do that in caller
   }
 
   async updateSVG1D(view_1d) {
@@ -192,10 +238,12 @@ export class AnnotationPainter {
     const view_len = view_1d.end - view_1d.start;
 
 
-      const map_pos = (x, y) => {
-        return { x: 100 * (x - svg_rect.left) / svg_rect.width,
-          y: 100 * (y - svg_rect.top) / svg_rect.height };
+    const map_pos = (x, y) => {
+      return {
+        x: 100 * (x - svg_rect.left) / svg_rect.width,
+        y: 100 * (y - svg_rect.top) / svg_rect.height
       };
+    };
 
     // for (const { svg_g, record, global_ranges, enabled, color } of this.record_states) {
     for (const record_state of this.record_states) {
@@ -307,6 +355,12 @@ fill="${color}"
         link_end.setAttribute('stroke', color);
       }
 
+      const svg_path = 
+        svg_g.querySelector('.svg-overlay-2d > path');
+
+      console.warn(svg_path);
+
+      /*
       let svg_path = "";
 
       cached_path.with_points((x, y) => {
@@ -324,31 +378,10 @@ fill="${color}"
         // `<path d="${svg_path}" stroke-width="0.5" fill="none" />`;
         `<path d="${svg_path}" stroke-width="0.5" stroke="${color}" fill="none" />`;
       // `<path d="${svg_path}" stroke-width="0.5" stroke="red" fill="none" />`;
+       */
     }
 
   }
-
-  /*
-  // drawing to the canvas/updating the SVG based on view offset is
-  // different to resampling the path for the current 2D view scale
-  async update(view_1d, view_2d) {
-
-      for (const { cached_path, g, enabled } of this.record_states) {
-          if (enabled !== true) {
-              // set `g` to display none?
-              continue;
-          }
-
-          // update cached path
-
-
-
-      }
-
-
-
-  }
-  */
 
 
   // this would be nice to have, but the cached paths are entirely
@@ -356,22 +389,22 @@ fill="${color}"
   // space (i.e. the number of samples should depend on the apparent
   // size of the path on the canvas, but the points are in world
   // space)
-    /*
-  followAnnotationPath(record_name) {
-    const record = this.record_states.find((state) => state.record.bed_record.name == record_name);
-    if (record === undefined) {
-      return;
-    }
-
-    const cached_path = record.cached_path;
-
-    if (cached_path === null) {
-      return;
-    }
-
-
+  /*
+followAnnotationPath(record_name) {
+  const record = this.record_states.find((state) => state.record.bed_record.name == record_name);
+  if (record === undefined) {
+    return;
   }
-     */
+
+  const cached_path = record.cached_path;
+
+  if (cached_path === null) {
+    return;
+  }
+
+
+}
+   */
 
 }
 

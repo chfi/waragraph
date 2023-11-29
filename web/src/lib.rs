@@ -17,6 +17,8 @@ use raving_wgpu::gui::EguiCtx;
 use waragraph_core::arrow_graph::{ArrowGFA, PathIndex};
 use wasm_bindgen_futures::JsFuture;
 
+use ultraviolet::Vec2;
+
 use wasm_bindgen::prelude::*;
 
 use crate::viewer_1d::CoordSys;
@@ -120,14 +122,14 @@ impl RavingCtx {
 
 #[wasm_bindgen]
 pub struct SegmentPositions {
+    origin: Vec2,
+
     xs: Vec<f32>,
     ys: Vec<f32>,
 
-    min_bounds: ultraviolet::Vec2,
-    max_bounds: ultraviolet::Vec2,
+    min_bounds: Vec2,
+    max_bounds: Vec2,
 }
-
-use ultraviolet::Vec2;
 
 #[derive(Debug, Clone)]
 #[wasm_bindgen]
@@ -251,10 +253,6 @@ impl SegmentPositions {
             let p1 = Vec2::new(self.xs[i + 1], self.ys[i + 1]);
 
             [p0, p1]
-            // let tan = p1 - p0;
-
-            // let q0 = matrix * Vec3::new(p0.x, p0.y, 1.0);
-            // let q1 = matrix * Vec3::new(p1.x, p1.y, 1.0);
         });
 
         let tol_sq = tolerance * tolerance;
