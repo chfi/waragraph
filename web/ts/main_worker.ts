@@ -221,21 +221,15 @@ function getPathCoordinateSystem(path_name: string): wasm_bindgen.CoordSys {
 }
 
 
-// TODO: the bits that return wasm_bindgen classes need to be handled
-// better, but __wbg_ptr isn't part of the ts interface so should
-// figure this out later
 export interface WorkerCtxInterface {
   createPathViewer: (canvas: OffscreenCanvas, path_name: string) => PathViewerCtx & Comlink.ProxyMarked;
   getPathNames: () => string[];
   globalCoordSysView: () => CoordSysView & Comlink.ProxyMarked;
-  // getGraph: () => wasm_bindgen.ArrowGFAWrapped;
-  // getGraph: () => { __wbg_ptr: number };
-  getGraph: () => any;
+  getGraph: () => wasm_bindgen.ArrowGFAWrapped & { __wbg_ptr: number };
   pathCoordSys: (path_name: string) => wasm_bindgen.CoordSys & { __wbg_ptr: number };
   pathsOnSegment: (segment: number) => Uint32Array;
-  // pathIndex: () => wasm_bindgen.PathIndexWrapped;
-  // pathIndex: () => { __wbg_ptr: number };
-  pathIndex: () => any;
+  pathIndex: () => wasm_bindgen.PathIndexWrapped & { __wbg_ptr: number };
+  // pathIndex: () => any;
   pathRangeToStepRange: (path_name: string, range_start: Bp, range_end: Bp) => { start: number, end: number };
 }
 

@@ -31,7 +31,7 @@ export class GraphViewer {
   overlayCallbacks: OverlayCallbacks;
   mousePos: { x: number, y: number } | null;
 
-  constructor(viewer, seg_pos) {
+  constructor(viewer: wasm_bindgen.GraphViewer, seg_pos: wasm_bindgen.SegmentPositions) {
     // maybe just take the minimum raw data needed here
     this.graph_viewer = viewer;
     this.segment_positions = seg_pos;
@@ -48,7 +48,7 @@ export class GraphViewer {
     return !this.next_view.equals(this.graph_viewer.get_view());
   }
 
-  lookup(x, y) {
+  lookup(x: number, y: number): number | null {
     try {
       let val = this.graph_viewer.gbuffer_lookup(_raving_ctx, x, y);
       console.log(val);
@@ -58,7 +58,10 @@ export class GraphViewer {
     }
   }
 
-  sampleCanvasSpacePath(path_step_slice, tolerance) {
+  sampleCanvasSpacePath(
+    path_step_slice: Uint32Array,
+    tolerance: number
+  ): wasm_bindgen.CanvasPathTrace {
     const canvas = document.getElementById("graph-viewer-2d") as HTMLCanvasElement;
 
     return this.segment_positions.sample_canvas_space_path(
@@ -130,43 +133,47 @@ export class GraphViewer {
     }
   }
 
-  registerOverlayCallback(cb_key, callback) {
+  registerOverlayCallback(cb_key: string, callback: OverlayCallback2D) {
     this.overlayCallbacks[cb_key] = callback;
     this.drawOverlays();
   }
 
-  removeOverlayCallback(cb_key) {
+  removeOverlayCallback(cb_key: string) {
     delete this.overlayCallbacks[cb_key];
     this.drawOverlays();
   }
 
-  setViewCenter(x, y) {
+  // global space
+  setViewCenter(x: number, y: number) {
     this.next_view.set_center(x, y);
   }
 
-  translate(x, y) {
+  // view normalized units
+  translate(x: number, y: number) {
     this.next_view.translate_size_rel(x, y);
   }
 
-  zoom(tx, ty, s) {
+  // view normalized units
+  zoom(tx: number, ty: number, s: number) {
     this.next_view.zoom_with_focus(tx, ty, s);
   }
 
-  getView() {
+  getView(): View2DObj {
     return this.next_view.as_obj();
   }
 
-  getViewMatrix() {
+  getViewMatrix(): mat3 {
     let overlay = document
       .getElementById('graph-viewer-2d-overlay') as HTMLCanvasElement;
+
     return this.graph_viewer.get_view_matrix(overlay.width, overlay.height);
   }
 
-  getSegmentPos(segment) {
+  getSegmentPos(segment: number): { x0: number, y0: number, x1: number, y1: number } | null {
     return this.segment_positions.segment_pos(segment);
   }
 
-  getSegmentScreenPos(segment) {
+  getSegmentScreenPos(segment: number): { start: vec2, end: vec2 } | null {
     const pos = this.getSegmentPos(segment);
     if (pos === null) {
       return null;
@@ -327,7 +334,11 @@ function resize_view_dimensions(v_dims, c_old, c_new) {
   */
 
 
-export async function initializeGraphViewer(wasm_mem, graph_raw, layout_url) {
+export async function initializeGraphViewer(
+  wasm_mem: WebAssembly.Memory,
+  graph_raw: { __wbg_ptr: number },
+  layout_url: string,
+) {
   if (_wasm === undefined) {
     _wasm = await init_module(undefined, wasm_mem);
     wasm_bindgen.set_panic_hook();

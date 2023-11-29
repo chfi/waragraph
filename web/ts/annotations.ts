@@ -38,7 +38,7 @@ export class AnnotationPainter {
 
   last_2d_view: { x: number, y: number, width: number, height: number } | null;
 
-  constructor(waragraph, name, records) {
+  constructor(waragraph: WaragraphViz, name: string, records: Iterable<BEDRecord>) {
     this.callback_key = "painter-" + name;
 
     if (!_wasm) {
@@ -49,11 +49,8 @@ export class AnnotationPainter {
         });
     }
 
-
     // this.record_svg_gs = [];
-
     // this.svg_parent = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-
     // this.record_canvas_paths = [];
 
     this.waragraph = waragraph;
@@ -64,6 +61,7 @@ export class AnnotationPainter {
     this.record_states = [];
 
     this.last_2d_view = null;
+
     // this.last_2d_view_scale = null;
     // this.last_2d_view_center = null;
     // this.last_1d_view = null;
@@ -73,7 +71,6 @@ export class AnnotationPainter {
 
       const g_1d = createSVGElement('g');
       g_1d.classList.add('svg-overlay-1d');
-
 
       const g_2d = createSVGElement('g');
       g_2d.classList.add('svg-overlay-2d');
