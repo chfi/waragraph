@@ -220,26 +220,12 @@ export class AnnotationPainter {
       const f_p = map_pos(first_pos.x0, first_pos.y0);
       const l_p = map_pos(last_pos.x1, last_pos.y1);
 
-      // const f_p_x = 100 * (first_pos.start[0] - svg_rect.left) / svg_rect.width;
-      // const f_p_y = 100 * (first_pos.start[1] - svg_rect.top) / svg_rect.height;
-
-      // const l_p_x = 100 * (last_pos.end[0] - svg_rect.left) / svg_rect.width;
-      // const l_p_y = 100 * (last_pos.end[1] - svg_rect.top) / svg_rect.height;
-
-      // const f_p = map_canvas_to_svg({ x: first_pos.start[0], y: first_pos.start[1] });
-      // const l_p = map_canvas_to_svg({ x: last_pos.end[0], y: last_pos.end[1] });
-
       link_start.setAttribute('x2', String(f_p.x));
       link_start.setAttribute('y2', String(f_p.y));
       link_end.setAttribute('x2', String(l_p.x));
       link_end.setAttribute('y2', String(l_p.y));
 
-
-
       const svg_g_1d = svg_g.querySelector('.svg-overlay-1d');
-
-      // console.warn(`updating for record ${record}`);
-      // console.warn(svg_g_1d);
 
       const data_canvas = document.getElementById('viewer-' + record.path_name);
       const data_rect = data_canvas.getBoundingClientRect();
@@ -251,20 +237,16 @@ export class AnnotationPainter {
         svg_g_1d.append(el_rect);
 
         // map global range to `data_rect` via `view_1d`
-
         let r_start = (start - view_1d.start) / view_len;
         let r_end = (end - view_1d.start) / view_len;
 
         let screen_rs_xl = data_rect.left + r_start * data_rect.width;
         let screen_rs_xr = data_rect.left + r_end * data_rect.width;
 
-        // console.warn(screen_rs_xl, ", ", screen_rs_xr);
-
         let y = 100 * (data_rect.top - svg_rect.top) / svg_rect.height;
         let xl = 100 * (screen_rs_xl - svg_rect.left) / svg_rect.width;
         let xr = 100 * (screen_rs_xr - svg_rect.left) / svg_rect.width;
 
-        // let width = 100 * (r_end - r_start) * data_rect.width;
         let width = xr - xl;
         let height = 100 * data_rect.height / svg_rect.height;
 

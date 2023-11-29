@@ -313,11 +313,7 @@ stroke="red"
 fill="none"
 />
 `;
-
-
     }
-
-
 }
 */
 
