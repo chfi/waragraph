@@ -406,10 +406,6 @@ export async function initializeGraphViewer(wasm_mem, graph_raw, layout_url) {
         }
     })
 
-    mouseMove$.subscribe((event) => {
-        graph_viewer.mousePos = { x: event.offsetX, y: event.offsetY };
-    });
-
     mouseOut$.subscribe((event) => {
         graph_viewer.mousePos = null;
     });
@@ -417,9 +413,6 @@ export async function initializeGraphViewer(wasm_mem, graph_raw, layout_url) {
     const drag$ = mouseDown$.pipe(
         rxjs.switchMap((event) => {
             return mouseMove$.pipe(
-                rxjs.pairwise(),
-                rxjs.map(([prev, current]) => [current.offsetX - prev.offsetX,
-                                               current.offsetY - prev.offsetY]),
                 rxjs.takeUntil(
                     rxjs.race(mouseUp$, mouseOut$)
                 )
@@ -427,7 +420,9 @@ export async function initializeGraphViewer(wasm_mem, graph_raw, layout_url) {
         })
     );
 
-    drag$.subscribe(([dx, dy]) => {
+    drag$.subscribe((ev) => {
+        let dx = ev.movementX;
+        let dy = ev.movementY;
         let x = dx / overlay_canvas.width;
         let y = dy / overlay_canvas.height;
         graph_viewer.translate(-x, y);
