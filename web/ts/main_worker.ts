@@ -1,4 +1,3 @@
-
 import init_wasm, * as wasm_bindgen from 'waragraph';
 import * as Comlink from 'comlink';
 
@@ -290,7 +289,7 @@ async function run(memory, gfa_path) {
       return Comlink.proxy(viewer);
     },
     getPathNames() {
-      let names = [];
+      let names: string[] = [];
       _graph.with_path_names((name: string) => {
         names.push(name);
       });

@@ -19,6 +19,10 @@ interface View2D {
 }
 
 class Viewport2D {
+  // not sure if it makes sense to store the segment positions as is in the viewport, even
+  // though they are associated with it in a similar way to the 1D coordinate systems;
+  // SegmentPositions is currently using owned Vecs, but here on the JS side we could share
+  // however many pointers we want to it (it's immutable)
   segment_positions: wasm_bindgen.SegmentPositions;
   view: wasm_bindgen.View2D;
   subject: BehaviorSubject<View2D>; // doesn't make sense to use wasm pointers here
@@ -36,7 +40,34 @@ interface View1D {
 // one instance of this would be shared by all 1D views that should be "synced up"
 // including external tracks, eventually
 class Viewport1D {
+  coord_sys: wasm_bindgen.CoordSys;
   view: wasm_bindgen.View1D;
+  subject: BehaviorSubject<View1D>;
+
+  constructor(coord_sys: wasm_bindgen.CoordSys, view: wasm_bindgen.View1D) {
+    this.coord_sys = coord_sys;
+    this.view = view;
+
+    let view_range = { start: view.start, end: view.end };
+
+    this.subject = new BehaviorSubject(view_range as View1D);
+  }
+
+  segmentAtOffset(bp: Bp) {
+    if (typeof bp === "number") {
+      bp = BigInt(bp);
+    }
+    return this.coord_sys.segment_at_pos(bp);
+  }
+
+  segmentOffset(segment: Segment) {
+    return this.coord_sys.offset_at(segment);
+  }
+
+  segmentRange(segment: Segment): { start: Bp, end: Bp } {
+    return this.coord_sys.segment_range(segment) as { start: Bp, end: Bp };
+  }
+
 }
 
 export class Waragraph {
@@ -52,9 +83,20 @@ export class Waragraph {
    * graph parsed and loaded on worker
    * computable datasets table is set up with defaults
 
+
+  the worker pool is probably a bit much to implement right now (i'm not 100%
+  sure what the boundary looks like), so instead clean up and refine the worker module
+  
   
 
    */
+
+    constructor() {
+    }
+
+  // this would be responsible for "storing" the coordinate systems
+  // (still just pointers here), but they should still be
+  // computed/created by a worker
 
   
 }
