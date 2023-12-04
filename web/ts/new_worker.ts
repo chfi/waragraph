@@ -1,48 +1,25 @@
 import init_wasm, * as wasm_bindgen from 'waragraph';
 
+import * as Comlink from 'comlink';
+import * as rxjs from 'rxjs';
+import * as handler from './transfer_handlers';
+handler.setTransferHandlers(rxjs, Comlink);
+
 let wasm;
 
-
-// first thing is to wait for the wasm memory (and compiled module)
-// & initialize wasm_bindgen
-
-
-
-
-
-
-
-
-declare var DedicatedWorkerGlobalScope: any;
-
-// TODO this (and other) worker files need to be in a separate folder
-// with its own tsconfig.json, with `lib` including `webworker` but not `dom`
-if (DedicatedWorkerGlobalScope) {
-  import('./transfer_handlers.js').then((handler) => {
-    handler.setTransferHandlers(rxjs, Comlink);
-    postMessage("WORKER_INIT");
-  });
-
-  self.onmessage = async (event) => {
-    self.onmessage = undefined;
-    // console.log(event);
-    // console.log("received message");
-    // console.log(typeof event.data);
-    // console.log(event.data);
-
-    wasm = await init_wasm(undefined, event.data);
-    wasm_bindgen.set_panic_hook();
-
-    // TODO create & expose WaragraphWorker
-  }
-}
-
-
-
-
-class WaragraphWorker {
+export class WaragraphWorkerCtx {
   graph: wasm_bindgen.ArrowGFAWrapped | undefined;
   path_index: wasm_bindgen.PathIndexWrapped | undefined;
+
+  constructor(wasm_module, wasm_memory) {
+    if (wasm === undefined) {
+      // wasm = await init_wasm(undefined, wasm_memory);
+      wasm = wasm_bindgen.initSync(wasm_module, wasm_memory);
+      wasm_bindgen.set_panic_hook();
+      console.warn("initialized wasm on worker");
+    }
+
+  }
 
   async loadGraph(gfa_url) {
     let gfa = fetch(gfa_url);
@@ -53,12 +30,12 @@ class WaragraphWorker {
     this.path_index = path_index;
   }
 
-  getGraph() {
-    return this.graph;
+  getGraphPtr(): number {
+    return (this.graph as wasm_bindgen.ArrowGFAWrapped & { __wbg_ptr: number }).__wbg_ptr;
   }
 
-  getPathIndex() {
-    return this.path_index;
+  getPathIndexPtr(): number {
+    return (this.path_index as wasm_bindgen.PathIndexWrapped & { __wbg_ptr: number }).__wbg_ptr;
   }
 
   createPathViewer(
@@ -129,3 +106,56 @@ class PathViewerCtx {
   }
 
 }
+
+
+// first thing is to wait for the wasm memory (and compiled module)
+// & initialize wasm_bindgen
+
+
+declare var DedicatedWorkerGlobalScope: any;
+
+// TODO this (and other) worker files need to be in a separate folder
+// with its own tsconfig.json, with `lib` including `webworker` but not `dom`
+if (DedicatedWorkerGlobalScope) {
+
+  // Comlink.expose({ initWorkerCtx });
+
+  Comlink.expose(WaragraphWorkerCtx);
+
+  /*
+  self.onmessage = async (event) => {
+    self.onmessage = undefined;
+    // console.log(event);
+    // console.log("received message");
+    // console.log(typeof event.data);
+    // console.log(event.data);
+
+    wasm = await init_wasm(undefined, event.data);
+    wasm_bindgen.set_panic_hook();
+
+    // TODO create & expose WaragraphWorker
+
+    // const wg_worker = new WaragraphWorker();
+    // Comlink.expose(wg_worker);
+    
+  }
+  */
+
+
+}
+
+
+/*
+async function initWorkerCtx(wasm_memory: WebAssembly.Memory): Promise<WaragraphWorkerCtx> {
+  wasm = await init_wasm(undefined, wasm_memory);
+  wasm_bindgen.set_panic_hook();
+
+  // const ctx = new WaragraphWorkerCtx();
+
+  console.warn(ctx);
+  return ctx;
+}
+  */
+
+
+

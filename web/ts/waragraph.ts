@@ -1,9 +1,25 @@
 import init_module, * as wasm_bindgen from 'waragraph';
 
 import type { WorkerCtxInterface } from './main_worker';
+
+import type { WaragraphWorkerCtx } from './new_worker';
+
 import type { Bp, Segment, Handle, PathIndex } from './types';
 
+import {
+  GraphViewer,
+  initializeGraphViewer,
+} from './graph_viewer';
+
+import { wrapWasmPtr } from './wrap';
+
+import * as Comlink from 'comlink';
+
 import { BehaviorSubject } from 'rxjs';
+import * as rxjs from 'rxjs';
+
+import * as handler from './transfer_handlers';
+handler.setTransferHandlers(rxjs, Comlink);
 
 import { mat3, vec2 } from 'gl-matrix';
 
@@ -91,23 +107,65 @@ export class Waragraph {
 
    */
 
-    constructor() {
-    }
+  worker_ctx: Comlink.Remote<WaragraphWorkerCtx>;
+
+  graph: wasm_bindgen.ArrowGFAWrapped;
+  path_index: wasm_bindgen.PathIndexWrapped;
+
+
+  graph_viewer: GraphViewer | undefined;
+
+  // constructor(worker_ctx, graph_viewer) {
+  constructor(worker_ctx, graph_ptr, path_index_ptr) {
+    this.worker_ctx = worker_ctx;
+    this.graph = wrapWasmPtr(wasm_bindgen.ArrowGFAWrapped, graph_ptr);
+    this.path_index = wrapWasmPtr(wasm_bindgen.PathIndexWrapped, path_index_ptr);
+  }
 
   // this would be responsible for "storing" the coordinate systems
   // (still just pointers here), but they should still be
   // computed/created by a worker
 
   
+  
 }
 
 
 
+export interface WaragraphOptions {
+  gfa_url?: URL | string,
+  graph_layout_url?: URL | string,
+
+  // TODO: tree
+}
+
 // export async function initializeWaragraph({ } = {}): Waragraph {
-export async function initializeWaragraph({ } = {}) {
+export async function initializeWaragraph(opts: WaragraphOptions = {}) {
+  const wasm = await init_module();
+
+  const WaragraphWorkerCtx = Comlink.wrap(
+    new Worker(new URL("new_worker.ts", import.meta.url), { type: 'module' }));
+
+  const waragraph_worker: Comlink.Remote<WaragraphWorkerCtx> =
+    await new WaragraphWorkerCtx((init_module as any).__wbindgen_wasm_module, wasm.memory);
+
+  const { gfa_url, graph_layout_url } = opts;
+
+  await waragraph_worker.loadGraph(gfa_url);
+
+  const graph_ptr = await waragraph_worker.getGraphPtr();
+  const path_index_ptr = await waragraph_worker.getPathIndexPtr();
+
+  const waragraph = new Waragraph(waragraph_worker, graph_ptr, path_index_ptr);
+
+  // const graph_viewer = await initializeGraphViewer(wasm.memory, graph_raw, layout_path);
 
 
 
-  //
+  // worker.postMessage(wasm.memory);
 
+
+
+
+  return waragraph;
 }

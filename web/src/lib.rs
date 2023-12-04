@@ -122,8 +122,6 @@ impl RavingCtx {
 
 #[wasm_bindgen]
 pub struct SegmentPositions {
-    origin: Vec2,
-
     xs: Vec<f32>,
     ys: Vec<f32>,
 
@@ -134,7 +132,7 @@ pub struct SegmentPositions {
 #[derive(Debug, Clone)]
 #[wasm_bindgen]
 pub struct CanvasPathTrace {
-    // path2d: JsValue,
+    // origin: Vec2,
     points: Vec<Vec2>,
 }
 

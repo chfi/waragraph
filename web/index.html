@@ -38,7 +38,19 @@
   <!-- <div id="view-toggle">toggle view</div> -->
   <!-- <button id="view-toggle">toggle view</button> -->
 
-  <script type="module" src='./ts/index.ts'></script>
+  <!-- <script type="module" src='./ts/index.ts'></script> -->
+  <script type="module">
+    import { initializeWaragraph } from './ts/waragraph';
+
+    initializeWaragraph({
+      gfa_url: "./data/A-3105.fa.353ea42.34ee7b1.1576367.smooth.fix.gfa",
+      graph_layout_url: "./data/A-3105.layout.tsv",
+    }).then((wg) => {
+      console.warn(wg);
+    });
+
+    //const wg = await initializeWaragraph();
+  </script>
 
 </body>
 </html>
