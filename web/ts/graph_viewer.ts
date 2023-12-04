@@ -335,6 +335,7 @@ function resize_view_dimensions(v_dims, c_old, c_new) {
 
 
 export async function initializeGraphViewer(
+  container: HTMLElement,
   wasm_mem: WebAssembly.Memory,
   graph_raw: { __wbg_ptr: number },
   layout_url: string,
@@ -356,8 +357,6 @@ export async function initializeGraphViewer(
   overlay_canvas.style.setProperty('z-index', '1');
   // gpu_canvas.style.setProperty('z-index', '0');
   // overlay_canvas.style.setProperty('z-index', '1');
-
-  let container = document.getElementById('graph-viewer-container');
 
   container.append(gpu_canvas);
   container.append(overlay_canvas);

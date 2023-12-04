@@ -1,5 +1,7 @@
 import init_wasm, * as wasm_bindgen from 'waragraph';
 
+import type { WithPtr } from './wrap';
+
 import * as Comlink from 'comlink';
 import * as rxjs from 'rxjs';
 import * as handler from './transfer_handlers';
@@ -31,11 +33,31 @@ export class WaragraphWorkerCtx {
   }
 
   getGraphPtr(): number {
-    return (this.graph as wasm_bindgen.ArrowGFAWrapped & { __wbg_ptr: number }).__wbg_ptr;
+    return (this.graph as wasm_bindgen.ArrowGFAWrapped & WithPtr).__wbg_ptr;
+  }
+
+  // graphProxy(): Comlink.Remote<wasm_bindgen.ArrowGFAWrapped> {
+  graphProxy() {
+    return Comlink.proxy(this.graph);
   }
 
   getPathIndexPtr(): number {
-    return (this.path_index as wasm_bindgen.PathIndexWrapped & { __wbg_ptr: number }).__wbg_ptr;
+    return (this.path_index as wasm_bindgen.PathIndexWrapped & WithPtr).__wbg_ptr;
+  }
+
+  buildGlobalCoordinateSystem(): wasm_bindgen.CoordSys & WithPtr | undefined {
+    if (this.graph) {
+      return wasm_bindgen.CoordSys.global_from_arrow_gfa(this.graph) as wasm_bindgen.CoordSys & WithPtr;
+    }
+  }
+
+  buildPathCoordinateSystem(path_name: string): wasm_bindgen.CoordSys & WithPtr | undefined {
+    const path_id = this.graph?.path_index(path_name);
+
+    if (this.graph && path_id) {
+      const path_cs = wasm_bindgen.CoordSys.path_from_arrow_gfa(this.graph, path_id);
+      return path_cs as wasm_bindgen.CoordSys & WithPtr;
+    }
   }
 
   createPathViewer(

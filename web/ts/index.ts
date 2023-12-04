@@ -393,7 +393,9 @@ const init = async () => {
 
       const graph_raw = await worker_obj.getGraph();
 
-      const graph_viewer = await initializeGraphViewer(wasm.memory, graph_raw, layout_path);
+      const graph_viewer = await initializeGraphViewer(
+        document.getElementById('graph-viewer-container'),
+        wasm.memory, graph_raw, layout_path);
 
       const warapi = new WaragraphViz(wasm, worker_obj, graph_viewer);
 

@@ -14,3 +14,5 @@ export function wrapWasmPtr(class_, ptr) {
   obj.__wbg_ptr = ptr;
   return obj;
 }
+
+export type WithPtr = { __wbg_ptr: number };
