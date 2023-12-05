@@ -128,6 +128,8 @@ export class Waragraph {
 
   coordinate_systems: Map<string, wasm_bindgen.CoordSys>;
   viewports_1d: Map<string, Viewport1D>;
+
+  // path_viewers: Map<string, PathViewerCtx>;
   
 
   // constructor(worker_ctx, graph_viewer) {
@@ -194,6 +196,16 @@ export class Waragraph {
     }
 
     return cs;
+  }
+
+  async createPathViewer(
+    opts: { path_name: string,
+      viewport_name: string,
+      data_values: Float32Array,
+      data_indices: Float32Array,
+    }
+  ) {
+    //
   }
 
 

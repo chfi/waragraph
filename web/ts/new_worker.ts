@@ -60,11 +60,22 @@ export class WaragraphWorkerCtx {
     }
   }
 
+  setGraphSegmentData(data_name, data) {
+  }
+
+  setPathSegmentData(data_name, data_values, data_indices: Uint32Array) {
+  }
+
+  createGraphViewer(
+    container: HTMLDivElement,
+    segment_colors: Uint32Array,
+  ) {
+  }
+
   createPathViewer(
     offscreen_canvas: OffscreenCanvas,
     path_name: string,
-    data_values: Float32Array,
-    data_indices: Uint32Array,
+    data_id: "depth",
   ) {
     // TODO wrap data in SparseData to be consumed by PathViewerCtx
 
