@@ -9,9 +9,12 @@ handler.setTransferHandlers(rxjs, Comlink);
 
 let wasm;
 
+
+
 export class WaragraphWorkerCtx {
   graph: wasm_bindgen.ArrowGFAWrapped | undefined;
   path_index: wasm_bindgen.PathIndexWrapped | undefined;
+
 
   constructor(wasm_module, wasm_memory) {
     if (wasm === undefined) {
@@ -60,18 +63,6 @@ export class WaragraphWorkerCtx {
     }
   }
 
-  setGraphSegmentData(data_name, data) {
-  }
-
-  setPathSegmentData(data_name, data_values, data_indices: Uint32Array) {
-  }
-
-  createGraphViewer(
-    container: HTMLDivElement,
-    segment_colors: Uint32Array,
-  ) {
-  }
-
   createPathViewer(
     offscreen_canvas: OffscreenCanvas,
     path_name: string,
@@ -79,6 +70,29 @@ export class WaragraphWorkerCtx {
   ) {
     // TODO wrap data in SparseData to be consumed by PathViewerCtx
 
+  }
+
+  getComputedGraphDataset(
+    dataset: "depth", // TODO expand/move to type; later use registered callbacks
+  ): Uint32Array {
+  // ): ArrayBufferView {
+    // TODO compute depth
+    // path index matrix probably
+
+    // still need to map this to colors!
+
+    const colors = new Uint32Array(this.graph?.segment_count());
+
+    return Comlink.transfer(colors, [colors.buffer]);
+  }
+
+  getComputedPathDataset(
+    dataset: "depth",
+    path_name: string,
+  ): wasm_bindgen.SparseData | undefined {
+    if (this.graph) {
+      return wasm_bindgen.arrow_gfa_depth_data(this.graph, path_name);
+    }
   }
 
 

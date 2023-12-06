@@ -31,7 +31,15 @@ export class GraphViewer {
   overlayCallbacks: OverlayCallbacks;
   mousePos: { x: number, y: number } | null;
 
-  constructor(viewer: wasm_bindgen.GraphViewer, seg_pos: wasm_bindgen.SegmentPositions) {
+  container: HTMLDivElement;
+
+  constructor(
+    container: HTMLDivElement,
+    viewer: wasm_bindgen.GraphViewer,
+    seg_pos: wasm_bindgen.SegmentPositions
+  ) {
+    this.container = container;
+
     // maybe just take the minimum raw data needed here
     this.graph_viewer = viewer;
     this.segment_positions = seg_pos;
@@ -335,10 +343,10 @@ function resize_view_dimensions(v_dims, c_old, c_new) {
 
 
 export async function initializeGraphViewer(
-  container: HTMLElement,
+  container: HTMLDivElement,
   wasm_mem: WebAssembly.Memory,
   graph_raw: { __wbg_ptr: number },
-  layout_url: string,
+  layout_url: URL | string,
 ) {
   if (_wasm === undefined) {
     _wasm = await init_module(undefined, wasm_mem);
@@ -389,7 +397,7 @@ export async function initializeGraphViewer(
   viewer.resize(_raving_ctx, width, height);
   viewer.draw_to_surface(_raving_ctx);
 
-  const graph_viewer = new GraphViewer(viewer, seg_pos);
+  const graph_viewer = new GraphViewer(container, viewer, seg_pos);
 
   const draw_loop = () => {
     if (graph_viewer.needRedraw()) {

@@ -4,6 +4,8 @@ import type { WorkerCtxInterface } from './main_worker';
 
 import type { WaragraphWorkerCtx } from './new_worker';
 
+import { initializePathViewer, addOverviewEventHandlers, addPathViewerLogic } from './path_viewer_ui';
+import type { PathViewer } from './path_viewer_ui';
 import type { Bp, Segment, Handle, PathIndex } from './types';
 
 import {
@@ -13,7 +15,7 @@ import {
 
 import * as BedSidebar from './sidebar-bed';
 
-import { wrapWasmPtr } from './wrap';
+import { WithPtr, wrapWasmPtr } from './wrap';
 
 import * as Comlink from 'comlink';
 
@@ -91,7 +93,7 @@ class Viewport1D {
 }
 
 type ViewportDesc =
-    { scope: "graph", name: string }
+  { scope: "graph", name: string }
   | { scope: "path", path_name: string, name: string };
 
 export class Waragraph {
@@ -115,13 +117,14 @@ export class Waragraph {
 
    */
 
+  wasm: wasm_bindgen.InitOutput;
   worker_ctx: Comlink.Remote<WaragraphWorkerCtx>;
 
   graph: wasm_bindgen.ArrowGFAWrapped;
   path_index: wasm_bindgen.PathIndexWrapped;
 
   graph_viewer: GraphViewer | undefined;
-
+  path_viewers: Array<PathViewer>;
 
   resize_obs: rxjs.Subject<unknown> | undefined;
 
@@ -130,16 +133,24 @@ export class Waragraph {
   viewports_1d: Map<string, Viewport1D>;
 
   // path_viewers: Map<string, PathViewerCtx>;
-  
+
+  // graph_segment_data: Map<string, ArrayBufferView>;
+  // path_segment_data: Map<string, Map<string, ArrayBufferView>>;
 
   // constructor(worker_ctx, graph_viewer) {
-  constructor(worker_ctx, graph_ptr, path_index_ptr) {
+  constructor(wasm, worker_ctx, graph_ptr, path_index_ptr) {
+    this.wasm = wasm;
     this.worker_ctx = worker_ctx;
     this.graph = wrapWasmPtr(wasm_bindgen.ArrowGFAWrapped, graph_ptr);
     this.path_index = wrapWasmPtr(wasm_bindgen.PathIndexWrapped, path_index_ptr);
 
     this.coordinate_systems = new Map;
     this.viewports_1d = new Map;
+
+    this.path_viewers = [];
+
+    // this.graph_segment_data = new Map;
+    // this.path_segment_data = new Map;
   }
 
 
@@ -198,15 +209,48 @@ export class Waragraph {
     return cs;
   }
 
+  // setGraphSegmentData(data_name, data: ArrayBufferView) {
+  // }
+
+  // setPathSegmentData(data_name, data_values, data_indices: Uint32Array) {
+  // }
+
+  async createGraphViewer(
+    layout_url: URL | string,
+    segment_colors: Uint32Array,
+  ): Promise<GraphViewer | undefined> {
+    if (this.graph === undefined) {
+      return;
+    }
+
+    const graph = this.graph as wasm_bindgen.ArrowGFAWrapped & WithPtr;
+
+    const container = document.createElement('div');
+
+    const graph_viewer = await initializeGraphViewer(
+      container,
+      this.wasm.memory,
+      graph,
+      layout_url
+    );
+
+    this.graph_viewer = graph_viewer;
+    return graph_viewer;
+  }
+
   async createPathViewer(
-    opts: { path_name: string,
+    opts: {
+      path_name: string,
       viewport_name: string,
       data_values: Float32Array,
       data_indices: Float32Array,
     }
-  ) {
+  ): Promise<PathViewer | undefined> {
     //
+
+    return;
   }
+
 
 
   async initializeTree(opts: WaragraphOptions) {
@@ -347,9 +391,18 @@ export class Waragraph {
 
 export interface WaragraphOptions {
   gfa_url?: URL | string,
-  graph_layout_url?: URL | string,
+
 
   // TODO: tree
+  graph_viewer?: {
+    graph_layout_url: URL | string,
+    data: string | Uint32Array,
+  }
+
+  path_viewers?: {
+    data: string,
+    path_names: string | string[],
+  }
 }
 
 interface ContainerElements {
@@ -360,18 +413,14 @@ interface ContainerElements {
 export async function initializeWaragraph(opts: WaragraphOptions = {}) {
   const wasm = await init_module();
 
-  const WaragraphWorkerCtx = Comlink.wrap(
+  const WorkerCtx: Comlink.Remote<typeof WaragraphWorkerCtx> = Comlink.wrap(
     new Worker(new URL("new_worker.ts", import.meta.url), { type: 'module' }));
 
   const waragraph_worker: Comlink.Remote<WaragraphWorkerCtx> =
-    await new WaragraphWorkerCtx((init_module as any).__wbindgen_wasm_module, wasm.memory);
+    await new WorkerCtx((init_module as any).__wbindgen_wasm_module, wasm.memory);
 
   const { gfa_url,
-    graph_layout_url
   } = opts;
-
-  // initialize/prepare DOM
-
 
 
   await waragraph_worker.loadGraph(gfa_url);
@@ -379,7 +428,7 @@ export async function initializeWaragraph(opts: WaragraphOptions = {}) {
   const graph_ptr = await waragraph_worker.getGraphPtr();
   const path_index_ptr = await waragraph_worker.getPathIndexPtr();
 
-  const waragraph = new Waragraph(waragraph_worker, graph_ptr, path_index_ptr);
+  const waragraph = new Waragraph(wasm, waragraph_worker, graph_ptr, path_index_ptr);
 
   const graph_px = await waragraph.worker_ctx.graphProxy();
   console.warn(graph_px);
@@ -387,20 +436,28 @@ export async function initializeWaragraph(opts: WaragraphOptions = {}) {
 
   console.warn(await graph_px.segment_count());
 
-  // initialize 2D viewer
+  if (opts.graph_viewer !== undefined) {
+    // initialize 2D viewer
 
-  // const graph_viewer = await initializeGraphViewer(wasm.memory, graph_raw, layout_path);
+    let data = opts.graph_viewer.data;
 
+    if (typeof data === "string") {
+      if (data === "depth") {
+        data = await waragraph.worker_ctx.getComputedGraphDataset(data);
+      } else {
+        throw `Unknown data '${data}'`;
+      }
+    }
 
-  // 1D viewer
+    waragraph.createGraphViewer(opts.graph_viewer.graph_layout_url, data);
+  }
 
+  if (opts.path_viewers !== undefined) {
+    // initialize 1D viewers
+  }
 
+  // add the viewer elements to the DOM
   await waragraph.initializeTree(opts);
-
-  //   }
-  // };
-
-
 
   return waragraph;
 }
