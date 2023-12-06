@@ -1,6 +1,7 @@
 import init_wasm, * as wasm_bindgen from 'waragraph';
 
-import type { WithPtr } from './wrap';
+import { wrapWasmPtr, type WithPtr } from './wrap';
+import type { Bp, Segment, Handle, PathId, RGBObj } from './types';
 
 import * as Comlink from 'comlink';
 import * as rxjs from 'rxjs';
@@ -65,11 +66,20 @@ export class WaragraphWorkerCtx {
 
   createPathViewer(
     offscreen_canvas: OffscreenCanvas,
+    coord_sys_: WithPtr,
     path_name: string,
-    data_id: "depth",
+    data: wasm_bindgen.SparseData,
+    threshold: number,
+    color_below: RGBObj,
+    color_above: RGBObj,
   ) {
-    // TODO wrap data in SparseData to be consumed by PathViewerCtx
 
+    const coord_sys = wrapWasmPtr(wasm_bindgen.CoordSys, coord_sys_.__wbg_ptr) as wasm_bindgen.CoordSys;
+
+    // TODO configurable bins
+    const viewer_ctx = new PathViewerCtx(coord_sys, data, { bins: 1024, color_0: color_below, color_1: color_above });
+
+    return Comlink.proxy(viewer_ctx);
   }
 
   getComputedGraphDataset(
@@ -103,7 +113,7 @@ export class WaragraphWorkerCtx {
 
 
 
-class PathViewerCtx {
+export class PathViewerCtx {
   path_viewer: wasm_bindgen.PathViewer;
   coord_sys: wasm_bindgen.CoordSys;
 

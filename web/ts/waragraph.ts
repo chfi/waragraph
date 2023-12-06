@@ -2,11 +2,11 @@ import init_module, * as wasm_bindgen from 'waragraph';
 
 import type { WorkerCtxInterface } from './main_worker';
 
-import type { WaragraphWorkerCtx } from './new_worker';
+import type { WaragraphWorkerCtx, PathViewerCtx } from './new_worker';
 
 import { initializePathViewer, addOverviewEventHandlers, addPathViewerLogic } from './path_viewer_ui';
 import type { PathViewer } from './path_viewer_ui';
-import type { Bp, Segment, Handle, PathIndex } from './types';
+import type { Bp, Segment, Handle, PathId, RGBObj } from './types';
 
 import {
   GraphViewer,
@@ -66,9 +66,12 @@ class Viewport1D {
   view: wasm_bindgen.View1D;
   subject: BehaviorSubject<View1D>;
 
-  constructor(coord_sys: wasm_bindgen.CoordSys, view: wasm_bindgen.View1D) {
+  constructor(coord_sys: wasm_bindgen.CoordSys, view?: wasm_bindgen.View1D) {
     this.coord_sys = coord_sys;
-    this.view = view;
+
+
+
+    // this.view = view;
 
     let view_range = { start: view.start, end: view.end };
 
@@ -239,16 +242,46 @@ export class Waragraph {
   }
 
   async createPathViewer(
-    opts: {
-      path_name: string,
-      viewport_name: string,
-      data_values: Float32Array,
-      data_indices: Float32Array,
-    }
-  ): Promise<PathViewer | undefined> {
+    path_name: string,
+    viewport: Viewport1D,
+    data: wasm_bindgen.SparseData,
+    // data_values: Float32Array,
+    // data_indices: Float32Array,
+    threshold: number,
+    color_below: RGBObj,
+    color_above: RGBObj,
+  ): Promise<Comlink.Remote<PathViewerCtx & Comlink.ProxyMarked> | undefined> {
     //
 
-    return;
+    const container = document.createElement('div');
+
+    const data_canvas = document.createElement('canvas');
+
+    let width = container.clientWidth;
+    let height = container.clientHeight;
+
+    data_canvas.width = width;
+    data_canvas.height = height;
+
+    data_canvas.id = 'viewer-' + path_name;
+
+    let offscreen = data_canvas.transferControlToOffscreen();
+
+    const viewer_ctx =
+      await this.worker_ctx.createPathViewer(
+        Comlink.transfer(offscreen, [offscreen]),
+        viewport.coord_sys as wasm_bindgen.CoordSys & WithPtr,
+        path_name,
+        data,
+        threshold,
+        color_below,
+        color_above
+      );
+
+
+    // TODO rest of 1D viewer initialization (from path_viewer_ui.ts/initializePathViewer)
+
+    return viewer_ctx;
   }
 
 
@@ -400,8 +433,14 @@ export interface WaragraphOptions {
   }
 
   path_viewers?: {
+    path_names: '*' | string[],
+    // TODO: later support multiple viewports using different names and coordinate systems,
+    // based on ViewportDesc above
+    viewport: { name: string, coordinate_system: "graph" },
     data: string,
-    path_names: string | string[],
+    threshold: number,
+    color_below: RGBObj,
+    color_above: RGBObj,
   }
 }
 
@@ -439,7 +478,9 @@ export async function initializeWaragraph(opts: WaragraphOptions = {}) {
   if (opts.graph_viewer !== undefined) {
     // initialize 2D viewer
 
-    let data = opts.graph_viewer.data;
+    const cfg = opts.graph_viewer;
+
+    let data = cfg.data;
 
     if (typeof data === "string") {
       if (data === "depth") {
@@ -449,11 +490,49 @@ export async function initializeWaragraph(opts: WaragraphOptions = {}) {
       }
     }
 
-    waragraph.createGraphViewer(opts.graph_viewer.graph_layout_url, data);
+    waragraph.createGraphViewer(cfg.graph_layout_url, data);
   }
 
   if (opts.path_viewers !== undefined) {
     // initialize 1D viewers
+
+    const cfg = opts.path_viewers;
+
+    const viewport = waragraph.get1DViewport({
+      scope: 'graph',
+      name: cfg.viewport.name
+    });
+
+    const data_key = opts.path_viewers.data;
+    let getData;
+
+    if (data === 'depth') {
+    } else {
+      // TODO support custom data
+    }
+
+    const path_names: string[] = [];
+
+    if (cfg.path_names === '*') {
+      // use all path names
+    } else {
+      for (const path_name of cfg.path_names) {
+        path_names.push(path_name);
+      }
+    }
+
+
+    /*
+    if (typeof data === "string") {
+      if (data === "depth") {
+        data = await waragraph.worker_ctx.getComputedPathDataset(data);
+      } else {
+        throw `Unknown data '${data}'`;
+      }
+    }
+      */
+
+
   }
 
   // add the viewer elements to the DOM
