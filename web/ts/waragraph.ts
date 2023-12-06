@@ -4,7 +4,7 @@ import type { WorkerCtxInterface } from './main_worker';
 
 import type { WaragraphWorkerCtx, PathViewerCtx } from './new_worker';
 
-import { initializePathViewer, addOverviewEventHandlers, addPathViewerLogic } from './path_viewer_ui';
+import { initializePathViewerNew, addOverviewEventHandlers, addPathViewerLogic } from './path_viewer_ui';
 import type { PathViewer } from './path_viewer_ui';
 import type { Bp, Segment, Handle, PathId, RGBObj } from './types';
 
@@ -15,7 +15,7 @@ import {
 
 import * as BedSidebar from './sidebar-bed';
 
-import { WithPtr, wrapWasmPtr } from './wrap';
+import { type WithPtr, wrapWasmPtr } from './wrap';
 
 import * as Comlink from 'comlink';
 
@@ -289,9 +289,69 @@ export class Waragraph {
   async initializeTree(opts: WaragraphOptions) {
     this.resize_obs = new rxjs.Subject();
 
-    // sidebar
+    const root = document.createElement('div');
+    root.classList.add('root-grid');
+    root.id = 'waragraph-root';
 
+
+    root.innerHTML = `
+  <div class="root-grid root-sidebar-open" id="root-container">
+    <div class="sidebar" id="sidebar"></div>
+    <div class="gutter-column gutter-column-sidebar"></div>
+
+    <div class="viz-grid" id="viz-container">
+      <div id="graph-viewer-container"></div>
+
+      <div class="gutter-row gutter-row-1"></div>
+
+      <div id="path-viewer-container">
+        <div class="path-viewer-column" id="path-viewer-left-column"></div>
+
+        <div class="gutter-column gutter-column-1"></div>
+
+        <div class="path-viewer-column" id="path-viewer-right-column"></div>
+      </div>
+    </div>
+  </div>`;
+
+
+    // TODO allow only adding parts as desirecd
+    // if (opts.grid.graph_viewer) {
+    // const el_2d = document.createElement('div');
+    // el_2d.style.setProperty('grid-row', '1');
+    // el_2d.style.setProperty('grid-column', '3');
+      // el.style.setProperty('grid-row', opts.grid.graph_viewer.row);
+      // el.style.setProperty('grid-column', opts.grid.graph_viewer.column);
+    // }
+
+    // if (opts.grid.path_viewer_list) {
+    // const el_1d = document.createElement('div');
+    // el_1d.style.setProperty('grid-row', '2');
+    // el_1d.style.setProperty('grid-column', '3');
+    // el_1d.style.setProperty('grid-row', opts.grid.path_viewer_list.row);
+    // el_1d.style.setProperty('grid-column', opts.grid.path_viewer_list.column);
+    // }
+
+    // if (opts.grid.sidebar) {
+    // const el_side = document.createElement('div');
+    // el_side.classList.add('sidebar');
+    // el_side.id = 'sidebar';
+
+    // el_side.style.setProperty('grid-row', opts.grid.sidebar.row);
+    // el_side.style.setProperty('grid-column', opts.grid.sidebar.column);
+
+    // root.classList.add('root-sidebar-open');
+
+    // TODO sidebar needs to take container as argument
     // await BedSidebar.initializeBedSidebarPanel(warapi);
+      //
+    // }
+
+    // add splits
+    // const sidebar_viz_gutter = document.createElement('div');
+
+    // const viz_1d_2d_gutter = document.createElement('div');
+
 
     {
       // TODO: factor out overview & range input bits
@@ -380,7 +440,7 @@ export class Waragraph {
       }],
       onDragEnd: (dir, track) => {
         // graph_viewer.resize();
-        resize_obs.next(null);
+        this.resize_obs.next(null);
       },
     });
 
@@ -400,7 +460,7 @@ export class Waragraph {
           // graph_viewer.resize();
         } else if (dir === "column" && track === 1) {
           // 1D view resize
-          resize_obs.next(null);
+          this.resize_obs.next(null);
         }
       },
     });
@@ -413,7 +473,7 @@ export class Waragraph {
 
       // }
       // graph_viewer.resize();
-      resize_obs.next(null);
+      this.resize_obs.next(null);
     });
   }
 
@@ -421,12 +481,27 @@ export class Waragraph {
 }
 
 
+// export interface WaragraphElem {
+
+export interface GridElemDesc {
+  row: string,
+  column: string,
+}
+  
+export interface GridDesc {
+  parent: HTMLDivElement,
+
+  graph_viewer?: GridElemDesc,
+  path_viewer_list?: GridElemDesc,
+  sidebar?: GridElemDesc,
+}
 
 export interface WaragraphOptions {
   gfa_url?: URL | string,
 
+  // grid: GridDesc,
+  parent?: HTMLElement,
 
-  // TODO: tree
   graph_viewer?: {
     graph_layout_url: URL | string,
     data: string | Uint32Array,
@@ -444,9 +519,6 @@ export interface WaragraphOptions {
   }
 }
 
-interface ContainerElements {
-
-}
 
 // export async function initializeWaragraph({ } = {}): Waragraph {
 export async function initializeWaragraph(opts: WaragraphOptions = {}) {
