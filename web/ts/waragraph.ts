@@ -40,7 +40,7 @@ interface View2D {
   size: vec2;
 }
 
-class Viewport2D {
+export class Viewport2D {
   // not sure if it makes sense to store the segment positions as is in the viewport, even
   // though they are associated with it in a similar way to the 1D coordinate systems;
   // SegmentPositions is currently using owned Vecs, but here on the JS side we could share
@@ -54,14 +54,14 @@ class Viewport2D {
 
 }
 
-interface View1D {
-  start: Bp;
-  end: Bp;
+export interface View1D {
+  start: number;
+  end: number;
 }
 
 // one instance of this would be shared by all 1D views that should be "synced up"
 // including external tracks, eventually
-class Viewport1D {
+export class Viewport1D {
   coord_sys: wasm_bindgen.CoordSys;
   view: wasm_bindgen.View1D;
   subject: BehaviorSubject<View1D>;
@@ -69,13 +69,26 @@ class Viewport1D {
   constructor(coord_sys: wasm_bindgen.CoordSys, view?: wasm_bindgen.View1D) {
     this.coord_sys = coord_sys;
 
+    if (view) {
+      this.view = view;
+    } else {
+      const max = coord_sys.max_f64();
+      this.view = wasm_bindgen.View1D.new(0, max, BigInt(max))
+    }
 
-
-    // this.view = view;
-
-    let view_range = { start: view.start, end: view.end };
-
+    let view_range = { start: this.view.start, end: this.view.end };
     this.subject = new BehaviorSubject(view_range as View1D);
+  }
+
+  set(start: Bp, end: Bp) {
+    let s = Number(start);
+    let e = Number(end);
+    this.view.set(s, e);
+    this.subject.next({ start: s, end: s });
+  }
+
+  get(): View1D {
+    return this.subject.value;
   }
 
   segmentAtOffset(bp: Bp) {
@@ -250,38 +263,13 @@ export class Waragraph {
     threshold: number,
     color_below: RGBObj,
     color_above: RGBObj,
-  ): Promise<Comlink.Remote<PathViewerCtx & Comlink.ProxyMarked> | undefined> {
+  ): Promise<PathViewer | undefined> {
+  // ): Promise<Comlink.Remote<PathViewerCtx & Comlink.ProxyMarked> | undefined> {
     //
 
-    const container = document.createElement('div');
+    const path_viewer = initializePathViewerNew(path_name, viewport, data, threshold, color_below, color_above);
 
-    const data_canvas = document.createElement('canvas');
-
-    let width = container.clientWidth;
-    let height = container.clientHeight;
-
-    data_canvas.width = width;
-    data_canvas.height = height;
-
-    data_canvas.id = 'viewer-' + path_name;
-
-    let offscreen = data_canvas.transferControlToOffscreen();
-
-    const viewer_ctx =
-      await this.worker_ctx.createPathViewer(
-        Comlink.transfer(offscreen, [offscreen]),
-        viewport.coord_sys as wasm_bindgen.CoordSys & WithPtr,
-        path_name,
-        data,
-        threshold,
-        color_below,
-        color_above
-      );
-
-
-    // TODO rest of 1D viewer initialization (from path_viewer_ui.ts/initializePathViewer)
-
-    return viewer_ctx;
+    return path_viewer;
   }
 
 
@@ -320,8 +308,8 @@ export class Waragraph {
     // const el_2d = document.createElement('div');
     // el_2d.style.setProperty('grid-row', '1');
     // el_2d.style.setProperty('grid-column', '3');
-      // el.style.setProperty('grid-row', opts.grid.graph_viewer.row);
-      // el.style.setProperty('grid-column', opts.grid.graph_viewer.column);
+    // el.style.setProperty('grid-row', opts.grid.graph_viewer.row);
+    // el.style.setProperty('grid-column', opts.grid.graph_viewer.column);
     // }
 
     // if (opts.grid.path_viewer_list) {
@@ -344,7 +332,7 @@ export class Waragraph {
 
     // TODO sidebar needs to take container as argument
     // await BedSidebar.initializeBedSidebarPanel(warapi);
-      //
+    //
     // }
 
     // add splits
@@ -487,7 +475,7 @@ export interface GridElemDesc {
   row: string,
   column: string,
 }
-  
+
 export interface GridDesc {
   parent: HTMLDivElement,
 
@@ -578,7 +566,7 @@ export async function initializeWaragraph(opts: WaragraphOptions = {}) {
     const data_key = opts.path_viewers.data;
     let getData;
 
-    if (data === 'depth') {
+    if (data_key === 'depth') {
     } else {
       // TODO support custom data
     }
@@ -587,6 +575,9 @@ export async function initializeWaragraph(opts: WaragraphOptions = {}) {
 
     if (cfg.path_names === '*') {
       // use all path names
+      waragraph.graph.with_path_names((name: string) => {
+        path_names.push(name);
+      });
     } else {
       for (const path_name of cfg.path_names) {
         path_names.push(path_name);

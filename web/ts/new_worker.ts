@@ -134,7 +134,7 @@ export class PathViewerCtx {
     this.path_viewer.set_offscreen_canvas_width(width);
   }
 
-  forceRedraw(resample) {
+  forceRedraw(resample?: boolean) {
     if (resample && this.view !== null) {
       this.path_viewer.sample_range(this.view.start, this.view.end);
     }
