@@ -83,7 +83,7 @@ export class WaragraphWorkerCtx {
   }
 
   getComputedGraphDataset(
-    dataset: "depth", // TODO expand/move to type; later use registered callbacks
+    dataset: "depth" | "test", // TODO expand/move to type; later use registered callbacks
   ): Uint32Array {
   // ): ArrayBufferView {
     // TODO compute depth
@@ -92,6 +92,12 @@ export class WaragraphWorkerCtx {
     // still need to map this to colors!
 
     const colors = new Uint32Array(this.graph?.segment_count());
+
+    if (dataset === "depth") {
+      throw "not implemented";
+    } else if (dataset === "test") {
+      colors.fill(0xAAAAAAFF);
+    }
 
     return Comlink.transfer(colors, [colors.buffer]);
   }

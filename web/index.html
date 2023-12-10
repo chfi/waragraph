@@ -44,7 +44,19 @@
 
     initializeWaragraph({
       gfa_url: "./data/A-3105.fa.353ea42.34ee7b1.1576367.smooth.fix.gfa",
-      graph_layout_url: "./data/A-3105.layout.tsv",
+
+      graph_viewer: {
+        graph_layout_url: "./data/A-3105.layout.tsv",
+        data: "test",
+      },
+
+      path_viewers: {
+          path_names: '*',
+          viewport: { name: 'global', coordinate_system: 'graph' },
+          data: 'depth',
+          threshold: 0.5,
+          // color_above: 
+      }
     }).then((wg) => {
       console.warn(wg);
     });

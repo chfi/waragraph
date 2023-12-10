@@ -241,10 +241,7 @@ export class Waragraph {
 
     const graph = this.graph as wasm_bindgen.ArrowGFAWrapped & WithPtr;
 
-    const container = document.createElement('div');
-
     const graph_viewer = await initializeGraphViewer(
-      container,
       this.wasm.memory,
       graph,
       layout_url
@@ -301,6 +298,23 @@ export class Waragraph {
       </div>
     </div>
   </div>`;
+
+    // this.graph_viewer?.container
+
+    if (this.graph_viewer) {
+      const container = document.getElementById('graph-viewer-container');
+
+      container?.append(this.graph_viewer.gpu_canvas);
+      container?.append(this.graph_viewer.overlay_canvas);
+
+      const width = container.clientWidth;
+      const height = container.clientHeight;
+
+      this.graph_viewer.gpu_canvas.width = width;
+      this.graph_viewer.gpu_canvas.height = height;
+      this.graph_viewer.overlay_canvas.width = width;
+      this.graph_viewer.overlay_canvas.height = height;
+    }
 
 
     // TODO allow only adding parts as desirecd
@@ -415,9 +429,14 @@ export class Waragraph {
 
     }
 
-    // for (const path_name of names) {
-    //   appendPathView(worker_obj, resize_obs, path_name);
-    // }
+
+    const path_name_col = document.getElementById('path-viewer-left-column');
+    const path_data_col = document.getElementById('path-viewer-right-column');
+
+    for (const path_viewer of this.path_viewers) {
+      path_data_col?.append(path_viewer.data_canvas);
+      path_data_col?.append(path_viewer.overlay_canvas);
+    }
 
     // TODO: additional tracks
 
@@ -428,7 +447,7 @@ export class Waragraph {
       }],
       onDragEnd: (dir, track) => {
         // graph_viewer.resize();
-        this.resize_obs.next(null);
+        this.resize_obs!.next(null);
       },
     });
 
@@ -448,7 +467,7 @@ export class Waragraph {
           // graph_viewer.resize();
         } else if (dir === "column" && track === 1) {
           // 1D view resize
-          this.resize_obs.next(null);
+          this.resize_obs!.next(null);
         }
       },
     });
@@ -461,7 +480,7 @@ export class Waragraph {
 
       // }
       // graph_viewer.resize();
-      this.resize_obs.next(null);
+      this.resize_obs!.next(null);
     });
   }
 
@@ -543,7 +562,7 @@ export async function initializeWaragraph(opts: WaragraphOptions = {}) {
     let data = cfg.data;
 
     if (typeof data === "string") {
-      if (data === "depth") {
+      if (data === "depth" || data === "test") {
         data = await waragraph.worker_ctx.getComputedGraphDataset(data);
       } else {
         throw `Unknown data '${data}'`;
@@ -558,18 +577,10 @@ export async function initializeWaragraph(opts: WaragraphOptions = {}) {
 
     const cfg = opts.path_viewers;
 
-    const viewport = waragraph.get1DViewport({
+    const viewport = await waragraph.get1DViewport({
       scope: 'graph',
       name: cfg.viewport.name
     });
-
-    const data_key = opts.path_viewers.data;
-    let getData;
-
-    if (data_key === 'depth') {
-    } else {
-      // TODO support custom data
-    }
 
     const path_names: string[] = [];
 
@@ -582,6 +593,33 @@ export async function initializeWaragraph(opts: WaragraphOptions = {}) {
       for (const path_name of cfg.path_names) {
         path_names.push(path_name);
       }
+    }
+
+    const data_key = opts.path_viewers.data;
+
+    if (data_key !== 'depth') {
+      throw "unsupported path data";
+    }
+
+    // if (data_key === 'depth') {
+    // } else {
+         // TODO support custom data
+    // }
+
+    // const path_data_arrays = [];
+
+    for (const path_name of path_names) {
+      const data = await waragraph.worker_ctx.getComputedPathDataset(data_key, path_name)
+      const path_viewer = waragraph.createPathViewer(
+        path_name,
+        viewport,
+        data,
+        opts.path_viewers.threshold,
+        opts.path_viewers.color_below,
+        opts.path_viewers.color_above
+      );
+
+      this.path_viewers.push(path_viewer);
     }
 
 

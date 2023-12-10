@@ -126,7 +126,7 @@ export async function initializePathViewerNew(
   container.append(overlay_canvas);
 
   {
-    let view = await viewport.get();
+    let view = viewport.get();
 
     await viewer_ctx.setView(view.start, view.end);
     await viewer_ctx.sample();
@@ -174,7 +174,7 @@ export async function initializePathViewerNew(
     let overlay_ctx = canvas.getContext('2d');
     overlay_ctx?.clearRect(0, 0, canvas.width, canvas.height);
 
-    let view = await viewport.get();
+    let view = viewport.get();
 
     for (const key in path_viewer.trackCallbacks) {
       const callback = path_viewer.trackCallbacks[key];

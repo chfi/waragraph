@@ -31,13 +31,20 @@ export class GraphViewer {
   overlayCallbacks: OverlayCallbacks;
   mousePos: { x: number, y: number } | null;
 
-  container: HTMLDivElement;
+  gpu_canvas: HTMLCanvasElement;
+  overlay_canvas: HTMLCanvasElement;
+  container: HTMLDivElement | undefined;
 
   constructor(
-    container: HTMLDivElement,
+    gpu_canvas: HTMLCanvasElement,
+    overlay_canvas: HTMLCanvasElement,
     viewer: wasm_bindgen.GraphViewer,
-    seg_pos: wasm_bindgen.SegmentPositions
+    seg_pos: wasm_bindgen.SegmentPositions,
+    container?: HTMLDivElement,
   ) {
+    this.gpu_canvas = gpu_canvas;
+    this.overlay_canvas = overlay_canvas;
+
     this.container = container;
 
     // maybe just take the minimum raw data needed here
@@ -343,10 +350,10 @@ function resize_view_dimensions(v_dims, c_old, c_new) {
 
 
 export async function initializeGraphViewer(
-  container: HTMLDivElement,
   wasm_mem: WebAssembly.Memory,
   graph_raw: { __wbg_ptr: number },
   layout_url: URL | string,
+  container?: HTMLDivElement,
 ) {
   if (_wasm === undefined) {
     _wasm = await init_module(undefined, wasm_mem);
@@ -366,16 +373,21 @@ export async function initializeGraphViewer(
   // gpu_canvas.style.setProperty('z-index', '0');
   // overlay_canvas.style.setProperty('z-index', '1');
 
-  container.append(gpu_canvas);
-  container.append(overlay_canvas);
 
-  let width = container.clientWidth;
-  let height = container.clientHeight;
+  if (container) {
+    container.append(gpu_canvas);
+    container.append(overlay_canvas);
 
-  gpu_canvas.width = container.clientWidth;
-  gpu_canvas.height = container.clientHeight;
-  overlay_canvas.width = container.clientWidth;
-  overlay_canvas.height = container.clientHeight;
+    const width = container.clientWidth;
+    const height = container.clientHeight;
+
+    gpu_canvas.width = width;
+    gpu_canvas.height = height;
+    overlay_canvas.width = width;
+    overlay_canvas.height = height;
+  }
+
+
 
   if (_raving_ctx === undefined) {
     // let canvas = document.getElementById('graph-viewer-2d');
@@ -397,7 +409,7 @@ export async function initializeGraphViewer(
   viewer.resize(_raving_ctx, width, height);
   viewer.draw_to_surface(_raving_ctx);
 
-  const graph_viewer = new GraphViewer(container, viewer, seg_pos);
+  const graph_viewer = new GraphViewer(gpu_canvas, overlay_canvas, viewer, seg_pos, container);
 
   const draw_loop = () => {
     if (graph_viewer.needRedraw()) {
