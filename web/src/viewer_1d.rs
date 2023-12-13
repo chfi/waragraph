@@ -77,6 +77,36 @@ impl PathViewer {
         self.last_sampled_range = Some(range);
     }
 
+    /*
+    pub fn set_offscreen_canvas_dims(
+        &mut self,
+        width: JsValue,
+        height: JsValue,
+    ) {
+        if let Some(width) = width.as_f64() {
+            let size = width as usize;
+            if self.bins.len() < size {
+                self.bins.resize(size, 0.0);
+            }
+
+            self.canvas.set_width(size as u32);
+
+            if let Some(target) = self.target_canvas.as_ref() {
+                target.set_width(size as u32);
+            }
+        }
+
+        if let Some(height) = height.as_f64() {
+            let size = height as usize;
+            self.canvas.set_height(size as u32);
+
+            if let Some(target) = self.target_canvas.as_ref() {
+                target.set_height(size as u32);
+            }
+        }
+    }
+    */
+
     pub fn set_offscreen_canvas_width(&mut self, width: JsValue) {
         if let Some(width) = width.as_f64() {
             let size = width as usize;

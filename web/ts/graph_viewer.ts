@@ -92,7 +92,11 @@ export class GraphViewer {
     let graph_bounds = this.segment_positions.bounds_as_view_obj();
     // let view_obj = this.next_view.as_obj();
 
-    let canvas = document.getElementById("graph-viewer-2d") as HTMLCanvasElement;
+    let canvas = document.getElementById("graph-viewer-2d") as HTMLCanvasElement | null;
+    if (!canvas) {
+      console.warn("graph-viewer-2d canvas not found");
+      return;
+    }
     let view_width, view_height;
 
     let c_aspect = canvas.width / canvas.height;
@@ -373,13 +377,17 @@ export async function initializeGraphViewer(
   // gpu_canvas.style.setProperty('z-index', '0');
   // overlay_canvas.style.setProperty('z-index', '1');
 
+  let width, height;
 
   if (container) {
     container.append(gpu_canvas);
     container.append(overlay_canvas);
 
-    const width = container.clientWidth;
-    const height = container.clientHeight;
+    width = container.clientWidth;
+    height = container.clientHeight;
+
+    // const width = container.clientWidth;
+    // const height = container.clientHeight;
 
     gpu_canvas.width = width;
     gpu_canvas.height = height;
@@ -406,8 +414,12 @@ export async function initializeGraphViewer(
     gpu_canvas
   );
 
-  viewer.resize(_raving_ctx, width, height);
+  if (width && height) {
+    viewer.resize(_raving_ctx, width, height);
+  }
+
   viewer.draw_to_surface(_raving_ctx);
+
 
   const graph_viewer = new GraphViewer(gpu_canvas, overlay_canvas, viewer, seg_pos, container);
 

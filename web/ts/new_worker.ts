@@ -76,8 +76,12 @@ export class WaragraphWorkerCtx {
 
     const coord_sys = wrapWasmPtr(wasm_bindgen.CoordSys, coord_sys_.__wbg_ptr) as wasm_bindgen.CoordSys;
 
+    const data_wrapped = wrapWasmPtr(wasm_bindgen.SparseData, data.__wbg_ptr);
+
     // TODO configurable bins
-    const viewer_ctx = new PathViewerCtx(coord_sys, data, { bins: 1024, color_0: color_below, color_1: color_above });
+    const viewer_ctx = new PathViewerCtx(coord_sys, data_wrapped, { bins: 1024, color_0: color_below, color_1: color_above });
+
+    viewer_ctx.connectCanvas(offscreen_canvas);
 
     return Comlink.proxy(viewer_ctx);
   }
@@ -105,9 +109,16 @@ export class WaragraphWorkerCtx {
   getComputedPathDataset(
     dataset: "depth",
     path_name: string,
-  ): wasm_bindgen.SparseData | undefined {
+  ): wasm_bindgen.SparseData & WithPtr | undefined {
+    console.warn(`computing dataset ${dataset}`);
+
     if (this.graph) {
-      return wasm_bindgen.arrow_gfa_depth_data(this.graph, path_name);
+      const data = wasm_bindgen.arrow_gfa_depth_data(this.graph, path_name);
+
+      console.warn("data on worker");
+      console.warn(data);
+
+      return data;
     }
   }
 
@@ -138,6 +149,11 @@ export class PathViewerCtx {
 
   setCanvasWidth(width) {
     this.path_viewer.set_offscreen_canvas_width(width);
+  }
+
+  // setCanvasDims( { width, height }: { width: number, height: number } ) {
+  setCanvasDims(width: number, height: number) {
+    this.path_viewer.set_offscreen_canvas_dims(width, height);
   }
 
   forceRedraw(resample?: boolean) {

@@ -184,12 +184,19 @@ export class Waragraph {
       cs_key = desc.scope + ":" + desc.path_name;
     }
 
-    const cs = await this.getCoordinateSystem(cs_key);
+    // console.warn("cs key: ", cs_key);
+    console.warn(`cs_key: '${cs_key}'`);
+    let cs = await this.getCoordinateSystem(cs_key);
+
+    console.warn("got coordinate system?");
+    console.warn(cs);
 
     if (cs === undefined) {
       // should probably throw
       return;
     }
+
+    // cs = wrapWasmPtr(wasm_bindgen.CoordSys, cs.__wbg_ptr);
 
     const view_max = cs.max();
     const view = wasm_bindgen.View1D.new(0, Number(view_max), view_max)
@@ -207,19 +214,29 @@ export class Waragraph {
   async getCoordinateSystem(key: string): Promise<wasm_bindgen.CoordSys | undefined> {
     let cs = this.coordinate_systems.get(key);
 
+    console.warn("getCoordinateSystem cs: ");
+    console.warn(cs);
+
     if (cs !== undefined) {
       return cs;
     }
 
+    let cs_worker;
+
     if (key === "graph") {
-      cs = await this.worker_ctx.buildGlobalCoordinateSystem();
+      cs_worker = await this.worker_ctx.buildGlobalCoordinateSystem();
+      console.warn("cs_worker");
+      console.warn(cs_worker);
     } else if (key.startsWith("path:") && key.length > 5) {
       const path_name = key.substring(5);
-      cs = await this.worker_ctx.buildPathCoordinateSystem(path_name);
+      cs_worker = await this.worker_ctx.buildPathCoordinateSystem(path_name);
     }
 
-    if (cs !== undefined) {
-      this.coordinate_systems.set(key, cs);
+    if (cs_worker !== undefined) {
+      cs = wrapWasmPtr(wasm_bindgen.CoordSys, cs_worker.__wbg_ptr);
+      console.warn("setting coordinate system...");
+      console.warn(cs);
+      this.coordinate_systems.set(key, cs!);
     }
 
     return cs;
@@ -264,7 +281,7 @@ export class Waragraph {
   // ): Promise<Comlink.Remote<PathViewerCtx & Comlink.ProxyMarked> | undefined> {
     //
 
-    const path_viewer = initializePathViewerNew(path_name, viewport, data, threshold, color_below, color_above);
+    const path_viewer = await initializePathViewerNew(this.worker_ctx, path_name, viewport, data, threshold, color_below, color_above);
 
     return path_viewer;
   }
@@ -304,16 +321,10 @@ export class Waragraph {
     if (this.graph_viewer) {
       const container = document.getElementById('graph-viewer-container');
 
-      container?.append(this.graph_viewer.gpu_canvas);
-      container?.append(this.graph_viewer.overlay_canvas);
+      container!.append(this.graph_viewer.gpu_canvas);
+      container!.append(this.graph_viewer.overlay_canvas);
 
-      const width = container.clientWidth;
-      const height = container.clientHeight;
-
-      this.graph_viewer.gpu_canvas.width = width;
-      this.graph_viewer.gpu_canvas.height = height;
-      this.graph_viewer.overlay_canvas.width = width;
-      this.graph_viewer.overlay_canvas.height = height;
+      this.graph_viewer.resize();
     }
 
 
@@ -434,8 +445,14 @@ export class Waragraph {
     const path_data_col = document.getElementById('path-viewer-right-column');
 
     for (const path_viewer of this.path_viewers) {
-      path_data_col?.append(path_viewer.data_canvas);
-      path_data_col?.append(path_viewer.overlay_canvas);
+      path_data_col?.append(path_viewer.container);
+      path_viewer.container.classList.add('path-list-flex-item');
+      // path_viewer.container.style.setProperty('overflow','hidden');
+      // path_viewer.container.style.setProperty('position','absolute');
+      console.warn(path_viewer.container);
+  // name_el.classList.add('path-list-flex-item', 'path-name');
+  // data_el.classList.add('path-list-flex-item');
+      path_viewer.onResize();
     }
 
     // TODO: additional tracks
@@ -582,6 +599,12 @@ export async function initializeWaragraph(opts: WaragraphOptions = {}) {
       name: cfg.viewport.name
     });
 
+    console.warn(viewport);
+
+    if (viewport === undefined) {
+      throw new Error("Viewport not found");
+    }
+
     const path_names: string[] = [];
 
     if (cfg.path_names === '*') {
@@ -609,8 +632,18 @@ export async function initializeWaragraph(opts: WaragraphOptions = {}) {
     // const path_data_arrays = [];
 
     for (const path_name of path_names) {
-      const data = await waragraph.worker_ctx.getComputedPathDataset(data_key, path_name)
-      const path_viewer = waragraph.createPathViewer(
+      let data = await waragraph.worker_ctx.getComputedPathDataset(data_key, path_name);
+
+      console.warn("Computed dataset:");
+      console.warn(data);
+
+      if (data === undefined) {
+        throw new Error(`Computed path data ${data_key} not found (for path ${path_name})`);
+      }
+
+      data = wrapWasmPtr(wasm_bindgen.SparseData, data.__wbg_ptr);
+
+      const path_viewer = await waragraph.createPathViewer(
         path_name,
         viewport,
         data,
@@ -619,7 +652,7 @@ export async function initializeWaragraph(opts: WaragraphOptions = {}) {
         opts.path_viewers.color_above
       );
 
-      this.path_viewers.push(path_viewer);
+      waragraph.path_viewers.push(path_viewer);
     }
 
 
