@@ -80,6 +80,14 @@ export class Viewport1D {
     this.subject = new BehaviorSubject(view_range as View1D);
   }
 
+  get length() {
+    return this.view.len;
+  }
+
+  get(): View1D {
+    return this.subject.value;
+  }
+
   set(start: Bp, end: Bp) {
     let s = Number(start);
     let e = Number(end);
@@ -87,8 +95,26 @@ export class Viewport1D {
     this.subject.next({ start: s, end: s });
   }
 
-  get(): View1D {
-    return this.subject.value;
+  push() {
+    let start = this.view.start;
+    let end = this.view.end;
+    this.subject.next({ start, end });
+  }
+
+  zoomNorm(norm_x, scale) {
+    this.view.zoom_with_focus(norm_x, scale);
+    this.push();
+  }
+
+  zoomViewCentered(scale) {
+    this.view.zoom_with_focus(0.5, scale);
+    this.push();
+  }
+
+  translateView(delta_bp) {
+    this.view.translate(delta_bp);
+    console.log("translating view");
+    this.push();
   }
 
   segmentAtOffset(bp: Bp) {
@@ -282,6 +308,8 @@ export class Waragraph {
     //
 
     const path_viewer = await initializePathViewerNew(this.worker_ctx, path_name, viewport, data, threshold, color_below, color_above);
+
+    await addPathViewerLogic(this.worker_ctx, path_viewer);
 
     return path_viewer;
   }

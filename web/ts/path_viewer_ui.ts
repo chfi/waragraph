@@ -20,16 +20,18 @@ handler.setTransferHandlers(rxjs, Comlink);
 import * as FloatingUI from '@floating-ui/dom';
 
 async function segmentAtCanvasX(
-  coord_sys_view,
-  canvas_width,
-  x
+  // coord_sys_view,
+  viewport: Viewport1D,
+  canvas_width: number,
+  x: number
 ) {
-  let { start, end, len } = await coord_sys_view.get();
+  let { start, end } = viewport.get();
+  let len = end - start;
 
   let bp_f = start + (x / canvas_width) * len;
   let bp = BigInt(Math.round(bp_f));
 
-  let segment = await coord_sys_view.segmentAtOffset(bp);
+  let segment = viewport.segmentAtOffset(bp);
 
   return segment;
 }
@@ -60,6 +62,8 @@ export async function highlightPathRanges(
 export interface PathViewer {
   drawOverlays: () => Promise<void>;
   onResize: () => Promise<void>;
+
+  viewport: Viewport1D;
 
   // worker_ctx: Comlink.Remote<any>;
   worker_ctx: Comlink.Remote<PathViewerCtx & Comlink.ProxyMarked>;
@@ -157,7 +161,7 @@ export async function initializePathViewerNew(
     */
   const trackCallbacks = {};
 
-  const path_viewer = { worker_ctx: viewer_ctx, data_canvas, overlay_canvas, container, trackCallbacks } as PathViewer;
+  const path_viewer = { worker_ctx: viewer_ctx, data_canvas, overlay_canvas, container, trackCallbacks, viewport } as PathViewer;
 
   path_viewer.onResize = async () => {
     let w = container.clientWidth;
@@ -291,19 +295,14 @@ export async function initializePathViewer(
 }
 
 
-export async function addPathViewerLogic(worker, path_viewer: PathViewer, cs_view) {
+export async function addPathViewerLogic(
+  worker: Comlink.Remote<WaragraphWorkerCtx>,
+  path_viewer: PathViewer,
+) {
   const { worker_ctx, overlay_canvas } = path_viewer;
   const canvas = overlay_canvas;
 
-  const { fromEvent,
-    map,
-    pairwise,
-    race,
-    switchMap,
-    takeUntil,
-  } = rxjs;
-
-  const wheel$ = rxjs.fromEvent(canvas, 'wheel').pipe(
+  const wheel$ = fromEvent(canvas, 'wheel').pipe(
     rxjs.tap(event => event.preventDefault())
   );
   const mouseDown$ = fromEvent(canvas, 'mousedown');
@@ -327,7 +326,7 @@ export async function addPathViewerLogic(worker, path_viewer: PathViewer, cs_vie
     let y = e.offsetY;
     let width = canvas.width;
 
-    let segment = await segmentAtCanvasX(cs_view, width, x);
+    let segment = await segmentAtCanvasX(path_viewer.viewport, width, x);
     console.log("segment at cursor: " + segment);
 
     let tooltip = document.getElementById('tooltip');
@@ -367,13 +366,15 @@ export async function addPathViewerLogic(worker, path_viewer: PathViewer, cs_vie
     })
   );
 
-  await cs_view.subscribeZoomAround(wheelScaleDelta$);
+  wheelScaleDelta$.subscribe(({ scale, x }) => {
+    path_viewer.viewport.zoomNorm(x, scale);
+  });
 
   const drag$ = mouseDown$.pipe(
     switchMap((event: MouseEvent) => {
       return mouseMove$.pipe(
-        pairwise(),
-        map(([prev, current]: [MouseEvent, MouseEvent]) => current.offsetX - prev.offsetX),
+        // pairwise(),
+        map((ev: MouseEvent) => ev.movementX),
         takeUntil(
           race(mouseUp$, mouseOut$)
         )
@@ -381,14 +382,28 @@ export async function addPathViewerLogic(worker, path_viewer: PathViewer, cs_vie
     })
   );
 
-  const dragDeltaNorm$ = drag$.pipe(rxjs.map((delta_x) => {
-    let delta = (delta_x / canvas.width);
+  // const drag$ = mouseDown$.pipe(
+  //   rxjs.switchMap((event: MouseEvent) => {
+  //     return mouseMove$.pipe(
+  //       rxjs.takeUntil(
+  //         rxjs.race(mouseUp$, mouseOut$)
+  //       )
+  //     )
+  //   })
+  // );
+
+  // const dragDeltaNorm$ = drag$.pipe(rxjs.map((ev: MouseEvent) => {
+  const dragDeltaNorm$ = drag$.pipe(rxjs.map((dx: number) => {
+    let delta = (dx / canvas.width);
     return -delta;
   }));
 
-  await cs_view.subscribeTranslateDeltaNorm(dragDeltaNorm$);
+  dragDeltaNorm$.subscribe((delta: number) => {
+      let delta_bp = delta * path_viewer.viewport.length;
+      path_viewer.viewport.translateView(delta_bp);
+  });
 
-  let view_subject = await cs_view.viewSubject();
+  let view_subject = path_viewer.viewport.subject;
 
   worker_ctx.sample();
   worker_ctx.forceRedraw();
@@ -403,7 +418,7 @@ export async function addPathViewerLogic(worker, path_viewer: PathViewer, cs_vie
       worker_ctx.forceRedraw();
 
       let overlay_ctx = canvas.getContext('2d');
-      overlay_ctx.clearRect(0, 0, canvas.width, canvas.height);
+      overlay_ctx?.clearRect(0, 0, canvas.width, canvas.height);
 
       for (const key in path_viewer.trackCallbacks) {
         const callback = path_viewer.trackCallbacks[key];

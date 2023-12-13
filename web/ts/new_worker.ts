@@ -110,18 +110,15 @@ export class WaragraphWorkerCtx {
     dataset: "depth",
     path_name: string,
   ): wasm_bindgen.SparseData & WithPtr | undefined {
-    console.warn(`computing dataset ${dataset}`);
 
     if (this.graph) {
-      const data = wasm_bindgen.arrow_gfa_depth_data(this.graph, path_name);
-
-      console.warn("data on worker");
-      console.warn(data);
-
-      return data;
+      return wasm_bindgen.arrow_gfa_depth_data(this.graph, path_name);
     }
   }
 
+  pathsOnSegment(segment: number): Uint32Array | undefined {
+    return this.path_index?.paths_on_segment(segment);
+  }
 
 }
 
