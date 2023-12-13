@@ -63,6 +63,7 @@ export interface PathViewer {
   drawOverlays: () => Promise<void>;
   onResize: () => Promise<void>;
 
+  path_name: string;
   viewport: Viewport1D;
 
   // worker_ctx: Comlink.Remote<any>;
@@ -161,7 +162,15 @@ export async function initializePathViewerNew(
     */
   const trackCallbacks = {};
 
-  const path_viewer = { worker_ctx: viewer_ctx, data_canvas, overlay_canvas, container, trackCallbacks, viewport } as PathViewer;
+  const path_viewer = {
+    worker_ctx: viewer_ctx,
+    data_canvas,
+    overlay_canvas,
+    container,
+    trackCallbacks,
+    viewport,
+    path_name
+  } as PathViewer;
 
   path_viewer.onResize = async () => {
     let w = container.clientWidth;
@@ -430,7 +439,7 @@ export async function addPathViewerLogic(
 
 }
 
-export async function addOverviewEventHandlers(overview, cs_view) {
+export async function addOverviewEventHandlers(overview, viewport: Viewport1D) {
 
 
   const wheel$ = rxjs.fromEvent<WheelEvent>(overview.canvas, 'wheel');
@@ -439,7 +448,7 @@ export async function addOverviewEventHandlers(overview, cs_view) {
   const mouseMove$ = rxjs.fromEvent<MouseEvent>(overview.canvas, 'mousemove');
   const mouseOut$ = rxjs.fromEvent<MouseEvent>(overview.canvas, 'mouseout');
 
-  const view_max = await cs_view.viewMax();
+  const view_max = viewport.max;
 
 
   const wheelScaleDelta$ = wheel$.pipe(
@@ -461,7 +470,9 @@ export async function addOverviewEventHandlers(overview, cs_view) {
     })
   );
 
-  await cs_view.subscribeZoomCentered(wheelScaleDelta$);
+  wheelScaleDelta$.subscribe((scale: number) => {
+    viewport.zoomViewCentered(scale);
+  });
 
   const mouseAt$ = mouseDown$.pipe(
     switchMap((event: MouseEvent) => {
@@ -474,10 +485,14 @@ export async function addOverviewEventHandlers(overview, cs_view) {
     })
   );
 
-  await cs_view.subscribeCenterAt(mouseAt$);
+  // await cs_view.subscribeCenterAt(mouseAt$);
+
+  mouseAt$.subscribe((bp_pos) => {
+    viewport.centerAt(bp_pos);
+  });
 
 
-  let view_subject = await cs_view.viewSubject();
+  let view_subject = viewport.subject;
 
   view_subject.pipe(
     rxjs.distinct(),

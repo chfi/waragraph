@@ -28,23 +28,25 @@ impl PagedBuffers {
         stride: u64,
         desired_capacity: usize, // in elements
     ) -> Result<Self> {
+        log::warn!("{:#?}", device.limits());
+
         let max_size = device.limits().max_buffer_size;
 
         // set the page size to the greatest multiple of `stride` smaller than `max_size`
         let max_size = (max_size / stride) * stride;
 
-        println!("max_size: {max_size}");
+        log::info!("max_size: {max_size}");
 
-        println!("desired_capacity: {desired_capacity}");
-        println!("stride: {stride}");
+        log::info!("desired_capacity: {desired_capacity}");
+        log::info!("stride: {stride}");
         let total_size = desired_capacity as u64 * stride;
         let page_size = total_size.min(max_size);
         let page_count =
             (total_size / page_size) + (total_size % page_size).min(1);
 
-        println!("total_size: {total_size}");
-        println!("page_size: {page_size}");
-        println!("page_count: {page_count}");
+        log::info!("total_size: {total_size}");
+        log::info!("page_size: {page_size}");
+        log::info!("page_count: {page_count}");
 
         let mut pages = Vec::new();
 
@@ -215,9 +217,8 @@ impl PagedBuffers {
         let sp = si / self.page_capacity();
         let ep = ei / self.page_capacity();
 
-        if sp != ep {
-            log::warn!("get_subpage_range crossed page boundary {sp}/{ep}");
-            // TODO warn if page boundary has to be crossed (wasm)
+        if ep.abs_diff(sp) > 1 {
+            log::warn!("get_subpage_range crossed page boundary {sp}/{ep}, page size {}", self.page_size());
         }
 
         let page = sp;

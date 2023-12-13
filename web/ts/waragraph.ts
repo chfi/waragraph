@@ -6,6 +6,11 @@ import type { WaragraphWorkerCtx, PathViewerCtx } from './new_worker';
 
 import { initializePathViewerNew, addOverviewEventHandlers, addPathViewerLogic } from './path_viewer_ui';
 import type { PathViewer } from './path_viewer_ui';
+import { OverviewMap } from './overview';
+
+import * as CanvasTracks from './canvas_tracks';
+import * as BedSidebar from './sidebar-bed';
+
 import type { Bp, Segment, Handle, PathId, RGBObj } from './types';
 
 import {
@@ -84,6 +89,10 @@ export class Viewport1D {
     return this.view.len;
   }
 
+  get max() {
+    return this.view.max;
+  }
+
   get(): View1D {
     return this.subject.value;
   }
@@ -114,6 +123,16 @@ export class Viewport1D {
   translateView(delta_bp) {
     this.view.translate(delta_bp);
     console.log("translating view");
+    this.push();
+  }
+
+  centerAt(bp) {
+    // console.log("centering view around " + bp);
+    let len = this.view.len;
+    let start = bp - (len / 2);
+    let end = bp + (len / 2);
+    // console.log("left: " + left + ", right: " + right);
+    this.view.set(start, end);
     this.push();
   }
 
@@ -196,11 +215,17 @@ export class Waragraph {
   }
 
 
-  async get1DViewport(desc: ViewportDesc) {
+  async get1DViewport(desc: ViewportDesc | { name: string }) {
     let viewport = this.viewports_1d.get(desc.name);
 
     if (viewport !== undefined) {
       return viewport;
+    }
+
+    if (!("scope" in desc)) {
+      throw new Error(
+        `Viewport ${desc.name} not found, and scope not specified to create new viewport`
+      );
     }
 
     let cs_key: string;
@@ -398,6 +423,20 @@ export class Waragraph {
       // TODO: factor out overview & range input bits
       const overview_slots = appendPathListElements(40, 'div', 'div');
 
+      const overview_canvas = document.createElement('canvas');
+      overview_canvas.style.setProperty('position', 'absolute');
+      overview_canvas.style.setProperty('overflow', 'hidden');
+      overview_canvas.width = overview_slots.right.clientWidth;
+      overview_canvas.height = overview_slots.right.clientHeight;
+      overview_slots.right.append(overview_canvas);
+
+      const viewport_key = opts.path_viewers!.viewport;
+      const viewport = await this.get1DViewport({ name: viewport_key.name });
+
+      const overview = new OverviewMap(overview_canvas, viewport!.max);
+      await addOverviewEventHandlers(overview, viewport!);
+
+
       /*
       const cs_view = await worker_obj.globalCoordSysView();
       const view_max = await cs_view.viewMax();
@@ -454,17 +493,24 @@ export class Waragraph {
         seq_canvas,
         view_subject
       );
+       */
 
-      resize_obs.subscribe(() => {
+      this.resize_obs
+        .pipe(
+          rxjs.throttleTime(500)
+        )
+        .subscribe(() => {
+        this.graph_viewer?.resize();
+
         overview_canvas.width = overview_slots.right.clientWidth;
         overview_canvas.height = overview_slots.right.clientHeight;
-        seq_canvas.width = seq_slots.right.clientWidth;
-        seq_canvas.height = seq_slots.right.clientHeight;
+        // seq_canvas.width = seq_slots.right.clientWidth;
+        // seq_canvas.height = seq_slots.right.clientHeight;
 
         overview.draw();
-        seq_track.draw_last();
+
+        // seq_track.draw_last();
       });
-       */
 
     }
 
@@ -480,7 +526,20 @@ export class Waragraph {
       console.warn(path_viewer.container);
   // name_el.classList.add('path-list-flex-item', 'path-name');
   // data_el.classList.add('path-list-flex-item');
+
+      const name_el = document.createElement('div');
+      name_el.classList.add('path-list-flex-item', 'path-name');
+      name_el.innerHTML = path_viewer.path_name;
+
+      path_name_col?.append(name_el);
+
       path_viewer.onResize();
+
+      this.resize_obs
+        .pipe(rxjs.throttleTime(500))
+        .subscribe((_) => {
+        path_viewer.onResize();
+      })
     }
 
     // TODO: additional tracks
@@ -492,6 +551,7 @@ export class Waragraph {
       }],
       onDragEnd: (dir, track) => {
         // graph_viewer.resize();
+        console.warn("resizing split!");
         this.resize_obs!.next(null);
       },
     });
@@ -507,24 +567,13 @@ export class Waragraph {
       }],
       rowMinSizes: { 0: 200 },
       onDragEnd: (dir, track) => {
-        if (dir === "row" && track === 1) {
-          // 2D view resize
-          // graph_viewer.resize();
-        } else if (dir === "column" && track === 1) {
-          // 1D view resize
-          this.resize_obs!.next(null);
-        }
+        console.warn("resizing split!");
+        this.resize_obs!.next(null);
       },
     });
 
-    rxjs.fromEvent(window, 'resize').pipe(
-      rxjs.throttleTime(100),
-    ).subscribe(() => {
-      // let svg = document.getElementById('svg-container');
-      // if (svg) {
-
-      // }
-      // graph_viewer.resize();
+    rxjs.fromEvent(window, 'resize')
+      .subscribe(() => {
       this.resize_obs!.next(null);
     });
   }
