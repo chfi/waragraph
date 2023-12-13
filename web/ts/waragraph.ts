@@ -173,8 +173,6 @@ export class Waragraph {
 
   the worker pool is probably a bit much to implement right now (i'm not 100%
   sure what the boundary looks like), so instead clean up and refine the worker module
-  
-  
 
    */
 
@@ -584,6 +582,82 @@ export class Waragraph {
     });
   }
 
+
+  segmentScreenPos2d(segment) {
+    let seg_pos = this.graph_viewer?.getSegmentScreenPos(segment);
+
+    if (!seg_pos) {
+      return null;
+    }
+
+    return seg_pos;
+  }
+
+  async segmentScreenPos1d(path_name, segment) {
+    let viewport = await this.get1DViewport();
+
+    if (!viewport) {
+      throw new Error("No viewport");
+    }
+
+    let seg_range = viewport.segmentRange(segment);
+
+    let el = document.getElementById('viewer-' + path_name);
+
+    if (!el) {
+      return null;
+    }
+
+    let el_rect = el.getBoundingClientRect();
+
+    let view = viewport.get();
+    let view_len = viewport.length;
+
+    // segmentRange returns BigInts
+    let seg_s = Number(seg_range.start);
+    let seg_e = Number(seg_range.end);
+
+    let seg_start = (seg_s - view.start) / view_len;
+    let seg_end = (seg_e - view.start) / view_len;
+
+    let width = el_rect.width;
+    let y0 = el_rect.y;
+    let y1 = el_rect.y + el_rect.height;
+
+    let x0 = el_rect.left + seg_start * width;
+    let x1 = el_rect.left + seg_end * width;
+
+    return { x0, y0, x1, y1 };
+      /*
+    let cs_view = await this.worker_obj.globalCoordSysView();
+    let view = await cs_view.get();
+    let seg_range = await cs_view.segmentRange(segment);
+
+    let el = document.getElementById('viewer-' + path_name);
+
+    let el_rect = el.getBoundingClientRect();
+
+    if (!el) {
+      return null;
+    }
+
+    // segmentRange returns BigInts
+    let seg_s = Number(seg_range.start);
+    let seg_e = Number(seg_range.end);
+
+    let seg_start = (seg_s - view.start) / view.len;
+    let seg_end = (seg_e - view.start) / view.len;
+
+    let width = el_rect.width;
+    let y0 = el_rect.y;
+    let y1 = el_rect.y + el_rect.height;
+
+    let x0 = el_rect.left + seg_start * width;
+    let x1 = el_rect.left + seg_end * width;
+
+    return { x0, y0, x1, y1 };
+       */
+  }
 
 }
 

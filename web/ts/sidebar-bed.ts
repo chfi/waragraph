@@ -305,8 +305,7 @@ class BEDFile {
     // TODO: there are other cases when this should run, especially once
     // there's more than just 2D-focused SVG
     waragraph
-      .graph_viewer
-      .view_subject
+      .graph_viewer?.view_subject
       .subscribe((view_2d) => {
         const { x, y, width, height } = view_2d;
 
@@ -331,11 +330,9 @@ class BEDFile {
 
       });
 
-    // const cs_view = await waragraph.worker_obj.globalCoordSysView();
-    const viewport = await waragraph.
-    const view_1d_subject = await cs_view.viewSubject();
+    const viewport = await waragraph.get1DViewport();
 
-    view_1d_subject
+    viewport?.subject
       .pipe(rxjs.distinct(),
         rxjs.throttleTime(50),
       )
@@ -451,7 +448,7 @@ async function loadBedFile(waragraph: Waragraph, file: File) {
 
   await bed_file.appendRecords(waragraph, bed_lines);
 
-  bed_file.initializeAnnotationPainter();
+  bed_file.initializeAnnotationPainter(waragraph);
 
   const bed_list = document.getElementById('bed-file-list');
 
