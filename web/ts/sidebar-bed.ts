@@ -6,6 +6,8 @@ import { AnnotationPainter } from './annotations';
 import * as CanvasTracks from '../canvas_tracks';
 import { wrapWasmPtr } from './wrap';
 
+import { type Waragraph } from './waragraph';
+
 import BED from '@gmod/bed';
 
 import * as rxjs from 'rxjs';
@@ -30,8 +32,8 @@ function findPathName(cand: string): string {
 }
 
 
-let waragraph_viz: WaragraphViz;
-let wasm = null;
+// let waragraph_viz: WaragraphViz;
+let wasm;
 
 function createPathOffsetMap(path_name: string): (bp: number) => number {
   const regex = /.+:(\d+)-(\d+)$/;
@@ -247,11 +249,9 @@ class BEDFile {
     //   svg_shared: svg element
   }
 
-  async appendRecords(record_lines) {
+  async appendRecords(waragraph: Waragraph, record_lines) {
 
-    const graph_raw = await waragraph_viz.worker_obj.getGraph();
-    const graph = wrapWasmPtr(wasm_bindgen.ArrowGFAWrapped, graph_raw.__wbg_ptr);
-    // const graph = wasm_bindgen.ArrowGFAWrapped.__wrap(graph_raw.__wbg_ptr);
+    const graph = waragraph.graph;
 
     for (const bed_record of record_lines) {
       if (Number.isNaN(bed_record.chromStart)
@@ -264,12 +264,17 @@ class BEDFile {
       const path_name = findPathName(bed_record.chrom);
       const path_range = bedToPathRange(bed_record, path_name);
 
-      const path_cs_raw = await waragraph_viz.worker_obj.pathCoordSys(path_name);
-      const path_cs = wrapWasmPtr(wasm_bindgen.CoordSys, path_cs_raw.__wbg_ptr);
+      const path_cs = await waragraph.getCoordinateSystem("path:" + path_name);
+
+      if (path_cs === undefined) {
+        throw new Error(`Could not find coordinate system for path ${path_name}`);
+      }
+      // const path_cs_raw = await waragraph_viz.worker_obj.pathCoordSys(path_name);
+      // const path_cs = wrapWasmPtr(wasm_bindgen.CoordSys, path_cs_raw.__wbg_ptr);
 
       const path_steps = graph.path_steps(path_name);
 
-      const step_range = path_cs.bp_to_step_range(BigInt(path_range.start), BigInt(path_range.end));
+      const step_range = path_cs.bp_to_step_range(BigInt(path_range.start), BigInt(path_range.end)) as { start: number, end: number };
       // const step_range = path_cs.bp_to_step_range(path_range.start, path_range.end);
       const path_step_slice = path_steps.slice(step_range.start, step_range.end);
 
@@ -286,20 +291,20 @@ class BEDFile {
     }
   }
 
-  async initializeAnnotationPainter() {
+  async initializeAnnotationPainter(waragraph: Waragraph) {
     this.annotation_painter =
-      new AnnotationPainter(waragraph_viz, this.file_name, this.records);
+      new AnnotationPainter(waragraph, this.file_name, this.records);
 
     await this.annotation_painter.prepareRecords();
 
-    let prev_view = waragraph_viz.graph_viewer.getView();
+    let prev_view = waragraph.graph_viewer?.getView();
 
     document.getElementById('viz-svg-overlay')
       .append(this.annotation_painter.svg_root);
 
     // TODO: there are other cases when this should run, especially once
     // there's more than just 2D-focused SVG
-    waragraph_viz
+    waragraph
       .graph_viewer
       .view_subject
       .subscribe((view_2d) => {
@@ -326,7 +331,8 @@ class BEDFile {
 
       });
 
-    const cs_view = await waragraph_viz.worker_obj.globalCoordSysView();
+    // const cs_view = await waragraph.worker_obj.globalCoordSysView();
+    const viewport = await waragraph.
     const view_1d_subject = await cs_view.viewSubject();
 
     view_1d_subject
@@ -436,14 +442,14 @@ class BEDFile {
 
 }
 
-async function loadBedFileNew(file: File) {
+async function loadBedFile(waragraph: Waragraph, file: File) {
   const bed_file = new BEDFile(file.name);
   const bed_text = await file.text();
 
   const parser = new BED();
   const bed_lines = bed_text.split('\n').map(line => parser.parseLine(line));
 
-  await bed_file.appendRecords(bed_lines);
+  await bed_file.appendRecords(waragraph, bed_lines);
 
   bed_file.initializeAnnotationPainter();
 
@@ -455,7 +461,7 @@ async function loadBedFileNew(file: File) {
 }
 
 
-async function bedSidebarPanel() {
+async function bedSidebarPanel(waragraph) {
   const bed_pane = document.createElement('div');
   bed_pane.classList.add('bed-panel');
 
@@ -479,7 +485,7 @@ async function bedSidebarPanel() {
 
   file_button.addEventListener('click', (ev) => {
     for (const file of file_entry.files) {
-      loadBedFileNew(file);
+      loadBedFile(waragraph, file);
     }
   });
 
@@ -489,8 +495,7 @@ async function bedSidebarPanel() {
 
   {
 
-    let graph_raw = await waragraph_viz.worker_obj.getGraph();
-    let graph = wrapWasmPtr(wasm_bindgen.ArrowGFAWrapped, graph_raw.__wbg_ptr);
+    let graph = waragraph.graph;
 
     const context_menu_el = document.createElement('div');
     context_menu_el.id = 'sidebar-bed-context-menu';
@@ -555,6 +560,7 @@ async function bedSidebarPanel() {
 }
 
 
+/*
 export async function initializeBedSidebarPanel(warapi: WaragraphViz) {
   waragraph_viz = warapi;
 
@@ -576,4 +582,25 @@ export async function initializeBedSidebarPanel(warapi: WaragraphViz) {
     .append(await bedSidebarPanel());
 
 
+}
+  */
+
+
+export async function initializeBedSidebarPanel(waragraph: Waragraph) {
+  // waragraph_viz = warapi;
+
+  if (!wasm) {
+    wasm = await init_module(undefined, waragraph.wasm.memory);
+    wasm_bindgen.set_panic_hook();
+  }
+
+  let path_index = 0;
+  waragraph.graph.with_path_names((name: string) => {
+    pathNamesMap.set(name, path_index);
+    path_index += 1;
+  });
+
+  document
+    .getElementById('sidebar')!
+    .append(await bedSidebarPanel(waragraph));
 }

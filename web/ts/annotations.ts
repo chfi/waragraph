@@ -8,7 +8,8 @@ import init_module, * as wasm_bindgen from 'waragraph';
 
 import { BEDRecord } from './sidebar-bed';
 
-import { WaragraphViz } from './index';
+// import { WaragraphViz } from './index';
+import { type Waragraph } from './waragraph';
 
 import * as CanvasTracks from './canvas_tracks';
 
@@ -32,13 +33,13 @@ let _wasm;
 
 export class AnnotationPainter {
   callback_key: string;
-  waragraph: WaragraphViz;
+  waragraph: Waragraph;
   svg_root: SVGSVGElement;
   record_states: AnnotationRecord[];
 
   last_2d_view: { x: number, y: number, width: number, height: number } | null;
 
-  constructor(waragraph: WaragraphViz, name: string, records: Iterable<BEDRecord>) {
+  constructor(waragraph: Waragraph, name: string, records: Iterable<BEDRecord>) {
     this.callback_key = "painter-" + name;
 
     if (!_wasm) {
@@ -109,8 +110,11 @@ export class AnnotationPainter {
 
   async prepareRecords() {
 
-
-    const cs_view = await this.waragraph.worker_obj.globalCoordSysView();
+    const viewport = await this.waragraph.get1DViewport();
+    if (viewport === undefined) {
+      throw new Error("No viewport available");
+    }
+    // const cs_view = await this.waragraph.worker_obj.globalCoordSysView();
 
     for (const state of this.record_states) {
       const { path_name, path_step_slice } = state.record;
@@ -149,8 +153,8 @@ export class AnnotationPainter {
         // this... is probably pretty slow
         // TODO optimize
         if (start_seg !== undefined && end_seg !== undefined) {
-          let start = await cs_view.segmentOffset(start_seg);
-          let end = await cs_view.segmentOffset(end_seg);
+          let start = viewport.segmentOffset(start_seg);
+          let end = viewport.segmentOffset(end_seg);
 
           global_ranges.push({ start, end });
         }

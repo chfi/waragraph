@@ -4,7 +4,7 @@ import type { WorkerCtxInterface } from './main_worker';
 
 import type { WaragraphWorkerCtx, PathViewerCtx } from './new_worker';
 
-import { initializePathViewerNew, addOverviewEventHandlers, addPathViewerLogic } from './path_viewer_ui';
+import { initializePathViewer, addOverviewEventHandlers, addPathViewerLogic } from './path_viewer_ui';
 import type { PathViewer } from './path_viewer_ui';
 import { OverviewMap } from './overview';
 
@@ -215,7 +215,18 @@ export class Waragraph {
   }
 
 
-  async get1DViewport(desc: ViewportDesc | { name: string }) {
+  async get1DViewport(desc?: ViewportDesc | { name: string }) {
+
+    if (desc === undefined) {
+      if (this.viewports_1d.size === 1) {
+        let viewport: Viewport1D | undefined;
+        this.viewports_1d.forEach((vp) => viewport = vp);
+        return viewport;
+      } else {
+        throw new Error("Can only call `get1DViewport` without arguments if there's a single 1D viewport in existence");
+      }
+    }
+
     let viewport = this.viewports_1d.get(desc.name);
 
     if (viewport !== undefined) {
@@ -332,7 +343,7 @@ export class Waragraph {
   // ): Promise<Comlink.Remote<PathViewerCtx & Comlink.ProxyMarked> | undefined> {
     //
 
-    const path_viewer = await initializePathViewerNew(this.worker_ctx, path_name, viewport, data, threshold, color_below, color_above);
+    const path_viewer = await initializePathViewer(this.worker_ctx, path_name, viewport, data, threshold, color_below, color_above);
 
     await addPathViewerLogic(this.worker_ctx, path_viewer);
 
@@ -368,6 +379,8 @@ export class Waragraph {
       </div>
     </div>
   </div>`;
+
+    appendSvgViewport();
 
     // this.graph_viewer?.container
 
@@ -408,8 +421,8 @@ export class Waragraph {
 
     // root.classList.add('root-sidebar-open');
 
-    // TODO sidebar needs to take container as argument
-    // await BedSidebar.initializeBedSidebarPanel(warapi);
+    // TODO sidebar needs to take container as argument;
+    await BedSidebar.initializeBedSidebarPanel(this);
     //
     // }
 
@@ -483,17 +496,11 @@ export class Waragraph {
 
       seq_slots.right.append(seq_canvas);
 
-      /*
-      let view_subject = await cs_view.viewSubject();
-
-      let graph = wrapWasmPtr(wasm_bindgen.ArrowGFAWrapped, graph_raw.__wbg_ptr);
-      // let graph = wasm_bindgen.ArrowGFAWrapped.__wrap(graph_raw.__wbg_ptr);
       let seq_track = globalSequenceTrack(
-        graph,
+        this.graph,
         seq_canvas,
-        view_subject
+        viewport!.subject
       );
-       */
 
       this.resize_obs
         .pipe(
@@ -504,12 +511,11 @@ export class Waragraph {
 
         overview_canvas.width = overview_slots.right.clientWidth;
         overview_canvas.height = overview_slots.right.clientHeight;
-        // seq_canvas.width = seq_slots.right.clientWidth;
-        // seq_canvas.height = seq_slots.right.clientHeight;
+        seq_canvas.width = seq_slots.right.clientWidth;
+        seq_canvas.height = seq_slots.right.clientHeight;
 
         overview.draw();
-
-        // seq_track.draw_last();
+        seq_track.draw_last();
       });
 
     }
@@ -794,4 +800,72 @@ async function addViewRangeInputListeners(cs_view) {
     start_el.value = String(Math.round(view.start));
     end_el.value = String(Math.round(view.end));
   });
+}
+
+
+
+
+function globalSequenceTrack(graph: wasm_bindgen.ArrowGFAWrapped, canvas: HTMLCanvasElement, view_subject: rxjs.Subject<View1D>) {
+
+  const min_px_per_bp = 8.0;
+  const seq_array = graph.segment_sequences_array();
+
+  let last_view = null;
+
+  const draw_view = (view) => {
+    let view_len = view.end - view.start;
+    let px_per_bp = canvas.width / view_len;
+    let ctx = canvas.getContext('2d');
+    ctx?.clearRect(0, 0, canvas.width, canvas.height);
+
+    if (px_per_bp > min_px_per_bp) {
+      let seq = seq_array.slice(view.start, view.end);
+      let subpixel_offset = view.start - Math.trunc(view.start);
+      CanvasTracks.drawSequence(canvas, seq, subpixel_offset);
+
+      last_view = view;
+    }
+  };
+
+  view_subject.pipe(
+    rxjs.distinct(),
+    rxjs.throttleTime(10)
+  ).subscribe((view) => {
+    requestAnimationFrame((time) => {
+      draw_view(view);
+    });
+  });
+
+  const draw_last = () => {
+    if (last_view !== null) {
+      draw_view(last_view);
+    }
+  };
+
+  return { draw_last };
+}
+
+
+function appendSvgViewport() {
+  const body = `
+<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"
+     id="viz-svg-overlay"
+>
+</svg>
+`;
+  let parent = document.createElement('div');
+  parent.id = 'svg-container';
+  parent.style.setProperty('z-index', '10');
+  parent.style.setProperty('grid-column', '1');
+  parent.style.setProperty('grid-row', '1 / -1');
+  parent.style.setProperty('background-color', 'transparent');
+  parent.style.setProperty('pointer-events', 'none');
+  document.getElementById('viz-container')?.append(parent);
+
+  let el = document.createElement('svg');
+
+  parent.append(el);
+
+  el.outerHTML = body;
+  el.style.setProperty('position', 'absolute');
 }

@@ -81,7 +81,7 @@ export interface WithPathViewer {
 }
 
 
-export async function initializePathViewerNew(
+export async function initializePathViewer(
   worker_ctx: Comlink.Remote<WaragraphWorkerCtx>,
   path_name: string,
   viewport: Viewport1D,
@@ -198,98 +198,6 @@ export async function initializePathViewerNew(
     overlay_ctx?.clearRect(0, 0, canvas.width, canvas.height);
 
     let view = viewport.get();
-
-    for (const key in path_viewer.trackCallbacks) {
-      const callback = path_viewer.trackCallbacks[key];
-      callback(canvas, view);
-    }
-  };
-
-  path_viewer.data_canvas.path_viewer = path_viewer;
-  // data_canvas.path_viewer = path_viewer;
-
-  return path_viewer;
-}
-
-// creates and attaches a path viewer to a canvas
-// does not attach the canvas element to the DOM
-export async function initializePathViewer(
-  worker,
-  cs_view,
-  path_name,
-  container,
-  resize_subject,
-) {
-  // if (canvas === undefined) {
-  //     canvas = document.createElement('canvas');
-  // }
-
-  const data_canvas = document.createElement('canvas');
-
-  let width = container.clientWidth;
-  let height = container.clientHeight;
-
-  data_canvas.width = width;
-  data_canvas.height = height;
-
-  data_canvas.id = 'viewer-' + path_name;
-
-  let offscreen = data_canvas.transferControlToOffscreen();
-
-  const worker_ctx = await worker.createPathViewer(Comlink.transfer(offscreen, [offscreen]),
-    path_name);
-
-
-  const overlay_canvas = document.createElement('canvas');
-  overlay_canvas.width = width;
-  overlay_canvas.height = height;
-
-  data_canvas.style.setProperty('z-index', '0');
-  overlay_canvas.style.setProperty('z-index', '1');
-
-  data_canvas.classList.add('path-data-canvas');
-  overlay_canvas.classList.add('path-data-canvas');
-
-  await worker_ctx.setCanvasWidth(width);
-
-  container.append(data_canvas);
-  container.append(overlay_canvas);
-
-  {
-    let view = await cs_view.get();
-
-    await worker_ctx.setView(view.start, view.end);
-    await worker_ctx.sample();
-    await worker_ctx.forceRedraw();
-  }
-
-
-  resize_subject.subscribe(async () => {
-    let w = container.clientWidth;
-    let h = container.clientHeight;
-
-    console.log(container);
-
-    await worker_ctx.setCanvasWidth(w);
-    await worker_ctx.resizeTargetCanvas(w, h);
-    await worker_ctx.sample();
-    await worker_ctx.forceRedraw();
-
-    overlay_canvas.width = w;
-    overlay_canvas.height = h;
-  });
-
-
-  const trackCallbacks = {};
-
-  const path_viewer = { worker_ctx, data_canvas, overlay_canvas, trackCallbacks } as PathViewer;
-
-  path_viewer.drawOverlays = async () => {
-    let canvas = overlay_canvas;
-    let overlay_ctx = canvas.getContext('2d');
-    overlay_ctx?.clearRect(0, 0, canvas.width, canvas.height);
-
-    let view = await cs_view.get();
 
     for (const key in path_viewer.trackCallbacks) {
       const callback = path_viewer.trackCallbacks[key];
