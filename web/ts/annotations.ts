@@ -165,7 +165,7 @@ export class AnnotationPainter {
   }
 
 
-  resample2DPaths(view_2d_obj) {
+  resample2DPaths() {
 
     const canvas = document.getElementById("graph-viewer-2d") as HTMLCanvasElement;
     const svg_rect =
@@ -184,14 +184,23 @@ export class AnnotationPainter {
 
     let resample = false;
 
+    // if (view_2d_obj === null && this.last_2d_view === null) {
+    //   return;
+    // }
+
+    let view_2d_obj = this.waragraph.graph_viewer!.getView();
+
     if (this.last_2d_view === null) {
       resample = true;
     } else {
-      let { width, height } = this.last_2d_view;
-      if (view_2d_obj.width !== width
-        || view_2d_obj.height !== height) {
+      if (this.last_2d_view !== view_2d_obj) {
         resample = true;
       }
+      // let { width, height } = this.last_2d_view;
+      // if (view_2d_obj.width !== width
+      //   || view_2d_obj.height !== height) {
+      //   resample = true;
+      // }
     }
 
     if (resample === false) {
@@ -209,7 +218,7 @@ export class AnnotationPainter {
       const { path_name, path_step_slice, bed_record } = state.record;
 
       state.cached_path =
-        this.waragraph.graph_viewer
+        this.waragraph.graph_viewer!
           .sampleCanvasSpacePath(path_step_slice, path_tolerance);
 
 
@@ -308,7 +317,7 @@ fill="${color}"
 
   }
 
-  updateSVGPaths(view_2d) {
+  updateSVGPaths() {
     const canvas = document.getElementById("graph-viewer-2d") as HTMLCanvasElement;
     const w = canvas.width;
     const h = canvas.height;

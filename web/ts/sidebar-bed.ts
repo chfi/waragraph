@@ -322,8 +322,8 @@ class BEDFile {
           // update SVG path offsets;
           // should also happen on resample
 
-          this.annotation_painter.resample2DPaths(view_2d);
-          this.annotation_painter.updateSVGPaths(view_2d);
+          this.annotation_painter.resample2DPaths();
+          this.annotation_painter.updateSVGPaths();
           prev_view = view_2d;
         }
 
@@ -399,6 +399,9 @@ class BEDFile {
           for (const child of state.svg_g.children) {
             child.setAttribute('display', 'inline');
           }
+
+          this.annotation_painter.resample2DPaths();
+          this.annotation_painter.updateSVGPaths();
 
           state.enabled = true;
         }
