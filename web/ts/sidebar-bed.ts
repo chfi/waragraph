@@ -1,6 +1,5 @@
 import init_module, * as wasm_bindgen from 'waragraph';
 
-import { WaragraphViz } from './index';
 import { preparePathHighlightOverlay } from '../graph_viewer';
 import { AnnotationPainter } from './annotations';
 import * as CanvasTracks from '../canvas_tracks';

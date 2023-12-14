@@ -27,13 +27,21 @@ export class WaragraphWorkerCtx {
 
   }
 
-  async loadGraph(gfa_url) {
-    let gfa = fetch(gfa_url);
-    let graph = await wasm_bindgen.load_gfa_arrow(gfa);
+  async loadGraph(gfa: URL | string | Blob) {
+    let graph: wasm_bindgen.ArrowGFAWrapped | undefined;
+
+    if (gfa instanceof Blob) {
+      graph = await wasm_bindgen.load_gfa_arrow_blob(gfa);
+    } else {
+      let gfa_data = fetch(gfa);
+      graph = await wasm_bindgen.load_gfa_arrow_response(gfa_data);
+    }
+
     let path_index = graph.generate_path_index();
 
     this.graph = graph;
     this.path_index = path_index;
+
   }
 
   getGraphPtr(): number {

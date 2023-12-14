@@ -604,7 +604,24 @@ impl ArrowGFAWrapped {
 }
 
 #[wasm_bindgen]
-pub async fn load_gfa_arrow(
+pub async fn load_gfa_arrow_blob(
+    gfa_blob: web_sys::Blob,
+) -> Result<ArrowGFAWrapped, JsValue> {
+    use std::io::Cursor;
+
+    let gfa_text = JsFuture::from(gfa_blob.text()).await?.as_string().unwrap();
+
+    web_sys::console::log_1(&"calling arrow_graph_from_gfa".into());
+    let graph = waragraph_core::arrow_graph::arrow_graph_from_gfa(Cursor::new(
+        gfa_text.as_str(),
+    ))
+    .unwrap();
+
+    Ok(ArrowGFAWrapped(graph))
+}
+
+#[wasm_bindgen]
+pub async fn load_gfa_arrow_response(
     gfa_resp: js_sys::Promise,
 ) -> Result<ArrowGFAWrapped, JsValue> {
     use std::io::Cursor;

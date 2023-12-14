@@ -1,8 +1,6 @@
 import init_module, * as wasm_bindgen from 'waragraph';
 
-import type { WorkerCtxInterface } from './main_worker';
-
-import type { WaragraphWorkerCtx, PathViewerCtx } from './new_worker';
+import type { WaragraphWorkerCtx, PathViewerCtx } from './worker';
 
 import { initializePathViewer, addOverviewEventHandlers, addPathViewerLogic } from './path_viewer_ui';
 import type { PathViewer } from './path_viewer_ui';
@@ -17,8 +15,6 @@ import {
   GraphViewer,
   initializeGraphViewer,
 } from './graph_viewer';
-
-import * as BedSidebar from './sidebar-bed';
 
 import { type WithPtr, wrapWasmPtr } from './wrap';
 
@@ -309,7 +305,7 @@ export class Waragraph {
   // }
 
   async createGraphViewer(
-    layout_url: URL | string,
+    layout: URL | string | Blob,
     segment_colors: Uint32Array,
   ): Promise<GraphViewer | undefined> {
     if (this.graph === undefined) {
@@ -321,7 +317,7 @@ export class Waragraph {
     const graph_viewer = await initializeGraphViewer(
       this.wasm.memory,
       graph,
-      layout_url
+      layout
     );
 
     this.graph_viewer = graph_viewer;
@@ -692,13 +688,13 @@ function reifyColor(pv_color: PathViewerColor, path_name: string): RGBAObj {
 }
 
 export interface WaragraphOptions {
-  gfa_url?: URL | string,
+  gfa?: URL | string | Blob,
 
   // grid: GridDesc,
   parent?: HTMLElement,
 
   graph_viewer?: {
-    graph_layout_url: URL | string,
+    graph_layout: URL | string | Blob,
     data: string | Uint32Array,
   }
 
@@ -720,16 +716,19 @@ export async function initializeWaragraph(opts: WaragraphOptions = {}) {
   const wasm = await init_module();
 
   const WorkerCtx: Comlink.Remote<typeof WaragraphWorkerCtx> = Comlink.wrap(
-    new Worker(new URL("new_worker.ts", import.meta.url), { type: 'module' }));
+    new Worker(new URL("worker.ts", import.meta.url), { type: 'module' }));
 
   const waragraph_worker: Comlink.Remote<WaragraphWorkerCtx> =
     await new WorkerCtx((init_module as any).__wbindgen_wasm_module, wasm.memory);
 
-  const { gfa_url,
+  const { gfa,
   } = opts;
 
+  if (gfa === undefined) {
+    throw new Error("TODO: defer loading GFA");
+  }
 
-  await waragraph_worker.loadGraph(gfa_url);
+  await waragraph_worker.loadGraph(gfa);
 
   const graph_ptr = await waragraph_worker.getGraphPtr();
   const path_index_ptr = await waragraph_worker.getPathIndexPtr();
@@ -757,7 +756,7 @@ export async function initializeWaragraph(opts: WaragraphOptions = {}) {
       }
     }
 
-    waragraph.createGraphViewer(cfg.graph_layout_url, data);
+    waragraph.createGraphViewer(cfg.graph_layout, data);
   }
 
   if (opts.path_viewers !== undefined) {

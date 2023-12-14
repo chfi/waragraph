@@ -356,7 +356,7 @@ function resize_view_dimensions(v_dims, c_old, c_new) {
 export async function initializeGraphViewer(
   wasm_mem: WebAssembly.Memory,
   graph_raw: { __wbg_ptr: number },
-  layout_url: URL | string,
+  layout: URL | string | Blob,
   container?: HTMLDivElement,
 ) {
   if (_wasm === undefined) {
@@ -402,8 +402,15 @@ export async function initializeGraphViewer(
     _raving_ctx = await wasm_bindgen.RavingCtx.initialize_(gpu_canvas);
   }
 
-  const layout_tsv = await fetch(layout_url).then(l => l.text());
-  const seg_pos = wasm_bindgen.SegmentPositions.from_tsv(layout_tsv);
+  let layout_data;
+
+  if (layout instanceof Blob) {
+    layout_data = await layout.text();
+  } else {
+    layout_data = await fetch(layout).then(l => l.text());
+  }
+
+  const seg_pos = wasm_bindgen.SegmentPositions.from_tsv(layout_data);
 
   const graph = wrapWasmPtr(wasm_bindgen.ArrowGFAWrapped, graph_raw.__wbg_ptr);
 

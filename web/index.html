@@ -1,71 +1,90 @@
 <!DOCTYPE html>
-<head>
-  <meta content="text/html;charset=utf-8" http-equiv="Content-Type"/>
-  <title>Waragraph Web</title>
+  <head>
+    <meta content="text/html;charset=utf-8" http-equiv="Content-Type"/>
+    <title>Waragraph Web</title>
+    <link rel="stylesheet" href="waragraph.css"/>
+  </head>
+  <body>
 
-  <link rel="stylesheet" href="waragraph.css"/>
-</head>
-<body>
 
-  <div class="root-grid root-sidebar-open" id="root-container">
+    <div style="display: none" class="root-grid root-sidebar-open" id="root-container">
 
-    <div class="sidebar" id="sidebar">
-    </div>
-
-    <div class="gutter-column gutter-column-sidebar"></div>
-
-    <div class="viz-grid" id="viz-container">
-      <div id="graph-viewer-container">
+      <div class="sidebar" id="sidebar">
       </div>
 
-      <div class="gutter-row gutter-row-1"></div>
+      <div class="gutter-column gutter-column-sidebar"></div>
 
-      <div id="path-viewer-container">
-        <div class="path-viewer-column" id="path-viewer-left-column">
+      <div class="viz-grid" id="viz-container">
+        <div id="graph-viewer-container">
         </div>
 
-        <div class="gutter-column gutter-column-1"></div>
+        <div class="gutter-row gutter-row-1"></div>
 
-        <div class="path-viewer-column" id="path-viewer-right-column">
+        <div id="path-viewer-container">
+          <div class="path-viewer-column" id="path-viewer-left-column">
+          </div>
+
+          <div class="gutter-column gutter-column-1"></div>
+
+          <div class="path-viewer-column" id="path-viewer-right-column">
+          </div>
         </div>
       </div>
     </div>
-  </div>
+
+    <div id="file-inputs">
+
+      <div>
+        <label for="gfa-file">Choose a GFA file</label>
+        <input type="file" id="gfa-file" name="gfa" accept=".gfa"></input>
+      </div>
+
+      <div>
+        <label for="layout-file">Choose a TSV layout file</label>
+        <input type="file" id="layout-file" name="layout" accept=".tsv"></input>
+      </div>
+
+      <button id="load-data">Load data</button>
+
+    </div>
 
 
-  <div id="tooltip" role="tooltip">tooltip</div>
+    <script type="module">
+      import { initializeWaragraph } from './ts/waragraph';
 
-  <!-- <div id="view-toggle">toggle view</div> -->
-  <!-- <button id="view-toggle">toggle view</button> -->
+      document.getElementById('load-data').addEventListener('click', async (ev) => {
+          let gfa_file = document.getElementById("gfa-file").files[0];
+          let tsv_file = document.getElementById("layout-file").files[0];
 
-  <!-- <script type="module" src='./ts/index.ts'></script> -->
-  <script type="module">
-    import { initializeWaragraph } from './ts/waragraph';
+          if (gfa_file === undefined || tsv_file === undefined) {
+              return;
+          }
 
-    initializeWaragraph({
-      gfa_url: "./data/A-3105.fa.353ea42.34ee7b1.1576367.smooth.fix.gfa",
+          document.getElementById('file-inputs').setAttribute('hidden', '');
+          document.getElementById('root-container').style.removeProperty('display');
 
-      graph_viewer: {
-        graph_layout_url: "./data/A-3105.layout.tsv",
-        data: "test",
-      },
+          initializeWaragraph({
+            gfa: gfa_file,
 
-      path_viewers: {
-          path_names: '*',
-          viewport: { name: 'global', coordinate_system: 'graph' },
-          data: 'depth',
-          threshold: 0.5,
-          // color_above: { r: 1.0, g: 0.0, b: 0.0 },
-          color_above: 'hash_path_name',
-          color_below: { r: 0.0, g: 0.0, b: 0.0, a: 0.0 },
-      }
-    }).then((wg) => {
-      console.warn(wg);
-    });
+            graph_viewer: {
+              graph_layout: tsv_file,
+              data: "test",
+            },
 
-    //const wg = await initializeWaragraph();
-  </script>
+            path_viewers: {
+                path_names: '*',
+                viewport: { name: 'global', coordinate_system: 'graph' },
+                data: 'depth',
+                threshold: 0.5,
+                // color_above: { r: 1.0, g: 0.0, b: 0.0 },
+                color_above: 'hash_path_name',
+                color_below: { r: 0.0, g: 0.0, b: 0.0, a: 0.0 },
+            }
+          }).then((wg) => {
+            console.warn(wg);
+          });
+      });
 
-</body>
+    </script>
+  </body>
 </html>
-
