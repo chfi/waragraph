@@ -148,11 +148,6 @@ export class PathViewerCtx {
     this.path_viewer.set_offscreen_canvas_width(width);
   }
 
-  // setCanvasDims( { width, height }: { width: number, height: number } ) {
-  setCanvasDims(width: number, height: number) {
-    this.path_viewer.set_offscreen_canvas_dims(width, height);
-  }
-
   forceRedraw(resample?: boolean) {
     if (resample && this.view !== null) {
       this.path_viewer.sample_range(this.view.start, this.view.end);

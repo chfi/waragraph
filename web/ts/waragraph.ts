@@ -11,7 +11,7 @@ import { OverviewMap } from './overview';
 import * as CanvasTracks from './canvas_tracks';
 import * as BedSidebar from './sidebar-bed';
 
-import type { Bp, Segment, Handle, PathId, RGBObj } from './types';
+import type { Bp, Segment, Handle, PathId, RGBAObj, RGBObj } from './types';
 
 import {
   GraphViewer,
@@ -677,6 +677,20 @@ export interface GridDesc {
   sidebar?: GridElemDesc,
 }
 
+export type PathViewerColor = RGBAObj | RGBObj | 'hash_path_name';
+
+// TODO: don't like this
+function reifyColor(pv_color: PathViewerColor, path_name: string): RGBAObj {
+  if (pv_color === 'hash_path_name') {
+    let { r, g, b } = wasm_bindgen.path_name_hash_color_obj(path_name);
+    return { r, g, b, a: 1.0 };
+  } else if ('a' in pv_color) {
+    return pv_color;
+  } else {
+    return Object.assign(pv_color, { a: 1.0 });
+  }
+}
+
 export interface WaragraphOptions {
   gfa_url?: URL | string,
 
@@ -695,8 +709,8 @@ export interface WaragraphOptions {
     viewport: { name: string, coordinate_system: "graph" },
     data: string,
     threshold: number,
-    color_below: RGBObj,
-    color_above: RGBObj,
+    color_above: PathViewerColor,
+    color_below: PathViewerColor,
   }
 }
 
@@ -800,16 +814,20 @@ export async function initializeWaragraph(opts: WaragraphOptions = {}) {
 
       data = wrapWasmPtr(wasm_bindgen.SparseData, data.__wbg_ptr);
 
+      const color_above = reifyColor(opts.path_viewers.color_above, path_name);
+      const color_below = reifyColor(opts.path_viewers.color_below, path_name);
+
       const path_viewer = await waragraph.createPathViewer(
         path_name,
         viewport,
         data,
         opts.path_viewers.threshold,
-        opts.path_viewers.color_below,
-        opts.path_viewers.color_above
+        color_below,
+        color_above
       );
 
       waragraph.path_viewers.push(path_viewer);
+
     }
 
 

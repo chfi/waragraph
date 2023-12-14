@@ -13,3 +13,10 @@ export interface RGBObj {
   g: number,
   b: number,
 }
+
+export interface RGBAObj {
+  r: number,
+  g: number,
+  b: number,
+  a: number,
+}
