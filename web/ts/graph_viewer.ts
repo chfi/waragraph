@@ -436,7 +436,7 @@ export async function initializeGraphViewer(
   const mouseDown$ = rxjs.fromEvent(overlay_canvas, 'mousedown');
   const mouseUp$ = rxjs.fromEvent(overlay_canvas, 'mouseup');
   const mouseOut$ = rxjs.fromEvent(overlay_canvas, 'mouseout');
-  const mouseMove$ = rxjs.fromEvent(overlay_canvas, 'mousemove');
+  const mouseMove$ = rxjs.fromEvent<MouseEvent>(overlay_canvas, 'mousemove');
 
 
   const hoveredSegment$ = mouseMove$.pipe(
@@ -467,6 +467,10 @@ export async function initializeGraphViewer(
       placeTooltipAtPoint(gx, gy);
     }
   })
+
+  mouseMove$.subscribe((event: MouseEvent) => {
+    graph_viewer.mousePos = { x: event.offsetX, y: event.offsetY };
+  });
 
   mouseOut$.subscribe((event) => {
     graph_viewer.mousePos = null;

@@ -10,3 +10,11 @@ make sure you have the rust source code installed:
 
 build with `wasm-pack build --target web`, run `npm install` to get the JS dependencies,
 then start the dev server with parcel: `npx parcel index.html`
+
+
+
+### issues
+
+Firefox may have problems with mouse interactivity in the 2D graph
+view -- if you don't see a tooltip when moving the cursor over
+segments in the graph, try using a Chromium-based browser.
