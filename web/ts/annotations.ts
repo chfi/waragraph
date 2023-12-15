@@ -72,9 +72,12 @@ export class AnnotationPainter {
 
       const g_1d = createSVGElement('g');
       g_1d.classList.add('svg-overlay-1d');
+      g_1d.append(createSVGElement('text'));
 
       const g_2d = createSVGElement('g');
       g_2d.classList.add('svg-overlay-2d');
+      g_2d.append(createSVGElement('path'));
+      g_2d.append(createSVGElement('text'));
 
       const g_link_start = createSVGElement('line');
       const g_link_end = createSVGElement('line');
@@ -238,7 +241,7 @@ export class AnnotationPainter {
         }
       });
 
-      state.svg_g.querySelector('.svg-overlay-2d').innerHTML =
+      state.svg_g.querySelector('.svg-overlay-2d > path').outerHTML =
         // svg_g.innerHTML =
         // `<path d="${svg_path}" stroke-width="0.5" fill="none" />`;
         `<path d="${svg_path}" stroke-width="0.5" stroke="${state.color}" fill="none" />`;
@@ -372,10 +375,18 @@ fill="${color}"
         link_end.setAttribute('stroke', color);
       }
 
+      const label_2d = svg_g.querySelector('.svg-overlay-2d > text');
+      label_2d.setAttribute('x', `${f_p.x}`);
+      label_2d.setAttribute('y', `${f_p.y}`);
+      label_2d.setAttribute('color', 'red');
+      label_2d.setAttribute('font-size', '1.7');
+      label_2d.setAttribute('font-family', 'sans-serif');
+      label_2d.innerHTML = `${record.bed_record.name}`;
+
       const svg_path =
         svg_g.querySelector('.svg-overlay-2d > path');
 
-      console.warn(svg_path);
+      // console.warn(svg_path);
 
       /*
       let svg_path = "";
