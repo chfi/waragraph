@@ -117,7 +117,7 @@ export class AnnotationPainter {
     // const cs_view = await this.waragraph.worker_obj.globalCoordSysView();
 
     for (const state of this.record_states) {
-      const { path_name, path_step_slice } = state.record;
+      const { bed_record, path_name, path_step_slice } = state.record;
 
       const bed = state.record.bed_record;
 
@@ -147,11 +147,15 @@ export class AnnotationPainter {
 
       const global_ranges = [];
 
+
       for (let ri = 0; ri < range_count; ri++) {
         let start_seg = ranges_arr.at(2 * ri);
         let end_seg = ranges_arr.at(2 * ri + 1);
-        // this... is probably pretty slow
-        // TODO optimize
+
+        // if (end_seg === undefined) {
+        //   end_seg = start_seg + 1;
+        // }
+
         if (start_seg !== undefined && end_seg !== undefined) {
           let start = viewport.segmentOffset(start_seg);
           let end = viewport.segmentOffset(end_seg);
@@ -179,7 +183,7 @@ export class AnnotationPainter {
       let y_ = 100 * svg_height_prop * y / canvas.height;
       return { x: x_, y: y_ };
     };
-    
+
     const path_tolerance = 8;
 
     let resample = false;
@@ -368,7 +372,7 @@ fill="${color}"
         link_end.setAttribute('stroke', color);
       }
 
-      const svg_path = 
+      const svg_path =
         svg_g.querySelector('.svg-overlay-2d > path');
 
       console.warn(svg_path);

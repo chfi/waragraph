@@ -98,7 +98,7 @@ impl SegmentPathMatrix {
         }
 
         let t1 = instant::now();
-        log::warn!("took {} ms to iterate paths", t1 - t0);
+        // log::warn!("took {} ms to iterate paths", t1 - t0);
 
         let rows = (gfa.path_steps.len() as f32 / 32.0).ceil() as usize;
         let cols = gfa.segment_count();
@@ -118,7 +118,7 @@ impl SegmentPathMatrix {
             }
         }
         let t2 = instant::now();
-        log::warn!("took {} ms to construct sparse matrix", t2 - t1);
+        // log::warn!("took {} ms to construct sparse matrix", t2 - t1);
 
         let mat = tri.to_csc::<u32>();
 
@@ -172,11 +172,11 @@ impl SegmentPathMatrix {
             sprs::CsVecI::empty(matrix.cols());
         rhs.append(segment as usize, 1);
 
-        log::warn!("rhs: {:?}", rhs);
+        // log::warn!("rhs: {:?}", rhs);
 
         let result = &matrix * &rhs;
 
-        log::warn!("result: {result:?}");
+        // log::warn!("result: {result:?}");
 
         Some(result)
     }

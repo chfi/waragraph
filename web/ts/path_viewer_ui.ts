@@ -244,19 +244,19 @@ export async function addPathViewerLogic(
     let width = canvas.width;
 
     let segment = await segmentAtCanvasX(path_viewer.viewport, width, x);
-    console.log("segment at cursor: " + segment);
+    // console.log("segment at cursor: " + segment);
 
     let tooltip = document.getElementById('tooltip');
 
     tooltip.innerHTML = `Segment ${segment}`;
     tooltip.style.display = 'block';
-    console.warn("x: ", e.clientX, ", y: ", e.clientY);
+    // console.warn("x: ", e.clientX, ", y: ", e.clientY);
     placeTooltipAtPoint(e.clientX, e.clientY);
     // placeTooltipAtPoint(x, y);
 
     let paths = await worker.pathsOnSegment(segment);
-    console.log("paths!!!");
-    console.log(paths);
+    // console.log("paths!!!");
+    // console.log(paths);
   });
 
 

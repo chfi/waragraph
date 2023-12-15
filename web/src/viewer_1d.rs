@@ -582,7 +582,7 @@ pub struct SegmentRanges {
 impl SegmentRanges {
     pub fn ranges_as_u32_array(&self) -> js_sys::Uint32Array {
         let ptr = self.ranges.as_ptr();
-        let len = self.ranges.len();
+        let len = self.ranges.len() * 2;
 
         let memory = js_sys::WebAssembly::Memory::from(wasm_bindgen::memory());
         js_sys::Uint32Array::new_with_byte_offset_and_length(
@@ -655,6 +655,10 @@ pub fn path_slice_to_global_adj_partitions(
         }
 
         prev_seg_ix = seg_ix;
+    }
+
+    if range_start != prev_seg_ix {
+        ranges.push([range_start, prev_seg_ix]);
     }
 
     Ok(SegmentRanges { ranges })
