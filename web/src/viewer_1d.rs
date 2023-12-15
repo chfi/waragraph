@@ -63,7 +63,12 @@ impl PathViewer {
 
         let range = (bp_start as u64)..=(bp_end as u64);
 
-        let bin_count = self.bins.len().min((bp_end - bp_start) as usize);
+        let bin_count = self.canvas.width() as usize;
+        let bin_count = bin_count.min((bp_end - bp_start) as usize);
+
+        if bin_count == 0 {
+            return;
+        }
 
         let bins = &mut self.bins[..bin_count];
 
