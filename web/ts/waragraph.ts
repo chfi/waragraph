@@ -750,6 +750,7 @@ export async function initializeWaragraph(opts: WaragraphOptions = {}) {
 
     if (typeof data === "string") {
       if (data === "depth" || data === "test") {
+
         data = await waragraph.worker_ctx.getComputedGraphDataset(data);
       } else {
         throw `Unknown data '${data}'`;

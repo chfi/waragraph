@@ -363,6 +363,21 @@ impl ArrowGFA {
     }
 }
 
+impl ArrowGFA {
+    pub fn graph_depth_vector(&self) -> Vec<u32> {
+        let mut seg_counts = vec![0u32; self.segment_count()];
+
+        for steps in &self.path_steps {
+            for step in steps.values_iter() {
+                let seg = step >> 1;
+                seg_counts[seg as usize] += 1;
+            }
+        }
+
+        seg_counts
+    }
+}
+
 pub fn arrow_graph_from_gfa<S: BufRead + Seek>(
     mut gfa_reader: S,
 ) -> std::io::Result<ArrowGFA> {

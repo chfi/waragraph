@@ -103,11 +103,14 @@ export class WaragraphWorkerCtx {
 
     // still need to map this to colors!
 
-    const colors = new Uint32Array(this.graph?.segment_count());
+    let colors;
 
     if (dataset === "depth") {
-      throw "not implemented";
+      // TODO apply color map -- this is a vector of 32 bit integers,
+      // but the colors are a vector of 4 8-bit color channels
+      colors = this.graph.graph_depth_vector();
     } else if (dataset === "test") {
+      colors = new Uint32Array(this.graph?.segment_count());
       colors.fill(0xAAAAAAFF);
     }
 

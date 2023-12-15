@@ -591,6 +591,10 @@ impl ArrowGFAWrapped {
         )
     }
 
+    pub fn graph_depth_vector(&self) -> Vec<u32> {
+        self.0.graph_depth_vector()
+    }
+
     // returning a Vec<JsValue> seems broken right now, idk why
     // pub fn path_names(&self) -> Vec<JsValue> {
     //     let mut vector: Vec<JsValue> = vec![];
