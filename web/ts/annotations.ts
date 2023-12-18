@@ -12,6 +12,7 @@ import { BEDRecord } from './sidebar-bed';
 import { type Waragraph } from './waragraph';
 
 import * as CanvasTracks from './canvas_tracks';
+import { PathViewer } from './path_viewer_ui';
 
 
 function createSVGElement(tag) {
@@ -254,6 +255,8 @@ export class AnnotationPainter {
   async updateSVG1D(view_1d) {
 
     const svg_rect = document.getElementById('viz-svg-overlay').getBoundingClientRect();
+    const data_list_rect =
+      document.getElementById('path-viewer-container').getBoundingClientRect();
 
     const view_len = view_1d.end - view_1d.start;
 
@@ -265,6 +268,16 @@ export class AnnotationPainter {
       };
     };
 
+    const pathSlotVisible = (path_name) => {
+      const data_canvas = document.getElementById('viewer-' + path_name);
+      if (data_canvas && 'path_viewer' in data_canvas) {
+        const viewer = data_canvas.path_viewer as PathViewer;
+        return viewer.isVisible;
+      }
+
+      return false;
+    };
+
     // for (const { svg_g, record, global_ranges, enabled, color } of this.record_states) {
     for (const record_state of this.record_states) {
       const { svg_g, record, global_ranges, color } = record_state;
@@ -272,6 +285,8 @@ export class AnnotationPainter {
       if (global_ranges === null) {
         continue;
       }
+
+      const is_1d_visible = pathSlotVisible(record.path_name);
 
       const link_start = svg_g.querySelector('.svg-overlay-link-start') as SVGLineElement;
       const link_end = svg_g.querySelector('.svg-overlay-link-end') as SVGLineElement;
@@ -282,12 +297,19 @@ export class AnnotationPainter {
       const first_pos = await this.waragraph.segmentScreenPos1d(record.path_name, first_seg);
       const last_pos = await this.waragraph.segmentScreenPos1d(record.path_name, last_seg);
 
-      const f_p = map_pos(first_pos.x0, first_pos.y0);
-      const l_p = map_pos(last_pos.x1, last_pos.y1);
+      let f_p, l_p;
+      if (is_1d_visible) {
+        f_p = map_pos(first_pos.x0, first_pos.y0);
+        l_p = map_pos(last_pos.x1, last_pos.y1);
+      } else {
+        f_p = map_pos(first_pos.x0, data_list_rect.top);
+        l_p = map_pos(last_pos.x1, data_list_rect.top);
+      }
+
 
       link_start.setAttribute('x2', String(f_p.x));
-      link_start.setAttribute('y2', String(f_p.y));
       link_end.setAttribute('x2', String(l_p.x));
+      link_start.setAttribute('y2', String(f_p.y));
       link_end.setAttribute('y2', String(l_p.y));
 
       const svg_g_1d = svg_g.querySelector('.svg-overlay-1d');
@@ -298,6 +320,10 @@ export class AnnotationPainter {
       svg_g_1d.innerHTML = "";
       for (const { start, end } of global_ranges) {
         const el_rect = createSVGElement('rect');
+
+        if (!is_1d_visible) {
+          continue;
+        }
 
         svg_g_1d.append(el_rect);
 
