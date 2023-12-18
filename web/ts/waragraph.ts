@@ -432,6 +432,10 @@ export class Waragraph {
     {
       // TODO: factor out overview & range input bits
       const overview_slots = appendPathListElements(40, 'div', 'div');
+      overview_slots.left.classList.add('path-list-header');
+      overview_slots.right.classList.add('path-list-header');
+      overview_slots.left.style.setProperty('top', '0px');
+      overview_slots.right.style.setProperty('top', '0px');
 
       const overview_canvas = document.createElement('canvas');
       overview_canvas.style.setProperty('position', 'relative');
@@ -484,6 +488,10 @@ export class Waragraph {
       // TODO: factor out sequence track bit maybe
 
       const seq_slots = appendPathListElements(20, 'div', 'div');
+      seq_slots.left.classList.add('path-list-header');
+      seq_slots.right.classList.add('path-list-header');
+      seq_slots.left.style.setProperty('top', '40px');
+      seq_slots.right.style.setProperty('top', '40px');
 
       const seq_canvas = document.createElement('canvas');
       seq_canvas.width = seq_slots.right.clientWidth;

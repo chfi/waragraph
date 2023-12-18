@@ -17,7 +17,8 @@ class OverviewMap {
             return;
         }
 
-        const ctx = this.canvas.getContext('2d');
+        const ctx = this.canvas.getContext('2d', { alpha: false });
+        // const ctx = this.canvas.getContext('2d');
 
         // console.log("drawing overview");
 
@@ -27,10 +28,10 @@ class OverviewMap {
         let x0 = (view.start / max) * c_width;
         let x1 = (view.end / max) * c_width;
 
-        // console.log('left: ' + view.start + ', right: ' + view.end + ', max: ' + max);
-        // console.log('x0: ' + x0 + ', x1: ' + x1);
+        ctx.save();
 
-        ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+        ctx.fillStyle = 'white';
+        ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
 
         
         let left_txt = Math.round(view.start).toString();
@@ -43,10 +44,8 @@ class OverviewMap {
 
         let y0 = this.canvas.height / 2;
 
-        // console.log("left_txt width: " + left_w);
-        // console.log("right_txt width: " + right_w);
+        ctx.fillStyle = 'black';
         
-        ctx.save();
         if (x0 > left_w) {
             ctx.textAlign = "end";
             ctx.fillText(left_txt, x0 - 2.0, y0);
