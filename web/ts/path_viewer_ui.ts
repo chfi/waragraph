@@ -4,7 +4,7 @@ import type { Bp, Segment, Handle, PathId, RGBObj } from './types';
 import { type WithPtr, wrapWasmPtr } from './wrap';
 
 import { View1D, type Viewport1D } from './waragraph';
-import { type WaragraphWorkerCtx, type PathViewerCtx } from './new_worker';
+import { type WaragraphWorkerCtx, type PathViewerCtx } from './worker';
 
 import { placeTooltipAtPoint } from './tooltip';
 
@@ -58,30 +58,100 @@ export async function highlightPathRanges(
   ctx.restore();
 }
 
+// interface TrackCallbacks {
+// }
 
-export interface PathViewer {
-  sampleAndDraw: (view: View1D) => Promise<void>;
-  drawOverlays: () => Promise<void>;
-  onResize: () => Promise<void>;
-  isVisible: boolean;
-
-  path_name: string;
+export class PathViewer {
+  pathName: string;
   viewport: Viewport1D;
 
-  // worker_ctx: Comlink.Remote<any>;
-  worker_ctx: Comlink.Remote<PathViewerCtx & Comlink.ProxyMarked>;
+  viewer_ctx: Comlink.Remote<PathViewerCtx & Comlink.ProxyMarked>;
+
+  isVisible: boolean;
 
   data_canvas: HTMLCanvasElement & { path_viewer: PathViewer };
   overlay_canvas: HTMLCanvasElement;
   container: HTMLDivElement;
 
   trackCallbacks: Object;
+
+  constructor(
+    viewer_ctx: Comlink.Remote<PathViewerCtx & Comlink.ProxyMarked>,
+    container: HTMLDivElement,
+    data_canvas: HTMLCanvasElement,
+    overlay_canvas: HTMLCanvasElement,
+    pathName: string,
+    viewport: Viewport1D,
+
+  ) {
+    this.pathName = pathName;
+    this.viewport = viewport;
+
+    this.viewer_ctx = viewer_ctx;
+
+    this.isVisible = false;
+
+    this.container = container;
+    const canvas = data_canvas as HTMLCanvasElement & WithPathViewer;
+    canvas.path_viewer = this;
+    this.data_canvas = canvas;
+    this.overlay_canvas = overlay_canvas;
+
+    this.trackCallbacks = {};
+
+
+  }
+
+  async sampleAndDraw(view?: View1D) {
+    if (view === undefined) {
+      view = this.viewport.get();
+    }
+
+    if (this.isVisible) {
+      await this.viewer_ctx.setView(view.start, view.end);
+      await this.viewer_ctx.sample();
+      await this.viewer_ctx.forceRedraw();
+
+      this.drawOverlays();
+    }
+  }
+
+  async drawOverlays() {
+    let canvas = this.overlay_canvas;
+    let overlay_ctx = canvas.getContext('2d');
+    overlay_ctx?.clearRect(0, 0, canvas.width, canvas.height);
+
+    let view = this.viewport.get();
+
+    for (const key in this.trackCallbacks) {
+      const callback = this.trackCallbacks[key];
+      callback(canvas, view);
+    }
+  }
+
+  async onResize() {
+    const bounds = this.container.getBoundingClientRect();
+    let w = bounds.width;
+    let h = bounds.height;
+
+    console.warn("resizing path viewer");
+    console.warn("width: ", w, ", height: ", h);
+
+    await this.viewer_ctx.setCanvasWidth(w);
+    await this.viewer_ctx.resizeTargetCanvas(w, h);
+    this.overlay_canvas.width = w;
+    this.overlay_canvas.height = h;
+
+    await this.sampleAndDraw();
+  }
+
+
+
 }
 
-export interface WithPathViewer {
+interface WithPathViewer {
   path_viewer: PathViewer;
 }
-
 
 export async function initializePathViewer(
   worker_ctx: Comlink.Remote<WaragraphWorkerCtx>,
@@ -92,7 +162,7 @@ export async function initializePathViewer(
   threshold: number,
   color_below: RGBObj,
   color_above: RGBObj,
-) {
+): Promise<PathViewer> {
 
   const container = document.createElement('div');
 
@@ -132,101 +202,16 @@ export async function initializePathViewer(
   data_canvas.classList.add('path-data-canvas');
   overlay_canvas.classList.add('path-data-canvas');
 
-  await viewer_ctx.setCanvasWidth(width);
-
   container.append(data_canvas);
   container.append(overlay_canvas);
 
-  {
-    let view = viewport.get();
+  await viewer_ctx.setCanvasWidth(width);
 
-    await viewer_ctx.setView(view.start, view.end);
-    await viewer_ctx.sample();
-    await viewer_ctx.forceRedraw();
-  }
+  const path_viewer =
+    new PathViewer(viewer_ctx, container, data_canvas, overlay_canvas, path_name, viewport);
 
 
-  /*
-  resize_subject.subscribe(async () => {
-    let w = container.clientWidth;
-    let h = container.clientHeight;
-
-    console.log(container);
-
-    await viewer_ctx.setCanvasWidth(w);
-    await viewer_ctx.resizeTargetCanvas(w, h);
-    await viewer_ctx.sample();
-    await viewer_ctx.forceRedraw();
-
-    overlay_canvas.width = w;
-    overlay_canvas.height = h;
-  });
-    */
-  const trackCallbacks = {};
-
-  const path_viewer = {
-    worker_ctx: viewer_ctx,
-    data_canvas,
-    overlay_canvas,
-    container,
-    trackCallbacks,
-    viewport,
-    path_name,
-    isVisible: false,
-  } as PathViewer;
-
-  path_viewer.onResize = async () => {
-    let w = container.clientWidth;
-    let h = container.clientHeight;
-
-    console.warn("resizing path viewer");
-    console.warn(container);
-
-    console.warn("width: ", w, ", height: ", h);
-
-    await viewer_ctx.setCanvasWidth(w);
-    // await viewer_ctx.setCanvasDims({ width: w, height: h });
-    // await viewer_ctx.setCanvasDims(w, h);
-    await viewer_ctx.resizeTargetCanvas(w, h);
-    await viewer_ctx.sample();
-    await viewer_ctx.forceRedraw();
-
-    overlay_canvas.width = w;
-    overlay_canvas.height = h;
-  };
-
-  path_viewer.drawOverlays = async () => {
-    let canvas = overlay_canvas;
-    let overlay_ctx = canvas.getContext('2d');
-    overlay_ctx?.clearRect(0, 0, canvas.width, canvas.height);
-
-    let view = viewport.get();
-
-    for (const key in path_viewer.trackCallbacks) {
-      const callback = path_viewer.trackCallbacks[key];
-      callback(canvas, view);
-    }
-  };
-
-  path_viewer.sampleAndDraw = async (view) => {
-    if (path_viewer.isVisible) {
-      let overlay_ctx = overlay_canvas.getContext('2d');
-      overlay_ctx?.clearRect(0, 0, overlay_canvas.width, overlay_canvas.height);
-
-      await path_viewer.worker_ctx.setView(view.start, view.end);
-      await path_viewer.worker_ctx.sample();
-      await path_viewer.worker_ctx.forceRedraw();
-
-      for (const key in path_viewer.trackCallbacks) {
-        const callback = path_viewer.trackCallbacks[key];
-        callback(overlay_canvas, view);
-      }
-    }
-  };
- 
-
-  path_viewer.data_canvas.path_viewer = path_viewer;
-  // data_canvas.path_viewer = path_viewer;
+  await path_viewer.sampleAndDraw(viewport.get());
 
   return path_viewer;
 }
@@ -236,7 +221,7 @@ export async function addPathViewerLogic(
   worker: Comlink.Remote<WaragraphWorkerCtx>,
   path_viewer: PathViewer,
 ) {
-  const { worker_ctx, overlay_canvas } = path_viewer;
+  const { viewer_ctx, overlay_canvas } = path_viewer;
   const canvas = overlay_canvas;
 
   const wheel$ = fromEvent(canvas, 'wheel').pipe(
@@ -319,16 +304,6 @@ export async function addPathViewerLogic(
     })
   );
 
-  // const drag$ = mouseDown$.pipe(
-  //   rxjs.switchMap((event: MouseEvent) => {
-  //     return mouseMove$.pipe(
-  //       rxjs.takeUntil(
-  //         rxjs.race(mouseUp$, mouseOut$)
-  //       )
-  //     )
-  //   })
-  // );
-
   // const dragDeltaNorm$ = drag$.pipe(rxjs.map((ev: MouseEvent) => {
   const dragDeltaNorm$ = drag$.pipe(rxjs.map((dx: number) => {
     let delta = (dx / canvas.width);
@@ -336,14 +311,13 @@ export async function addPathViewerLogic(
   }));
 
   dragDeltaNorm$.subscribe((delta: number) => {
-      let delta_bp = delta * path_viewer.viewport.length;
-      path_viewer.viewport.translateView(delta_bp);
+    let delta_bp = delta * path_viewer.viewport.length;
+    path_viewer.viewport.translateView(delta_bp);
   });
 
-  let view_subject = path_viewer.viewport.subject;
+  await path_viewer.sampleAndDraw(path_viewer.viewport.get());
 
-  worker_ctx.sample();
-  worker_ctx.forceRedraw();
+  let view_subject = path_viewer.viewport.subject;
 
   view_subject.pipe(
     rxjs.distinct(),

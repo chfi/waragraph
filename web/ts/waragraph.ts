@@ -556,7 +556,7 @@ export class Waragraph {
 
       const name_el = document.createElement('div');
       name_el.classList.add('path-list-flex-item', 'path-name');
-      name_el.innerHTML = path_viewer.path_name;
+      name_el.innerHTML = path_viewer.pathName;
 
       path_name_col?.append(name_el);
 
@@ -566,6 +566,7 @@ export class Waragraph {
         .pipe(rxjs.throttleTime(500))
         .subscribe((_) => {
         path_viewer.onResize();
+        
       })
     }
 
