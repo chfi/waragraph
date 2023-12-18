@@ -747,6 +747,8 @@ export async function initializeWaragraph(opts: WaragraphOptions = {}) {
     throw new Error("TODO: defer loading GFA");
   }
 
+
+
   await waragraph_worker.loadGraph(gfa);
 
   const graph_ptr = await waragraph_worker.getGraphPtr();

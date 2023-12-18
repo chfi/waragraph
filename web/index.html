@@ -61,8 +61,32 @@
               return;
           }
 
+          const viz_root = document.getElementById('viz-container');
+
           document.getElementById('file-inputs').setAttribute('hidden', '');
           document.getElementById('root-container').style.removeProperty('display');
+
+          const spinner_par = document.createElement('div');
+          const spinner = document.createElement('div');
+          const spinner_text = document.createElement('div');
+          spinner.classList.add('lds-dual-ring');
+          spinner_par.style.setProperty('grid-column', '1');
+          spinner_par.style.setProperty('grid-row', '1');
+          spinner_par.style.setProperty('align-self', 'center');
+          spinner_par.style.setProperty('align-items', 'center');
+          spinner_par.style.setProperty('text-align', 'center');
+          spinner_par.style.setProperty('margin-left', 'auto');
+          spinner_par.style.setProperty('margin-right', 'auto');
+
+          spinner_text.style.setProperty('font-family', 'sans-serif');
+          spinner_text.style.setProperty('text-align', 'justify');
+          spinner_text.style.setProperty('width', '100%');
+          spinner_text.innerHTML = 'Loading graph';
+
+          spinner_par.append(spinner);
+          spinner_par.append(spinner_text);
+
+          viz_root.append(spinner_par);
 
           initializeWaragraph({
             gfa: gfa_file,
@@ -82,7 +106,7 @@
                 color_below: { r: 0.0, g: 0.0, b: 0.0, a: 0.0 },
             }
           }).then((wg) => {
-            console.warn(wg);
+            spinner_par.remove();
           });
       });
 
