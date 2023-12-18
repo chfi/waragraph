@@ -431,7 +431,7 @@ export class Waragraph {
       const overview_slots = appendPathListElements(40, 'div', 'div');
 
       const overview_canvas = document.createElement('canvas');
-      overview_canvas.style.setProperty('position', 'absolute');
+      overview_canvas.style.setProperty('position', 'relative');
       overview_canvas.style.setProperty('overflow', 'hidden');
       overview_canvas.width = overview_slots.right.clientWidth;
       overview_canvas.height = overview_slots.right.clientHeight;

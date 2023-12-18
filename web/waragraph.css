@@ -57,6 +57,7 @@ body {
     margin: 2px;
     flex-basis: 20px;
 
+    position: relative;
 }
 
 .path-name {
@@ -124,6 +125,8 @@ body {
     grid-column: 1;
     grid-row: 3;
 
+    overflow-x: clip;
+    overflow-y: scroll;
     display: grid;
     grid-template-columns: 1fr 10px 5fr;
     z-index: 2;
