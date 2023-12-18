@@ -483,7 +483,7 @@ export class Waragraph {
       }
 
       // TODO
-      // await addViewRangeInputListeners(cs_view);
+      await addViewRangeInputListeners(viewport);
 
       // TODO: factor out sequence track bit maybe
 
@@ -898,32 +898,33 @@ function appendPathListElements(height, left_tag, right_tag) {
 }
 
 
-async function addViewRangeInputListeners(cs_view) {
+async function addViewRangeInputListeners(viewport: Viewport1D) {
   const start_el = document.getElementById('path-viewer-range-start') as HTMLInputElement;
   const end_el = document.getElementById('path-viewer-range-end') as HTMLInputElement;
 
-  let init_view = await cs_view.get();
+  let init_view = viewport.get();
 
-  start_el.value = init_view.start;
-  end_el.value = init_view.end;
+  start_el.value = String(init_view.start);
+  end_el.value = String(init_view.end);
 
-  start_el.addEventListener('change', (event) => {
-    cs_view.set({ start: start_el.value, end: end_el.value });
-  });
+  const handler = (_event) => {
+    const start = parseFloat(start_el.value);
+    const end = parseFloat(end_el.value);
+    if (!isNaN(start) && !isNaN(end)) {
+      viewport.set(start, end);
+    }
+  };
 
-  end_el.addEventListener('change', (event) => {
-    cs_view.set({ start: start_el.value, end: end_el.value });
-  });
+  start_el.addEventListener('change', handler);
+  end_el.addEventListener('change', handler);
 
-  const view_subject = await cs_view.viewSubject();
+  const view_subject = viewport.subject;
 
   view_subject.subscribe((view) => {
     start_el.value = String(Math.round(view.start));
     end_el.value = String(Math.round(view.end));
   });
 }
-
-
 
 
 function globalSequenceTrack(graph: wasm_bindgen.ArrowGFAWrapped, canvas: HTMLCanvasElement, view_subject: rxjs.Subject<View1D>) {

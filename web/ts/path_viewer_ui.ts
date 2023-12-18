@@ -3,7 +3,7 @@ import * as wasm_bindgen from 'waragraph';
 import type { Bp, Segment, Handle, PathId, RGBObj } from './types';
 import { type WithPtr, wrapWasmPtr } from './wrap';
 
-import { type Viewport1D } from './waragraph';
+import { View1D, type Viewport1D } from './waragraph';
 import { type WaragraphWorkerCtx, type PathViewerCtx } from './new_worker';
 
 import { placeTooltipAtPoint } from './tooltip';
@@ -60,7 +60,7 @@ export async function highlightPathRanges(
 
 
 export interface PathViewer {
-  sampleAndDraw: (View1D) => Promise<void>;
+  sampleAndDraw: (view: View1D) => Promise<void>;
   drawOverlays: () => Promise<void>;
   onResize: () => Promise<void>;
   isVisible: boolean;
@@ -209,9 +209,7 @@ export async function initializePathViewer(
   };
 
   path_viewer.sampleAndDraw = async (view) => {
-    console.warn("lol wtf");
     if (path_viewer.isVisible) {
-    console.warn("really what lol wtf");
       let overlay_ctx = overlay_canvas.getContext('2d');
       overlay_ctx?.clearRect(0, 0, overlay_canvas.width, overlay_canvas.height);
 
