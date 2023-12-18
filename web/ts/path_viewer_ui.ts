@@ -60,8 +60,10 @@ export async function highlightPathRanges(
 
 
 export interface PathViewer {
+  sampleAndDraw: (View1D) => Promise<void>;
   drawOverlays: () => Promise<void>;
   onResize: () => Promise<void>;
+  isVisible: boolean;
 
   path_name: string;
   viewport: Viewport1D;
@@ -169,7 +171,8 @@ export async function initializePathViewer(
     container,
     trackCallbacks,
     viewport,
-    path_name
+    path_name,
+    isVisible: false,
   } as PathViewer;
 
   path_viewer.onResize = async () => {
@@ -204,6 +207,25 @@ export async function initializePathViewer(
       callback(canvas, view);
     }
   };
+
+  path_viewer.sampleAndDraw = async (view) => {
+    console.warn("lol wtf");
+    if (path_viewer.isVisible) {
+    console.warn("really what lol wtf");
+      let overlay_ctx = overlay_canvas.getContext('2d');
+      overlay_ctx?.clearRect(0, 0, overlay_canvas.width, overlay_canvas.height);
+
+      await path_viewer.worker_ctx.setView(view.start, view.end);
+      await path_viewer.worker_ctx.sample();
+      await path_viewer.worker_ctx.forceRedraw();
+
+      for (const key in path_viewer.trackCallbacks) {
+        const callback = path_viewer.trackCallbacks[key];
+        callback(overlay_canvas, view);
+      }
+    }
+  };
+ 
 
   path_viewer.data_canvas.path_viewer = path_viewer;
   // data_canvas.path_viewer = path_viewer;
@@ -330,18 +352,7 @@ export async function addPathViewerLogic(
     rxjs.throttleTime(10)
   ).subscribe((view) => {
     requestAnimationFrame((time) => {
-      worker_ctx.setView(view.start, view.end);
-      worker_ctx.sample();
-      worker_ctx.forceRedraw();
-
-      let overlay_ctx = canvas.getContext('2d');
-      overlay_ctx?.clearRect(0, 0, canvas.width, canvas.height);
-
-      for (const key in path_viewer.trackCallbacks) {
-        const callback = path_viewer.trackCallbacks[key];
-        callback(canvas, view);
-      }
-
+      path_viewer.sampleAndDraw(view);
     });
   });
 

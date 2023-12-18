@@ -187,6 +187,9 @@ export class Waragraph {
   coordinate_systems: Map<string, wasm_bindgen.CoordSys>;
   viewports_1d: Map<string, Viewport1D>;
 
+
+  intersection_observer: IntersectionObserver | undefined;
+
   // path_viewers: Map<string, PathViewerCtx>;
 
   // graph_segment_data: Map<string, ArrayBufferView>;
@@ -514,12 +517,28 @@ export class Waragraph {
 
     }
 
+    if (this.intersection_observer === undefined) {
+      this.intersection_observer = new IntersectionObserver((entries) => {
+        entries.forEach((entry) => {
+          if ("path_viewer" in entry.target) {
+            const viewer = entry.target.path_viewer as PathViewer;
+            viewer.isVisible = entry.isIntersecting;
+          }
+        });
+      },
+        { root: document.getElementById('path-viewer-container') }
+      );
+
+    }
 
     const path_name_col = document.getElementById('path-viewer-left-column');
     const path_data_col = document.getElementById('path-viewer-right-column');
 
     for (const path_viewer of this.path_viewers) {
       path_data_col?.append(path_viewer.container);
+
+      this.intersection_observer?.observe(path_viewer.data_canvas);
+
       path_viewer.container.classList.add('path-list-flex-item');
       // path_viewer.container.style.setProperty('overflow','hidden');
       // path_viewer.container.style.setProperty('position','absolute');
