@@ -3,6 +3,7 @@ html, body, .root-grid {
   padding: 0;
   height: 100%; /* Fill the entire height of the viewport */
   width: 100%; /* Fill the entire width of the viewport */
+  overflow: clip;
 }
 
 .sidebar {
@@ -67,6 +68,7 @@ body {
 
 .path-data-canvas {
     overflow: hidden;
+    /* width: 100%; */
     position: absolute;
 }
 
@@ -131,8 +133,9 @@ body {
     grid-column: 1;
     grid-row: 3;
 
-    overflow-x: clip;
-    overflow-y: scroll;
+    /* overflow-x: clip; */
+    overflow-x: hidden;
+    overflow-y: auto;
     display: grid;
     grid-template-columns: 1fr 10px 5fr;
     z-index: 2;

@@ -130,12 +130,14 @@ export class PathViewer {
   }
 
   async onResize() {
-    const bounds = this.container.getBoundingClientRect();
-    let w = bounds.width;
-    let h = bounds.height;
+    const doc_bounds = document.documentElement.getBoundingClientRect();
+    const bounds = this.container.parentElement.getBoundingClientRect();
 
-    console.warn("resizing path viewer");
-    console.warn("width: ", w, ", height: ", h);
+    const right = doc_bounds.right;
+    const left = bounds.left;
+
+    let w = right - left;
+    let h = 20;
 
     await this.viewer_ctx.setCanvasWidth(w);
     await this.viewer_ctx.resizeTargetCanvas(w, h);

@@ -337,7 +337,7 @@ export class Waragraph {
     color_below: RGBObj,
     color_above: RGBObj,
   ): Promise<PathViewer | undefined> {
-  // ): Promise<Comlink.Remote<PathViewerCtx & Comlink.ProxyMarked> | undefined> {
+    // ): Promise<Comlink.Remote<PathViewerCtx & Comlink.ProxyMarked> | undefined> {
     //
 
     const path_viewer = await initializePathViewer(this.worker_ctx, path_name, viewport, data, threshold, color_below, color_above);
@@ -428,6 +428,9 @@ export class Waragraph {
 
     // const viz_1d_2d_gutter = document.createElement('div');
 
+    const path_name_col = document.getElementById('path-viewer-left-column');
+    const path_data_col = document.getElementById('path-viewer-right-column');
+
 
     {
       // TODO: factor out overview & range input bits
@@ -507,21 +510,30 @@ export class Waragraph {
         viewport!.subject
       );
 
+
       this.resize_obs
         .pipe(
           rxjs.throttleTime(500)
         )
         .subscribe(() => {
-        this.graph_viewer?.resize();
+          this.graph_viewer?.resize();
 
-        overview_canvas.width = overview_slots.right.clientWidth;
-        overview_canvas.height = overview_slots.right.clientHeight;
-        seq_canvas.width = seq_slots.right.clientWidth;
-        seq_canvas.height = seq_slots.right.clientHeight;
+          const doc_bounds = document.documentElement.getBoundingClientRect();
+          // const win_width = window.innerWidth;
+          const bounds = path_data_col.getBoundingClientRect();
+          const width = doc_bounds.right - bounds.left;
 
-        overview.draw();
-        seq_track.draw_last();
-      });
+          overview_canvas.width = width;
+          seq_canvas.width = width;
+          // overview_canvas.width = overview_slots.right.clientWidth;
+          // seq_canvas.width = seq_slots.right.clientWidth;
+
+          // overview_canvas.height = overview_slots.right.clientHeight;
+          // seq_canvas.height = seq_slots.right.clientHeight;
+
+          overview.draw();
+          seq_track.draw_last();
+        });
 
     }
 
@@ -539,9 +551,6 @@ export class Waragraph {
 
     }
 
-    const path_name_col = document.getElementById('path-viewer-left-column');
-    const path_data_col = document.getElementById('path-viewer-right-column');
-
     for (const path_viewer of this.path_viewers) {
       path_data_col?.append(path_viewer.container);
 
@@ -551,8 +560,8 @@ export class Waragraph {
       // path_viewer.container.style.setProperty('overflow','hidden');
       // path_viewer.container.style.setProperty('position','absolute');
       console.warn(path_viewer.container);
-  // name_el.classList.add('path-list-flex-item', 'path-name');
-  // data_el.classList.add('path-list-flex-item');
+      // name_el.classList.add('path-list-flex-item', 'path-name');
+      // data_el.classList.add('path-list-flex-item');
 
       const name_el = document.createElement('div');
       name_el.classList.add('path-list-flex-item', 'path-name');
@@ -565,9 +574,9 @@ export class Waragraph {
       this.resize_obs
         .pipe(rxjs.throttleTime(500))
         .subscribe((_) => {
-        path_viewer.onResize();
-        
-      })
+          path_viewer.onResize();
+
+        })
     }
 
     // TODO: additional tracks
@@ -602,8 +611,8 @@ export class Waragraph {
 
     rxjs.fromEvent(window, 'resize')
       .subscribe(() => {
-      this.resize_obs!.next(null);
-    });
+        this.resize_obs!.next(null);
+      });
   }
 
 
@@ -652,35 +661,35 @@ export class Waragraph {
     let x1 = el_rect.left + seg_end * width;
 
     return { x0, y0, x1, y1 };
-      /*
-    let cs_view = await this.worker_obj.globalCoordSysView();
-    let view = await cs_view.get();
-    let seg_range = await cs_view.segmentRange(segment);
+    /*
+  let cs_view = await this.worker_obj.globalCoordSysView();
+  let view = await cs_view.get();
+  let seg_range = await cs_view.segmentRange(segment);
 
-    let el = document.getElementById('viewer-' + path_name);
+  let el = document.getElementById('viewer-' + path_name);
 
-    let el_rect = el.getBoundingClientRect();
+  let el_rect = el.getBoundingClientRect();
 
-    if (!el) {
-      return null;
-    }
+  if (!el) {
+    return null;
+  }
 
-    // segmentRange returns BigInts
-    let seg_s = Number(seg_range.start);
-    let seg_e = Number(seg_range.end);
+  // segmentRange returns BigInts
+  let seg_s = Number(seg_range.start);
+  let seg_e = Number(seg_range.end);
 
-    let seg_start = (seg_s - view.start) / view.len;
-    let seg_end = (seg_e - view.start) / view.len;
+  let seg_start = (seg_s - view.start) / view.len;
+  let seg_end = (seg_e - view.start) / view.len;
 
-    let width = el_rect.width;
-    let y0 = el_rect.y;
-    let y1 = el_rect.y + el_rect.height;
+  let width = el_rect.width;
+  let y0 = el_rect.y;
+  let y1 = el_rect.y + el_rect.height;
 
-    let x0 = el_rect.left + seg_start * width;
-    let x1 = el_rect.left + seg_end * width;
+  let x0 = el_rect.left + seg_start * width;
+  let x1 = el_rect.left + seg_end * width;
 
-    return { x0, y0, x1, y1 };
-       */
+  return { x0, y0, x1, y1 };
+     */
   }
 
 }
@@ -827,7 +836,7 @@ export async function initializeWaragraph(opts: WaragraphOptions = {}) {
 
     // if (data_key === 'depth') {
     // } else {
-         // TODO support custom data
+    // TODO support custom data
     // }
 
     // const path_data_arrays = [];
