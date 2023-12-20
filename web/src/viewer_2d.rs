@@ -188,7 +188,7 @@ impl GraphViewer {
 
         viewer.surface = Some(surface);
 
-        todo!();
+        Ok(viewer)
     }
 
     // pub fn new_depth_data(

@@ -183,7 +183,9 @@ impl PagedBuffers {
             let page = &self.pages[p_i];
             let cap = self.page_capacity();
             let s = (range.start % cap) as u32;
-            let e = ((range.end - 1) % cap) as u32;
+            let e = (range.end % cap).checked_sub(1)? as u32;
+            // let e = (e % cap) as u32;
+            // let e = ((range.end - 1) % cap) as u32;
             // let e = (range.end % cap) as u32;
 
             let instances = s..e;

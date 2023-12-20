@@ -68,6 +68,19 @@ impl View2D {
         let t = Vec2::new(tx, ty);
         self.zoom_with_focus(t, s);
     }
+
+    #[wasm_bindgen(js_name = "new_center_size")]
+    pub fn new_web_center_size(
+        cx: f32,
+        cy: f32,
+        width: f32,
+        height: f32,
+    ) -> View2D {
+        Self {
+            center: Vec2::new(cx, cy),
+            size: Vec2::new(width, height),
+        }
+    }
 }
 
 impl View2D {
