@@ -80,6 +80,31 @@ impl PagedBuffers {
         Ok(result)
     }
 
+    pub fn upload_slice_to_page(
+        &mut self,
+        state: &raving_wgpu::State,
+        page_index: usize,
+        data: &[u8],
+    ) -> Result<()> {
+        if data.len() > self.page_size() as usize {
+            anyhow::bail!(
+                "Attempted to upload {} bytes to a page of size {}",
+                data.len(),
+                self.page_size()
+            );
+        }
+
+        if page_index >= self.pages.len() {
+            anyhow::bail!("Page out of bounds");
+        }
+
+        let page = &self.pages[page_index];
+
+        state.queue.write_buffer(page, 0, data);
+
+        Ok(())
+    }
+
     pub fn upload_slice<T: bytemuck::Pod>(
         &mut self,
         state: &raving_wgpu::State,
@@ -111,42 +136,13 @@ impl PagedBuffers {
                 .write_buffer(page, 0, bytemuck::cast_slice(chunk));
         }
 
-        self.len = data.len();
+        self.set_len(data.len());
 
         Ok(())
     }
 
-    pub fn len(&self) -> usize {
-        self.len
-    }
-
-    pub fn page_size(&self) -> u64 {
-        self.page_size
-    }
-
-    pub fn page_capacity(&self) -> usize {
-        (self.page_size / self.stride) as usize
-    }
-
-    pub fn stride(&self) -> u64 {
-        self.stride
-    }
-
     pub fn pages(&self) -> &Arc<Vec<wgpu::Buffer>> {
         &self.pages
-    }
-
-    pub fn page_count(&self) -> usize {
-        self.pages.len()
-    }
-
-    pub fn capacity(&self) -> usize {
-        // let els_per_page = (self.page_size / self.stride) as usize;
-        (self.page_size as usize * self.pages.len()) / self.stride as usize
-    }
-
-    pub fn total_size(&self) -> u64 {
-        self.page_size * self.pages.len() as u64
     }
 
     pub fn page_ranges_iter<'a>(
@@ -233,6 +229,65 @@ impl PagedBuffers {
 
         (page, s..e)
     }
+}
+
+#[wasm_bindgen]
+impl PagedBuffers {
+    pub fn len(&self) -> usize {
+        self.len
+    }
+    pub fn set_len(&mut self, len: usize) {
+        self.len = len;
+    }
+
+    pub fn page_size(&self) -> u64 {
+        self.page_size
+    }
+
+    pub fn page_capacity(&self) -> usize {
+        (self.page_size / self.stride) as usize
+    }
+
+    pub fn stride(&self) -> u64 {
+        self.stride
+    }
+
+    pub fn page_count(&self) -> usize {
+        self.pages.len()
+    }
+
+    pub fn capacity(&self) -> usize {
+        // let els_per_page = (self.page_size / self.stride) as usize;
+        (self.page_size as usize * self.pages.len()) / self.stride as usize
+    }
+
+    pub fn total_size(&self) -> u64 {
+        self.page_size * self.pages.len() as u64
+    }
+
+    #[cfg(target_arch = "wasm32")]
+    #[wasm_bindgen(js_name = upload_page)]
+    pub fn upload_page_web(
+        &mut self,
+        raving: &crate::RavingCtx,
+        page_index: usize,
+        data: &[u8],
+    ) -> Result<(), JsValue> {
+        self.upload_slice_to_page(&raving.gpu_state, page_index, data)
+            .map_err(|err| {
+                JsValue::from(format!(
+                    "Error uploading to paged buffers: {err:?}"
+                ))
+            })
+    }
+
+    // pub fn upload_pages(&mut self, pages: js_sys::Array) {
+    // }
+
+    // pub fn upload_page(&mut self, page_index: usize, page_data: js_sys::Uint8Array) {
+    // pub fn upload_page(&mut self, page_index: usize, page_data: &[u8]) {
+
+    // }
 }
 
 #[derive(Default, Debug, Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
