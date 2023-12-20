@@ -16,6 +16,9 @@ import { vec2 } from 'gl-matrix';
 const MIN_POS = -10000000;
 const MAX_POS = 10000000;
 
+// const MIN_POS = -1000;
+// const MAX_POS = 1000;
+
 function generatePositionVertex(out_slice: ArrayBuffer, i: number) {
 
   const cx = Math.random() * (MAX_POS - MIN_POS);
@@ -33,12 +36,24 @@ function generatePositionVertex(out_slice: ArrayBuffer, i: number) {
 
   try {
 
-    const p0 = new Float32Array(out_slice, 0, 2);
-    const p1 = new Float32Array(out_slice, 2 * 4, 2);
-    const id = new Uint32Array(out_slice, 4 * 4, 1);
+    const p0 = vec2.create();
+    const p1 = vec2.create();
+    // const p0 = new Float32Array(out_slice, 0, 2);
+    // const p1 = new Float32Array(out_slice, 2 * 4, 2);
+    // const id = new Uint32Array(out_slice, 4 * 4, 1);
 
     vec2.sub(p0, c, d);
     vec2.add(p1, c, d);
+
+    const pos = new Float32Array(out_slice, 0, 4);
+    const id = new Uint32Array(out_slice, 4 * 4, 1);
+
+    pos.set(p0, 0);
+    pos.set(p0, 2);
+
+
+    if (i == 123) 
+    console.warn(new Float32Array(out_slice, 0, 4));
 
     id[0] = i;
 
@@ -52,12 +67,16 @@ function generatePositionVertex(out_slice: ArrayBuffer, i: number) {
 function generatePositionPage(buffer: ArrayBuffer, page: number) {
   const count = buffer.byteLength / 20;
 
+  console.warn(new Float32Array(buffer));
+
   for (let i = 0; i < count; i++) {
     let begin = i * 20;
     let end = begin + 20;
     let slice = buffer.slice(begin, end);
     generatePositionVertex(slice, page * count + i);
   }
+
+  console.warn(new Float32Array(buffer));
 
 }
 
@@ -87,8 +106,8 @@ export async function testBig() {
   // in a box of some size
 
 
-  const element_count = 128000000;
-  // const element_count = 12800000 * 4;
+  // const element_count = 128000000;
+  const element_count = 12800000 * 4;
 
   const position_buffers = raving_ctx.create_paged_buffers(20n, element_count);
   const color_buffers = raving_ctx.create_paged_buffers(4n, element_count);
@@ -107,7 +126,10 @@ export async function testBig() {
     console.warn("generating position data...");
     for (let page_ix = 0; page_ix < position_buffers.page_count(); page_ix++) {
       console.warn("  page ", page_ix);
+      console.warn("???, ", pos_buf_array);
       generatePositionPage(pos_buf_array, page_ix);
+      console.warn(pos_buf_array);
+
       position_buffers.upload_page(raving_ctx, page_ix, pos_buf_array);
     }
 
@@ -133,6 +155,7 @@ export async function testBig() {
   }
 
   let view = wasm_bindgen.View2D.new_center_size(0, 0, MAX_POS / 5, MAX_POS / 5);
+  // let view = wasm_bindgen.View2D.new_center_size(0, 0, 10000, 10000);
 
   console.warn("initializing graph viewer");
 
@@ -141,5 +164,11 @@ export async function testBig() {
   console.warn("drawing graph viewer");
 
   graph_viewer.draw_to_surface(raving_ctx);
+
+  console.warn("done");
+
+  window.setTimeout(() => 
+    graph_viewer.draw_to_surface(raving_ctx),
+    500);
 
 }
