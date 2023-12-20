@@ -61,6 +61,25 @@ pub struct RavingCtx {
 
 #[wasm_bindgen]
 impl RavingCtx {
+    pub fn create_paged_buffers(
+        &self,
+        stride: u64,
+        desired_capacity: usize,
+    ) -> Result<viewer_2d::render::PagedBuffers, JsValue> {
+        // the 2d viewer only uses vertex buffers
+        let buffers = viewer_2d::render::PagedBuffers::new(
+            &self.gpu_state.device,
+            wgpu::BufferUsages::VERTEX,
+            stride,
+            desired_capacity,
+        )
+        .map_err(|err| {
+            JsValue::from(format!("Error creating paged buffers: {err:?}"))
+        })?;
+
+        Ok(buffers)
+    }
+
     pub async fn initialize_(
         canvas: web_sys::HtmlCanvasElement,
     ) -> Result<RavingCtx, JsValue> {

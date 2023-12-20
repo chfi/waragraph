@@ -74,10 +74,6 @@ pub struct GraphViewer {
     surface: Option<wgpu::Surface>,
     sampler: wgpu::Sampler,
 
-    // offscreen_canvas: Option<OffscreenCanvas>,
-    color_texture: wgpu::Texture,
-    color_texture_view: wgpu::TextureView,
-
     viewport: View2D,
 }
 
@@ -151,6 +147,48 @@ impl GraphViewer {
         // viewer.offscreen_canvas = Some(OffscreenCanvas::new(300, 150)?);
 
         Ok(viewer)
+    }
+
+    pub fn new_with_buffers(
+        raving: &RavingCtx,
+        positions: render::PagedBuffers,
+        colors: render::PagedBuffers,
+        canvas: web_sys::HtmlCanvasElement,
+        view: View2D,
+    ) -> Result<GraphViewer, JsValue> {
+        let mut viewer = GraphViewer::initialize_with_buffers(
+            &raving.gpu_state,
+            raving.surface_format,
+            positions,
+            colors,
+            view,
+        )
+        .map_err(|err| -> JsValue {
+            format!("Error initializing GraphViewer: {err:?}").into()
+        })?;
+
+        log::warn!("initializing surface");
+        // let canvas = offscreen_canvas;
+        let surface = raving
+            .gpu_state
+            .instance
+            // .create_surface_from_offscreen_canvas(canvas)
+            .create_surface_from_canvas(canvas)
+            .map_err(|err| {
+                JsValue::from(format!("Error initializing surface: {err:?}"))
+            })?;
+
+        log::warn!("configuring surface");
+        surface.configure(
+            &raving.gpu_state.device,
+            &surface
+                .get_default_config(&raving.gpu_state.adapter, 800, 600)
+                .expect("Error configuring surface"),
+        );
+
+        viewer.surface = Some(surface);
+
+        todo!();
     }
 
     // pub fn new_depth_data(
@@ -326,6 +364,83 @@ impl GraphViewer {
 }
 
 impl GraphViewer {
+    pub fn initialize_with_buffers(
+        state: &raving_wgpu::State,
+        surface_format: wgpu::TextureFormat,
+        position_buffers: render::PagedBuffers,
+        color_buffers: render::PagedBuffers,
+        view: View2D,
+    ) -> anyhow::Result<Self> {
+        // let seg_count = graph.segment_count();
+
+        let mut renderer = PolylineRenderer::new_with_buffers(
+            &state.device,
+            surface_format,
+            position_buffers,
+            color_buffers,
+        )?;
+
+        // let view = {
+        //     let size = max_p - min_p;
+        //     let center = min_p + (max_p - min_p) * 0.5;
+        //     let view = View2D::new(center, size);
+        //     view
+        // };
+
+        // renderer.set_transform(&state.queue, view.to_matrix());
+
+        renderer.update_uniforms(
+            &state.queue,
+            view.to_matrix(),
+            [800., 600.],
+            50.0,
+        );
+
+        let geometry_buffers =
+            GeometryBuffers::allocate(state, [800, 600], surface_format)?;
+
+        let sampler = crate::color::create_linear_sampler(&state.device);
+
+        let dimension = wgpu::TextureDimension::D1;
+        let format = wgpu::TextureFormat::Rgba8Unorm;
+
+        let label = format!("Texture - Color Scheme <TEMP>");
+
+        let usage = wgpu::TextureUsages::TEXTURE_BINDING
+            | wgpu::TextureUsages::COPY_DST;
+
+        let color_scheme = crate::color::spectral_color_scheme();
+
+        let pixel_data: Vec<_> = color_scheme
+            .iter()
+            .map(|&[r, g, b, a]| {
+                [
+                    (r * 255.0) as u8,
+                    (g * 255.0) as u8,
+                    (b * 255.0) as u8,
+                    (a * 255.0) as u8,
+                ]
+            })
+            .collect();
+
+        let width = color_scheme.len() as u32;
+
+        let size = wgpu::Extent3d {
+            width,
+            height: 1,
+            depth_or_array_layers: 1,
+        };
+
+        Ok(Self {
+            renderer,
+            geometry_buffers,
+            surface: None,
+            sampler,
+            // offscreen_canvas: None,
+            viewport: view,
+        })
+    }
+
     pub fn initialize(
         state: &raving_wgpu::State,
         surface_format: wgpu::TextureFormat,
@@ -423,44 +538,11 @@ impl GraphViewer {
             depth_or_array_layers: 1,
         };
 
-        let texture_desc = wgpu::TextureDescriptor {
-            label: Some(&label),
-            size,
-            mip_level_count: 1,
-            sample_count: 1,
-            dimension,
-            format,
-            usage,
-            view_formats: &[],
-        };
-
-        let color_texture = state.device.create_texture_with_data(
-            &state.queue,
-            &texture_desc,
-            bytemuck::cast_slice(&pixel_data),
-        );
-
-        let label = format!("Texture View - Color Scheme <TEMP>");
-
-        let color_texture_view =
-            color_texture.create_view(&wgpu::TextureViewDescriptor {
-                label: Some(&label),
-                format: Some(format),
-                dimension: Some(wgpu::TextureViewDimension::D1),
-                aspect: wgpu::TextureAspect::All,
-                base_mip_level: 0,
-                mip_level_count: None,
-                base_array_layer: 0,
-                array_layer_count: None,
-            });
-
         Ok(Self {
             renderer,
             geometry_buffers,
             surface: None,
             sampler,
-            color_texture,
-            color_texture_view,
             // offscreen_canvas: None,
             viewport: view,
         })
@@ -473,11 +555,7 @@ impl GraphViewer {
         tgt_attch: &wgpu::TextureView,
         encoder: &mut wgpu::CommandEncoder,
     ) -> anyhow::Result<()> {
-        if let Err(e) = self.renderer.create_bind_groups(
-            &state.device,
-            &self.sampler,
-            &self.color_texture_view,
-        ) {
+        if let Err(e) = self.renderer.create_bind_groups(&state.device) {
             log::error!("2D viewer render error: {e:?}");
         }
 

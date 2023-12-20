@@ -10,8 +10,11 @@ use raving_wgpu::node::GraphicsNode;
 
 use wgpu::util::{BufferInitDescriptor, DeviceExt, RenderEncoder};
 
+use wasm_bindgen::prelude::*;
+
 use crate::color::ColorMap;
 
+#[wasm_bindgen]
 #[derive(Clone)]
 pub struct PagedBuffers {
     page_size: u64, // bytes
@@ -254,9 +257,6 @@ pub(super) struct State {
     bind_groups: Vec<wgpu::BindGroup>,
     segment_count: usize,
 
-    color_sampler_ids:
-        Option<(wgpu::Id<wgpu::TextureView>, wgpu::Id<wgpu::Sampler>)>,
-
     graphics_node: Arc<GraphicsNode>,
 }
 
@@ -311,10 +311,12 @@ pub struct PolylineRenderer {
 }
 
 impl PolylineRenderer {
-    pub fn new(
+    pub fn new_with_buffers(
         device: &wgpu::Device,
         surface_format: wgpu::TextureFormat,
-        max_segments: usize,
+        position_buffers: PagedBuffers,
+        color_buffers: PagedBuffers,
+        // max_segments: usize,
     ) -> Result<Self> {
         let limits = device.limits();
 
@@ -380,6 +382,7 @@ impl PolylineRenderer {
             ],
         )?;
 
+        /*
         let vertex_buffers = PagedBuffers::new(
             device,
             wgpu::BufferUsages::VERTEX,
@@ -394,9 +397,10 @@ impl PolylineRenderer {
             std::mem::size_of::<[u32; 1]>() as u64,
             max_segments,
         )?;
+        */
 
         let data_page_uniform =
-            DataPageUniform::new(device, data_buffers.page_count());
+            DataPageUniform::new(device, color_buffers.page_count());
 
         let transform = ultraviolet::Mat4::identity();
 
@@ -439,7 +443,7 @@ impl PolylineRenderer {
             wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
             "Viewer 2D Data Config",
             DataConfig {
-                page_size: vertex_buffers.page_capacity() as u32,
+                page_size: position_buffers.page_capacity() as u32,
             },
             |cm| {
                 let data: [u8; 4] = bytemuck::cast(*cm);
@@ -450,8 +454,8 @@ impl PolylineRenderer {
         let graphics_node = Arc::new(graphics_node);
 
         let state = Arc::new(RwLock::new(State {
-            vertex_buffers,
-            data_buffers,
+            vertex_buffers: position_buffers,
+            data_buffers: color_buffers,
             vertex_config_uniform,
             projection_uniform,
 
@@ -462,8 +466,6 @@ impl PolylineRenderer {
 
             segment_count: 0,
             bind_groups: vec![],
-
-            color_sampler_ids: None,
 
             graphics_node: graphics_node.clone(),
         }));
@@ -478,6 +480,33 @@ impl PolylineRenderer {
             has_position_data: false,
             has_node_data: false,
         })
+    }
+
+    pub fn new(
+        device: &wgpu::Device,
+        surface_format: wgpu::TextureFormat,
+        max_segments: usize,
+    ) -> Result<Self> {
+        let position_buffers = PagedBuffers::new(
+            device,
+            wgpu::BufferUsages::VERTEX,
+            std::mem::size_of::<[u32; 5]>() as u64,
+            max_segments,
+        )?;
+        let color_buffers = PagedBuffers::new(
+            device,
+            // wgpu::BufferUsages::STORAGE,
+            wgpu::BufferUsages::VERTEX,
+            std::mem::size_of::<[u32; 1]>() as u64,
+            max_segments,
+        )?;
+
+        Self::new_with_buffers(
+            device,
+            surface_format,
+            position_buffers,
+            color_buffers,
+        )
     }
 
     pub fn has_data(&self) -> bool {
@@ -573,27 +602,8 @@ impl PolylineRenderer {
         Ok(())
     }
 
-    pub fn create_bind_groups(
-        &mut self,
-        device: &wgpu::Device,
-        // these are vestigial but a bit annoying to remove right now
-        sampler: &wgpu::Sampler,
-        color: &wgpu::TextureView,
-    ) -> Result<()> {
-        let color_id = color.global_id();
-        let sampler_id = sampler.global_id();
-
+    pub fn create_bind_groups(&mut self, device: &wgpu::Device) -> Result<()> {
         let mut state = self.state.write();
-
-        // the sampler and color are the only bindings not owned by
-        // PolylineRenderer, and none of the resources owned by the
-        // renderer have to be reallocated, so we only need to
-        // recreate the bind groups if those differ
-        if let Some((c_id, s_id)) = state.color_sampler_ids {
-            if c_id == color_id && s_id == sampler_id {
-                return Ok(());
-            }
-        }
 
         state.bind_groups.clear();
 
@@ -623,10 +633,10 @@ impl PolylineRenderer {
             state.data_buffers.pages[0].as_entire_binding(),
         );
 
-        bindings.insert(
-            "u_data_config".into(),
-            state.data_config_uniform.buffer().as_entire_binding(),
-        );
+        // bindings.insert(
+        //     "u_data_config".into(),
+        //     state.data_config_uniform.buffer().as_entire_binding(),
+        // );
 
         // bindings.insert(
         //     "u_color_map".into(),
@@ -649,8 +659,6 @@ impl PolylineRenderer {
             .create_bind_groups(device, &bindings)?;
 
         state.bind_groups = bind_groups;
-
-        state.color_sampler_ids = Some((color_id, sampler_id));
 
         Ok(())
     }

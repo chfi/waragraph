@@ -123,7 +123,7 @@ struct DataConfig {
  // max: u32,
 }
 
-@group(1) @binding(0) var<uniform> u_data_config: DataConfig;
+// @group(1) @binding(0) var<uniform> u_data_config: DataConfig;
 
 // @group(1) @binding(1) var t_sampler: sampler;
 // @group(1) @binding(2) var t_colors: texture_1d<f32>;

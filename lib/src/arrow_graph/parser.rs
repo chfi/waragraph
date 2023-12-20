@@ -15,6 +15,8 @@ use std::io::prelude::*;
 
 use crate::graph::{Bp, Edge, Node, OrientedNode, PathId};
 
+use super::ArrowGFA;
+
 pub struct ChunkParser {
     segment_id_map: HashMap<SmallVec<[u8; 12]>, u32>,
 
@@ -29,7 +31,7 @@ pub struct ChunkParser {
 
 impl ChunkParser {
     pub fn finish(self) -> ArrowGFA {
-        // let sequences =
+        todo!();
     }
 }
 
