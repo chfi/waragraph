@@ -359,11 +359,169 @@ function resize_view_dimensions(v_dims, c_old, c_new) {
 
 export async function initializeGraphViewerFromBuffers(
   wasm_mem: WebAssembly.Memory,
+  raving_ctx: wasm_bindgen.RavingCtx,
+  gpu_canvas: HTMLCanvasElement,
   position_buffers: wasm_bindgen.PagedBuffers,
   color_buffers: wasm_bindgen.PagedBuffers,
   initial_view: wasm_bindgen.View2D,
   container?: HTMLDivElement,
 ) {
+  if (_wasm === undefined) {
+    _wasm = await init_module(undefined, wasm_mem);
+    wasm_bindgen.set_panic_hook();
+  }
+
+  // create canvases
+
+  let overlay_canvas = document.createElement('canvas');
+
+  gpu_canvas.id = 'graph-viewer-2d';
+  overlay_canvas.id = 'graph-viewer-2d-overlay';
+
+  gpu_canvas.style.setProperty('z-index', '0');
+  overlay_canvas.style.setProperty('z-index', '1');
+  // gpu_canvas.style.setProperty('z-index', '0');
+  // overlay_canvas.style.setProperty('z-index', '1');
+
+  let width, height;
+
+  if (container) {
+    container.append(gpu_canvas);
+    container.append(overlay_canvas);
+
+    width = container.clientWidth;
+    height = container.clientHeight;
+
+    // const width = container.clientWidth;
+    // const height = container.clientHeight;
+
+    gpu_canvas.width = width;
+    gpu_canvas.height = height;
+    overlay_canvas.width = width;
+    overlay_canvas.height = height;
+  }
+
+  _raving_ctx = raving_ctx;
+
+  let layout_data;
+
+  if (layout instanceof Blob) {
+    layout_data = await layout.text();
+  } else {
+    layout_data = await fetch(layout).then(l => l.text());
+  }
+
+  const seg_pos = wasm_bindgen.SegmentPositions.from_tsv(layout_data);
+
+  const graph = wrapWasmPtr(wasm_bindgen.ArrowGFAWrapped, graph_raw.__wbg_ptr);
+
+  const viewer = wasm_bindgen.GraphViewer.new_dummy_data(
+    _raving_ctx,
+    graph,
+    seg_pos,
+    gpu_canvas
+  );
+
+  if (width && height) {
+    viewer.resize(_raving_ctx, width, height);
+  }
+
+  viewer.draw_to_surface(_raving_ctx);
+
+
+  const graph_viewer = new GraphViewer(gpu_canvas, overlay_canvas, viewer, seg_pos, container);
+
+  const draw_loop = () => {
+    if (graph_viewer.needRedraw()) {
+      graph_viewer.draw();
+    }
+
+    window.requestAnimationFrame(draw_loop);
+  };
+
+  draw_loop();
+
+  const mouseDown$ = rxjs.fromEvent(overlay_canvas, 'mousedown');
+  const mouseUp$ = rxjs.fromEvent(overlay_canvas, 'mouseup');
+  const mouseOut$ = rxjs.fromEvent(overlay_canvas, 'mouseout');
+  const mouseMove$ = rxjs.fromEvent<MouseEvent>(overlay_canvas, 'mousemove');
+
+
+  const hoveredSegment$ = mouseMove$.pipe(
+    rxjs.map((ev: MouseEvent) => ({ x: ev.offsetX, y: ev.offsetY })),
+    rxjs.distinct(),
+    rxjs.throttleTime(40),
+    rxjs.map(({ x, y }) => graph_viewer.lookup(x, y)),
+  );
+
+  hoveredSegment$.subscribe((segment) => {
+    let tooltip = document.getElementById('tooltip');
+
+    if (segment === null) {
+      tooltip.innerHTML = "";
+      tooltip.style.display = 'none';
+    } else if (graph_viewer.mousePos !== null) {
+      tooltip.innerHTML = `Segment ${segment}`;
+      tooltip.style.display = 'block';
+
+      let rect = document
+        .getElementById('graph-viewer-2d-overlay')
+        .getBoundingClientRect();
+      let { x, y } = graph_viewer.mousePos;
+
+      let gx = x + rect.left;
+      let gy = y + rect.top;
+
+      placeTooltipAtPoint(gx, gy);
+    }
+  })
+
+  mouseMove$.subscribe((event: MouseEvent) => {
+    graph_viewer.mousePos = { x: event.offsetX, y: event.offsetY };
+  });
+
+  mouseOut$.subscribe((event) => {
+    graph_viewer.mousePos = null;
+  });
+
+  const drag$ = mouseDown$.pipe(
+    rxjs.switchMap((event) => {
+      return mouseMove$.pipe(
+        rxjs.takeUntil(
+          rxjs.race(mouseUp$, mouseOut$)
+        )
+      )
+    })
+  );
+
+  drag$.subscribe((ev: MouseEvent) => {
+    let dx = ev.movementX;
+    let dy = ev.movementY;
+    let x = dx / overlay_canvas.width;
+    let y = dy / overlay_canvas.height;
+    graph_viewer.translate(-x, y);
+  });
+
+  const wheel$ = rxjs.fromEvent(overlay_canvas, 'wheel').pipe(
+    rxjs.tap(event => event.preventDefault())
+  );
+
+  wheel$.subscribe((event: WheelEvent) => {
+    let x = event.offsetX;
+    let y = overlay_canvas.height - event.offsetY;
+
+    let nx = x / overlay_canvas.width;
+    let ny = y / overlay_canvas.height;
+
+    let scale = event.deltaY > 0.0 ? 1.05 : 0.95;
+
+    graph_viewer.zoom(nx, ny, scale);
+  });
+
+  graph_viewer.resetView();
+
+
+  return graph_viewer;
 
 }
 
@@ -532,7 +690,7 @@ export async function initializeGraphViewer(
     graph_viewer.zoom(nx, ny, scale);
   });
 
-  graph_viewer.fitViewToGraph();
+  graph_viewer.resetView();
 
 
   return graph_viewer;
