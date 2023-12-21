@@ -23,7 +23,9 @@ interface OverlayCallbacks {
 
 export class GraphViewer {
   graph_viewer: wasm_bindgen.GraphViewer;
-  segment_positions: wasm_bindgen.SegmentPositions;
+  segment_positions: wasm_bindgen.SegmentPositions | undefined;
+
+  initial_view: wasm_bindgen.View2D,
 
   next_view: wasm_bindgen.View2D;
   view_subject: BehaviorSubject<View2DObj>;
@@ -51,6 +53,7 @@ export class GraphViewer {
     this.graph_viewer = viewer;
     this.segment_positions = seg_pos;
 
+    this.initial_view = this.graph_viewer.get_view();
     this.next_view = this.graph_viewer.get_view();
 
     this.view_subject = new BehaviorSubject(this.next_view.as_obj());
@@ -76,10 +79,10 @@ export class GraphViewer {
   sampleCanvasSpacePath(
     path_step_slice: Uint32Array,
     tolerance: number
-  ): wasm_bindgen.CanvasPathTrace {
+  ): wasm_bindgen.CanvasPathTrace | undefined {
     const canvas = document.getElementById("graph-viewer-2d") as HTMLCanvasElement;
 
-    return this.segment_positions.sample_canvas_space_path(
+    return this.segment_positions?.sample_canvas_space_path(
       this.next_view,
       canvas.width,
       canvas.height,
@@ -88,9 +91,8 @@ export class GraphViewer {
     );
   }
 
-  fitViewToGraph() {
-    let graph_bounds = this.segment_positions.bounds_as_view_obj();
-    // let view_obj = this.next_view.as_obj();
+  resetView() {
+    let initial_view = this.initial_view.as_obj();
 
     let canvas = document.getElementById("graph-viewer-2d") as HTMLCanvasElement | null;
     if (!canvas) {
@@ -100,18 +102,18 @@ export class GraphViewer {
     let view_width, view_height;
 
     let c_aspect = canvas.width / canvas.height;
-    let g_aspect = graph_bounds.width / graph_bounds.height;
+    let g_aspect = initial_view.width / initial_view.height;
 
     if (g_aspect > c_aspect) {
-      view_width = graph_bounds.width;
+      view_width = initial_view.width;
       view_height = view_width * canvas.height / canvas.width;
     } else {
-      view_height = graph_bounds.height;
+      view_height = initial_view.height;
       view_width = view_height * canvas.width / canvas.height;
     }
 
 
-    this.next_view.set_center(graph_bounds.x, graph_bounds.y);
+    this.next_view.set_center(initial_view.x, initial_view.y);
     this.next_view.set_size(view_width, view_height);
   }
 
@@ -126,7 +128,7 @@ export class GraphViewer {
     el.height = height;
 
     this.graph_viewer.resize(_raving_ctx, Math.round(width), Math.round(height));
-    this.fitViewToGraph();
+    this.resetView();
   }
 
   draw() {
@@ -189,6 +191,9 @@ export class GraphViewer {
   }
 
   getSegmentPos(segment: number): { x0: number, y0: number, x1: number, y1: number } | null {
+    if (this.segment_positions === undefined) {
+      return null;
+    } 
     return this.segment_positions.segment_pos(segment);
   }
 
@@ -351,6 +356,16 @@ function resize_view_dimensions(v_dims, c_old, c_new) {
   return [v_new_h, v_new_h];
 }
   */
+
+export async function initializeGraphViewerFromBuffers(
+  wasm_mem: WebAssembly.Memory,
+  position_buffers: wasm_bindgen.PagedBuffers,
+  color_buffers: wasm_bindgen.PagedBuffers,
+  initial_view: wasm_bindgen.View2D,
+  container?: HTMLDivElement,
+) {
+
+}
 
 
 export async function initializeGraphViewer(
