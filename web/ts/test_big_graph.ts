@@ -1,16 +1,5 @@
 import init_module, * as wasm_bindgen from 'waragraph';
 
-import type { WaragraphWorkerCtx, PathViewerCtx } from './worker';
-
-import { initializePathViewer, addOverviewEventHandlers, addPathViewerLogic } from './path_viewer_ui';
-import type { PathViewer } from './path_viewer_ui';
-import { OverviewMap } from './overview';
-
-import * as CanvasTracks from './canvas_tracks';
-import * as BedSidebar from './sidebar-bed';
-
-import type { Bp, Segment, Handle, PathId, RGBAObj, RGBObj } from './types';
-
 import { vec2 } from 'gl-matrix';
 
 const MIN_POS = -10000000;
@@ -19,10 +8,10 @@ const MAX_POS = 10000000;
 // const MIN_POS = -1000;
 // const MAX_POS = 1000;
 
-function generatePositionVertex(out_slice: ArrayBuffer, i: number) {
+function generatePositionVertex(out_view: DataView, i: number) {
 
-  const cx = Math.random() * (MAX_POS - MIN_POS);
-  const cy = Math.random() * (MAX_POS - MIN_POS);
+  const cx = MIN_POS + Math.random() * (MAX_POS - MIN_POS);
+  const cy = MIN_POS + Math.random() * (MAX_POS - MIN_POS);
 
   const c = vec2.fromValues(cx, cy);
 
@@ -38,28 +27,20 @@ function generatePositionVertex(out_slice: ArrayBuffer, i: number) {
 
     const p0 = vec2.create();
     const p1 = vec2.create();
-    // const p0 = new Float32Array(out_slice, 0, 2);
-    // const p1 = new Float32Array(out_slice, 2 * 4, 2);
-    // const id = new Uint32Array(out_slice, 4 * 4, 1);
 
     vec2.sub(p0, c, d);
     vec2.add(p1, c, d);
 
-    const pos = new Float32Array(out_slice, 0, 4);
-    const id = new Uint32Array(out_slice, 4 * 4, 1);
-
-    pos.set(p0, 0);
-    pos.set(p0, 2);
-
-
-    if (i == 123) 
-    console.warn(new Float32Array(out_slice, 0, 4));
-
-    id[0] = i;
+    out_view.setFloat32(0, p0[0], true);
+    out_view.setFloat32(4, p0[1], true);
+    out_view.setFloat32(8, p1[0], true);
+    out_view.setFloat32(12, p1[1], true);
+    out_view.setUint32(16, i, true);
 
   } catch (e) {
-    console.error(out_slice);
-
+    console.error(e);
+    // console.error("oh no!");
+    // console.error(out_slice);
   }
 
 }
@@ -67,16 +48,24 @@ function generatePositionVertex(out_slice: ArrayBuffer, i: number) {
 function generatePositionPage(buffer: ArrayBuffer, page: number) {
   const count = buffer.byteLength / 20;
 
-  console.warn(new Float32Array(buffer));
+  // const view = new DataView(buffer);
+  // console.warn(new Float32Array(buffer));
 
   for (let i = 0; i < count; i++) {
     let begin = i * 20;
     let end = begin + 20;
-    let slice = buffer.slice(begin, end);
-    generatePositionVertex(slice, page * count + i);
+    let view = new DataView(buffer, begin, 20);
+    generatePositionVertex(view, page * count + i);
+
   }
 
-  console.warn(new Float32Array(buffer));
+  // console.warn(new Float32Array(buffer));
+
+}
+
+export function testGen() {
+  const buf = new ArrayBuffer(4000000);
+  
 
 }
 
@@ -106,8 +95,9 @@ export async function testBig() {
   // in a box of some size
 
 
-  // const element_count = 128000000;
-  const element_count = 12800000 * 4;
+  const element_count = 128000000;
+  // const element_count = 12800000 * 4;
+  // const element_count = 1280000;
 
   const position_buffers = raving_ctx.create_paged_buffers(20n, element_count);
   const color_buffers = raving_ctx.create_paged_buffers(4n, element_count);
@@ -121,16 +111,21 @@ export async function testBig() {
   console.warn("color page capacity (elements): ", col_page_cap);
 
   {
-    const pos_buf_array = new Uint8Array(pos_page_cap);
+    // const pos_buf_array = new Uint8Array(pos_page_cap);
+    // const pos_buf_array = new Uint8Array(pos_page_cap * 20);
+    const pos_buf = new ArrayBuffer(pos_page_cap * 20);
+    const pos_buf_view = new DataView(pos_buf);
 
     console.warn("generating position data...");
     for (let page_ix = 0; page_ix < position_buffers.page_count(); page_ix++) {
       console.warn("  page ", page_ix);
-      console.warn("???, ", pos_buf_array);
-      generatePositionPage(pos_buf_array, page_ix);
-      console.warn(pos_buf_array);
+      // console.warn("???, ", pos_buf_array);
+      generatePositionPage(pos_buf, page_ix);
+      // console.warn(`${pos_buf_array[0]}, ${pos_buf_array[1]}, ${pos_buf_array[2]}, ${pos_buf_array[3]}`);
+      // console.warn(pos_buf_array[0]);
+      // console.warn(pos_buf_array);
 
-      position_buffers.upload_page(raving_ctx, page_ix, pos_buf_array);
+      position_buffers.upload_page(raving_ctx, page_ix, new Uint8Array(pos_buf));
     }
 
     position_buffers.set_len(element_count);
@@ -155,6 +150,7 @@ export async function testBig() {
   }
 
   let view = wasm_bindgen.View2D.new_center_size(0, 0, MAX_POS / 5, MAX_POS / 5);
+  // let view = wasm_bindgen.View2D.new_center_size(0, 0, MAX_POS * 2, MAX_POS * 2);
   // let view = wasm_bindgen.View2D.new_center_size(0, 0, 10000, 10000);
 
   console.warn("initializing graph viewer");
