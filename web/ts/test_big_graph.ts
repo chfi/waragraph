@@ -168,3 +168,103 @@ export async function testBig() {
     500);
 
 }
+
+
+// adapted from https://developer.mozilla.org/en-US/docs/Web/API/ReadableStreamDefaultReader/read
+async function* blobLineIterator(blob: Blob) {
+  const utf8Decoder = new TextDecoder("utf-8");
+  // let response = await fetch(fileURL);
+  // let reader = response.body.getReader();
+  let stream = blob.stream();
+  let reader = stream.getReader();
+
+  let { value: chunk, done: readerDone } = await reader.read();
+
+  let chunk_str = chunk ? utf8Decoder.decode(chunk, { stream: true }) : "";
+  // chunk = chunk ? utf8Decoder.decode(chunk, { stream: true }) : "";
+
+  let re = /\r\n|\n|\r/gm;
+  let startIndex = 0;
+
+  for (;;) {
+    let result = re.exec(chunk_str);
+    if (!result) {
+      if (readerDone) {
+        break;
+      }
+      let remainder = chunk_str.substring(startIndex);
+      ({ value: chunk, done: readerDone } = await reader.read());
+      chunk_str =
+        remainder + (chunk ? utf8Decoder.decode(chunk, { stream: true }) : "");
+      startIndex = re.lastIndex = 0;
+      continue;
+    }
+    yield chunk_str.substring(startIndex, result.index);
+    startIndex = re.lastIndex;
+  }
+  if (startIndex < chunk_str.length) {
+    // last line didn't end in a newline char
+    yield chunk_str.substring(startIndex);
+  }
+}
+
+
+async function fillPositionPagedBuffers(
+  raving_ctx: wasm_bindgen.RavingCtx,
+  buffers: wasm_bindgen.PagedBuffers,
+  position_tsv: Blob,
+) {
+  let position_lines = blobLineIterator(position_tsv);
+
+  const regex = /([^\s]+)\t([^\s]+)\t([^\s]+)/;
+
+  const parse_next = async () => {
+    let line = await position_lines.next();
+
+    let match = line.value?.match(regex);
+    if (!match) {
+      return null;
+    }
+
+    // let ix = parseInt(match[1]);
+    let x = parseFloat(match[2]);
+    let y = parseFloat(match[3]);
+
+    return { x, y };
+  }
+
+  let page_byte_size = buffers.page_size();
+  let page_buffer = new ArrayBuffer(Number(page_byte_size));
+  let page_view = new DataView(page_buffer);
+
+  let seg_i = 0;
+  let offset = 0;
+
+  for (;;) {
+    const p0 = await parse_next();
+    const p1 = await parse_next();
+
+    if (p0 === null || p1 === null) {
+      break;
+    }
+
+    page_view.setFloat32(offset, p0[0], true);
+    page_view.setFloat32(offset + 4, p0[1], true);
+    page_view.setFloat32(offset + 8, p1[0], true);
+    page_view.setFloat32(offset + 12, p1[1], true);
+    page_view.setUint32(offset + 16, seg_i, true);
+
+    seg_i += 1;
+    offset += 20;
+
+    if (offset >= page_byte_size) {
+      buffers.append_page(raving_ctx, new Uint8Array(page_buffer, 0, offset));
+      offset = 0;
+    }
+  }
+
+  if (offset !== 0) {
+      buffers.append_page(raving_ctx, new Uint8Array(page_buffer, 0, offset));
+  }
+
+}

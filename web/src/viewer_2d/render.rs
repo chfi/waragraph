@@ -325,11 +325,14 @@ impl PagedBuffers {
         let page_ix = self.pages.len();
 
         let buffer =
-            raving.gpu_state.create_buffer_init(&BufferInitDescriptor {
-                label: None,
-                contents: data,
-                usage: self.usage,
-            });
+            raving
+                .gpu_state
+                .device
+                .create_buffer_init(&BufferInitDescriptor {
+                    label: None,
+                    contents: data,
+                    usage: self.usage,
+                });
 
         self.pages.push(buffer);
         self.len += data.len() / self.stride as usize;
