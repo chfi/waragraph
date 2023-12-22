@@ -6,10 +6,24 @@
   </head>
   <body>
 
-    <script type="module">
-      import { testBig } from './ts/test_big_graph';
+    <div id="file-inputs" hidden>
+      <label for="layout-file">Choose a TSV layout file</label>
+      <input type="file" id="layout-file" name="layout" accept=".tsv"></input>
+      <button id="load-data">Load</button>
+    </div>
 
-      testBig();
+    <script type="module">
+      import { testBig, testGen } from './ts/test_big_graph';
+      
+      document.getElementById('file-inputs').removeAttribute('hidden');
+      document.getElementById('load-data').addEventListener('click', async (e) => {
+          let tsv_file = document.getElementById("layout-file").files[0];
+          if (tsv_file === undefined) {
+              return;
+          }
+          testBig(tsv_file);
+          document.getElementById('file-inputs').remove();
+      });
 
     </script>
   </body>

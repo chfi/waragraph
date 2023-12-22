@@ -1,5 +1,7 @@
 import init_module, * as wasm_bindgen from 'waragraph';
 
+import { graphViewerLayoutOnly } from './graph_viewer';
+
 import { vec2 } from 'gl-matrix';
 
 // const MIN_POS = -10000000;
@@ -209,7 +211,7 @@ async function fillPositionPagedBuffers(
   raving_ctx: wasm_bindgen.RavingCtx,
   buffers: wasm_bindgen.PagedBuffers,
   position_tsv: Blob,
-): { min_x: number, max_x: number, min_y: number, max_y: number } {
+): Promise<{ min_x: number; max_x: number; min_y: number; max_y: number; }> {
   let position_lines = blobLineIterator(position_tsv);
 
   let header = await position_lines.next();
@@ -282,7 +284,7 @@ async function fillPositionPagedBuffers(
 }
 
 
-export async function testBig(layout_file: File) {
+export async function testBigLocal(layout_file: File) {
   const wasm = await init_module();
   wasm_bindgen.set_panic_hook();
 
@@ -342,4 +344,14 @@ export async function testBig(layout_file: File) {
     graph_viewer.draw_to_surface(raving_ctx);
     console.warn("done again");
   }, 500);
+}
+
+
+export async function testBig(layout_file: File) {
+
+  const container = document.createElement('div');
+  container.style.setProperty('width', '100%');
+  container.style.setProperty('height', '100%');
+  document.body.append(container);
+  const graph_viewer = graphViewerLayoutOnly(layout_file, container);
 }
