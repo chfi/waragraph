@@ -261,6 +261,7 @@ impl PagedBuffers {
     pub fn len(&self) -> usize {
         self.len
     }
+
     pub fn set_len(&mut self, len: usize) {
         self.len = len;
     }

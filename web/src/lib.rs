@@ -61,6 +61,25 @@ pub struct RavingCtx {
 
 #[wasm_bindgen]
 impl RavingCtx {
+    pub fn create_empty_paged_buffers(
+        &self,
+        stride: u64,
+    ) -> Result<viewer_2d::render::PagedBuffers, JsValue> {
+        // the 2d viewer only uses vertex buffers
+        let buffers = viewer_2d::render::PagedBuffers::new_empty(
+            &self.gpu_state.device,
+            wgpu::BufferUsages::VERTEX,
+            stride,
+        )
+        .map_err(|err| {
+            JsValue::from(format!(
+                "Error creating empty paged buffers: {err:?}"
+            ))
+        })?;
+
+        Ok(buffers)
+    }
+
     pub fn create_paged_buffers(
         &self,
         stride: u64,

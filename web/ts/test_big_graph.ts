@@ -2,8 +2,11 @@ import init_module, * as wasm_bindgen from 'waragraph';
 
 import { vec2 } from 'gl-matrix';
 
-const MIN_POS = -10000000;
-const MAX_POS = 10000000;
+// const MIN_POS = -10000000;
+// const MAX_POS = 10000000;
+
+const MIN_POS = -10000;
+const MAX_POS = 10000;
 
 // const MIN_POS = -1000;
 // const MAX_POS = 1000;
@@ -63,14 +66,7 @@ function generatePositionPage(buffer: ArrayBuffer, page: number) {
 
 }
 
-export function testGen() {
-  const buf = new ArrayBuffer(4000000);
-  
-
-}
-
-export async function testBig() {
-
+export async function testGen() {
   const wasm = await init_module();
   wasm_bindgen.set_panic_hook();
 
@@ -95,9 +91,9 @@ export async function testBig() {
   // in a box of some size
 
 
-  const element_count = 128000000;
+  // const element_count = 128000000;
   // const element_count = 12800000 * 4;
-  // const element_count = 1280000;
+  const element_count = 1280000;
 
   const position_buffers = raving_ctx.create_paged_buffers(20n, element_count);
   const color_buffers = raving_ctx.create_paged_buffers(4n, element_count);
@@ -134,8 +130,8 @@ export async function testBig() {
   }
 
   {
-    const col_buf_f_array = new Float32Array(col_page_cap);
-    col_buf_f_array.fill(0xFFAAAAFF);
+    const col_buf_f_array = new Uint32Array(col_page_cap);
+    col_buf_f_array.fill(0xFF0000FF);
 
     console.warn("uploading color data...");
     for (let page_ix = 0; page_ix < color_buffers.page_count(); page_ix++) {
@@ -213,8 +209,10 @@ async function fillPositionPagedBuffers(
   raving_ctx: wasm_bindgen.RavingCtx,
   buffers: wasm_bindgen.PagedBuffers,
   position_tsv: Blob,
-) {
+): { min_x: number, max_x: number, min_y: number, max_y: number } {
   let position_lines = blobLineIterator(position_tsv);
+
+  let header = await position_lines.next();
 
   const regex = /([^\s]+)\t([^\s]+)\t([^\s]+)/;
 
@@ -240,6 +238,11 @@ async function fillPositionPagedBuffers(
   let seg_i = 0;
   let offset = 0;
 
+  let min_x = Infinity;
+  let min_y = Infinity;
+  let max_x = -Infinity;
+  let max_y = -Infinity;
+
   for (;;) {
     const p0 = await parse_next();
     const p1 = await parse_next();
@@ -248,23 +251,95 @@ async function fillPositionPagedBuffers(
       break;
     }
 
-    page_view.setFloat32(offset, p0[0], true);
-    page_view.setFloat32(offset + 4, p0[1], true);
-    page_view.setFloat32(offset + 8, p1[0], true);
-    page_view.setFloat32(offset + 12, p1[1], true);
+    min_x = Math.min(min_x, p0.x, p1.x);
+    min_y = Math.min(min_y, p0.y, p1.y);
+
+    max_x = Math.max(max_x, p0.x, p1.x);
+    max_y = Math.max(max_y, p0.y, p1.y);
+
+    page_view.setFloat32(offset, p0.x, true);
+    page_view.setFloat32(offset + 4, p0.y, true);
+    page_view.setFloat32(offset + 8, p1.x, true);
+    page_view.setFloat32(offset + 12, p1.y, true);
     page_view.setUint32(offset + 16, seg_i, true);
 
     seg_i += 1;
     offset += 20;
 
     if (offset >= page_byte_size) {
+      console.warn(`appending page, offset ${offset}`);
       buffers.append_page(raving_ctx, new Uint8Array(page_buffer, 0, offset));
       offset = 0;
     }
   }
 
   if (offset !== 0) {
+      console.warn(`closing with appending page, offset ${offset}`);
       buffers.append_page(raving_ctx, new Uint8Array(page_buffer, 0, offset));
   }
 
+  return { min_x, min_y, max_x, max_y };
+}
+
+
+export async function testBig(layout_file: File) {
+  const wasm = await init_module();
+  wasm_bindgen.set_panic_hook();
+
+  const gpu_canvas = document.createElement('canvas');
+
+  document.body.append(gpu_canvas);
+
+  const raving_ctx = await wasm_bindgen.RavingCtx.initialize_(gpu_canvas);
+
+  const position_buffers = raving_ctx.create_empty_paged_buffers(20n);
+
+  const graph_bounds = await fillPositionPagedBuffers(raving_ctx, position_buffers, layout_file);
+
+  const segment_count = position_buffers.len();
+  console.warn(`parsed ${segment_count} segment positions`);
+
+  const color_buffers = raving_ctx.create_paged_buffers(4n, segment_count);
+  const col_page_cap = color_buffers.page_capacity();
+
+  {
+    const col_buf_f_array = new Uint32Array(col_page_cap);
+    col_buf_f_array.fill(0xFF0000FF);
+
+    console.warn("uploading color data...");
+    for (let page_ix = 0; page_ix < color_buffers.page_count(); page_ix++) {
+      console.warn("  page ", page_ix);
+      let col_buf_array = new Uint8Array(col_buf_f_array.buffer);
+      color_buffers.upload_page(raving_ctx, page_ix, col_buf_array);
+    }
+
+    color_buffers.set_len(segment_count);
+
+    console.warn("color data uploaded");
+  }
+
+
+  let { min_x, max_x, min_y, max_y } = graph_bounds;
+  let width = max_x - min_x;
+  let height = max_y - min_y;
+
+  console.warn(graph_bounds);
+
+  let view = wasm_bindgen.View2D.new_center_size(
+    min_x + width / 2,
+    min_y + height / 2,
+    width,
+    height,
+  );
+
+  const graph_viewer = wasm_bindgen.GraphViewer.new_with_buffers(raving_ctx, position_buffers, color_buffers, gpu_canvas, view);
+
+  graph_viewer.draw_to_surface(raving_ctx);
+
+  console.warn("done");
+
+  window.setTimeout(() => {
+    graph_viewer.draw_to_surface(raving_ctx);
+    console.warn("done again");
+  }, 500);
 }
