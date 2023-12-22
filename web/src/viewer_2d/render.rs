@@ -15,16 +15,36 @@ use wasm_bindgen::prelude::*;
 use crate::color::ColorMap;
 
 #[wasm_bindgen]
-#[derive(Clone)]
+// #[derive(Clone)]
 pub struct PagedBuffers {
     page_size: u64, // bytes
     stride: u64,    // bytes
     len: usize,
 
-    pages: Arc<Vec<wgpu::Buffer>>,
+    // pages: Arc<Vec<wgpu::Buffer>>,
+    pages: Vec<wgpu::Buffer>,
+    usage: wgpu::BufferUsages,
 }
 
 impl PagedBuffers {
+    pub fn new_empty(
+        device: &wgpu::Device,
+        mut usage: wgpu::BufferUsages,
+        stride: u64,
+    ) -> Result<Self> {
+        let max_size = device.limits().max_buffer_size;
+        let page_size = max_size / stride;
+
+        Ok(Self {
+            page_size,
+            stride,
+            len: 0,
+
+            pages: vec![],
+            usage,
+        })
+    }
+
     pub fn new(
         device: &wgpu::Device,
         mut usage: wgpu::BufferUsages,
@@ -66,13 +86,14 @@ impl PagedBuffers {
             pages.push(buffer);
         }
 
-        let pages = Arc::new(pages);
+        // let pages = Arc::new(pages);
 
         let result = Self {
             page_size,
             stride,
-            pages,
             len: 0,
+            pages,
+            usage,
         };
 
         assert!(result.capacity() >= desired_capacity);
@@ -141,7 +162,8 @@ impl PagedBuffers {
         Ok(())
     }
 
-    pub fn pages(&self) -> &Arc<Vec<wgpu::Buffer>> {
+    // pub fn pages(&self) -> &Arc<Vec<wgpu::Buffer>> {
+    pub fn pages(&self) -> &[wgpu::Buffer] {
         &self.pages
     }
 
@@ -282,6 +304,37 @@ impl PagedBuffers {
                     "Error uploading to paged buffers: {err:?}"
                 ))
             })
+    }
+
+    #[cfg(target_arch = "wasm32")]
+    #[wasm_bindgen(js_name = append_page)]
+    pub fn append_page_web(
+        &mut self,
+        raving: &crate::RavingCtx,
+        data: &[u8],
+    ) -> Result<bool, JsValue> {
+        if data.len() > self.page_size() as usize {
+            return Err(js_sys::Error::new(&format!(
+                "Attempted to upload {} bytes to a page of size {}",
+                data.len(),
+                self.page_size()
+            ))
+            .into());
+        }
+
+        let page_ix = self.pages.len();
+
+        let buffer =
+            raving.gpu_state.create_buffer_init(&BufferInitDescriptor {
+                label: None,
+                contents: data,
+                usage: self.usage,
+            });
+
+        self.pages.push(buffer);
+        self.len += data.len() / self.stride as usize;
+
+        Ok(true)
     }
 
     // pub fn upload_pages(&mut self, pages: js_sys::Array) {
