@@ -72,7 +72,7 @@ impl View1D {
     }
 
     pub fn translate(&mut self, delta: f64) {
-        let len = self.len();
+        let _len = self.len();
 
         self.range.start += delta;
         self.range.end += delta;

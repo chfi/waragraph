@@ -1,7 +1,7 @@
 use raving_wgpu::wgpu;
 use wgpu::util::DeviceExt;
 
-use waragraph_core::graph::{Bp, Node};
+use waragraph_core::{Bp, Node};
 
 #[derive(Debug)]
 pub struct BufferDesc {

@@ -1,6 +1,6 @@
 [workspace]
 members = [
-    "lib",
+    "core",
     "web",
     "server",
     # "app",
@@ -28,7 +28,7 @@ raving-wgpu = { git = "https://github.com/chfi/raving-wgpu", branch = "simplify"
 
 [workspace.dependencies.waragraph-core]
 path = "./core"
-
+version = "0.1.0"
 
 [profile.dev]
 opt-level = 3

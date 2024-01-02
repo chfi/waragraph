@@ -2,12 +2,12 @@ use anyhow::Result;
 
 use raving_wgpu::wgpu;
 
-use std::collections::HashMap;
+
 use std::io::{prelude::*, BufReader};
 use ultraviolet::Vec2;
-use wgpu::util::DeviceExt;
 
-use waragraph_core::graph::{Node, PathIndex};
+
+use waragraph_core::Node;
 
 pub struct NodePositions {
     pub bounds: (Vec2, Vec2),

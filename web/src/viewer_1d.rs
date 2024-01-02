@@ -1,21 +1,14 @@
-use std::{
-    collections::{BTreeMap, HashSet},
-    sync::Arc,
-};
+use std::collections::HashSet;
 
 use arrow2::{array::PrimitiveArray, offset::OffsetsBuffer};
-use waragraph_core::graph::{Bp, Node, PathId, PathIndex};
 
-use wasm_bindgen::{prelude::*, Clamped};
-use web_sys::{
-    CanvasRenderingContext2d, HtmlCanvasElement, ImageData, OffscreenCanvas,
-};
+use wasm_bindgen::prelude::*;
+use web_sys::{ImageData, OffscreenCanvas};
 
-use crate::{ArrowGFAWrapped, PathIndexWrapped};
+use crate::ArrowGFAWrapped;
 
 use self::view::View1D;
 
-pub mod sampler;
 pub mod view;
 
 #[wasm_bindgen(module = "/js/util.js")]
@@ -223,7 +216,7 @@ impl PathViewer {
         let mut pixel_data: Vec<u8> = vec![0; bin_count * 4];
         let pixels = pixel_data.chunks_exact_mut(4);
 
-        let bin_subset = &self.bins[..bin_count];
+        let _bin_subset = &self.bins[..bin_count];
 
         for (color, val) in pixels.zip(&self.bins) {
             let c = (self.color_map)(*val);
@@ -471,17 +464,17 @@ impl CoordSys {
         let e_i = *indices.end();
 
         // `indices` is inclusive
-        let len = (e_i + 1) - s_i;
+        let _len = (e_i + 1) - s_i;
         // let data_slice = data.sliced(s_i, len);
 
         let bp_range_len = (*bp_range.end() + 1) - *bp_range.start();
-        let bin_size = bp_range_len / bins.len() as u64;
+        let _bin_size = bp_range_len / bins.len() as u64;
 
         let make_bin_range_f = {
             let bin_size = (bp_range_len as f64) / bins.len() as f64;
             let bin_count = bins.len();
             let s = *bp_range.start() as f64;
-            let e = (*bp_range.end() + 1) as f64;
+            let _e = (*bp_range.end() + 1) as f64;
 
             move |bin_i: usize| -> std::ops::Range<f64> {
                 let i = (bin_i.min(bin_count - 1)) as f64;
@@ -491,7 +484,7 @@ impl CoordSys {
             }
         };
 
-        let bin_count = bins.len();
+        let _bin_count = bins.len();
 
         let mut data_iter = CoordSysDataIter::new(
             &self,
@@ -518,10 +511,10 @@ impl CoordSys {
             let data_left = current_data.bp_start as f64;
             let data_right = current_data.bp_end as f64;
 
-            let bin_i = current_bin.0;
+            let _bin_i = current_bin.0;
 
             loop {
-                let bin_left = cur_bin_range.start;
+                let _bin_left = cur_bin_range.start;
                 let bin_right = cur_bin_range.end;
                 if data_left >= bin_right {
                     // increment bin
@@ -570,7 +563,7 @@ impl CoordSys {
             }
         }
 
-        for (i, (value, size)) in std::iter::zip(bins, bin_sizes).enumerate() {
+        for (_i, (value, size)) in std::iter::zip(bins, bin_sizes).enumerate() {
             *value = *value / size;
         }
     }
@@ -852,7 +845,7 @@ pub fn hashed_rgb(name: &str) -> [u8; 3] {
 
 #[wasm_bindgen]
 pub fn path_name_hash_color_obj(path_name: &str) -> JsValue {
-    let mut color: JsValue = js_sys::Object::new().into();
+    let color: JsValue = js_sys::Object::new().into();
 
     let [r, g, b] = path_name_hash_color(path_name);
 

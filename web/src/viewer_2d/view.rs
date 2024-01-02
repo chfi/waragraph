@@ -1,5 +1,5 @@
 use ultraviolet::{
-    Isometry2, Isometry3, Mat3, Mat4, Rotor2, Rotor3, Similarity2, Vec2, Vec3,
+    Isometry2, Isometry3, Mat3, Mat4, Rotor2, Rotor3, Vec2, Vec3,
 };
 
 use wasm_bindgen::prelude::*;
@@ -147,7 +147,7 @@ impl View2D {
     /// `dims`.
     pub fn to_viewport_matrix(&self, dims: Vec2) -> Mat3 {
         let matrix = self.to_matrix();
-        let [c0, c1, c2, c3] = matrix.as_component_array();
+        let [c0, c1, _c2, c3] = matrix.as_component_array();
 
         let c0 = Vec3::new(c0.x, c0.y, c1.w);
         let c1 = Vec3::new(c1.x, c1.y, c1.w);
@@ -202,7 +202,7 @@ fn expand_with_fixpoint(a: f32, b: f32, t: f32, s: f32) -> (f32, f32) {
     let p_a = t;
     let p_b = 1.0 - t;
 
-    let mut l_ = l * s;
+    let l_ = l * s;
 
     /* // NB: this should probably be handled elsewhere
         // just so things don't implode

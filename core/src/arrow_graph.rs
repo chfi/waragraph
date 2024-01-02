@@ -1,19 +1,12 @@
-use ahash::{AHashMap, AHashSet};
 use arrow2::{
-    array::{
-        BinaryArray, ListArray, MutableListArray, MutablePrimitiveArray,
-        PrimitiveArray, StructArray, TryPush, UInt32Array, Utf8Array,
-    },
-    buffer::Buffer,
+    array::{BinaryArray, StructArray, UInt32Array, Utf8Array},
     chunk::Chunk,
     datatypes::{DataType, Field, Metadata, Schema},
-    offset::{Offsets, OffsetsBuffer},
+    offset::Offsets,
 };
 use smallvec::SmallVec;
 
-use std::io::prelude::*;
-
-use crate::graph::{Bp, Edge, Node, OrientedNode, PathId};
+// use crate::types::{Bp, Edge, Node, OrientedNode, PathId};
 
 pub mod parser;
 
@@ -89,7 +82,6 @@ impl SegmentPathMatrix {
             }
         };
 
-        let t0 = instant::now();
         for (path_i, steps) in gfa.path_steps.iter().enumerate() {
             let path_index = path_i as u32;
             // let bitset_index = path_index / 32;
@@ -100,9 +92,6 @@ impl SegmentPathMatrix {
                 insert_segment(bitmap, path_index);
             }
         }
-
-        let t1 = instant::now();
-        // log::warn!("took {} ms to iterate paths", t1 - t0);
 
         let rows = (gfa.path_steps.len() as f32 / 32.0).ceil() as usize;
         let cols = gfa.segment_count();
@@ -121,7 +110,7 @@ impl SegmentPathMatrix {
                 tri.add_triplet(row, col, value);
             }
         }
-        let t2 = instant::now();
+        let _t2 = instant::now();
         // log::warn!("took {} ms to construct sparse matrix", t2 - t1);
 
         let mat = tri.to_csc::<u32>();
@@ -231,7 +220,7 @@ impl ArrowGFA {
             .iter()
             .filter_map(|s| s)
             .enumerate()
-            .find(|&(i, name)| name == segment_name)?;
+            .find(|&(_i, name)| name == segment_name)?;
         Some(i as u32)
     }
 
@@ -492,11 +481,11 @@ impl ArrowGFA {
         }
 
         {
-            let schema = Self::paths_schema();
+            let _schema = Self::paths_schema();
 
-            let names = self.path_names.clone().boxed();
+            let _names = self.path_names.clone().boxed();
             // let steps = ListArray (use arrow2::array::List
-            let steps_list_offsets: Offsets<i32> = Offsets::try_from_lengths(
+            let _steps_list_offsets: Offsets<i32> = Offsets::try_from_lengths(
                 self.path_steps.iter().map(|s| s.len()),
             )
             .unwrap();

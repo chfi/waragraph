@@ -1,19 +1,17 @@
-use ahash::{AHashMap, AHashSet, HashMap};
+use ahash::{AHashMap, HashMap};
 use arrow2::{
     array::{
-        BinaryArray, ListArray, MutableListArray, MutablePrimitiveArray,
-        PrimitiveArray, StructArray, TryPush, UInt32Array, Utf8Array,
+        BinaryArray, UInt32Array, Utf8Array,
     },
     buffer::Buffer,
-    chunk::Chunk,
-    datatypes::{DataType, Field, Metadata, Schema},
-    offset::{Offsets, OffsetsBuffer},
+    datatypes::{DataType},
+    offset::{OffsetsBuffer},
 };
 use smallvec::SmallVec;
 
 use std::io::prelude::*;
 
-use crate::graph::{Bp, Edge, Node, OrientedNode, PathId};
+// use crate::{Bp, Edge, Node, OrientedNode, PathId};
 
 use super::ArrowGFA;
 
@@ -89,7 +87,7 @@ pub fn arrow_graph_from_gfa<S: BufRead + Seek>(
         seg_name_offsets.push(name_offset as i32);
         seg_name_str.extend(name);
 
-        let Some(opt_fields) = opt else {
+        let Some(_opt_fields) = opt else {
             continue;
         };
     }
@@ -156,7 +154,7 @@ pub fn arrow_graph_from_gfa<S: BufRead + Seek>(
 
         let mut fields = line.split(|&c| c == b'\t');
 
-        let Some((from_handle, to_handle, overlap, opt)) =
+        let Some((from_handle, to_handle, _overlap, opt)) =
             fields.next().and_then(|_type| {
                 let from_name = fields.next()?;
                 let from_is_rev = fields.next()? == b"-";
@@ -223,7 +221,7 @@ pub fn arrow_graph_from_gfa<S: BufRead + Seek>(
 
         let mut fields = line.split(|&c| c == b'\t');
 
-        let Some((path_name, seg_names, overlaps, opt)) =
+        let Some((path_name, seg_names, _overlaps, _opt)) =
             fields.next().and_then(|_type| {
                 let path_name = fields.next()?;
                 let seg_names = fields.next()?;
@@ -242,7 +240,7 @@ pub fn arrow_graph_from_gfa<S: BufRead + Seek>(
 
         let mut step_vec = Vec::new();
 
-        for (step_index, step_str) in
+        for (_step_index, step_str) in
             seg_names.split(|&c| c == b',').enumerate()
         {
             let (seg_name, seg_orient) = step_str.split_at(step_str.len() - 1);

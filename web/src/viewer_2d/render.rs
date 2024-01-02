@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use anyhow::{Context, Result};
+use anyhow::{Result};
 use raving_wgpu::{egui, wgpu};
 // use egui::mutex::Mutex;
 
@@ -29,7 +29,7 @@ pub struct PagedBuffers {
 impl PagedBuffers {
     pub fn new_empty(
         device: &wgpu::Device,
-        mut usage: wgpu::BufferUsages,
+        usage: wgpu::BufferUsages,
         stride: u64,
     ) -> Result<Self> {
         let max_size = device.limits().max_buffer_size;
@@ -323,7 +323,7 @@ impl PagedBuffers {
             .into());
         }
 
-        let page_ix = self.pages.len();
+        let _page_ix = self.pages.len();
 
         let buffer =
             raving
@@ -433,7 +433,7 @@ impl PolylineRenderer {
         color_buffers: PagedBuffers,
         // max_segments: usize,
     ) -> Result<Self> {
-        let limits = device.limits();
+        let _limits = device.limits();
 
         let shader_src = include_str!(concat!(
             env!("CARGO_MANIFEST_DIR"),
@@ -779,12 +779,12 @@ impl PolylineRenderer {
     }
 
     pub(super) fn draw_in_pass_with_buffers_indexed<'a: 'b, 'b, 'c: 'b>(
-        state: &'a State,
-        pass: &mut wgpu::RenderPass<'b>,
-        viewport: egui::Rect,
-        vertex_buffers: &'c PagedBuffers,
-        data_buffers: &'c PagedBuffers,
-        index_buffers: &'c PagedBuffers,
+        _state: &'a State,
+        _pass: &mut wgpu::RenderPass<'b>,
+        _viewport: egui::Rect,
+        _vertex_buffers: &'c PagedBuffers,
+        _data_buffers: &'c PagedBuffers,
+        _index_buffers: &'c PagedBuffers,
     ) {
         todo!();
     }
@@ -826,7 +826,7 @@ impl PolylineRenderer {
         pass: &mut wgpu::RenderPass<'b>,
         viewport: egui::Rect,
     ) {
-        use web_sys::console;
+        
         // iterate through the pages "correctly", setting the vertex
         // buffer & bind groups, and then drawing
 

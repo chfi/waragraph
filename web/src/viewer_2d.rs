@@ -1,47 +1,38 @@
-// use crate::annotations::{AnnotationId, GlobalAnnotationId};
-// use crate::app::settings_menu::SettingsWindow;
-// use crate::app::{AppWindow, SharedState};
-use crate::color::ColorMap;
-use crate::context::{ContextQuery, ContextState};
-use crate::{ArrowGFAWrapped, RavingCtx, SegmentPositions, SharedState};
-// use crate::gui::annotations::AnnotationListWidget;
 use crate::util::BufferDesc;
-// use crate::viewer_2d::config::Config;
+use crate::{ArrowGFAWrapped, RavingCtx, SegmentPositions};
 
 use raving_wgpu::egui;
 use raving_wgpu::wgpu;
 use waragraph_core::arrow_graph::ArrowGFA;
-use web_sys::OffscreenCanvas;
 
-use std::collections::{HashMap, HashSet};
-use std::num::NonZeroU32;
+
+use std::collections::HashMap;
 use std::path::PathBuf;
-use std::sync::Arc;
 
-use raving_wgpu::camera::DynamicCamera2d;
+// use raving_wgpu::camera::DynamicCamera2d;
 use raving_wgpu::texture::Texture;
 
 use wgpu::BufferUsages;
 
-use raving_wgpu::graph::dfrog::{Graph, InputResource};
-use raving_wgpu::gui::EguiCtx;
-use raving_wgpu::{NodeId, State, WindowState};
+use raving_wgpu::graph::dfrog::InputResource;
+// use raving_wgpu::gui::EguiCtx;
+// use raving_wgpu::{NodeId, State, WindowState};
 
-use wgpu::util::{BufferInitDescriptor, DeviceExt};
+// use wgpu::util::{BufferInitDescriptor, DeviceExt};
 
 use anyhow::Result;
 
 use ultraviolet::*;
 
-use waragraph_core::graph::{Bp, Node, PathIndex};
+use waragraph_core::{Node};
 
-use wasm_bindgen::{prelude::*, Clamped};
+use wasm_bindgen::prelude::*;
 
 pub mod render;
 
 // pub mod annotations;
 // pub mod config;
-pub mod control;
+// pub mod control;
 // pub mod gui;
 pub mod layout;
 // pub mod util;
@@ -49,9 +40,7 @@ pub mod view;
 
 // pub mod lyon_path_renderer;
 
-use control::ViewControlWidget;
 
-use layout::NodePositions;
 
 // use self::annotations::AnnotationLayer;
 use self::render::PolylineRenderer;
@@ -105,7 +94,7 @@ impl GraphViewer {
         log::warn!("seg count??? {seg_count}");
         // let mut node_data = vec![1f32; graph.segment_count()];
 
-        let format = wgpu::TextureFormat::Rgba8UnormSrgb;
+        let _format = wgpu::TextureFormat::Rgba8UnormSrgb;
 
         log::warn!("initializing graph viewer");
         let mut viewer = GraphViewer::initialize(
@@ -205,9 +194,9 @@ impl GraphViewer {
 
         let color = 0xAAAAAAFFu32;
         // let color = 0xFF22BBFFu32;
-        let mut node_data = vec![color; graph.segment_count()];
+        let node_data = vec![color; graph.segment_count()];
 
-        let format = wgpu::TextureFormat::Rgba8UnormSrgb;
+        let _format = wgpu::TextureFormat::Rgba8UnormSrgb;
 
         log::warn!("initializing graph viewer");
         let mut viewer = GraphViewer::initialize(
@@ -288,7 +277,7 @@ impl GraphViewer {
         x: f32,
         y: f32,
     ) -> Result<u32, JsValue> {
-        if let Some((node, offset)) = self
+        if let Some((node, _offset)) = self
             .geometry_buffers
             .lookup(&raving.gpu_state.device, [x, y])
         {
@@ -399,17 +388,17 @@ impl GraphViewer {
 
         let sampler = crate::color::create_linear_sampler(&state.device);
 
-        let dimension = wgpu::TextureDimension::D1;
-        let format = wgpu::TextureFormat::Rgba8Unorm;
+        let _dimension = wgpu::TextureDimension::D1;
+        let _format = wgpu::TextureFormat::Rgba8Unorm;
 
-        let label = format!("Texture - Color Scheme <TEMP>");
+        let _label = format!("Texture - Color Scheme <TEMP>");
 
-        let usage = wgpu::TextureUsages::TEXTURE_BINDING
+        let _usage = wgpu::TextureUsages::TEXTURE_BINDING
             | wgpu::TextureUsages::COPY_DST;
 
         let color_scheme = crate::color::spectral_color_scheme();
 
-        let pixel_data: Vec<_> = color_scheme
+        let _pixel_data: Vec<_> = color_scheme
             .iter()
             .map(|&[r, g, b, a]| {
                 [
@@ -423,7 +412,7 @@ impl GraphViewer {
 
         let width = color_scheme.len() as u32;
 
-        let size = wgpu::Extent3d {
+        let _size = wgpu::Extent3d {
             width,
             height: 1,
             depth_or_array_layers: 1,
@@ -506,17 +495,17 @@ impl GraphViewer {
 
         let sampler = crate::color::create_linear_sampler(&state.device);
 
-        let dimension = wgpu::TextureDimension::D1;
-        let format = wgpu::TextureFormat::Rgba8Unorm;
+        let _dimension = wgpu::TextureDimension::D1;
+        let _format = wgpu::TextureFormat::Rgba8Unorm;
 
-        let label = format!("Texture - Color Scheme <TEMP>");
+        let _label = format!("Texture - Color Scheme <TEMP>");
 
-        let usage = wgpu::TextureUsages::TEXTURE_BINDING
+        let _usage = wgpu::TextureUsages::TEXTURE_BINDING
             | wgpu::TextureUsages::COPY_DST;
 
         let color_scheme = crate::color::spectral_color_scheme();
 
-        let pixel_data: Vec<_> = color_scheme
+        let _pixel_data: Vec<_> = color_scheme
             .iter()
             .map(|&[r, g, b, a]| {
                 [
@@ -530,7 +519,7 @@ impl GraphViewer {
 
         let width = color_scheme.len() as u32;
 
-        let size = wgpu::Extent3d {
+        let _size = wgpu::Extent3d {
             width,
             height: 1,
             depth_or_array_layers: 1,
@@ -604,63 +593,6 @@ impl GraphViewer {
         Ok(())
     }
 }
-
-pub struct Viewer2D {
-    segment_renderer: PolylineRenderer,
-
-    node_positions: Arc<NodePositions>,
-    vertex_buffer: wgpu::Buffer,
-    instance_count: usize,
-
-    view: View2D,
-
-    transform_uniform: wgpu::Buffer,
-    // vert_config: wgpu::Buffer,
-    pub(crate) geometry_bufs: GeometryBuffers,
-
-    // render_graph: Graph,
-    // draw_node: NodeId,
-    shared: SharedState,
-
-    // annotation_layer: AnnotationLayer,
-    active_viz_data_key: String,
-    color_mapping: crate::util::Uniform<ColorMap, 16>,
-    data_buffer: wgpu::Buffer,
-
-    view_control_widget: control::ViewControlWidget,
-
-    pub msg_tx: flume::Sender<control::Msg>,
-    msg_rx: flume::Receiver<control::Msg>,
-
-    // cfg: Config,
-    // annotation_list_widget: AnnotationListWidget,
-    color_format: wgpu::TextureFormat,
-}
-
-/*
-fn draw_annotations(
-    cache: &[(Vec2, String)],
-    painter: &egui::Painter,
-    window_dims: Vec2,
-    camera: &DynamicCamera2d,
-) {
-    for (pos, text) in cache.iter() {
-        let norm_p = camera.transform_world_to_screen(*pos);
-        let size = window_dims;
-        let p = norm_p * size;
-
-        let anchor = egui::Align2::CENTER_CENTER;
-        let font = egui::FontId::proportional(16.0);
-        painter.text(
-            egui::pos2(p.x, p.y),
-            anchor,
-            text,
-            font,
-            egui::Color32::WHITE,
-        );
-    }
-}
-*/
 
 pub(crate) struct GeometryBuffers {
     dims: [u32; 2],
@@ -772,7 +704,7 @@ impl GeometryBuffers {
         };
 
         let aligned_width = Self::aligned_image_width(self.dims[0]);
-        let aligned_extent = wgpu::Extent3d {
+        let _aligned_extent = wgpu::Extent3d {
             width: aligned_width,
             ..extent
         };
@@ -849,7 +781,7 @@ impl GeometryBuffers {
     fn allocate(
         state: &raving_wgpu::State,
         dims: [u32; 2],
-        color_format: wgpu::TextureFormat,
+        _color_format: wgpu::TextureFormat,
     ) -> Result<Self> {
         use wgpu::TextureUsages;
 

@@ -1,4 +1,3 @@
-// pub mod app;
 pub mod color;
 pub mod context;
 pub mod util;
@@ -6,11 +5,7 @@ pub mod util;
 pub mod viewer_1d;
 pub mod viewer_2d;
 
-use std::{collections::HashMap, sync::Arc};
-
 // use app::resource::GraphDataCache;
-use color::{ColorSchemeId, ColorStore};
-use parking_lot::RwLock;
 
 use waragraph_core::arrow_graph::{ArrowGFA, PathIndex};
 use wasm_bindgen_futures::JsFuture;
@@ -18,10 +13,6 @@ use wasm_bindgen_futures::JsFuture;
 use ultraviolet::Vec2;
 
 use wasm_bindgen::prelude::*;
-
-use crate::viewer_1d::CoordSys;
-
-use crate::viewer_2d::layout::NodePositions;
 
 #[wasm_bindgen(module = "/js/util.js")]
 extern "C" {
@@ -32,23 +23,6 @@ extern "C" {
         y1: f32,
     ) -> JsValue;
 
-}
-
-#[derive(Clone)]
-pub struct SharedState {
-    pub graph: Arc<waragraph_core::graph::PathIndex>,
-
-    // pub shared: Arc<RwLock<AnyArcMap>>,
-    // pub graph_data_cache: Arc<GraphDataCache>,
-
-    // pub annotations: Arc<RwLock<AnnotationStore>>,
-    pub colors: Arc<RwLock<ColorStore>>,
-
-    // pub workspace: Arc<RwLock<Workspace>>,
-    // gfa_path: Arc<PathBuf>,
-    // tsv_path: Option<Arc<RwLock<PathBuf>>>,
-    pub data_color_schemes: Arc<RwLock<HashMap<String, ColorSchemeId>>>,
-    // pub app_msg_send: tokio::sync::mpsc::Sender<AppMsg>,
 }
 
 #[wasm_bindgen]
@@ -299,7 +273,7 @@ impl SegmentPositions {
 
             if let Some(last_q) = points.last().copied() {
                 let delta = q.xy() - last_q;
-                let dist_sq = delta.mag_sq();
+                let _dist_sq = delta.mag_sq();
 
                 if delta.mag_sq() >= tol_sq {
                     points.push(q.xy());
@@ -530,7 +504,7 @@ impl PathIndexWrapped {
         if let Some(bitmap) =
             self.0.segment_path_matrix.paths_on_segment(segment)
         {
-            let mut paths = Vec::new();
+            let paths = Vec::new();
 
             for (ix, &bits) in bitmap.iter() {
                 log::warn!("{ix} - {:b}", bits);
