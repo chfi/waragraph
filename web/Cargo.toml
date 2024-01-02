@@ -9,15 +9,19 @@ edition = "2021"
 crate-type = ["cdylib"]
 
 [dependencies]
-raving-wgpu = { git = "https://github.com/chfi/raving-wgpu", branch = "simplify" }
-# raving-wgpu = { path = "../../raving-wgpu" }
+waragraph-core.workspace = true
 
+# raving-wgpu = { path = "../../raving-wgpu" }
+raving-wgpu.workspace = true
 
 wasm-bindgen = "0.2"
+
 # wasm-bindgen = { git = "https://github.com/rustwasm/wasm-bindgen.git", rev = "2e9ff5dfa3f11415f0efe9b946ee2734500e9ee3" }
 # wasm-bindgen-shared = { git = "https://github.com/rustwasm/wasm-bindgen.git", rev = "2e9ff5dfa3f11415f0efe9b946ee2734500e9ee3" }
+
 wasm-bindgen-futures = "0.4"
 js-sys = "0.3"
+
 web-sys = { version = "0.3", features = [
 "Blob",
 "CanvasRenderingContext2d",
@@ -30,27 +34,24 @@ web-sys = { version = "0.3", features = [
 "Response",
 "Window",
 ]}
-egui-winit = { version = "0.22", default-features = false }
-egui_tiles = "0.1"
-log = "0.4"
 
-parking_lot = "0.12.1"
+log.workspace = true
 
-bytemuck = { version = "1.4", features = ["derive"] }
+parking_lot.workspace = true
+
+bytemuck = { workspace = true, features = ["derive"] }
 
 colorous = "1.0"
 palette = { version = "0.6", features = ["bytemuck"] }
 
-waragraph-core = { path = "../lib" }
+anyhow.workspace = true
 
-anyhow = "1.0"
-
-mint = "0.5"
-ultraviolet = { version = "0.9", features = ["bytemuck", "f64", "mint"]}
+mint.workspace = true
+ultraviolet.workspace = true
 
 flume = "0.10"
 crossbeam-utils = "0.8.16"
-bimap = "0.6.3"
+bimap.workspace = true
 sha2 = "0.10.7"
 instant = { version = "0.1.12", features = ["wasm-bindgen"] }
 
@@ -61,7 +62,7 @@ console_error_panic_hook = "0.1.7"
 
 async-trait = "0.1"
 
-arrow2 = { version = "0.17.2", features = [
+arrow2 = { workspace = true, features = [
 "io_json",
 "io_ipc",
 "io_parquet",

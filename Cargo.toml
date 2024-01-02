@@ -1,11 +1,33 @@
 [workspace]
 members = [
     "lib",
-    "app",
     "web",
+    "server",
+    # "app",
 ]
 
 resolver = "2"
+
+
+[workspace.dependencies]
+log = "0.4"
+roaring = "0.10"
+btoi = "0.4.2"
+bytemuck = "1.4"
+bimap = "0.6"
+
+mint = "0.5"
+ultraviolet = { version = "0.9", features = ["bytemuck", "f64", "mint"]}
+
+anyhow = "1.0"
+
+arrow2 = "0.17.2"
+parking_lot = "0.12.1"
+
+raving-wgpu = { git = "https://github.com/chfi/raving-wgpu", branch = "simplify" }
+
+[workspace.dependencies.waragraph-core]
+path = "./core"
 
 
 [profile.dev]

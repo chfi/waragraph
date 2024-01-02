@@ -6,18 +6,22 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-log = "0.4"
-roaring = "0.10"
-btoi = "0.4.2"
-bytemuck = "1.4"
-bimap = "0.6"
+# log = "0.4"
+# roaring = "0.10"
+# btoi = "0.4.2"
+# bytemuck = "1.4"
+# bimap = "0.6"
+log.workspace = true
+roaring.workspace = true
+btoi.workspace = true
+bytemuck.workspace = true
+bimap.workspace = true
 
 reunion = "0.1"
 sprs = "0.11"
 # three-edge-connected = "0.2"
 
-# arrow2 = { version = 
-arrow2 = { version = "0.17.2", features = [
+arrow2 = { workspace = true, features = [
 "io_json",
 "io_ipc",
 # "io_ipc_compression",

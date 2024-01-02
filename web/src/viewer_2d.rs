@@ -18,12 +18,10 @@ use std::num::NonZeroU32;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use egui_winit::winit;
 use raving_wgpu::camera::DynamicCamera2d;
 use raving_wgpu::texture::Texture;
 
 use wgpu::BufferUsages;
-use winit::event::WindowEvent;
 
 use raving_wgpu::graph::dfrog::{Graph, InputResource};
 use raving_wgpu::gui::EguiCtx;

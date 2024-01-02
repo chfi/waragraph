@@ -12,8 +12,6 @@ use std::{collections::HashMap, sync::Arc};
 use color::{ColorSchemeId, ColorStore};
 use parking_lot::RwLock;
 
-use egui_winit::winit;
-use raving_wgpu::gui::EguiCtx;
 use waragraph_core::arrow_graph::{ArrowGFA, PathIndex};
 use wasm_bindgen_futures::JsFuture;
 
