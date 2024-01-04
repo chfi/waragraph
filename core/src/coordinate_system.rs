@@ -1,4 +1,7 @@
+use ahash::HashSet;
 use arrow2::{array::PrimitiveArray, offset::OffsetsBuffer};
+
+use crate::arrow_graph::ArrowGFA;
 
 // #[cfg(target = "wasm32")]
 // #[wasm_bindgen]
@@ -159,6 +162,57 @@ impl CoordSys {
 
         for (_i, (value, size)) in std::iter::zip(bins, bin_sizes).enumerate() {
             *value = *value / size;
+        }
+    }
+
+    pub fn global_from_arrow_gfa(graph: &ArrowGFA) -> Self {
+        let node_count = graph.segment_count();
+
+        let node_order = arrow2::array::UInt32Array::from_iter(
+            (0..node_count as u32).map(Some),
+        );
+
+        let step_offsets = graph.segment_sequences_array().offsets().clone();
+
+        Self {
+            node_order,
+            step_offsets,
+        }
+    }
+
+    pub fn path_from_arrow_gfa(graph: &ArrowGFA, path_index: u32) -> Self {
+        let mut seen_nodes = HashSet::default();
+
+        let steps = &graph.path_steps(path_index);
+
+        let mut node_order = Vec::with_capacity(steps.len());
+        let mut step_offsets = Vec::with_capacity(steps.len());
+
+        let mut offset = 0i32;
+        step_offsets.push(offset);
+
+        for &handle in steps.values_iter() {
+            let node = handle >> 1;
+            let seg_size = graph.segment_len(node);
+            offset += seg_size as i32;
+
+            if !seen_nodes.contains(&node) {
+                node_order.push(node);
+                seen_nodes.insert(node);
+
+                step_offsets.push(offset);
+            }
+        }
+
+        node_order.shrink_to_fit();
+        step_offsets.shrink_to_fit();
+
+        let node_order = arrow2::array::UInt32Array::from_vec(node_order);
+        let step_offsets = OffsetsBuffer::try_from(step_offsets).unwrap();
+
+        Self {
+            node_order,
+            step_offsets,
         }
     }
 }
