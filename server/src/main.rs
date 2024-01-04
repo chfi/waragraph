@@ -5,13 +5,9 @@ use rocket::tokio::sync::RwLock;
 use rocket::State;
 use rocket::{get, launch, routes};
 
+use sprs::CsVec;
 use waragraph_core::arrow_graph::{ArrowGFA, PathIndex};
 use waragraph_core::coordinate_system::CoordSys;
-
-#[get("/world")]
-fn world() -> &'static str {
-    "hello world"
-}
 
 // #[get("/args")]
 // fn args_route(args_s: &State<ArgsVec>) -> String {
@@ -24,10 +20,11 @@ fn world() -> &'static str {
 // fn coord_sys_path_name(path_name: String) {
 // }
 
-#[get("/sample_path_data/<path_name>/<dataset>/<bin_count>")]
+#[get("/path_data/<path_name>/<dataset>/<bin_count>")]
 async fn sample_path_data(
     graph: &State<Arc<ArrowGFA>>,
     cs_cache: &State<CoordSysCache>,
+    dataset_cache: &State<DatasetsCache>,
     path_name: &str,
     dataset: &str,
     bin_count: u32,
@@ -39,13 +36,37 @@ async fn sample_path_data(
 
     // this assumes the target coord sys is the global graph one
 
-    // "dataset" needs to provide both data buffer and color map
+    // "dataset" needs to match in size with coord sys
+    // no color is applied by the server -- the sampled data is returned
+
+    let datasets = dataset_cache.map.read().await;
+    let data = datasets.get(dataset)?;
 
     Some(())
 }
 
-// #[derive(Debug, Clone)]
-// struct ArgsVec(Vec<String>);
+// NB: this is a placeholder; the path map level is missing
+#[derive(Debug, Default)]
+struct DatasetsCache {
+    // map: RwLock<HashMap<String, Arc<Vec<f32>>>>,
+    map: RwLock<HashMap<String, Arc<sprs::CsVecI<f32, u32>>>>,
+}
+
+impl DatasetsCache {
+    async fn get_dataset(
+        &self,
+        key: &str,
+    ) -> Option<Arc<sprs::CsVecI<f32, u32>>> {
+        self.map.read().await.get(key).cloned()
+    }
+
+    async fn set_dataset(&self, key: &str, data: sprs::CsVecI<f32, u32>) {
+        self.map
+            .write()
+            .await
+            .insert(key.to_string(), Arc::new(data));
+    }
+}
 
 #[derive(Debug, Default)]
 struct CoordSysCache {
@@ -112,11 +133,30 @@ fn rocket() -> _ {
     let agfa =
         waragraph_core::arrow_graph::parser::arrow_graph_from_gfa(gfa).unwrap();
 
+    let datasets = DatasetsCache::default();
+    {
+        // let path_index = agfa
+        //     .path_name_index(path_name)
+        //     .ok_or::<JsValue>("Path not found".into())?;
+
+        let depth = agfa.path_vector_sparse_u32(0);
+
+        let n = depth.dim();
+        let (indices, data) = depth.into_raw_storage();
+        let f_data = data.into_iter().map(|v| v as f32).collect::<Vec<_>>();
+        let depth = sprs::CsVecI::new(n, indices, f_data);
+
+        datasets
+            .map
+            .blocking_write()
+            .insert("depth".to_string(), Arc::new(depth));
+    }
+
     rocket::build()
         .manage(Arc::new(agfa))
         .manage(CoordSysCache::default())
-        .mount("/hello", routes![world])
-    // .mount("/", routes![args_route])
+        .manage(datasets)
+        .mount("/sample", routes![sample_path_data])
 }
 
 // fn main() {

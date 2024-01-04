@@ -18,7 +18,7 @@ bytemuck.workspace = true
 bimap.workspace = true
 
 reunion = "0.1"
-sprs = "0.11"
+sprs.workspace = true
 # three-edge-connected = "0.2"
 
 arrow2 = { workspace = true, features = [

@@ -6,8 +6,10 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-waragraph-core.workspace = true
-
 rocket = { version = "0.5" }
+
+waragraph-core.workspace = true
+sprs.workspace = true
+arrow2.workspace = true
 
 
