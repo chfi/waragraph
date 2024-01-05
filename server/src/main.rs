@@ -8,6 +8,7 @@ use rocket::{get, launch, routes};
 use sprs::CsVec;
 use waragraph_core::arrow_graph::{ArrowGFA, PathIndex};
 use waragraph_core::coordinate_system::CoordSys;
+use waragraph_core::PathId;
 
 // #[get("/args")]
 // fn args_route(args_s: &State<ArgsVec>) -> String {
@@ -20,51 +21,73 @@ use waragraph_core::coordinate_system::CoordSys;
 // fn coord_sys_path_name(path_name: String) {
 // }
 
-#[get("/path_data/<path_name>/<dataset>/<bin_count>")]
+#[get("/path_data/<path_name>/<dataset>/<left>/<right>/<bin_count>")]
 async fn sample_path_data(
     graph: &State<Arc<ArrowGFA>>,
     cs_cache: &State<CoordSysCache>,
     dataset_cache: &State<DatasetsCache>,
     path_name: &str,
     dataset: &str,
+    left: u64,
+    right: u64,
     bin_count: u32,
-) -> Option<()> {
-    // get/create coord sys... tokio spawn blocking?
+) -> Option<Vec<u8>> {
     let cs = cs_cache
         .get_or_compute_for_path(graph.inner(), path_name)
-        .await;
+        .await?;
 
     // this assumes the target coord sys is the global graph one
 
     // "dataset" needs to match in size with coord sys
     // no color is applied by the server -- the sampled data is returned
+    let path_id = graph.path_name_id(path_name)?;
 
     let datasets = dataset_cache.map.read().await;
-    let data = datasets.get(dataset)?;
+    let path_data = datasets.get(dataset)?.get(&PathId(path_id))?;
 
-    Some(())
+    let indices = path_data.indices();
+    let data = path_data.data();
+
+    let mut output = vec![0u8; bin_count as usize * 4];
+
+    cs.sample_impl(
+        left..=right,
+        indices,
+        data,
+        bytemuck::cast_slice_mut(&mut output),
+    );
+
+    Some(output)
 }
 
 // NB: this is a placeholder; the path map level is missing
 #[derive(Debug, Default)]
 struct DatasetsCache {
     // map: RwLock<HashMap<String, Arc<Vec<f32>>>>,
-    map: RwLock<HashMap<String, Arc<sprs::CsVecI<f32, u32>>>>,
+    map: RwLock<HashMap<String, HashMap<PathId, Arc<sprs::CsVecI<f32, u32>>>>>,
 }
 
 impl DatasetsCache {
     async fn get_dataset(
         &self,
-        key: &str,
+        data_key: &str,
+        path_id: PathId,
     ) -> Option<Arc<sprs::CsVecI<f32, u32>>> {
-        self.map.read().await.get(key).cloned()
+        self.map.read().await.get(data_key)?.get(&path_id).cloned()
     }
 
-    async fn set_dataset(&self, key: &str, data: sprs::CsVecI<f32, u32>) {
+    async fn set_dataset(
+        &self,
+        data_key: &str,
+        path_id: PathId,
+        data: sprs::CsVecI<f32, u32>,
+    ) {
         self.map
             .write()
             .await
-            .insert(key.to_string(), Arc::new(data));
+            .entry(data_key.to_string())
+            .or_default()
+            .insert(path_id, Arc::new(data));
     }
 }
 
@@ -84,7 +107,7 @@ impl CoordSysCache {
     ) -> Option<Arc<CoordSys>> {
         use rocket::tokio::task::spawn_blocking;
 
-        let path_index = graph.path_name_index(path_name)?;
+        let path_index = graph.path_name_id(path_name)?;
 
         {
             let map = self.map.read().await;
@@ -133,23 +156,26 @@ fn rocket() -> _ {
     let agfa =
         waragraph_core::arrow_graph::parser::arrow_graph_from_gfa(gfa).unwrap();
 
+    // TODO these should be computed on demand
     let datasets = DatasetsCache::default();
     {
-        // let path_index = agfa
-        //     .path_name_index(path_name)
-        //     .ok_or::<JsValue>("Path not found".into())?;
+        let mut depth_data = HashMap::default();
 
-        let depth = agfa.path_vector_sparse_u32(0);
+        for (path_id, _name) in agfa.path_names.values_iter().enumerate() {
+            let depth = agfa.path_vector_sparse_u32(path_id as u32);
 
-        let n = depth.dim();
-        let (indices, data) = depth.into_raw_storage();
-        let f_data = data.into_iter().map(|v| v as f32).collect::<Vec<_>>();
-        let depth = sprs::CsVecI::new(n, indices, f_data);
+            let n = depth.dim();
+            let (indices, data) = depth.into_raw_storage();
+            let f_data = data.into_iter().map(|v| v as f32).collect::<Vec<_>>();
+            let depth = sprs::CsVecI::new(n, indices, f_data);
+
+            depth_data.insert(PathId(path_id as u32), Arc::new(depth));
+        }
 
         datasets
             .map
             .blocking_write()
-            .insert("depth".to_string(), Arc::new(depth));
+            .insert("depth".to_string(), depth_data);
     }
 
     rocket::build()

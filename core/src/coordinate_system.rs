@@ -17,7 +17,7 @@ impl CoordSys {
     pub fn segment_range(&self, segment: u32) -> Option<std::ops::Range<u64>> {
         let ix = segment as usize;
 
-        if ix >= self.step_offsets.len() {
+        if ix >= self.step_offsets.len_proxy() {
             return None;
         }
 
