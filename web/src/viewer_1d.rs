@@ -306,14 +306,19 @@ pub struct CoordSys(pub(crate) waragraph_core::coordinate_system::CoordSys);
 #[wasm_bindgen]
 impl CoordSys {
     pub fn global_from_arrow_gfa(graph: &ArrowGFAWrapped) -> Self {
-        CoordSys(self.0.global_from_arrow_gfa(graph))
+        let cs =
+            waragraph_core::coordinate_system::CoordSys::global_from_arrow_gfa(
+                &graph.0,
+            );
+        CoordSys(cs)
     }
 
-    pub fn path_from_arrow_gfa(
-        graph: &ArrowGFAWrapped,
-        path_index: u32,
-    ) -> Self {
-        CoordSys(self.0.path_from_arrow_gfa(graph, path_index))
+    pub fn path_from_arrow_gfa(graph: &ArrowGFAWrapped, path_id: u32) -> Self {
+        let cs =
+            waragraph_core::coordinate_system::CoordSys::path_from_arrow_gfa(
+                &graph.0, path_id,
+            );
+        CoordSys(cs)
     }
 
     pub fn max(&self) -> u64 {
@@ -476,7 +481,7 @@ pub fn arrow_gfa_depth_data(
     let graph = &graph.0;
 
     let path_index = graph
-        .path_name_index(path_name)
+        .path_name_id(path_name)
         .ok_or::<JsValue>("Path not found".into())?;
 
     let sprs_vec = graph.path_vector_sparse_u32(path_index);

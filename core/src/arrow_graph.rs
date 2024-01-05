@@ -235,7 +235,7 @@ impl ArrowGFA {
     }
 
     /// O(n) in number of paths
-    pub fn path_name_index(&self, path_name: &str) -> Option<u32> {
+    pub fn path_name_id(&self, path_name: &str) -> Option<u32> {
         let (path_ix, _) = self
             .path_names
             .iter()

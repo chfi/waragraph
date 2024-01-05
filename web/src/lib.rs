@@ -553,8 +553,8 @@ impl ArrowGFAWrapped {
         Ok(name.to_string())
     }
 
-    pub fn path_index(&self, path_name: &str) -> Result<u32, JsValue> {
-        self.0.path_name_index(path_name).ok_or_else(|| {
+    pub fn path_id(&self, path_name: &str) -> Result<u32, JsValue> {
+        self.0.path_name_id(path_name).ok_or_else(|| {
             JsValue::from_str(&format!("Path `{path_name}` not found"))
         })
     }
@@ -573,7 +573,7 @@ impl ArrowGFAWrapped {
         &self,
         path_name: &str,
     ) -> Result<js_sys::Uint32Array, JsValue> {
-        let path_index = self.path_index(path_name)?;
+        let path_index = self.path_id(path_name)?;
 
         let steps = &self.0.path_steps(path_index);
         let slice = steps.values().as_slice();

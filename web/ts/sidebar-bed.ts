@@ -559,31 +559,6 @@ async function bedSidebarPanel(waragraph) {
 }
 
 
-/*
-export async function initializeBedSidebarPanel(warapi: WaragraphViz) {
-  waragraph_viz = warapi;
-
-  if (!wasm) {
-    wasm = await init_module(undefined, waragraph_viz.wasm.memory);
-    wasm_bindgen.set_panic_hook();
-  }
-
-  let path_names = await warapi.worker_obj.getPathNames();
-  let path_index = 0;
-
-  for (const name of path_names) {
-    pathNamesMap.set(name, path_index);
-    path_index += 1;
-  }
-
-  document
-    .getElementById('sidebar')
-    .append(await bedSidebarPanel());
-
-
-}
-  */
-
 
 export async function initializeBedSidebarPanel(waragraph: Waragraph) {
   // waragraph_viz = warapi;
@@ -593,10 +568,10 @@ export async function initializeBedSidebarPanel(waragraph: Waragraph) {
     wasm_bindgen.set_panic_hook();
   }
 
-  let path_index = 0;
+  let path_id = 0;
   waragraph.graph.with_path_names((name: string) => {
-    pathNamesMap.set(name, path_index);
-    path_index += 1;
+    pathNamesMap.set(name, path_id);
+    path_id += 1;
   });
 
   document
