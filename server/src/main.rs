@@ -8,6 +8,7 @@ use rocket::{get, launch, routes};
 use sprs::CsVec;
 use waragraph_core::arrow_graph::{ArrowGFA, PathIndex};
 use waragraph_core::coordinate_system::CoordSys;
+use waragraph_core::graph_layout::GraphLayout;
 use waragraph_core::PathId;
 
 // #[get("/args")]
@@ -20,6 +21,41 @@ use waragraph_core::PathId;
 // #[get("/coordinate_system/<path_name>")]
 // fn coord_sys_path_name(path_name: String) {
 // }
+
+#[get("/graph_layout")]
+async fn get_graph_layout(
+    layout: &State<GraphLayout>,
+    //
+) -> Vec<u8> {
+    use arrow2::io::ipc::write::FileWriter;
+    use arrow2::io::ipc::write::WriteOptions;
+
+    use arrow2::chunk::Chunk;
+
+    let mut buf: Vec<u8> = vec![];
+
+    let schema = layout.arrow_schema();
+
+    // Cursor::n`
+    let mut writer = FileWriter::new(
+        std::io::Cursor::new(&mut buf),
+        schema,
+        None,
+        WriteOptions { compression: None },
+    );
+
+    let chunk =
+        Chunk::new(vec![layout.xs.clone().boxed(), layout.ys.clone().boxed()]);
+
+    writer.start().unwrap();
+
+    writer.write(&chunk, None).unwrap();
+
+    writer.finish().unwrap();
+
+    //
+    buf
+}
 
 #[get("/path_data/<path_name>/<dataset>/<left>/<right>/<bin_count>")]
 async fn sample_path_data(
@@ -146,12 +182,10 @@ fn rocket() -> _ {
     let args = std::env::args().collect::<Vec<_>>();
 
     let gfa = &args[1];
-    // let tsv = args[2];
 
     let gfa = std::fs::File::open(gfa)
         .map(std::io::BufReader::new)
         .unwrap();
-    // let tsv = std::fs::File::open(tsv).unwrap();
 
     let agfa =
         waragraph_core::arrow_graph::parser::arrow_graph_from_gfa(gfa).unwrap();
@@ -178,13 +212,22 @@ fn rocket() -> _ {
             .insert("depth".to_string(), depth_data);
     }
 
+    use waragraph_core::graph_layout::GraphLayout;
+
+    let tsv = &args[2];
+
+    let graph_layout = match GraphLayout::from_tsv(tsv) {
+        Ok(g) => g,
+        Err(e) => panic!("${:#?}", e),
+    };
+
     rocket::build()
         .manage(Arc::new(agfa))
         .manage(CoordSysCache::default())
         .manage(datasets)
+        .manage(graph_layout)
+        // TODO: should be configurable, & only do this in debug mode
+        .mount("/", rocket::fs::FileServer::from("../web/dist"))
+        .mount("/", routes![get_graph_layout])
         .mount("/sample", routes![sample_path_data])
 }
-
-// fn main() {
-//     println!("Hello, world!");
-// }

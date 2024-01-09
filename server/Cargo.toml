@@ -10,7 +10,19 @@ rocket = { version = "0.5" }
 
 waragraph-core.workspace = true
 sprs.workspace = true
-arrow2.workspace = true
+
+
+arrow2 = { workspace = true, features = [
+"io_json",
+"io_ipc",
+# "io_ipc_compression",
+"io_parquet",
+# "io_parquet_compression",
+"io_print",
+"compute",
+"arrow",
+] }
+
 bytemuck.workspace = true
 
 
