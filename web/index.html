@@ -6,109 +6,45 @@
   </head>
   <body>
 
-
     <div style="display: none" class="root-grid root-sidebar-open" id="root-container">
 
-      <div class="sidebar" id="sidebar">
-      </div>
-
+      <div class="sidebar" id="sidebar"></div>
       <div class="gutter-column gutter-column-sidebar"></div>
-
       <div class="viz-grid" id="viz-container">
-        <div id="graph-viewer-container">
-        </div>
-
+        <div id="graph-viewer-container"></div>
         <div class="gutter-row gutter-row-1"></div>
-
         <div id="path-viewer-container">
-          <div class="path-viewer-column" id="path-viewer-left-column">
-          </div>
-
+          <div class="path-viewer-column" id="path-viewer-left-column"></div>
           <div class="gutter-column gutter-column-1"></div>
-
-          <div class="path-viewer-column" id="path-viewer-right-column">
-          </div>
+          <div class="path-viewer-column" id="path-viewer-right-column"></div>
         </div>
       </div>
     </div>
 
-    <div id="file-inputs">
-
-      <div>
-        <label for="gfa-file">Choose a GFA file</label>
-        <input type="file" id="gfa-file" name="gfa" accept=".gfa"></input>
-      </div>
-
-      <div>
-        <label for="layout-file">Choose a TSV layout file</label>
-        <input type="file" id="layout-file" name="layout" accept=".tsv"></input>
-      </div>
-
-      <button id="load-data">Load data</button>
-
+    <div id="file-inputs" hidden>
+      <label for="layout-file">Choose a TSV layout file</label>
+      <input type="file" id="layout-file" name="layout" accept=".tsv"></input>
+      <button id="load-data">Load</button>
     </div>
-
-    <div id="tooltip" role="tooltip"></div>
 
     <script type="module">
-      import { initializeWaragraph } from './ts/waragraph';
+      import { readArrowGraphLayout } from './ts/arrow_client';
 
-      document.getElementById('load-data').addEventListener('click', async (ev) => {
-          let gfa_file = document.getElementById("gfa-file").files[0];
+      readArrowGraphLayout(new URL('graph_layout', 'http://localhost:8000'));
+
+      /*
+      import { testBig, testGen } from './ts/test_big_graph';
+      
+      document.getElementById('file-inputs').removeAttribute('hidden');
+      document.getElementById('load-data').addEventListener('click', async (e) => {
           let tsv_file = document.getElementById("layout-file").files[0];
-
-          if (gfa_file === undefined || tsv_file === undefined) {
+          if (tsv_file === undefined) {
               return;
           }
-
-          const viz_root = document.getElementById('viz-container');
-
-          document.getElementById('file-inputs').setAttribute('hidden', '');
-          document.getElementById('root-container').style.removeProperty('display');
-
-          const spinner_par = document.createElement('div');
-          const spinner = document.createElement('div');
-          const spinner_text = document.createElement('div');
-          spinner.classList.add('lds-dual-ring');
-          spinner_par.style.setProperty('grid-column', '1');
-          spinner_par.style.setProperty('grid-row', '1');
-          spinner_par.style.setProperty('align-self', 'center');
-          spinner_par.style.setProperty('align-items', 'center');
-          spinner_par.style.setProperty('text-align', 'center');
-          spinner_par.style.setProperty('margin-left', 'auto');
-          spinner_par.style.setProperty('margin-right', 'auto');
-
-          spinner_text.style.setProperty('font-family', 'sans-serif');
-          spinner_text.style.setProperty('text-align', 'justify');
-          spinner_text.style.setProperty('width', '100%');
-          spinner_text.innerHTML = 'Loading graph';
-
-          spinner_par.append(spinner);
-          spinner_par.append(spinner_text);
-
-          viz_root.append(spinner_par);
-
-          initializeWaragraph({
-            gfa: gfa_file,
-
-            graph_viewer: {
-              graph_layout: tsv_file,
-              data: "depth",
-            },
-
-            path_viewers: {
-                path_names: '*',
-                viewport: { name: 'global', coordinate_system: 'graph' },
-                data: 'depth',
-                threshold: 0.5,
-                // color_above: { r: 1.0, g: 0.0, b: 0.0 },
-                color_above: 'hash_path_name',
-                color_below: { r: 0.0, g: 0.0, b: 0.0, a: 0.0 },
-            }
-          }).then((wg) => {
-            spinner_par.remove();
-          });
+          testBig(tsv_file);
+          document.getElementById('file-inputs').remove();
       });
+      */
 
     </script>
   </body>
