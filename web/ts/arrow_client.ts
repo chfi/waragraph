@@ -9,5 +9,12 @@ export async function readArrowGraphLayout(src: URL) {
   let table = await tableFromIPC(data);
   console.log(table);
 
+
+  for (const row of table) {
+    console.log(row['x'], ", ", row['y']);
+  }
+
+  console.log(table.schema);
+
   return table;
 }

@@ -7,6 +7,8 @@ import init_module, * as wasm_bindgen from 'waragraph';
 import { placeTooltipAtPoint } from './tooltip';
 import { wrapWasmPtr } from './wrap';
 
+import { type Table } from 'apache-arrow';
+
 let wasm;
 let _raving_ctx;
 
@@ -746,7 +748,6 @@ async function* blobLineIterator(blob: Blob) {
   }
 }
 
-
 async function fillPositionPagedBuffers(
   raving_ctx: wasm_bindgen.RavingCtx,
   buffers: wasm_bindgen.PagedBuffers,
@@ -830,7 +831,7 @@ export interface SegmentPositions {
 }
 
 
-function wrap_segment_pos(
+function wrap_segment_pos_api(
    seg_pos: wasm_bindgen.SegmentPositions
 ): SegmentPositions {
   return {
@@ -842,3 +843,78 @@ function wrap_segment_pos(
     },
   };
 }
+
+
+async function fillPositionBuffersFromArrow(
+  raving_ctx: wasm_bindgen.RavingCtx,
+  buffers: wasm_bindgen.PagedBuffers,
+  positions: Table,
+): Promise<{ min_x: number; max_x: number; min_y: number; max_y: number; }> {
+
+  let page_byte_size = buffers.page_size();
+  let page_buffer = new ArrayBuffer(Number(page_byte_size));
+  let page_view = new DataView(page_buffer);
+
+  const pos_iter = positions[Symbol.iterator]();
+
+  const get_next = () => {
+    let result = pos_iter.next();
+
+    if (result.done) {
+      return null;
+    }
+
+    let x = result['x'];
+    let y = result['y'];
+
+    return { x, y };
+  };
+    
+
+  let seg_i = 0;
+  let offset = 0;
+
+  for (;;) {
+    const p0 = get_next();
+    const p1 = get_next();
+
+    if (p0 == null || p1 == null) {
+      break;
+    }
+
+    page_view.setFloat32(offset, p0!.x, true);
+    page_view.setFloat32(offset + 4, p0!.y, true);
+    page_view.setFloat32(offset + 8, p1!.x, true);
+    page_view.setFloat32(offset + 12, p1!.y, true);
+    page_view.setUint32(offset + 16, seg_i, true);
+
+    seg_i += 1;
+    offset += 20;
+
+    if (offset >= page_byte_size) {
+      console.warn(`appending page, offset ${offset}`);
+      buffers.append_page(raving_ctx, new Uint8Array(page_buffer, 0, offset));
+      offset = 0;
+    }
+  }
+
+  if (offset !== 0) {
+      console.warn(`closing with appending page, offset ${offset}`);
+      buffers.append_page(raving_ctx, new Uint8Array(page_buffer, 0, offset));
+  }
+
+  const parse_metadata = (key: string) => {
+    let metadata = positions.schema.metadata;
+    return parseFloat(metadata.get(key)!);
+  };
+
+  let min_x = parse_metadata('aabb_min_x');
+  let min_y = parse_metadata('aabb_min_y');
+  let max_x = parse_metadata('aabb_max_x');
+  let max_y = parse_metadata('aabb_max_y');
+
+  return { min_x, max_x, min_y, max_y };
+}
+
+
+
