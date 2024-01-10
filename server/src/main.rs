@@ -57,6 +57,31 @@ async fn get_graph_layout(
     buf
 }
 
+#[get("/graph_layout/segment_position/<segment>")]
+async fn get_segment_position(
+    layout: &State<GraphLayout>,
+    segment: u32,
+) -> Option<Vec<u8>> {
+    // lol should just use serde & probably return json
+    let [x0, y0, x1, y1] = layout.segment_position(segment)?;
+    let out = vec![x0, y0, x1, y1];
+    Some(bytemuck::cast_vec(out))
+}
+
+#[get("/graph_layout/sample_path/<path_name>?<start_bp>&<end_bp>&<tolerance>")]
+async fn get_sample_path_world_space(
+    graph: &State<ArrowGFA>,
+    coord_sys_cache: &State<CoordSysCache>,
+    layout: &State<GraphLayout>,
+    path_name: &str,
+    start_bp: u64,
+    end_bp: u64,
+    tolerance: f32,
+) -> Option<Vec<u8>> {
+    //
+    todo!();
+}
+
 #[get("/path_data/<path_name>/<dataset>/<left>/<right>/<bin_count>")]
 async fn sample_path_data(
     graph: &State<Arc<ArrowGFA>>,
@@ -228,6 +253,6 @@ fn rocket() -> _ {
         .manage(graph_layout)
         // TODO: should be configurable, & only do this in debug mode
         .mount("/", rocket::fs::FileServer::from("../web/dist"))
-        .mount("/", routes![get_graph_layout])
+        .mount("/", routes![get_graph_layout, get_segment_position])
         .mount("/sample", routes![sample_path_data])
 }

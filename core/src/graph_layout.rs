@@ -14,6 +14,21 @@ pub struct GraphLayout {
 }
 
 impl GraphLayout {
+    pub fn segment_position(&self, segment: u32) -> Option<[f32; 4]> {
+        let i = 2 * segment as usize;
+
+        if i + 1 >= self.xs.len() {
+            return None;
+        }
+
+        let x0 = self.xs.get(i)?;
+        let y0 = self.ys.get(i)?;
+        let x1 = self.xs.get(i + 1)?;
+        let y1 = self.ys.get(i + 1)?;
+
+        Some([x0, y0, x1, y1])
+    }
+
     pub fn arrow_schema(&self) -> Schema {
         let mut metadata: Metadata = [
             ("aabb_min_x", self.aabb_min[0]),

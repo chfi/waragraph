@@ -825,9 +825,13 @@ async function fillPositionPagedBuffers(
 }
 
 
+// TODO: sample_steps should probably... be path name + range;
+// until i decide how i want to send entire segment/step lists to the server
+// time to add a path interval type?
 export interface SegmentPositions {
+  // sample_steps: (steps: Uint32Array, tolerance: number) => Promise<Float32Array>;
   sample_steps: (steps: Uint32Array, tolerance: number) => Promise<Float32Array>;
-  segment_position: (segment: number) => { p0: vec2, p1: vec2 } | null;
+  segment_position: (segment: number) => Promise<{ p0: vec2, p1: vec2 } | null>;
 }
 
 
@@ -838,11 +842,30 @@ function wrap_segment_pos_api(
     sample_steps: async (steps: Uint32Array, tolerance: number) => {
       return seg_pos.sample_path_world_space(steps, tolerance);
     },
-    segment_position: (segment: number) => {
+    segment_position: async (segment: number) => {
       return seg_pos.segment_pos(segment);
     },
   };
 }
+
+/*
+function server_segment_pos_api(
+  baseURI: URL,
+): SegmentPositions {
+  return {
+    sample_steps: async (steps: Uint32Array, tolerance: number) => {
+      return new Float32Array(0);
+      // return seg_pos.sample_path_world_space(steps, tolerance);
+    },
+    segment_position: async (segment: number) => {
+      let uri = `graph_layout/sample_path/
+      // let resp = await fetch(new URL(
+
+      // return seg_pos.segment_pos(segment);
+    },
+  }
+}
+*/
 
 
 async function fillPositionBuffersFromArrow(
