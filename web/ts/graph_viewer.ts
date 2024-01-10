@@ -822,3 +822,23 @@ async function fillPositionPagedBuffers(
 
   return { min_x, min_y, max_x, max_y };
 }
+
+
+export interface SegmentPositions {
+  sample_steps: (steps: Uint32Array, tolerance: number) => Promise<Float32Array>;
+  segment_position: (segment: number) => { p0: vec2, p1: vec2 } | null;
+}
+
+
+function wrap_segment_pos(
+   seg_pos: wasm_bindgen.SegmentPositions
+): SegmentPositions {
+  return {
+    sample_steps: async (steps: Uint32Array, tolerance: number) => {
+      return seg_pos.sample_path_world_space(steps, tolerance);
+    },
+    segment_position: (segment: number) => {
+      return seg_pos.segment_pos(segment);
+    },
+  };
+}

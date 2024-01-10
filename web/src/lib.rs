@@ -232,6 +232,60 @@ impl CanvasPathTrace {
 
 #[wasm_bindgen]
 impl SegmentPositions {
+    // results are x, y positions, interleaved
+    pub fn sample_path_world_space(
+        &self,
+        path_slice: &[u32],
+        tolerance_ws: f32,
+    ) -> Result<Vec<f32>, JsValue> {
+        if path_slice.is_empty() {
+            return Ok(vec![]);
+        }
+
+        let tol_sq = tolerance_ws * tolerance_ws;
+
+        let path_vertices = path_slice.iter().flat_map(|&step_handle| {
+            let seg = step_handle >> 1;
+            let i = (seg * 2) as usize;
+
+            let p0 = Vec2::new(self.xs[i], self.ys[i]);
+            let p1 = Vec2::new(self.xs[i + 1], self.ys[i + 1]);
+
+            [p0, p1]
+        });
+
+        let mut last_vertex = None;
+
+        let mut points: Vec<Vec2> = Vec::new();
+
+        for p in path_vertices {
+            last_vertex = Some(p);
+
+            if let Some(last_p) = points.last().copied() {
+                let delta = p - last_p;
+                let _dist_sq = delta.mag_sq();
+
+                if delta.mag_sq() >= tol_sq {
+                    points.push(p);
+                }
+            } else {
+                points.push(p);
+            }
+        }
+
+        if points.len() == 1 {
+            if let Some(p) = last_vertex {
+                if p != points[0] {
+                    points.push(p);
+                }
+            }
+        }
+
+        let points: Vec<f32> = bytemuck::cast_vec(points);
+
+        Ok(points)
+    }
+
     pub fn sample_canvas_space_path(
         &self,
         view: &viewer_2d::view::View2D,

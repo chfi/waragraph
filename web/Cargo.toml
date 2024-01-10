@@ -39,7 +39,7 @@ log.workspace = true
 
 parking_lot.workspace = true
 
-bytemuck = { workspace = true, features = ["derive"] }
+bytemuck = { workspace = true, features = ["derive", "extern_crate_alloc"] }
 
 colorous = "1.0"
 palette = { version = "0.6", features = ["bytemuck"] }
