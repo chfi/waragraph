@@ -11,6 +11,8 @@ use waragraph_core::coordinate_system::CoordSys;
 use waragraph_core::graph_layout::GraphLayout;
 use waragraph_core::PathId;
 
+use ultraviolet::Vec2;
+
 // #[get("/args")]
 // fn args_route(args_s: &State<ArgsVec>) -> String {
 //     let args = args_s.0.join("\n");
@@ -23,10 +25,7 @@ use waragraph_core::PathId;
 // }
 
 #[get("/graph_layout")]
-async fn get_graph_layout(
-    layout: &State<GraphLayout>,
-    //
-) -> Vec<u8> {
+async fn get_graph_layout(layout: &State<GraphLayout>) -> Vec<u8> {
     use arrow2::io::ipc::write::FileWriter;
     use arrow2::io::ipc::write::WriteOptions;
 
@@ -63,14 +62,89 @@ async fn get_segment_position(
     segment: u32,
 ) -> Option<Vec<u8>> {
     // lol should just use serde & probably return json
-    let [x0, y0, x1, y1] = layout.segment_position(segment)?;
-    let out = vec![x0, y0, x1, y1];
-    Some(bytemuck::cast_vec(out))
+    let positions = layout.segment_position(segment)?;
+    let mut out = vec![0u8; 16];
+    out[0..16].clone_from_slice(bytemuck::cast_slice(&positions));
+    Some(out)
 }
 
-#[get("/graph_layout/sample_path/<path_name>?<start_bp>&<end_bp>&<tolerance>")]
-async fn get_sample_path_world_space(
-    graph: &State<ArrowGFA>,
+#[get("/graph_layout/sample_path?<path_id>&<start_bp>&<end_bp>&<tolerance>")]
+async fn get_sample_path_id_world_space(
+    graph: &State<Arc<ArrowGFA>>,
+    coord_sys_cache: &State<CoordSysCache>,
+    layout: &State<GraphLayout>,
+    path_id: u32,
+    start_bp: u64,
+    end_bp: u64,
+    tolerance: f32,
+) -> Option<Vec<u8>> {
+    // get/build coord sys for path
+    let cs = coord_sys_cache
+        .get_or_compute_for_path(graph.inner(), path_id)
+        .await?;
+
+    let step_range = cs.bp_to_step_range(start_bp, end_bp);
+    let path_steps = graph.path_steps(path_id);
+    let path_slice = {
+        let start = *step_range.start();
+        let end = *step_range.end();
+        path_steps.clone().sliced(start, end - start - 1)
+    };
+    // let path_slice = path_steps.slice(step_range.start(), step_range.end() - step_range.start - 1)
+
+    if path_slice.len() == 0 {
+        return Some(vec![]);
+    }
+
+    let tol_sq = tolerance * tolerance;
+
+    let path_vertices = path_slice.values_iter().flat_map(|&step_handle| {
+        let seg = step_handle >> 1;
+        let i = (seg * 2) as usize;
+
+        let p0 =
+            Vec2::new(layout.xs.get(i).unwrap(), layout.ys.get(i).unwrap());
+        let p1 = Vec2::new(
+            layout.xs.get(i + 1).unwrap(),
+            layout.ys.get(i + 1).unwrap(),
+        );
+
+        [p0, p1]
+    });
+
+    let mut last_vertex = None;
+
+    let mut points: Vec<Vec2> = Vec::new();
+
+    for p in path_vertices {
+        last_vertex = Some(p);
+
+        if let Some(last_p) = points.last().copied() {
+            let delta = p - last_p;
+            let _dist_sq = delta.mag_sq();
+
+            if delta.mag_sq() >= tol_sq {
+                points.push(p);
+            }
+        } else {
+            points.push(p);
+        }
+    }
+
+    if points.len() == 1 {
+        if let Some(p) = last_vertex {
+            if p != points[0] {
+                points.push(p);
+            }
+        }
+    }
+
+    Some(bytemuck::cast_vec(points))
+}
+
+#[get("/graph_layout/sample_path?<path_name>&<start_bp>&<end_bp>&<tolerance>")]
+async fn get_sample_path_name_world_space(
+    graph: &State<Arc<ArrowGFA>>,
     coord_sys_cache: &State<CoordSysCache>,
     layout: &State<GraphLayout>,
     path_name: &str,
@@ -78,8 +152,18 @@ async fn get_sample_path_world_space(
     end_bp: u64,
     tolerance: f32,
 ) -> Option<Vec<u8>> {
-    //
-    todo!();
+    let path_id = graph.path_name_id(path_name)?;
+
+    get_sample_path_id_world_space(
+        graph,
+        coord_sys_cache,
+        layout,
+        path_id,
+        start_bp,
+        end_bp,
+        tolerance,
+    )
+    .await
 }
 
 #[get("/path_data/<path_name>/<dataset>/<left>/<right>/<bin_count>")]
@@ -93,8 +177,10 @@ async fn sample_path_data(
     right: u64,
     bin_count: u32,
 ) -> Option<Vec<u8>> {
+    let path_id = graph.path_name_id(path_name)?;
+
     let cs = cs_cache
-        .get_or_compute_for_path(graph.inner(), path_name)
+        .get_or_compute_for_path(graph.inner(), path_id)
         .await?;
 
     // this assumes the target coord sys is the global graph one
@@ -164,11 +250,12 @@ impl CoordSysCache {
     async fn get_or_compute_for_path(
         &self,
         graph: &Arc<ArrowGFA>,
-        path_name: &str,
+        path_id: u32,
     ) -> Option<Arc<CoordSys>> {
         use rocket::tokio::task::spawn_blocking;
 
-        let path_index = graph.path_name_id(path_name)?;
+        let path_name = graph.path_name(path_id)?;
+        // let path_iid = graph.path_name_id(path_name)?;
 
         {
             let map = self.map.read().await;
@@ -181,7 +268,7 @@ impl CoordSysCache {
 
         let graph = graph.clone();
         let cs = spawn_blocking(move || {
-            CoordSys::path_from_arrow_gfa(&graph, path_index)
+            CoordSys::path_from_arrow_gfa(&graph, path_id)
         })
         .await
         .ok()?;
@@ -253,6 +340,14 @@ fn rocket() -> _ {
         .manage(graph_layout)
         // TODO: should be configurable, & only do this in debug mode
         .mount("/", rocket::fs::FileServer::from("../web/dist"))
-        .mount("/", routes![get_graph_layout, get_segment_position])
+        .mount(
+            "/",
+            routes![
+                get_graph_layout,
+                get_segment_position,
+                get_sample_path_name_world_space,
+                get_sample_path_id_world_space
+            ],
+        )
         .mount("/sample", routes![sample_path_data])
 }

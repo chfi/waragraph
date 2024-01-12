@@ -7,6 +7,8 @@ import init_module, * as wasm_bindgen from 'waragraph';
 import { placeTooltipAtPoint } from './tooltip';
 import { wrapWasmPtr } from './wrap';
 
+import { type PathInterval, type Bp } from './types';
+
 import { type Table } from 'apache-arrow';
 
 let wasm;
@@ -830,17 +832,31 @@ async function fillPositionPagedBuffers(
 // time to add a path interval type?
 export interface SegmentPositions {
   // sample_steps: (steps: Uint32Array, tolerance: number) => Promise<Float32Array>;
-  sample_steps: (steps: Uint32Array, tolerance: number) => Promise<Float32Array>;
+  // sample_steps: (steps: Uint32Array, tolerance: number) => Promise<Float32Array>;
+  sample_path: (interval: PathInterval, tolerance: number) => Promise<Float32Array>;
   segment_position: (segment: number) => Promise<{ p0: vec2, p1: vec2 } | null>;
 }
 
 
 function wrap_segment_pos_api(
-   seg_pos: wasm_bindgen.SegmentPositions
+  graph: wasm_bindgen.ArrowGFAWrapped,
+  seg_pos: wasm_bindgen.SegmentPositions
 ): SegmentPositions {
   return {
-    sample_steps: async (steps: Uint32Array, tolerance: number) => {
-      return seg_pos.sample_path_world_space(steps, tolerance);
+    // sample_steps: async (path: Uint32Array, tolerance: number) => {
+    //   return seg_pos.sample_path_world_space(steps, tolerance);
+    // },
+    sample_steps: async (interval: PathInterval, tolerance: number) => {
+      let path_id;
+      if ('path_name' in interval) {
+        path_id = graph.path_id(interval.path_name);
+      } else {
+        path_id = interval.path_id;
+      }
+      // need coordinate system as well
+
+      // return seg_pos.sample_path_world_space(steps, tolerance);
+      return new Float32Array(0);
     },
     segment_position: async (segment: number) => {
       return seg_pos.segment_pos(segment);

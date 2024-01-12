@@ -11,6 +11,7 @@ rocket = { version = "0.5" }
 waragraph-core.workspace = true
 sprs.workspace = true
 
+ultraviolet.workspace = true
 
 arrow2 = { workspace = true, features = [
 "io_json",
@@ -23,6 +24,6 @@ arrow2 = { workspace = true, features = [
 "arrow",
 ] }
 
-bytemuck.workspace = true
+bytemuck = { workspace = true, features = ["derive", "extern_crate_alloc"] }
 
 
