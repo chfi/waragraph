@@ -223,11 +223,12 @@ export class AnnotationPainter {
         continue;
       }
 
-      const { path_name, path_step_slice, bed_record } = state.record;
+      const { path_name, path_interval, path_step_slice, bed_record } = state.record;
 
       state.cached_path =
         this.waragraph.graph_viewer!
-          .sampleCanvasSpacePath(path_step_slice, path_tolerance);
+          .sampleWorldSpacePath(path_interval, tolerance);
+          // .sampleCanvasSpacePath(path_step_slice, path_tolerance);
 
 
       let svg_path = "";

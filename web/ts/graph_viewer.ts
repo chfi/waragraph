@@ -9,7 +9,8 @@ import { wrapWasmPtr } from './wrap';
 
 import { type PathInterval, type Bp } from './types';
 
-import { type Table } from 'apache-arrow';
+import { Table } from 'apache-arrow';
+import { Waragraph } from './waragraph';
 
 let wasm;
 let _raving_ctx;
@@ -27,7 +28,8 @@ interface OverlayCallbacks {
 
 export class GraphViewer {
   graph_viewer: wasm_bindgen.GraphViewer;
-  segment_positions: wasm_bindgen.SegmentPositions | undefined;
+  // segment_positions: wasm_bindgen.SegmentPositions | undefined;
+  segment_positions: SegmentPositions | undefined;
 
   initial_view: wasm_bindgen.View2D;
 
@@ -80,6 +82,14 @@ export class GraphViewer {
     }
   }
 
+  sampleWorldSpacePath(
+    interval: PathInterval,
+    tolerance: number,
+  ): Promise<Float32Array | undefined> {
+    return this.segment_positions?.sample_path(interval, tolerance);
+  }
+
+    /*
   sampleCanvasSpacePath(
     path_step_slice: Uint32Array,
     tolerance: number
@@ -94,6 +104,7 @@ export class GraphViewer {
       tolerance
     );
   }
+     */
 
   resetView() {
     let initial_view = this.initial_view.as_obj();
@@ -533,10 +544,9 @@ export async function initializeGraphViewer(
   return graph_viewer;
 }
 
-
-export async function graphViewerLayoutOnly(
-  layout_text: Blob,
+export async function graphViewerFromData(
   container: HTMLDivElement,
+  layout_data: Blob | Table,
 ): Promise<GraphViewer> {
   const wasm = await init_module();
   wasm_bindgen.set_panic_hook();
@@ -567,7 +577,15 @@ export async function graphViewerLayoutOnly(
 
   const position_buffers = raving_ctx.create_empty_paged_buffers(20n);
 
-  const graph_bounds = await fillPositionPagedBuffers(raving_ctx, position_buffers, layout_text);
+  let graph_bounds: { min_x: any; max_x: any; min_y: any; max_y: any; };
+
+  if (layout_data instanceof Blob) {
+    // Blobs are taken to be TSV as text; could be improved
+    graph_bounds = await fillPositionBuffersFromTSV(raving_ctx, position_buffers, layout_data);
+  // } else if (layout_data instanceof Table) {
+  } else {
+    graph_bounds = await fillPositionBuffersFromArrow(raving_ctx, position_buffers, layout_data);
+  } 
 
   const segment_count = position_buffers.len();
   if (segment_count === 0) {
@@ -750,7 +768,7 @@ async function* blobLineIterator(blob: Blob) {
   }
 }
 
-async function fillPositionPagedBuffers(
+async function fillPositionBuffersFromTSV(
   raving_ctx: wasm_bindgen.RavingCtx,
   buffers: wasm_bindgen.PagedBuffers,
   position_tsv: Blob,
@@ -839,24 +857,26 @@ export interface SegmentPositions {
 
 
 function wrap_segment_pos_api(
-  graph: wasm_bindgen.ArrowGFAWrapped,
+  waragraph: Waragraph,
   seg_pos: wasm_bindgen.SegmentPositions
+  // graph: wasm_bindgen.ArrowGFAWrapped,
 ): SegmentPositions {
   return {
     // sample_steps: async (path: Uint32Array, tolerance: number) => {
     //   return seg_pos.sample_path_world_space(steps, tolerance);
     // },
-    sample_steps: async (interval: PathInterval, tolerance: number) => {
-      let path_id;
-      if ('path_name' in interval) {
-        path_id = graph.path_id(interval.path_name);
-      } else {
-        path_id = interval.path_id;
-      }
-      // need coordinate system as well
+    sample_path: async (interval: PathInterval, tolerance: number) => {
+      let path_id = interval.path_id;
+      let path_name = waragraph.graph.path_name(path_id);
 
-      // return seg_pos.sample_path_world_space(steps, tolerance);
-      return new Float32Array(0);
+      const path_cs = await waragraph.getCoordinateSystem("path:" + path_name);
+
+      const path_steps = waragraph.graph.path_steps(path_name);
+      const step_range = path_cs!.bp_to_step_range(BigInt(interval.start), BigInt(interval.end));
+      const path_slice = path_steps.slice(step_range.start, step_range.end);
+
+      return seg_pos.sample_path_world_space(path_slice, tolerance);
+      // return new Float32Array(0);
     },
     segment_position: async (segment: number) => {
       return seg_pos.segment_pos(segment);

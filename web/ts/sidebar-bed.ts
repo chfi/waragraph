@@ -1,8 +1,8 @@
 import init_module, * as wasm_bindgen from 'waragraph';
 
-import { preparePathHighlightOverlay } from '../graph_viewer';
+import { preparePathHighlightOverlay } from './graph_viewer';
 import { AnnotationPainter } from './annotations';
-import * as CanvasTracks from '../canvas_tracks';
+import * as CanvasTracks from './canvas_tracks';
 import { wrapWasmPtr } from './wrap';
 
 import { type Waragraph } from './waragraph';
@@ -13,6 +13,7 @@ import * as rxjs from 'rxjs';
 import { computePosition } from '@floating-ui/dom';
 
 import '../sidebar-bed.css';
+import { PathInterval, PathNameInterval } from './types';
 
 let pathNamesMap = new Map();
 
@@ -46,12 +47,8 @@ function createPathOffsetMap(path_name: string): (bp: number) => number {
   return (bp) => bp - start;
 }
 
-interface PathRange {
-  start: number,
-  end: number,
-}
 
-function bedToPathRange(bed_entry, path_name: string): PathRange {
+function bedToPathInterval(bed_entry, path_name: string): PathNameInterval {
   if (!path_name) {
     throw `Path ${path_name} not found`;
   }
@@ -73,7 +70,7 @@ function bedToPathRange(bed_entry, path_name: string): PathRange {
     chromStart = 0;
   }
 
-  return { start: chromStart, end: chromEnd };
+  return { path_name, start: chromStart, end: chromEnd };
 }
 
 function transformBedRange(bed_entry) {
@@ -225,7 +222,7 @@ export interface BEDRecord {
   bed_record: any;
 
   path_name: string;
-  path_range: PathRange;
+  path_interval: PathInterval;
   path_step_slice: Uint32Array;
 }
 
@@ -261,7 +258,7 @@ class BEDFile {
       const record_i = this.records.length;
 
       const path_name = findPathName(bed_record.chrom);
-      const path_range = bedToPathRange(bed_record, path_name);
+      const path_interval = bedToPathInterval(bed_record, path_name);
 
       const path_cs = await waragraph.getCoordinateSystem("path:" + path_name);
 
@@ -273,7 +270,7 @@ class BEDFile {
 
       const path_steps = graph.path_steps(path_name);
 
-      const step_range = path_cs.bp_to_step_range(BigInt(path_range.start), BigInt(path_range.end)) as { start: number, end: number };
+      const step_range = path_cs.bp_to_step_range(BigInt(path_interval.start), BigInt(path_interval.end)) as { start: number, end: number };
       // const step_range = path_cs.bp_to_step_range(path_range.start, path_range.end);
       const path_step_slice = path_steps.slice(step_range.start, step_range.end);
 
@@ -281,7 +278,7 @@ class BEDFile {
         record_index: record_i,
         bed_record,
         path_name,
-        path_range,
+        path_interval,
         path_step_slice,
       };
 
