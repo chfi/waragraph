@@ -3190,6 +3190,7 @@ dependencies = [
  "rocket_codegen",
  "rocket_http",
  "serde",
+ "serde_json",
  "state",
  "tempfile",
  "time",
@@ -3384,18 +3385,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "eb3622f419d1296904700073ea6cc23ad690adbd66f13ea683df73298736f0c1"
 dependencies = [
  "serde",
-]
-
-[[package]]
-name = "server"
-version = "0.1.0"
-dependencies = [
- "arrow2",
- "bytemuck",
- "rocket",
- "sprs",
- "ultraviolet",
- "waragraph-core",
 ]
 
 [[package]]
@@ -4132,6 +4121,18 @@ dependencies = [
  "roaring",
  "smallvec",
  "sprs",
+]
+
+[[package]]
+name = "waragraph-server"
+version = "0.1.0"
+dependencies = [
+ "arrow2",
+ "bytemuck",
+ "rocket",
+ "sprs",
+ "ultraviolet",
+ "waragraph-core",
 ]
 
 [[package]]

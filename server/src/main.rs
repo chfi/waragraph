@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use rocket::tokio::sync::RwLock;
 use rocket::State;
-use rocket::{get, launch, routes};
+use rocket::{get, launch, post, routes};
 
 use sprs::CsVec;
 use waragraph_core::arrow_graph::{ArrowGFA, PathIndex};
@@ -12,6 +12,9 @@ use waragraph_core::graph_layout::GraphLayout;
 use waragraph_core::PathId;
 
 use ultraviolet::Vec2;
+
+// use waragraph_server::paths;
+pub mod paths;
 
 // #[get("/args")]
 // fn args_route(args_s: &State<ArgsVec>) -> String {
@@ -65,6 +68,24 @@ async fn get_segment_position(
     let positions = layout.segment_position(segment)?;
     let mut out = vec![0u8; 16];
     out[0..16].clone_from_slice(bytemuck::cast_slice(&positions));
+    Some(out)
+}
+
+#[post("/graph_layout/sample_steps?<tolerance>", data = "<steps_bytes>")]
+async fn post_sample_steps_world_space(
+    // graph: &State<Arc<ArrowGFA>>,
+    layout: &State<GraphLayout>,
+    steps_bytes: Vec<u8>,
+    tolerance: f32,
+) -> Option<Vec<u8>> {
+    let steps: &[u32] = bytemuck::try_cast_slice(&steps_bytes).ok()?;
+
+    let mut out = Vec::with_capacity(steps.len() * 2);
+
+    for step in steps {
+        todo!();
+    }
+
     Some(out)
 }
 
@@ -349,5 +370,6 @@ fn rocket() -> _ {
                 get_sample_path_id_world_space
             ],
         )
+        .mount("/", routes![paths::path_metadata])
         .mount("/sample", routes![sample_path_data])
 }
