@@ -89,7 +89,7 @@ async fn post_sample_steps_world_space(
     Some(out)
 }
 
-#[get("/graph_layout/sample_path?<path_id>&<start_bp>&<end_bp>&<tolerance>")]
+#[get("/graph_layout/sample_path_id?<path_id>&<start_bp>&<end_bp>&<tolerance>")]
 async fn get_sample_path_id_world_space(
     graph: &State<Arc<ArrowGFA>>,
     coord_sys_cache: &State<CoordSysCache>,
@@ -163,7 +163,7 @@ async fn get_sample_path_id_world_space(
     Some(bytemuck::cast_vec(points))
 }
 
-#[get("/graph_layout/sample_path?<path_name>&<start_bp>&<end_bp>&<tolerance>")]
+#[get("/graph_layout/sample_path_name?<path_name>&<start_bp>&<end_bp>&<tolerance>")]
 async fn get_sample_path_name_world_space(
     graph: &State<Arc<ArrowGFA>>,
     coord_sys_cache: &State<CoordSysCache>,

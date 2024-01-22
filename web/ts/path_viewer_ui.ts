@@ -61,11 +61,88 @@ export async function highlightPathRanges(
 // interface TrackCallbacks {
 // }
 
+
+
+// NB: this matches the worker ctx interface, but it should all be cleaned up & rewritten
+export interface PathViewerInterface {
+  setView(start: number, end: number): Promise<void>;
+  sample(): Promise<void>;
+  forceRedraw(): Promise<void>;
+  setCanvasWidth(width: number): Promise<void>;
+  resizeTargetCanvas(width: number, height: number): Promise<void>;
+}
+
+
+interface ColorDefinition {
+  threshold: number,
+  color_below: RGBObj,
+  color_above: RGBObj,
+}
+
+export class PathViewerClient {
+
+  api_base_url: URL;
+  path_name: string;
+  data_key: string;
+  color_def: ColorDefinition;
+
+  view: { start: number, end: number } | null;
+
+  target_canvas: HTMLCanvasElement;
+  data_buffer: Float32Array;
+
+  constructor(
+    target_canvas: HTMLCanvasElement,
+    api_base_url: URL,
+    path_name: string,
+    data_key: string,
+    color_def: ColorDefinition
+  ) {
+    this.target_canvas = target_canvas;
+    this.api_base_url = api_base_url;
+    this.path_name = path_name;
+    this.data_key = data_key;
+    this.color_def = color_def;
+
+    this.data_buffer = new Float32Array(target_canvas.width);
+  }
+
+  async setView(start: number, end: number) {
+    this.view = { start, end };
+  }
+
+  async sample() {
+    if (this.view === null) {
+      return;
+    }
+
+    const bins = Math.ceil(this.target_canvas.width);
+
+
+  }
+
+  async forceRedraw() {
+  }
+
+  async setCanvasWidth(width: number) {
+    this.target_canvas.width = width;
+  }
+
+  async resizeTargetCanvas(width: number, height: number) {
+    this.target_canvas.width = width;
+    this.target_canvas.height = height;
+  }
+
+}
+
+
+
+
 export class PathViewer {
   pathName: string;
   viewport: Viewport1D;
 
-  viewer_ctx: Comlink.Remote<PathViewerCtx & Comlink.ProxyMarked>;
+  viewer_ctx: PathViewerInterface;
 
   isVisible: boolean;
 
@@ -76,7 +153,8 @@ export class PathViewer {
   trackCallbacks: Object;
 
   constructor(
-    viewer_ctx: Comlink.Remote<PathViewerCtx & Comlink.ProxyMarked>,
+    // viewer_ctx: Comlink.Remote<PathViewerCtx & Comlink.ProxyMarked>,
+    viewer_ctx: PathViewerInterface,
     container: HTMLDivElement,
     data_canvas: HTMLCanvasElement,
     overlay_canvas: HTMLCanvasElement,
@@ -153,6 +231,61 @@ export class PathViewer {
 
 interface WithPathViewer {
   path_viewer: PathViewer;
+}
+
+
+export async function initializePathViewerClient(
+  path_name: string,
+  viewport: Viewport1D,
+  api_base_url: URL,
+  data_key: string,
+  threshold: number,
+  color_below: RGBObj,
+  color_above: RGBObj,
+): Promise<PathViewer> {
+  const container = document.createElement('div');
+
+  const data_canvas = document.createElement('canvas');
+
+  let width = container.clientWidth;
+  let height = container.clientHeight;
+
+  data_canvas.width = width;
+  data_canvas.height = 20;
+
+  data_canvas.id = 'viewer-' + path_name;
+  // let offscreen = data_canvas.transferControlToOffscreen();
+
+  const viewer_ctx = new PathViewerClient(
+    data_canvas,
+    api_base_url,
+    path_name,
+    data_key,
+    { threshold, color_below, color_above }
+  );
+
+  const overlay_canvas = document.createElement('canvas');
+  overlay_canvas.width = width;
+  overlay_canvas.height = height;
+
+  data_canvas.style.setProperty('z-index', '0');
+  overlay_canvas.style.setProperty('z-index', '1');
+
+  data_canvas.classList.add('path-data-canvas');
+  overlay_canvas.classList.add('path-data-canvas');
+
+  container.append(data_canvas);
+  container.append(overlay_canvas);
+
+  await viewer_ctx.setCanvasWidth(width);
+
+  const path_viewer =
+    new PathViewer(viewer_ctx, container, data_canvas, overlay_canvas, path_name, viewport);
+
+
+  await path_viewer.sampleAndDraw(viewport.get());
+
+  return path_viewer;
 }
 
 export async function initializePathViewer(

@@ -28,9 +28,13 @@
     </div>
 
     <script type="module">
-      import { readArrowGraphLayout } from './ts/arrow_client';
+      import { testPathViewer } from './ts/test_server';
 
-      readArrowGraphLayout(new URL('graph_layout', 'http://localhost:8000'));
+      testPathViewer(new URL('http://localhost:8000'));
+
+      // import { readArrowGraphLayout } from './ts/arrow_client';
+
+      // readArrowGraphLayout(new URL('graph_layout', 'http://localhost:8000'));
 
       /*
       import { testBig, testGen } from './ts/test_big_graph';
