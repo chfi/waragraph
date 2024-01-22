@@ -29,6 +29,7 @@ handler.setTransferHandlers(rxjs, Comlink);
 import Split from 'split-grid';
 
 import { mat3, vec2 } from 'gl-matrix';
+import { CoordSysInterface } from './coordinate_system';
 
 
 // there really should be a better name for this...
@@ -63,11 +64,12 @@ export interface View1D {
 // one instance of this would be shared by all 1D views that should be "synced up"
 // including external tracks, eventually
 export class Viewport1D {
-  coord_sys: wasm_bindgen.CoordSys;
+  // coord_sys: wasm_bindgen.CoordSys;
+  coord_sys: CoordSysInterface;
   view: wasm_bindgen.View1D;
   subject: BehaviorSubject<View1D>;
 
-  constructor(coord_sys: wasm_bindgen.CoordSys, view?: wasm_bindgen.View1D) {
+  constructor(coord_sys: CoordSysInterface, view?: wasm_bindgen.View1D) {
     this.coord_sys = coord_sys;
 
     if (view) {

@@ -14,6 +14,7 @@ use waragraph_core::PathId;
 use ultraviolet::Vec2;
 
 // use waragraph_server::paths;
+pub mod coordinate_system;
 pub mod paths;
 
 // #[get("/args")]
@@ -260,8 +261,8 @@ impl DatasetsCache {
 }
 
 #[derive(Debug, Default)]
-struct CoordSysCache {
-    map: RwLock<HashMap<String, Arc<CoordSys>>>,
+pub struct CoordSysCache {
+    pub(crate) map: RwLock<HashMap<String, Arc<CoordSys>>>,
 }
 
 impl CoordSysCache {
@@ -354,9 +355,18 @@ fn rocket() -> _ {
         Err(e) => panic!("${:#?}", e),
     };
 
+    let cs_cache = CoordSysCache::default();
+
+    {
+        let mut cs_map = cs_cache.map.blocking_write();
+
+        let cs = CoordSys::global_from_arrow_gfa(&agfa);
+        cs_map.insert("<global>".to_string(), Arc::new(cs));
+    }
+
     rocket::build()
         .manage(Arc::new(agfa))
-        .manage(CoordSysCache::default())
+        .manage(cs_cache)
         .manage(datasets)
         .manage(graph_layout)
         // TODO: should be configurable, & only do this in debug mode
@@ -371,5 +381,6 @@ fn rocket() -> _ {
             ],
         )
         .mount("/", routes![paths::path_metadata])
+        .mount("/coordinate_system", routes![coordinate_system::global])
         .mount("/sample", routes![sample_path_data])
 }
