@@ -115,13 +115,51 @@ export class PathViewerClient {
     if (this.view === null) {
       return;
     }
+    console.log("sampling");
 
     const bins = Math.ceil(this.target_canvas.width);
 
+    // TODO: need to make sure this is handled correctly i think
+    let start = Math.floor(this.view.start);
+    let end = Math.ceil(this.view.end);
 
+    const query = `/sample/path_data/${this.path_name}/${this.data_key}/${start}/${end}/${bins}`;
+    console.log("query: ", query);
+    const resp = await fetch(new URL(query, this.api_base_url));
+
+    const buf = await resp.arrayBuffer();
+    this.data_buffer = new Float32Array(buf);
   }
 
   async forceRedraw() {
+    // const colors = new Uint8ClampedArray(this.data_buffer.length * 4);
+
+    const { width, height } = this.target_canvas;
+
+    const ctx = this.target_canvas.getContext('2d')!;
+
+    const imageData = ctx.createImageData(width, 1);
+
+    this.data_buffer.forEach((v, i) => {
+
+      if (v > this.color_def.threshold) {
+        imageData.data[i * 4] = this.color_def.color_above.r * 255;
+        imageData.data[i * 4 + 1] = this.color_def.color_above.g * 255;
+        imageData.data[i * 4 + 2] = this.color_def.color_above.b * 255;
+        imageData.data[i * 4 + 3] = 255;
+      } else {
+        imageData.data[i * 4] = this.color_def.color_below.r * 255;
+        imageData.data[i * 4 + 1] = this.color_def.color_below.g * 255;
+        imageData.data[i * 4 + 2] = this.color_def.color_below.b * 255;
+        imageData.data[i * 4 + 3] = 255;
+      }
+    });
+
+    console.log(imageData);
+    const bitmap = await createImageBitmap(imageData);
+    console.log(bitmap);
+
+    ctx.drawImage(bitmap, 0, 0, width, height);
   }
 
   async setCanvasWidth(width: number) {
@@ -352,6 +390,8 @@ export async function initializePathViewer(
 }
 
 
+
+
 export async function addPathViewerLogic(
   worker: Comlink.Remote<WaragraphWorkerCtx>,
   path_viewer: PathViewer,
@@ -527,6 +567,124 @@ export async function addOverviewEventHandlers(overview, viewport: Viewport1D) {
     requestAnimationFrame(() => {
       overview.draw(view);
     })
+  });
+
+}
+
+
+
+
+export async function addPathViewerLogicClient(
+  // worker: Comlink.Remote<WaragraphWorkerCtx>,
+  path_viewer: PathViewer,
+) {
+  const { viewer_ctx, overlay_canvas } = path_viewer;
+  const canvas = overlay_canvas;
+
+  const wheel$ = fromEvent(canvas, 'wheel').pipe(
+    rxjs.tap(event => event.preventDefault())
+  );
+  const mouseDown$ = fromEvent(canvas, 'mousedown');
+  const mouseUp$ = fromEvent(canvas, 'mouseup');
+  const mouseMove$ = fromEvent(canvas, 'mousemove');
+  const mouseOut$ = fromEvent(canvas, 'mouseout');
+
+
+  mouseOut$.subscribe((ev) => {
+    let tooltip = document.getElementById('tooltip');
+    tooltip.innerHTML = "";
+    tooltip.style.display = 'none';
+  });
+
+
+  /*
+  mouseMove$.pipe(
+    rxjs.distinct(),
+    rxjs.throttleTime(50)
+  ).subscribe(async (e: MouseEvent) => {
+    let x = e.offsetX;
+    let y = e.offsetY;
+    let width = canvas.width;
+
+    let segment = await segmentAtCanvasX(path_viewer.viewport, width, x);
+    // console.log("segment at cursor: " + segment);
+
+    let tooltip = document.getElementById('tooltip');
+
+    tooltip.innerHTML = `Segment ${segment}`;
+    tooltip.style.display = 'block';
+    // console.warn("x: ", e.clientX, ", y: ", e.clientY);
+    placeTooltipAtPoint(e.clientX, e.clientY);
+    // placeTooltipAtPoint(x, y);
+
+    let paths = await worker.pathsOnSegment(segment);
+    // console.log("paths!!!");
+    // console.log(paths);
+  });
+    */
+
+
+  const wheelScaleDelta$ = wheel$.pipe(
+    map((event: WheelEvent) => {
+      let x = event.offsetX / canvas.width;
+      let scale = 1.0;
+      if (event.deltaMode === WheelEvent.DOM_DELTA_PIXEL) {
+        if (event.deltaY > 0) {
+          scale = 1.01;
+        } else {
+          scale = 0.99;
+        }
+        // } else if (event.deltaMode == WheelEvent.DOM_DELTA_LINE) {
+      } else {
+        if (event.deltaY > 0) {
+          scale = 1.05;
+        } else {
+          scale = 0.95;
+        }
+      }
+
+      return { scale, x };
+    })
+  );
+
+  wheelScaleDelta$.subscribe(({ scale, x }) => {
+    path_viewer.viewport.zoomNorm(x, scale);
+  });
+
+  const drag$ = mouseDown$.pipe(
+    switchMap((event: MouseEvent) => {
+      return mouseMove$.pipe(
+        // pairwise(),
+        map((ev: MouseEvent) => ev.movementX),
+        takeUntil(
+          race(mouseUp$, mouseOut$)
+        )
+      )
+    })
+  );
+
+  // const dragDeltaNorm$ = drag$.pipe(rxjs.map((ev: MouseEvent) => {
+  const dragDeltaNorm$ = drag$.pipe(rxjs.map((dx: number) => {
+    let delta = (dx / canvas.width);
+    return -delta;
+  }));
+
+  dragDeltaNorm$.subscribe((delta: number) => {
+    let delta_bp = delta * path_viewer.viewport.length;
+    path_viewer.viewport.translateView(delta_bp);
+  });
+
+  await path_viewer.sampleAndDraw(path_viewer.viewport.get());
+
+  let view_subject = path_viewer.viewport.subject;
+
+  view_subject.pipe(
+    rxjs.distinct(),
+    rxjs.throttleTime(10)
+  ).subscribe((view) => {
+    requestAnimationFrame((time) => {
+      path_viewer.sampleAndDraw(view);
+    });
   });
 
 }

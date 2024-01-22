@@ -175,7 +175,11 @@ impl CoordSys {
         }
 
         for (_i, (value, size)) in std::iter::zip(bins, bin_sizes).enumerate() {
-            *value = *value / size;
+            if size == 0.0 {
+                *value = 0.0;
+            } else {
+                *value = *value / size;
+            }
         }
     }
 

@@ -101,6 +101,7 @@ async fn get_sample_path_id_world_space(
     tolerance: f32,
 ) -> Option<Vec<u8>> {
     // get/build coord sys for path
+
     let cs = coord_sys_cache
         .get_or_compute_for_path(graph.inner(), path_id)
         .await?;
@@ -201,9 +202,17 @@ async fn sample_path_data(
 ) -> Option<Vec<u8>> {
     let path_id = graph.path_name_id(path_name)?;
 
-    let cs = cs_cache
-        .get_or_compute_for_path(graph.inner(), path_id)
-        .await?;
+    // let cs = cs_cache
+    //     .get_or_compute_for_path(graph.inner(), path_id)
+    //     .await?;
+
+    // TODO: this only samples against the global coord sys for now
+    let cs = {
+        let cs_map = cs_cache.map.read().await;
+
+        // NB this is generated before the server launches, for now
+        cs_map.get("<global>").unwrap().clone()
+    };
 
     // this assumes the target coord sys is the global graph one
 
