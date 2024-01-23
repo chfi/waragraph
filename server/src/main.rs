@@ -372,6 +372,7 @@ fn rocket() -> _ {
                 get_sample_path_id_world_space
             ],
         )
+        .mount("/", routes![datasets::get_graph_dataset])
         .mount("/", routes![paths::path_metadata])
         .mount("/coordinate_system", routes![coordinate_system::global])
         .mount("/sample", routes![sample_path_data])

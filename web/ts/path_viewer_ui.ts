@@ -115,7 +115,6 @@ export class PathViewerClient {
     if (this.view === null) {
       return;
     }
-    console.log("sampling");
 
     const bins = Math.ceil(this.target_canvas.width);
 
@@ -124,7 +123,6 @@ export class PathViewerClient {
     let end = Math.ceil(this.view.end);
 
     const query = `/sample/path_data/${this.path_name}/${this.data_key}/${start}/${end}/${bins}`;
-    console.log("query: ", query);
     const resp = await fetch(new URL(query, this.api_base_url));
 
     const buf = await resp.arrayBuffer();
@@ -155,9 +153,7 @@ export class PathViewerClient {
       }
     });
 
-    console.log(imageData);
     const bitmap = await createImageBitmap(imageData);
-    console.log(bitmap);
 
     ctx.drawImage(bitmap, 0, 0, width, height);
   }

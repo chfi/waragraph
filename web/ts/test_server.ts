@@ -6,6 +6,7 @@ import { Viewport1D } from './waragraph';
 
 import { tableFromIPC, tableFromArrays } from 'apache-arrow';
 import { CoordSysArrow, CoordSysInterface } from './coordinate_system';
+import { graphViewerFromData } from './graph_viewer';
 
 
 
@@ -33,6 +34,7 @@ export async function testPathViewer(base_url: URL) {
   console.log("???");
 
   let viewport = new Viewport1D(cs_arrow as CoordSysInterface);
+
 
   console.log(viewport);
   console.log(viewport.length);
@@ -63,11 +65,38 @@ export async function testPathViewer(base_url: URL) {
 
   }
 
-  const layout_data = await fetch(new URL('/graph_layout', base_url));
+  console.log("fetching layout data");
+  const layout_table = await fetch(new URL('/graph_layout', base_url))
+    .then(r => r.arrayBuffer())
+    .then(data => tableFromIPC(data));
 
-  // const segment_depth = await fetch(new URL('/
+  // TODO get from the server; this will do for now
+  const segment_count = layout_table.getChild('x')!.length / 2;
 
+  console.log(layout_table);
+  console.log("segment count: ", segment_count);
+    
+  // const layout_data = new Float32Array(layout_buf);
+  // const segment_count = layout_data.
 
+  // const segment_depth = await fetch(new URL('/graph_dataset/depth', base_url));
+  // const depth_data_buf = await segment_depth.arrayBuffer();
+  // const depth_data = new Float32Array(depth_data_buf);
 
+  // const segment_count = layout_
+
+  // const depth_color = depth_data.map(val => {
+  //   // todo map to colors using spectral
+  // });
+
+  // const depth_color = new Uint32Array(
+
+  const graph_viewer = await graphViewerFromData(
+    document.getElementById('graph-viewer-container'),
+    layout_table
+  );
+
+  console.log(graph_viewer);
+  graph_viewer.draw();
 
 }

@@ -547,7 +547,7 @@ export async function initializeGraphViewer(
 export async function graphViewerFromData(
   container: HTMLDivElement,
   layout_data: Blob | Table,
-  color_data: Blob | Uint32Array,
+  // color_data: Blob | Uint32Array,
 ): Promise<GraphViewer> {
   const wasm = await init_module();
   wasm_bindgen.set_panic_hook();
@@ -587,6 +587,8 @@ export async function graphViewerFromData(
   } else {
     graph_bounds = await fillPositionBuffersFromArrow(_raving_ctx, position_buffers, layout_data);
   } 
+
+  console.warn(graph_bounds);
 
   const segment_count = position_buffers.len();
   if (segment_count === 0) {
@@ -629,6 +631,7 @@ export async function graphViewerFromData(
 
   const viewer = wasm_bindgen.GraphViewer.new_with_buffers(_raving_ctx, position_buffers, color_buffers, gpu_canvas, view);
 
+  console.warn(container.clientWidth, ", ", container.clientHeight);
   viewer.resize(_raving_ctx, container.clientWidth, container.clientHeight);
 
   viewer.draw_to_surface(_raving_ctx);
