@@ -8,6 +8,7 @@ import { tableFromIPC, tableFromArrays } from 'apache-arrow';
 import { CoordSysArrow, CoordSysInterface } from './coordinate_system';
 
 
+
 export async function testPathViewer(base_url: URL) {
   const wasm = await init_module();
 

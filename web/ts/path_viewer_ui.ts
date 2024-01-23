@@ -576,6 +576,7 @@ export async function addOverviewEventHandlers(overview, viewport: Viewport1D) {
 
 export async function addPathViewerLogicClient(
   // worker: Comlink.Remote<WaragraphWorkerCtx>,
+  // paths_on_segment: (segment)
   path_viewer: PathViewer,
 ) {
   const { viewer_ctx, overlay_canvas } = path_viewer;

@@ -547,6 +547,7 @@ export async function initializeGraphViewer(
 export async function graphViewerFromData(
   container: HTMLDivElement,
   layout_data: Blob | Table,
+  color_data: Blob | Uint32Array,
 ): Promise<GraphViewer> {
   const wasm = await init_module();
   wasm_bindgen.set_panic_hook();
@@ -570,21 +571,21 @@ export async function graphViewerFromData(
   overlay_canvas.width = container.clientWidth;
   overlay_canvas.height = container.clientHeight;
 
+  if (!_raving_ctx) {
+    _raving_ctx = await wasm_bindgen.RavingCtx.initialize_(gpu_canvas);
+  }
 
-  const raving_ctx = await wasm_bindgen.RavingCtx.initialize_(gpu_canvas);
 
-  _raving_ctx = raving_ctx;
-
-  const position_buffers = raving_ctx.create_empty_paged_buffers(20n);
+  const position_buffers = _raving_ctx.create_empty_paged_buffers(20n);
 
   let graph_bounds: { min_x: any; max_x: any; min_y: any; max_y: any; };
 
   if (layout_data instanceof Blob) {
     // Blobs are taken to be TSV as text; could be improved
-    graph_bounds = await fillPositionBuffersFromTSV(raving_ctx, position_buffers, layout_data);
+    graph_bounds = await fillPositionBuffersFromTSV(_raving_ctx, position_buffers, layout_data);
   // } else if (layout_data instanceof Table) {
   } else {
-    graph_bounds = await fillPositionBuffersFromArrow(raving_ctx, position_buffers, layout_data);
+    graph_bounds = await fillPositionBuffersFromArrow(_raving_ctx, position_buffers, layout_data);
   } 
 
   const segment_count = position_buffers.len();
@@ -593,7 +594,7 @@ export async function graphViewerFromData(
   }
   console.warn(`parsed ${segment_count} segment positions`);
 
-  const color_buffers = raving_ctx.create_paged_buffers(4n, segment_count);
+  const color_buffers = _raving_ctx.create_paged_buffers(4n, segment_count);
   const col_page_cap = color_buffers.page_capacity();
 
   {
@@ -604,7 +605,7 @@ export async function graphViewerFromData(
     for (let page_ix = 0; page_ix < color_buffers.page_count(); page_ix++) {
       console.warn("  page ", page_ix);
       let col_buf_array = new Uint8Array(col_buf_f_array.buffer);
-      color_buffers.upload_page(raving_ctx, page_ix, col_buf_array);
+      color_buffers.upload_page(_raving_ctx, page_ix, col_buf_array);
     }
 
     color_buffers.set_len(segment_count);
@@ -626,7 +627,7 @@ export async function graphViewerFromData(
     g_height,
   );
 
-  const viewer = wasm_bindgen.GraphViewer.new_with_buffers(raving_ctx, position_buffers, color_buffers, gpu_canvas, view);
+  const viewer = wasm_bindgen.GraphViewer.new_with_buffers(_raving_ctx, position_buffers, color_buffers, gpu_canvas, view);
 
   viewer.resize(_raving_ctx, container.clientWidth, container.clientHeight);
 

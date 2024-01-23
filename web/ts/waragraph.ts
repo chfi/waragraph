@@ -30,6 +30,7 @@ import Split from 'split-grid';
 
 import { mat3, vec2 } from 'gl-matrix';
 import { CoordSysInterface } from './coordinate_system';
+import { ArrowGFA, PathIndex } from './graph_api';
 
 
 // there really should be a better name for this...
@@ -177,8 +178,10 @@ export class Waragraph {
   wasm: wasm_bindgen.InitOutput;
   worker_ctx: Comlink.Remote<WaragraphWorkerCtx>;
 
-  graph: wasm_bindgen.ArrowGFAWrapped;
-  path_index: wasm_bindgen.PathIndexWrapped;
+  graph: ArrowGFA;
+  path_index: PathIndex;
+  // graph: wasm_bindgen.ArrowGFAWrapped;
+  // path_index: wasm_bindgen.PathIndexWrapped;
 
   graph_viewer: GraphViewer | undefined;
   path_viewers: Array<PathViewer>;
@@ -821,8 +824,10 @@ export async function initializeWaragraph(opts: WaragraphOptions = {}) {
 
     if (cfg.path_names === '*') {
       // use all path names
-      waragraph.graph.with_path_names((name: string) => {
-        path_names.push(name);
+      let path_metadata = await waragraph.graph.pathMetadata();
+
+      path_metadata.forEach((path) => {
+        path_names.push(path.name);
       });
     } else {
       for (const path_name of cfg.path_names) {
