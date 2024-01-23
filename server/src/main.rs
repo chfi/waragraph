@@ -13,8 +13,11 @@ use waragraph_core::PathId;
 
 use ultraviolet::Vec2;
 
+use crate::datasets::DatasetsCache;
+
 // use waragraph_server::paths;
 pub mod coordinate_system;
+pub mod datasets;
 pub mod paths;
 
 // #[get("/args")]
@@ -220,7 +223,7 @@ async fn sample_path_data(
     // no color is applied by the server -- the sampled data is returned
     let path_id = graph.path_name_id(path_name)?;
 
-    let datasets = dataset_cache.map.read().await;
+    let datasets = dataset_cache.path_map.read().await;
     let path_data = datasets.get(dataset)?.get(&PathId(path_id))?;
 
     let indices = path_data.indices();
@@ -236,37 +239,6 @@ async fn sample_path_data(
     );
 
     Some(output)
-}
-
-// NB: this is a placeholder; the path map level is missing
-#[derive(Debug, Default)]
-struct DatasetsCache {
-    // map: RwLock<HashMap<String, Arc<Vec<f32>>>>,
-    map: RwLock<HashMap<String, HashMap<PathId, Arc<sprs::CsVecI<f32, u32>>>>>,
-}
-
-impl DatasetsCache {
-    async fn get_dataset(
-        &self,
-        data_key: &str,
-        path_id: PathId,
-    ) -> Option<Arc<sprs::CsVecI<f32, u32>>> {
-        self.map.read().await.get(data_key)?.get(&path_id).cloned()
-    }
-
-    async fn set_dataset(
-        &self,
-        data_key: &str,
-        path_id: PathId,
-        data: sprs::CsVecI<f32, u32>,
-    ) {
-        self.map
-            .write()
-            .await
-            .entry(data_key.to_string())
-            .or_default()
-            .insert(path_id, Arc::new(data));
-    }
 }
 
 #[derive(Debug, Default)]
@@ -350,9 +322,20 @@ fn rocket() -> _ {
         }
 
         datasets
-            .map
+            .path_map
             .blocking_write()
             .insert("depth".to_string(), depth_data);
+
+        let graph_depth = agfa
+            .graph_depth_vector()
+            .into_iter()
+            .map(|v| v as f32)
+            .collect::<Vec<_>>();
+
+        datasets
+            .graph_map
+            .blocking_write()
+            .insert("depth".to_string(), Arc::new(graph_depth));
     }
 
     use waragraph_core::graph_layout::GraphLayout;

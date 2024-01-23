@@ -35,14 +35,7 @@ export async function testPathViewer(base_url: URL) {
   let viewport = new Viewport1D(cs_arrow as CoordSysInterface);
 
   console.log(viewport);
-
   console.log(viewport.length);
-
-  // console.log(paths);
-
-  // const 
-
-  // const viewport = new Viewport1D(
 
   for (const path of paths) {
     console.log(path);
@@ -69,5 +62,12 @@ export async function testPathViewer(base_url: URL) {
     viewer.sampleAndDraw(viewport.get());
 
   }
+
+  const layout_data = await fetch(new URL('/graph_layout', base_url));
+
+  // const segment_depth = await fetch(new URL('/
+
+
+
 
 }
