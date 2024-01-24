@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use anyhow::{Result};
+use anyhow::Result;
 use raving_wgpu::{egui, wgpu};
 // use egui::mutex::Mutex;
 
@@ -778,17 +778,6 @@ impl PolylineRenderer {
         Ok(())
     }
 
-    pub(super) fn draw_in_pass_with_buffers_indexed<'a: 'b, 'b, 'c: 'b>(
-        _state: &'a State,
-        _pass: &mut wgpu::RenderPass<'b>,
-        _viewport: egui::Rect,
-        _vertex_buffers: &'c PagedBuffers,
-        _data_buffers: &'c PagedBuffers,
-        _index_buffers: &'c PagedBuffers,
-    ) {
-        todo!();
-    }
-
     pub(super) fn draw_in_pass_with_buffers<'a: 'b, 'b, 'c: 'b>(
         state: &'a State,
         pass: &mut wgpu::RenderPass<'b>,
@@ -826,7 +815,6 @@ impl PolylineRenderer {
         pass: &mut wgpu::RenderPass<'b>,
         viewport: egui::Rect,
     ) {
-        
         // iterate through the pages "correctly", setting the vertex
         // buffer & bind groups, and then drawing
 

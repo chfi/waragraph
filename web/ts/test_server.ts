@@ -11,6 +11,7 @@ import { graphViewerFromData } from './graph_viewer';
 
 
 export async function testPathViewer(base_url: URL) {
+
   const wasm = await init_module();
 
   let paths_resp = await fetch(new URL('/path_metadata', base_url));
@@ -70,6 +71,8 @@ export async function testPathViewer(base_url: URL) {
     .then(r => r.arrayBuffer())
     .then(data => tableFromIPC(data));
 
+  console.log(layout_table);
+
   // TODO get from the server; this will do for now
   const segment_count = layout_table.getChild('x')!.length / 2;
 
@@ -91,9 +94,13 @@ export async function testPathViewer(base_url: URL) {
 
   // const depth_color = new Uint32Array(
 
+  const layout_tsv = await fetch(new URL('/data/A-3105.layout.tsv', base_url));
+  const layout_blob = await layout_tsv.blob();
+
   const graph_viewer = await graphViewerFromData(
     document.getElementById('graph-viewer-container'),
     layout_table
+    // layout_blob
   );
 
   console.log(graph_viewer);

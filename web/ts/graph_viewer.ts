@@ -927,8 +927,8 @@ async function fillPositionBuffersFromArrow(
       return null;
     }
 
-    let x = result['x'];
-    let y = result['y'];
+    let x = result.value['x'];
+    let y = result.value['y'];
 
     return { x, y };
   };
