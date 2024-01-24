@@ -1,9 +1,10 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
+use rocket::route::{Handler, Outcome};
 use rocket::tokio::sync::RwLock;
-use rocket::State;
-use rocket::{get, launch, post, routes};
+use rocket::{get, launch, post, routes, Responder, Route};
+use rocket::{Data, Request, State};
 
 use sprs::CsVec;
 use waragraph_core::arrow_graph::{ArrowGFA, PathIndex};
@@ -362,7 +363,10 @@ fn rocket() -> _ {
         .manage(datasets)
         .manage(graph_layout)
         // TODO: should be configurable, & only do this in debug mode
-        .mount("/", rocket::fs::FileServer::from("../web/dist"))
+        .mount(
+            "/",
+            FileServerWithHeaders(rocket::fs::FileServer::from("../web/dist")),
+        )
         .mount(
             "/",
             routes![
@@ -376,4 +380,35 @@ fn rocket() -> _ {
         .mount("/", routes![paths::path_metadata])
         .mount("/coordinate_system", routes![coordinate_system::global])
         .mount("/sample", routes![sample_path_data])
+}
+
+#[derive(Clone)]
+struct FileServerWithHeaders(rocket::fs::FileServer);
+
+impl From<FileServerWithHeaders> for Vec<Route> {
+    fn from(server: FileServerWithHeaders) -> Self {
+        let mut routes: Vec<Route> = server.0.clone().into();
+        for route in &mut routes {
+            route.handler = Box::new(server.clone());
+        }
+        routes
+    }
+}
+
+#[rocket::async_trait]
+impl Handler for FileServerWithHeaders {
+    async fn handle<'r>(
+        &self,
+        req: &'r Request<'_>,
+        data: Data<'r>,
+    ) -> Outcome<'r> {
+        let mut outcome = self.0.handle(req, data).await;
+
+        if let Outcome::Success(ref mut resp) = &mut outcome {
+            resp.set_raw_header("Cross-Origin-Opener-Policy", "same-origin");
+            resp.set_raw_header("Cross-Origin-Embedder-Policy", "require-corp");
+        }
+
+        outcome
+    }
 }
