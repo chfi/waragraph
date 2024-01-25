@@ -33,7 +33,7 @@ impl PagedBuffers {
         stride: u64,
     ) -> Result<Self> {
         let max_size = device.limits().max_buffer_size;
-        let page_size = max_size / stride;
+        let page_size = max_size;
 
         Ok(Self {
             page_size,
