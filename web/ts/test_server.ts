@@ -14,6 +14,7 @@ import { ArrowGFA, PathIndex, serverAPIs } from './graph_api';
 import { addViewRangeInputListeners, appendPathListElements, appendSvgViewport } from './dom';
 import { OverviewMap } from './overview';
 
+import * as chroma from 'chroma-js';
 
 export class Waragraph {
   graph_viewer: GraphViewer | undefined;
@@ -181,12 +182,115 @@ export async function testPathViewer(base_url: URL) {
   console.log(layout_table);
   console.log("segment count: ", segment_count);
 
+  const data_resp = await fetch(new URL('/graph_dataset/depth', base_url));
+  const data_buffer = await data_resp.arrayBuffer();
+  const depth_data = new Float32Array(data_buffer);
+
+  const depth_color_buffer = new ArrayBuffer(depth_data.length * 4);
+  // const depth_color = new Uint32Array(depth_data.length);
+  const depth_color_bytes = new Uint8Array(depth_color_buffer);
+
+  depth_data.forEach((val, i) => {
+    let color = spectralScale(val);
+    let [r, g, b, a] = color.rgb();
+    depth_color_bytes[i * 4] = r;
+    depth_color_bytes[i * 4 + 1] = g;
+    depth_color_bytes[i * 4 + 2] = b;
+    depth_color_bytes[i * 4 + 3] = a;
+  });
+
+  const depth_color = new Uint32Array(depth_color_buffer);
+
   const graph_viewer = await graphViewerFromData(
     document.getElementById('graph-viewer-container'),
-    layout_table
+    layout_table,
+    depth_color
   );
 
   console.log(graph_viewer);
   graph_viewer.draw();
 
 }
+
+/*
+static scheme_t Spectral =
+{{[252,141,89],
+  [255,255,191],
+  [153,213,148]},
+ {[215,25,28],
+  [253,174,97],
+  [171,221,164],
+  [43,131,186]},
+ {[215,25,28],
+  [253,174,97],
+  [255,255,191],
+  [171,221,164],
+  [43,131,186]},
+ {[213,62,79],
+  [252,141,89],
+  [254,224,139],
+  [230,245,152],
+  [153,213,148],
+  [50,136,189]},
+ {[213,62,79],
+  [252,141,89],
+  [254,224,139],
+  [255,255,191],
+  [230,245,152],
+  [153,213,148],
+  [50,136,189]},
+ {[213,62,79],
+  [244,109,67],
+  [253,174,97],
+  [254,224,139],
+  [230,245,152],
+  [171,221,164],
+  [102,194,165],
+  [50,136,189]},
+ {[213,62,79],
+  [244,109,67],
+  [253,174,97],
+  [254,224,139],
+  [255,255,191],
+  [230,245,152],
+  [171,221,164],
+  [102,194,165],
+  [50,136,189]},
+ {[158,1,66],
+  [213,62,79],
+  [244,109,67],
+  [253,174,97],
+  [254,224,139],
+  [230,245,152],
+  [171,221,164],
+  [102,194,165],
+  [50,136,189],
+  [94,79,162]},
+ {[158,1,66],
+  [213,62,79],
+  [244,109,67],
+  [253,174,97],
+  [254,224,139],
+  [255,255,191],
+  [230,245,152],
+  [171,221,164],
+  [102,194,165],
+  [50,136,189],
+  [94,79,162] }};
+*/
+
+const spectralScale = chroma.scale([
+  [64, 64, 64],
+  [127, 127, 127],
+  [158, 1, 66],
+  [213, 62, 79],
+  [244, 109, 67],
+  [253, 174, 97],
+  [254, 224, 139],
+  [255, 255, 191],
+  [230, 245, 152],
+  [171, 221, 164],
+  [102, 194, 165],
+  [50, 136, 189],
+  [94, 79, 162]
+]).domain([0, 12]);

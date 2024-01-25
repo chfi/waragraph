@@ -547,7 +547,7 @@ export async function initializeGraphViewer(
 export async function graphViewerFromData(
   container: HTMLDivElement,
   layout_data: Blob | Table,
-  // color_data: Blob | Uint32Array,
+  color_data?: Uint32Array,
 ): Promise<GraphViewer> {
   const wasm = await init_module();
   wasm_bindgen.set_panic_hook();
@@ -597,23 +597,35 @@ export async function graphViewerFromData(
   console.warn(`parsed ${segment_count} segment positions`);
 
   const color_buffers = _raving_ctx.create_paged_buffers(4n, segment_count);
-  const col_page_cap = color_buffers.page_capacity();
+  const color_page_cap = color_buffers.page_capacity();
 
-  {
-    const col_buf_f_array = new Uint32Array(col_page_cap);
-    col_buf_f_array.fill(0xFF0000FF);
+  console.warn("uploading color data...");
 
-    console.warn("uploading color data...");
+  if (color_data === undefined) {
+      const col_buf_f_array = new Uint32Array(color_page_cap);
+      col_buf_f_array.fill(0xFF0000FF);
+
+      for (let page_ix = 0; page_ix < color_buffers.page_count(); page_ix++) {
+        let col_buf_array = new Uint8Array(col_buf_f_array.buffer);
+        color_buffers.upload_page(_raving_ctx, page_ix, col_buf_array);
+      }
+
+      color_buffers.set_len(segment_count);
+  } else {
+
     for (let page_ix = 0; page_ix < color_buffers.page_count(); page_ix++) {
-      console.warn("  page ", page_ix);
-      let col_buf_array = new Uint8Array(col_buf_f_array.buffer);
-      color_buffers.upload_page(_raving_ctx, page_ix, col_buf_array);
+      const start = page_ix * color_page_cap;
+      const end = start + color_page_cap;
+      const color_page = color_data.subarray(start, end);
+      const page = new Uint8Array(color_page.buffer);
+
+      color_buffers.upload_page(_raving_ctx, page_ix, page);
     }
 
     color_buffers.set_len(segment_count);
-
-    console.warn("color data uploaded");
   }
+
+  console.warn("color data uploaded");
 
 
   let { min_x, max_x, min_y, max_y } = graph_bounds;
