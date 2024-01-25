@@ -15,6 +15,7 @@ import { addViewRangeInputListeners, appendPathListElements, appendSvgViewport }
 import { OverviewMap } from './overview';
 
 import * as chroma from 'chroma-js';
+import { PathId } from './types';
 
 export class Waragraph {
   graph_viewer: GraphViewer | undefined;
@@ -22,14 +23,94 @@ export class Waragraph {
 
   graph: ArrowGFA;
   // path_index: PathIndex;
-  
-  resize_obs: rxjs.Subject<unknown> | undefined;
 
   global_viewport: Viewport1D;
 
-  resize_observable: rxjs.Subject<void> | undefined;
-  intersection_observer: IntersectionObserver | undefined;
+  resize_observable: rxjs.Subject<void>;
+  // intersection_observer: IntersectionObserver | undefined;
+
+
+  constructor(
+    viewers: { graph_viewer?: GraphViewer, path_viewers: Array<PathViewer> },
+    graph: ArrowGFA,
+    global_viewport: Viewport1D,
+  ) {
+    this.graph_viewer = viewers.graph_viewer;
+    this.path_viewers = viewers.path_viewers;
+    this.graph = graph;
+    this.global_viewport = global_viewport;
+
+    this.resize_observable = new rxjs.Subject();
+
+    /*
+    this.intersection_observer = new IntersectionObserver((entries) => {
+      entries.forEach((entry) => {
+        if ("path_viewer" in entry.target) {
+          const viewer = entry.target.path_viewer as PathViewer;
+          viewer.isVisible = entry.isIntersecting;
+        }
+      });
+    },
+      { root: document.getElementById('path-viewer-container') }
+    );
+     */
+  }
+
+  
+
+  segmentScreenPos2d(segment: number) {
+    let seg_pos = this.graph_viewer?.getSegmentScreenPos(segment);
+
+    if (!seg_pos) {
+      return null;
+    }
+
+    return seg_pos;
+  }
+
+  async segmentScreenPos1d(path: PathId | string, segment: number) {
+    let path_name: string | undefined;
+
+    if (typeof path === 'string') {
+      path_name = path;
+    } else {
+      path_name = await this.graph.pathNameFromId(path);
+    };
+
+    let viewport = this.global_viewport;
+
+    let seg_range = viewport.segmentRange(segment);
+
+    let el = document.getElementById('viewer-' + path_name);
+
+    if (!el) {
+      return null;
+    }
+
+    let el_rect = el.getBoundingClientRect();
+
+    let view = viewport.get();
+    let view_len = viewport.length;
+
+    // segmentRange returns BigInts
+    let seg_s = Number(seg_range.start);
+    let seg_e = Number(seg_range.end);
+
+    let seg_start = (seg_s - view.start) / view_len;
+    let seg_end = (seg_e - view.start) / view_len;
+
+    let width = el_rect.width;
+    let y0 = el_rect.y;
+    let y1 = el_rect.y + el_rect.height;
+
+    let x0 = el_rect.left + seg_start * width;
+    let x1 = el_rect.left + seg_end * width;
+
+    return { x0, y0, x1, y1 };
+  }
+
 }
+
 
 export async function testPathViewer(base_url: URL) {
 
@@ -209,6 +290,12 @@ export async function testPathViewer(base_url: URL) {
 
   console.log(graph_viewer);
   graph_viewer.draw();
+
+  const waragraph = new Waragraph(
+    { graph_viewer, path_viewers },
+    graph_apis.arrowGFA,
+    global_viewport
+  );
 
 }
 
