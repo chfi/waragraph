@@ -66,7 +66,7 @@ async fn get_graph_layout(layout: &State<GraphLayout>) -> Vec<u8> {
 
 // NB just return the sequence byte array for now; arrow IPC later
 #[get("/sequence_array")]
-async fn get_sequence_array(graph: &State<ArrowGFA>) -> Vec<u8> {
+async fn get_sequence_array(graph: &State<Arc<ArrowGFA>>) -> Vec<u8> {
     let buf = graph.segment_sequences.values();
     let mut out = Vec::with_capacity(buf.len());
     out.extend_from_slice(buf);
@@ -387,7 +387,7 @@ fn rocket() -> _ {
             ],
         )
         .mount("/", routes![datasets::get_graph_dataset])
-        .mount("/", routes![paths::path_metadata])
+        .mount("/", routes![paths::path_metadata, paths::path_steps])
         .mount("/coordinate_system", routes![coordinate_system::global])
         .mount("/sample", routes![sample_path_data])
 }
