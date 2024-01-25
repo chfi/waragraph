@@ -64,6 +64,15 @@ async fn get_graph_layout(layout: &State<GraphLayout>) -> Vec<u8> {
     buf
 }
 
+// NB just return the sequence byte array for now; arrow IPC later
+#[get("/sequence_array")]
+async fn get_sequence_array(graph: &State<ArrowGFA>) -> Vec<u8> {
+    let buf = graph.segment_sequences.values();
+    let mut out = Vec::with_capacity(buf.len());
+    out.extend_from_slice(buf);
+    out
+}
+
 #[get("/graph_layout/segment_position/<segment>")]
 async fn get_segment_position(
     layout: &State<GraphLayout>,
@@ -370,6 +379,7 @@ fn rocket() -> _ {
         .mount(
             "/",
             routes![
+                get_sequence_array,
                 get_graph_layout,
                 get_segment_position,
                 get_sample_path_name_world_space,
