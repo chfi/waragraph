@@ -1,14 +1,32 @@
 
 import init_module, * as wasm_bindgen from 'waragraph';
 
-import { addPathViewerLogic, addPathViewerLogicClient, initializePathViewerClient } from './path_viewer_ui';
+import * as rxjs from 'rxjs';
+
+import { PathViewer, addPathViewerLogic, addPathViewerLogicClient, initializePathViewerClient } from './path_viewer_ui';
 import { Viewport1D } from './waragraph';
 
 import { tableFromIPC, tableFromArrays } from 'apache-arrow';
 import { CoordSysArrow, CoordSysInterface } from './coordinate_system';
-import { graphViewerFromData } from './graph_viewer';
+import { GraphViewer, graphViewerFromData } from './graph_viewer';
+import { ArrowGFA, PathIndex } from './graph_api';
 
 
+
+export class Waragraph {
+  graph_viewer: GraphViewer | undefined;
+  path_viewers: Array<PathViewer>;
+
+  // graph: ArrowGFA;
+  // path_index: PathIndex;
+  
+  resize_obs: rxjs.Subject<unknown> | undefined;
+
+  global_viewport: Viewport1D;
+
+  resize_observable: rxjs.Subject<void> | undefined;
+  intersection_observer: IntersectionObserver | undefined;
+}
 
 export async function testPathViewer(base_url: URL) {
 
@@ -78,29 +96,10 @@ export async function testPathViewer(base_url: URL) {
 
   console.log(layout_table);
   console.log("segment count: ", segment_count);
-    
-  // const layout_data = new Float32Array(layout_buf);
-  // const segment_count = layout_data.
-
-  // const segment_depth = await fetch(new URL('/graph_dataset/depth', base_url));
-  // const depth_data_buf = await segment_depth.arrayBuffer();
-  // const depth_data = new Float32Array(depth_data_buf);
-
-  // const segment_count = layout_
-
-  // const depth_color = depth_data.map(val => {
-  //   // todo map to colors using spectral
-  // });
-
-  // const depth_color = new Uint32Array(
-
-  const layout_tsv = await fetch(new URL('/data/A-3105.layout.tsv', base_url));
-  const layout_blob = await layout_tsv.blob();
 
   const graph_viewer = await graphViewerFromData(
     document.getElementById('graph-viewer-container'),
     layout_table
-    // layout_blob
   );
 
   console.log(graph_viewer);
