@@ -4,12 +4,12 @@ import init_module, * as wasm_bindgen from 'waragraph';
 import * as rxjs from 'rxjs';
 
 import { PathViewer, addOverviewEventHandlers, addPathViewerLogic, addPathViewerLogicClient, initializePathViewerClient } from './path_viewer_ui';
-import { Viewport1D } from './waragraph';
+import { Viewport1D, globalSequenceTrack } from './waragraph';
 
 import { tableFromIPC, tableFromArrays } from 'apache-arrow';
 import { CoordSysArrow, CoordSysInterface } from './coordinate_system';
 import { GraphViewer, graphViewerFromData } from './graph_viewer';
-import { ArrowGFA, PathIndex } from './graph_api';
+import { ArrowGFA, PathIndex, serverAPIs } from './graph_api';
 
 import { addViewRangeInputListeners, appendPathListElements, appendSvgViewport } from './dom';
 import { OverviewMap } from './overview';
@@ -19,7 +19,7 @@ export class Waragraph {
   graph_viewer: GraphViewer | undefined;
   path_viewers: Array<PathViewer>;
 
-  // graph: ArrowGFA;
+  graph: ArrowGFA;
   // path_index: PathIndex;
   
   resize_obs: rxjs.Subject<unknown> | undefined;
@@ -34,9 +34,7 @@ export async function testPathViewer(base_url: URL) {
 
   const wasm = await init_module();
 
-  let paths_resp = await fetch(new URL('/path_metadata', base_url));
-  let paths = await paths_resp.json();
-
+  const graph_apis = await serverAPIs(base_url);
   
   let cs_resp = await fetch(new URL('/coordinate_system/global', base_url));
 
@@ -56,49 +54,6 @@ export async function testPathViewer(base_url: URL) {
   const path_data_col = document.getElementById('path-viewer-right-column')!;
 
   const path_viewers: Array<PathViewer> = [];
-
-  for (const path of paths) {
-    console.log(path);
-    const viewer = await initializePathViewerClient(
-      path.name,
-      global_viewport, 
-      base_url,
-      "depth",
-      0.5,
-      { r: 1.0, g: 1.0, b: 1.0 },
-      { r: 1.0, g: 0.0, b: 0.0 }
-    );
-
-    viewer.container.style.setProperty('flex-basis', '20px');
-
-    path_data_col.append(viewer.container);
-
-    await addPathViewerLogicClient(viewer);
-
-    viewer.onResize();
-    console.log(viewer);
-
-    viewer.isVisible = true;
-    viewer.sampleAndDraw(global_viewport.get());
-
-    viewer.container.classList.add('path-list-flex-item');
-
-    const name_el = document.createElement('div');
-    name_el.classList.add('path-list-flex-item', 'path-name');
-    name_el.innerHTML = viewer.pathName;
-
-    path_name_col.append(name_el);
-
-    path_viewers.push(viewer);
-
-      // this.resize_obs
-      //   .pipe(rxjs.throttleTime(500))
-      //   .subscribe((_) => {
-      //     path_viewer.onResize();
-
-      //   })
-
-  }
 
   {
     const overview_slots = appendPathListElements(40, 'div', 'div');
@@ -154,14 +109,64 @@ export async function testPathViewer(base_url: URL) {
 
     seq_slots.right.append(seq_canvas);
 
-    let seg_seq_array = await this.graph.segmentSequencesArray();
+    let seg_seq_array = await graph_apis.arrowGFA.segmentSequencesArray();
     let seq_track = globalSequenceTrack(
       seg_seq_array,
       seq_canvas,
-      viewport!.subject
+      global_viewport.subject
+    );
+  }
+
+
+  const paths = await graph_apis.arrowGFA.pathMetadata();
+
+  for (const path of paths) {
+    console.log(path);
+
+    const color_below = { r: 1.0, g: 1.0, b: 1.0 };
+    const color_above = wasm_bindgen.path_name_hash_color_obj(path.name);
+
+    const viewer = await initializePathViewerClient(
+      path.name,
+      global_viewport, 
+      base_url,
+      "depth",
+      0.5,
+      color_below,
+      color_above
     );
 
+    viewer.container.style.setProperty('flex-basis', '20px');
+
+    path_data_col.append(viewer.container);
+
+    await addPathViewerLogicClient(viewer);
+
+    viewer.onResize();
+    console.log(viewer);
+
+    viewer.isVisible = true;
+    viewer.sampleAndDraw(global_viewport.get());
+
+    viewer.container.classList.add('path-list-flex-item');
+
+    const name_el = document.createElement('div');
+    name_el.classList.add('path-list-flex-item', 'path-name');
+    name_el.innerHTML = viewer.pathName;
+
+    path_name_col.append(name_el);
+
+    path_viewers.push(viewer);
+
+      // this.resize_obs
+      //   .pipe(rxjs.throttleTime(500))
+      //   .subscribe((_) => {
+      //     path_viewer.onResize();
+
+      //   })
+
   }
+
 
   console.log("fetching layout data");
   const layout_table = await fetch(new URL('/graph_layout', base_url))
