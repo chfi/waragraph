@@ -82,10 +82,10 @@ export async function addViewRangeInputListeners(viewport: Viewport1D) {
 
 export async function initializeTree(
   opts: WaragraphOptions,
+  resize_observable: rxjs.Subject<void>,
   { graph_viewer, path_viewers }:
     { graph_viewer?: GraphViewer, path_viewers?: Array<PathViewer> }
 ) {
-  this.resize_obs = new rxjs.Subject();
 
   const root = document.createElement('div');
   root.classList.add('root-grid');
@@ -221,7 +221,7 @@ export async function initializeTree(
     );
 
 
-    this.resize_obs
+    resize_observable
       .pipe(
         rxjs.throttleTime(500)
       )
@@ -281,7 +281,7 @@ export async function initializeTree(
 
     path_viewer.onResize();
 
-    this.resize_obs
+    resize_observable
       .pipe(rxjs.throttleTime(500))
       .subscribe((_) => {
         path_viewer.onResize();
@@ -299,7 +299,7 @@ export async function initializeTree(
     onDragEnd: (dir, track) => {
       // graph_viewer.resize();
       console.warn("resizing split!");
-      this.resize_obs!.next(null);
+      resize_observable.next();
     },
   });
 
@@ -315,12 +315,12 @@ export async function initializeTree(
     rowMinSizes: { 0: 200 },
     onDragEnd: (dir, track) => {
       console.warn("resizing split!");
-      this.resize_obs!.next(null);
+      resize_observable.next();
     },
   });
 
   rxjs.fromEvent(window, 'resize')
     .subscribe(() => {
-      this.resize_obs!.next(null);
+      resize_observable.next();
     });
 }
