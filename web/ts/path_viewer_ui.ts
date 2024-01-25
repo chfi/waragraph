@@ -122,7 +122,9 @@ export class PathViewerClient {
     let start = Math.floor(this.view.start);
     let end = Math.ceil(this.view.end);
 
-    const query = `/sample/path_data/${this.path_name}/${this.data_key}/${start}/${end}/${bins}`;
+    const escaped_name = encodeURIComponent(this.path_name);
+
+    const query = `/sample/path_data/${escaped_name}/${this.data_key}/${start}/${end}/${bins}`;
     const resp = await fetch(new URL(query, this.api_base_url));
 
     const buf = await resp.arrayBuffer();
