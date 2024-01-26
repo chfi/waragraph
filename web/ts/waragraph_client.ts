@@ -47,8 +47,12 @@ export class Waragraph {
       entries.forEach((entry) => {
         if ("path_viewer" in entry.target) {
           const viewer = entry.target.path_viewer as PathViewer;
-          console.warn(viewer.isVisible);
+          const shouldRefresh = !viewer.isVisible && entry.isIntersecting;
           viewer.isVisible = entry.isIntersecting;
+
+          if (shouldRefresh) {
+            viewer.sampleAndDraw();
+          }
         }
       });
     },
@@ -264,6 +268,7 @@ export async function initializeWaragraphClient(base_url: URL) {
     );
 
     viewer.container.style.setProperty('flex-basis', '20px');
+    viewer.container.path_viewer = viewer;
 
     path_data_col.append(viewer.container);
 
