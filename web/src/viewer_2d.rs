@@ -316,7 +316,8 @@ impl GraphViewer {
         let width = texture.texture.width();
         let height = texture.texture.height();
 
-        let node_width = 30.0;
+        // TODO make configurable/accessible from frontend
+        let node_width = 40.0;
 
         self.renderer.update_uniforms(
             &raving.gpu_state.queue,
