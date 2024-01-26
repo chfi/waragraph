@@ -304,9 +304,13 @@ impl CoordSysCache {
 
 #[launch]
 fn rocket() -> _ {
+    env_logger::init();
+
     let args = std::env::args().collect::<Vec<_>>();
 
     let gfa = &args[1];
+
+    log::info!("Parsing GFA {gfa}");
 
     let gfa = std::fs::File::open(gfa)
         .map(std::io::BufReader::new)
@@ -315,6 +319,17 @@ fn rocket() -> _ {
     let agfa =
         waragraph_core::arrow_graph::parser::arrow_graph_from_gfa(gfa).unwrap();
 
+    use waragraph_core::graph_layout::GraphLayout;
+
+    let tsv = &args[2];
+
+    log::info!("Parsing layout TSV {tsv}");
+    let graph_layout = match GraphLayout::from_tsv(tsv) {
+        Ok(g) => g,
+        Err(e) => panic!("${:#?}", e),
+    };
+
+    log::info!("Precomputing data");
     // TODO these should be computed on demand
     let datasets = DatasetsCache::default();
     {
@@ -348,15 +363,6 @@ fn rocket() -> _ {
             .insert("depth".to_string(), Arc::new(graph_depth));
     }
 
-    use waragraph_core::graph_layout::GraphLayout;
-
-    let tsv = &args[2];
-
-    let graph_layout = match GraphLayout::from_tsv(tsv) {
-        Ok(g) => g,
-        Err(e) => panic!("${:#?}", e),
-    };
-
     let cs_cache = CoordSysCache::default();
 
     {
@@ -366,6 +372,7 @@ fn rocket() -> _ {
         cs_map.insert("<global>".to_string(), Arc::new(cs));
     }
 
+    log::info!("Launching server");
     rocket::build()
         .manage(Arc::new(agfa))
         .manage(cs_cache)

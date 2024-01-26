@@ -13,6 +13,9 @@ sprs.workspace = true
 
 ultraviolet.workspace = true
 
+log.workspace = true
+env_logger = "0.11"
+
 arrow2 = { workspace = true, features = [
 "io_json",
 "io_ipc",
