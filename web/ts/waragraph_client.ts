@@ -16,6 +16,7 @@ import { OverviewMap } from './overview';
 
 import * as chroma from 'chroma-js';
 import { PathId } from './types';
+import Split from 'split-grid';
 
 export class Waragraph {
   graph_viewer: GraphViewer | undefined;
@@ -27,7 +28,7 @@ export class Waragraph {
   global_viewport: Viewport1D;
 
   resize_observable: rxjs.Subject<void>;
-  // intersection_observer: IntersectionObserver | undefined;
+  intersection_observer: IntersectionObserver | undefined;
 
 
   constructor(
@@ -42,18 +43,62 @@ export class Waragraph {
 
     this.resize_observable = new rxjs.Subject();
 
-    /*
     this.intersection_observer = new IntersectionObserver((entries) => {
       entries.forEach((entry) => {
         if ("path_viewer" in entry.target) {
           const viewer = entry.target.path_viewer as PathViewer;
+          console.warn(viewer.isVisible);
           viewer.isVisible = entry.isIntersecting;
         }
       });
     },
       { root: document.getElementById('path-viewer-container') }
     );
-     */
+
+    for (const viewer of this.path_viewers) {
+      this.intersection_observer.observe(viewer.container);
+    }
+
+    const split_root = Split({
+      columnGutters: [{
+        track: 1,
+        element: document.querySelector('.gutter-column-sidebar'),
+      }],
+      onDragEnd: (dir, track) => {
+        // graph_viewer.resize();
+        console.warn("resizing split!");
+        this.resize_observable.next();
+      },
+    });
+
+    const split_viz = Split({
+      rowGutters: [{
+        track: 1,
+        element: document.querySelector('.gutter-row-1')
+      }],
+      columnGutters: [{
+        track: 1,
+        element: document.querySelector('.gutter-column-1')
+      }],
+      rowMinSizes: { 0: 200 },
+      onDragEnd: (dir, track) => {
+        console.warn("resizing split!");
+        this.resize_observable.next();
+      },
+    });
+
+    rxjs.fromEvent(window, 'resize')
+      .subscribe(() => {
+        this.resize_observable.next();
+      });
+
+    this.resize_observable.subscribe(() => {
+      this.graph_viewer?.resize();
+      for (const viewer of this.path_viewers) {
+        viewer.onResize();
+      }
+    });
+
   }
 
   
@@ -112,7 +157,7 @@ export class Waragraph {
 }
 
 
-export async function testPathViewer(base_url: URL) {
+export async function initializeWaragraphClient(base_url: URL) {
 
   const wasm = await init_module();
 
