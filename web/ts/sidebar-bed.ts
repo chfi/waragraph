@@ -5,7 +5,8 @@ import { AnnotationPainter } from './annotations';
 import * as CanvasTracks from './canvas_tracks';
 import { wrapWasmPtr } from './wrap';
 
-import { type Waragraph } from './waragraph';
+// import { type Waragraph } from './waragraph';
+import { type Waragraph } from './waragraph_client';
 
 import BED from '@gmod/bed';
 
@@ -557,18 +558,18 @@ async function bedSidebarPanel(waragraph) {
 
 
 
+// export async function initializeBedSidebarPanel(waragraph: Waragraph) {
 export async function initializeBedSidebarPanel(waragraph: Waragraph) {
   // waragraph_viz = warapi;
 
-  if (!wasm) {
-    wasm = await init_module(undefined, waragraph.wasm.memory);
-    wasm_bindgen.set_panic_hook();
-  }
+  // if (!wasm) {
+  //   wasm = await init_module(undefined, waragraph.wasm.memory);
+  //   wasm_bindgen.set_panic_hook();
+  // }
 
-  let path_id = 0;
-  waragraph.graph.with_path_names((name: string) => {
-    pathNamesMap.set(name, path_id);
-    path_id += 1;
+  const pathMetadata = await waragraph.graph.pathMetadata();
+  pathMetadata.forEach(path => {
+    pathNamesMap.set(path.name, path.id);
   });
 
   document

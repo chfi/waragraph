@@ -17,6 +17,7 @@ import { OverviewMap } from './overview';
 import * as chroma from 'chroma-js';
 import { PathId } from './types';
 import Split from 'split-grid';
+import { initializeBedSidebarPanel } from './sidebar-bed';
 
 export class Waragraph {
   graph_viewer: GraphViewer | undefined;
@@ -346,6 +347,8 @@ export async function initializeWaragraphClient(base_url: URL) {
     graph_apis.arrowGFA,
     global_viewport
   );
+
+  await initializeBedSidebarPanel(waragraph);
 
 }
 
