@@ -318,11 +318,11 @@ export async function initializeWaragraphClient(base_url: URL) {
 
   depth_data.forEach((val, i) => {
     let color = spectralScale(val);
-    let [r, g, b, a] = color.rgb();
+    let [r, g, b] = color.rgb();
     depth_color_bytes[i * 4] = r;
     depth_color_bytes[i * 4 + 1] = g;
     depth_color_bytes[i * 4 + 2] = b;
-    depth_color_bytes[i * 4 + 3] = a;
+    depth_color_bytes[i * 4 + 3] = 255;
   });
 
   const depth_color = new Uint32Array(depth_color_buffer);

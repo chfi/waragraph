@@ -92,7 +92,7 @@ fn vs_main(
   // unpack4x8unorm doesn't work on wasm https://github.com/gfx-rs/naga/issues/2006
   // result.node_color = unpack4x8unorm(node_color);
 
-  let color_u = (vec4u(node_color) >> vec4u(24u, 16u, 8u, 0u))
+  let color_u = (vec4u(node_color) >> vec4u(0u, 8u, 16u, 24u))
                 & vec4u(255u);
 
   result.node_color = vec4f(color_u) / vec4f(255.0);
