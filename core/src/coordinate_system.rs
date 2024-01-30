@@ -40,6 +40,14 @@ impl CoordSys {
         Some((start as u64)..(end as u64))
     }
 
+    pub fn segment_at_pos(&self, pos: u64) -> u32 {
+        let i = self
+            .step_offsets
+            .buffer()
+            .binary_search_by_key(&pos, |&o| o as u64);
+        i.unwrap_or_else(|i| i - 1) as u32
+    }
+
     pub fn bp_to_step_range(
         &self,
         start: u64,

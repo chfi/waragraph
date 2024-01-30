@@ -105,3 +105,19 @@ pub async fn path_interval_to_global_blocks(
 
     bytemuck::cast_vec(ranges)
 }
+
+// TODO the return type of this and so many other endpoints
+#[get("/segment_at_path_position?<path_id>&<pos_bp>")]
+pub async fn get_segment_at_path_position(
+    graph: &State<Arc<ArrowGFA>>,
+    coord_sys_cache: &State<crate::CoordSysCache>,
+    path_id: u32,
+    pos_bp: u64,
+) -> Vec<u8> {
+    let path_cs = coord_sys_cache
+        .get_or_compute_for_path(graph, path_id)
+        .await
+        .unwrap();
+    let seg = path_cs.segment_at_pos(pos_bp);
+    bytemuck::cast_vec(vec![seg])
+}

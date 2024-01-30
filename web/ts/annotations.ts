@@ -195,7 +195,7 @@ export class AnnotationPainter {
   }
 
 
-  resample2DPaths() {
+  async resample2DPaths() {
 
     const canvas = document.getElementById("graph-viewer-2d") as HTMLCanvasElement;
     const svg_rect =
@@ -204,13 +204,6 @@ export class AnnotationPainter {
 
     const svg_height_prop = canvas.height / svg_rect.height;
 
-    const map_canvas_to_svg = ({ x, y }) => {
-      let x_ = 100 * x / canvas.width;
-      let y_ = 100 * svg_height_prop * y / canvas.height;
-      return { x: x_, y: y_ };
-    };
-
-    const path_tolerance = 8;
 
     let resample = false;
 
@@ -241,6 +234,14 @@ export class AnnotationPainter {
 
     const viewMatrix = this.waragraph.graph_viewer!.getViewMatrix();
 
+    const path_tolerance = 10;
+
+    const map_canvas_to_svg = (v) => {
+      let x_ = 100 * v[0] / canvas.width;
+      let y_ = 100 * svg_height_prop * v[1] / canvas.height;
+      return vec2.fromValues(x_, y_);
+    };
+
     // for (let { record, cached_path, enabled } of this.record_states) {
     for (const state of this.record_states) {
       if (!state.enabled) {
@@ -250,12 +251,11 @@ export class AnnotationPainter {
       const { path_name, path_interval, bed_record } = state.record;
 
       // TODO should be derived from the view & canvas size
-      const tolerance = 10.0;
 
 
       state.cached_path =
         await this.waragraph.graphLayout!
-          .sample2DPath(path_interval.path_id, path_interval.start, path_interval.end, tolerance);
+          .sample2DPath(path_interval.path_id, path_interval.start, path_interval.end, path_tolerance);
       // state.cached_path
 
       // state.cached_path =
@@ -278,10 +278,12 @@ export class AnnotationPainter {
           let q = vec2.create();
           vec2.transformMat3(q, p, viewMatrix);
 
+          let r = map_canvas_to_svg(q);
+
           if (svg_path.length === 0) {
-            svg_path += `M ${q[0]},${q[1]}`;
+            svg_path += `M ${r[0]},${r[1]}`;
           } else {
-            svg_path += ` L ${q[0]},${q[1]}`;
+            svg_path += ` L ${r[0]},${r[1]}`;
           }
         }
       }
