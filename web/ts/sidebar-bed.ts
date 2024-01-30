@@ -224,7 +224,7 @@ export interface BEDRecord {
 
   path_name: string;
   path_interval: PathInterval;
-  path_step_slice: Uint32Array;
+  // path_step_slice: Uint32Array;
 }
 
 class BEDFile {

@@ -9,7 +9,7 @@ import { Viewport1D, globalSequenceTrack } from './waragraph';
 import { tableFromIPC, tableFromArrays } from 'apache-arrow';
 import { CoordSysArrow, CoordSysInterface } from './coordinate_system';
 import { GraphViewer, graphViewerFromData } from './graph_viewer';
-import { ArrowGFA, PathIndex, serverAPIs } from './graph_api';
+import { ArrowGFA, GraphLayout, PathIndex, serverAPIs } from './graph_api';
 
 import { addViewRangeInputListeners, appendPathListElements, appendSvgViewport } from './dom';
 import { OverviewMap } from './overview';
@@ -26,6 +26,8 @@ export class Waragraph {
   graph: ArrowGFA;
   // path_index: PathIndex;
 
+  graphLayout: GraphLayout | undefined;
+
   global_viewport: Viewport1D;
 
   resize_observable: rxjs.Subject<void>;
@@ -36,11 +38,13 @@ export class Waragraph {
     viewers: { graph_viewer?: GraphViewer, path_viewers: Array<PathViewer> },
     graph: ArrowGFA,
     global_viewport: Viewport1D,
+    graphLayout?: GraphLayout,
   ) {
     this.graph_viewer = viewers.graph_viewer;
     this.path_viewers = viewers.path_viewers;
     this.graph = graph;
     this.global_viewport = global_viewport;
+    this.graphLayout = graphLayout;
 
     this.resize_observable = new rxjs.Subject();
 
