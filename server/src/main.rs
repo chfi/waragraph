@@ -175,7 +175,13 @@ async fn get_sample_path_id_world_space(
         }
     }
 
-    Some(bytemuck::cast_vec(points))
+    let mut points_out: Vec<u8> = Vec::with_capacity(points.len() * 8);
+
+    for p in points {
+        points_out.extend_from_slice(bytemuck::cast_slice(&[p]));
+    }
+
+    Some(points_out)
 }
 
 #[get("/graph_layout/sample_path_name?<path_name>&<start_bp>&<end_bp>&<tolerance>")]
@@ -399,7 +405,8 @@ fn rocket() -> _ {
             "/coordinate_system",
             routes![
                 coordinate_system::global,
-                coordinate_system::path_interval_to_global_blocks
+                coordinate_system::path_interval_to_global_blocks,
+                coordinate_system::get_segment_at_path_position
             ],
         )
         .mount("/sample", routes![sample_path_data])

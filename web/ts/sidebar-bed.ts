@@ -259,28 +259,31 @@ class BEDFile {
       const record_i = this.records.length;
 
       const path_name = findPathName(bed_record.chrom);
-      const path_interval = bedToPathInterval(bed_record, path_name);
+      const path_name_interval = bedToPathInterval(bed_record, path_name);
 
-      const path_cs = await waragraph.getCoordinateSystem("path:" + path_name);
+      // const path_cs = await waragraph.getCoordinateSystem("path:" + path_name);
 
-      if (path_cs === undefined) {
-        throw new Error(`Could not find coordinate system for path ${path_name}`);
-      }
+      // if (path_cs === undefined) {
+      //   throw new Error(`Could not find coordinate system for path ${path_name}`);
+      // }
       // const path_cs_raw = await waragraph_viz.worker_obj.pathCoordSys(path_name);
       // const path_cs = wrapWasmPtr(wasm_bindgen.CoordSys, path_cs_raw.__wbg_ptr);
 
-      const path_steps = graph.path_steps(path_name);
+      // const path_steps = graph.path_steps(path_name);
 
-      const step_range = path_cs.bp_to_step_range(BigInt(path_interval.start), BigInt(path_interval.end)) as { start: number, end: number };
+      // const step_range = path_cs.bp_to_step_range(BigInt(path_interval.start), BigInt(path_interval.end)) as { start: number, end: number };
       // const step_range = path_cs.bp_to_step_range(path_range.start, path_range.end);
-      const path_step_slice = path_steps.slice(step_range.start, step_range.end);
+      // const path_step_slice = path_steps.slice(step_range.start, step_range.end);
+
+      const path_id = await graph.pathIdFromName(path_name);
+      const path_interval = { path_id, start: path_name_interval.start, end: path_name_interval.end };
 
       const record = {
         record_index: record_i,
         bed_record,
         path_name,
         path_interval,
-        path_step_slice,
+        // path_step_slice,
       };
 
       this.records.push(record);
@@ -303,7 +306,7 @@ class BEDFile {
     // there's more than just 2D-focused SVG
     waragraph
       .graph_viewer?.view_subject
-      .subscribe((view_2d) => {
+      .subscribe(async (view_2d) => {
         const { x, y, width, height } = view_2d;
 
         let update_pos = false;
@@ -320,14 +323,14 @@ class BEDFile {
           // update SVG path offsets;
           // should also happen on resample
 
-          this.annotation_painter.resample2DPaths();
-          this.annotation_painter.updateSVGPaths();
+          await this.annotation_painter.resample2DPaths();
+          await this.annotation_painter.updateSVGPaths();
           prev_view = view_2d;
         }
 
       });
 
-    const viewport = await waragraph.get1DViewport();
+    const viewport = waragraph.global_viewport;
 
     viewport?.subject
       .pipe(rxjs.distinct(),

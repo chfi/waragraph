@@ -138,6 +138,7 @@ export class Waragraph {
 
     let viewport = this.global_viewport;
 
+    // TODO 1/30 fix segmentRange
     let seg_range = viewport.segmentRange(segment);
 
     let el = document.getElementById('viewer-' + path_name);
@@ -355,8 +356,11 @@ export async function initializeWaragraphClient(base_url: URL) {
     base_url,
     { graph_viewer, path_viewers },
     graph_apis.arrowGFA,
-    global_viewport
+    global_viewport,
+    graph_apis.graphLayout
   );
+
+  appendSvgViewport();
 
   await initializeBedSidebarPanel(waragraph);
 

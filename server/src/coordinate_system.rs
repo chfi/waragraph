@@ -78,8 +78,8 @@ pub async fn path_interval_to_global_blocks(
     let step_range = path_cs.bp_to_step_range(start_bp, end_bp);
 
     let steps = graph.path_steps(path_id);
-    let step_slice =
-        steps.clone().sliced(*step_range.start(), *step_range.end());
+    let len = *step_range.end() - *step_range.start();
+    let step_slice = steps.clone().sliced(*step_range.start(), len);
 
     let sorted = step_slice.values_iter().copied().collect::<Vec<_>>();
 
@@ -103,7 +103,14 @@ pub async fn path_interval_to_global_blocks(
         ranges.push([range_start, prev_seg_ix]);
     }
 
-    bytemuck::cast_vec(ranges)
+    let mut out: Vec<u8> = Vec::with_capacity(ranges.len() * 8);
+
+    for range in ranges {
+        out.extend_from_slice(bytemuck::cast_slice(&range));
+    }
+
+    out
+    // bytemuck::cast_vec(ranges)
 }
 
 // TODO the return type of this and so many other endpoints
@@ -113,11 +120,11 @@ pub async fn get_segment_at_path_position(
     coord_sys_cache: &State<crate::CoordSysCache>,
     path_id: u32,
     pos_bp: u64,
-) -> Vec<u8> {
+) -> Json<u32> {
     let path_cs = coord_sys_cache
         .get_or_compute_for_path(graph, path_id)
         .await
         .unwrap();
     let seg = path_cs.segment_at_pos(pos_bp);
-    bytemuck::cast_vec(vec![seg])
+    Json(seg)
 }

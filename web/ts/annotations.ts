@@ -161,12 +161,14 @@ export class AnnotationPainter {
       //// global coordinate space rectangles for the 1D path views
 
       const record_ranges_resp =
-        await fetch(new URL(`/path_interval_to_global_blocks?path_id=${path_interval.path_id}&start_bp=${path_interval.start}&end_bp=${path_interval.end}`,
-          this.waragraph.api_base_url))
-          .then(r => r.arrayBuffer());
+        await fetch(new URL(`/coordinate_system/path_interval_to_global_blocks?path_id=${path_interval.path_id}&start_bp=${path_interval.start}&end_bp=${path_interval.end}`,
+          this.waragraph.api_base_url));
+          // .then(r => r.arrayBuffer());
+
+      console.log(record_ranges_resp);
 
       // const record_ranges = wasm_bindgen.path_slice_to_global_adj_partitions(path_step_slice);
-      const ranges_arr = new Uint32Array(record_ranges_resp);
+      const ranges_arr = new Uint32Array(await record_ranges_resp.arrayBuffer());
 
       // const ranges_arr = record_ranges.ranges_as_u32_array();
       const range_count = ranges_arr.length / 2;
@@ -351,8 +353,11 @@ export class AnnotationPainter {
       const link_start = svg_g.querySelector('.svg-overlay-link-start') as SVGLineElement;
       const link_end = svg_g.querySelector('.svg-overlay-link-end') as SVGLineElement;
 
-      const first_seg = record.path_step_slice.at(0) >> 1;
-      const last_seg = record.path_step_slice.at(-1) >> 1;
+      let interval = record.path_interval;
+      const first_seg = await this.waragraph.graph.segmentAtPathPosition(interval.path_id, interval.start);
+      const last_seg = await this.waragraph.graph.segmentAtPathPosition(interval.path_id, interval.end);
+      // const first_seg = record.path_step_slice.at(0) >> 1;
+      // const last_seg = record.path_step_slice.at(-1) >> 1;
 
       const first_pos = await this.waragraph.segmentScreenPos1d(record.path_name, first_seg);
       const last_pos = await this.waragraph.segmentScreenPos1d(record.path_name, last_seg);
