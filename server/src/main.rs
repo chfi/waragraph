@@ -260,7 +260,7 @@ impl CoordSysCache {
     // async fn get_for_path(
     //     )
 
-    async fn get_or_compute_for_path(
+    pub(crate) async fn get_or_compute_for_path(
         &self,
         graph: &Arc<ArrowGFA>,
         path_id: u32,
@@ -395,7 +395,13 @@ fn rocket() -> _ {
         )
         .mount("/", routes![datasets::get_graph_dataset])
         .mount("/", routes![paths::path_metadata, paths::path_steps])
-        .mount("/coordinate_system", routes![coordinate_system::global])
+        .mount(
+            "/coordinate_system",
+            routes![
+                coordinate_system::global,
+                coordinate_system::path_interval_to_global_blocks
+            ],
+        )
         .mount("/sample", routes![sample_path_data])
 }
 

@@ -25,8 +25,9 @@ export interface ArrowGFA {
   pathNameFromId(id: number): Promise<string | undefined>;
   pathMetadata(): Promise<[PathMetadata]>;
   pathSteps(id: number): Promise<Uint32Array | undefined>;
-
   // depth data; or put that in DatasetStore & have the worker do it
+
+
 }
 
 

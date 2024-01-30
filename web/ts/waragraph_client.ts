@@ -33,8 +33,11 @@ export class Waragraph {
   resize_observable: rxjs.Subject<void>;
   intersection_observer: IntersectionObserver | undefined;
 
+  api_base_url: URL;
+
 
   constructor(
+    base_url: URL,
     viewers: { graph_viewer?: GraphViewer, path_viewers: Array<PathViewer> },
     graph: ArrowGFA,
     global_viewport: Viewport1D,
@@ -45,6 +48,8 @@ export class Waragraph {
     this.graph = graph;
     this.global_viewport = global_viewport;
     this.graphLayout = graphLayout;
+
+    this.api_base_url = base_url;
 
     this.resize_observable = new rxjs.Subject();
 
@@ -347,6 +352,7 @@ export async function initializeWaragraphClient(base_url: URL) {
   graph_viewer.draw();
 
   const waragraph = new Waragraph(
+    base_url,
     { graph_viewer, path_viewers },
     graph_apis.arrowGFA,
     global_viewport

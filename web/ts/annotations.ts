@@ -137,7 +137,7 @@ export class AnnotationPainter {
     const viewport = this.waragraph.global_viewport;
 
     for (const state of this.record_states) {
-      const { bed_record, path_name, path_step_slice } = state.record;
+      const { bed_record, path_name, path_interval } = state.record;
 
       const bed = state.record.bed_record;
 
@@ -160,9 +160,15 @@ export class AnnotationPainter {
 
       //// global coordinate space rectangles for the 1D path views
 
-      const record_ranges = wasm_bindgen.path_slice_to_global_adj_partitions(path_step_slice);
+      const record_ranges_resp =
+        await fetch(new URL(`/path_interval_to_global_blocks?path_id=${path_interval.path_id}&start_bp=${path_interval.start}&end_bp=${path_interval.end}`,
+          this.waragraph.api_base_url))
+          .then(r => r.arrayBuffer());
 
-      const ranges_arr = record_ranges.ranges_as_u32_array();
+      // const record_ranges = wasm_bindgen.path_slice_to_global_adj_partitions(path_step_slice);
+      const ranges_arr = new Uint32Array(record_ranges_resp);
+
+      // const ranges_arr = record_ranges.ranges_as_u32_array();
       const range_count = ranges_arr.length / 2;
 
       const global_ranges = [];
