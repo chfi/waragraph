@@ -18,6 +18,7 @@ import * as chroma from 'chroma-js';
 import { PathId } from './types';
 import Split from 'split-grid';
 import { initializeBedSidebarPanel } from './sidebar-bed';
+import { vec2 } from 'gl-matrix';
 
 export class Waragraph {
   graph_viewer: GraphViewer | undefined;
@@ -114,17 +115,27 @@ export class Waragraph {
     });
 
   }
-
   
 
-  segmentScreenPos2d(segment: number) {
-    let seg_pos = this.graph_viewer?.getSegmentScreenPos(segment);
-
-    if (!seg_pos) {
-      return null;
+  async segmentScreenPos2d(segment: number) {
+    if (this.graph_viewer === undefined) {
+      return;
     }
 
-    return seg_pos;
+    let world_pos = await this.graphLayout!.segmentPosition(segment);
+
+    if (!world_pos) {
+      return;
+    }
+
+    let mat = this.graph_viewer!.getViewMatrix();
+
+    let p0 = vec2.create();
+    let p1 = vec2.create();
+    vec2.transformMat3(p0, world_pos.subarray(0, 2), mat);
+    vec2.transformMat3(p0, world_pos.subarray(2, 4), mat);
+
+    return { p0, p1 };
   }
 
   async segmentScreenPos1d(path: PathId | string, segment: number) {

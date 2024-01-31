@@ -39,6 +39,8 @@ export interface PathIndex {
 
 export interface GraphLayout {
   sample2DPath(path_id: PathId, start: Bp, end: Bp, tolerance: number): Promise<Float32Array | undefined>;
+
+  segmentPosition(segment: number): Promise<Float32Array | undefined>;
 }
 
 
@@ -106,6 +108,16 @@ export async function serverAPIs(base_url: URL): Promise<
       const resp = await fetch(query);
       const buffer = await resp.arrayBuffer();
       return new Float32Array(buffer);
+    },
+
+    async segmentPosition(segment: number): Promise<Float32Array | undefined> {
+      const resp = await fetch(new URL(`/graph_layout/segment_position/${segment}`, base_url));
+      if (resp.ok === false) {
+        return;
+      }
+
+      const buf = await resp.arrayBuffer();
+      return new Float32Array(buf);
     }
   };
 
