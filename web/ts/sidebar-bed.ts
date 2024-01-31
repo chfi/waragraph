@@ -374,7 +374,7 @@ class BEDFile {
 
       const viz_states = this.annotation_painter.record_states;
 
-      label_div.addEventListener('click', (ev) => {
+      label_div.addEventListener('click', async (ev) => {
         let state = viz_states[record.record_index];
 
         let svg_g_1d = state.svg_g.querySelector('.svg-overlay-1d') as SVGGElement;
@@ -401,8 +401,8 @@ class BEDFile {
             child.setAttribute('display', 'inline');
           }
 
-          this.annotation_painter.resample2DPaths();
-          this.annotation_painter.updateSVGPaths();
+          await this.annotation_painter.resample2DPaths();
+          await this.annotation_painter.updateSVGPaths();
 
           state.enabled = true;
         }

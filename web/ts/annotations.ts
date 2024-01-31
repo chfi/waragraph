@@ -415,7 +415,7 @@ fill="${color}"
 
   }
 
-  updateSVGPaths() {
+  async updateSVGPaths() {
     const canvas = document.getElementById("graph-viewer-2d") as HTMLCanvasElement;
     const w = canvas.width;
     const h = canvas.height;
@@ -447,14 +447,20 @@ fill="${color}"
       const link_start = svg_g.querySelector('.svg-overlay-link-start') as SVGLineElement;
       const link_end = svg_g.querySelector('.svg-overlay-link-end') as SVGLineElement;
 
-      const first_seg = record.path_step_slice.at(0) >> 1;
-      const last_seg = record.path_step_slice.at(-1) >> 1;
+      let interval = record.path_interval;
+      const first_seg = await this.waragraph.graph.segmentAtPathPosition(interval.path_id, interval.start);
+      const last_seg = await this.waragraph.graph.segmentAtPathPosition(interval.path_id, interval.end);
 
-      const first_pos = this.waragraph.segmentScreenPos2d(first_seg);
-      const last_pos = this.waragraph.segmentScreenPos2d(last_seg);
+      // const first_seg = record.path_step_slice.at(0) >> 1;
+      // const last_seg = record.path_step_slice.at(-1) >> 1;
 
-      const f_p = map_canvas_to_svg({ x: first_pos.start[0], y: first_pos.start[1] });
-      const l_p = map_canvas_to_svg({ x: last_pos.end[0], y: last_pos.end[1] });
+      const first_pos = await this.waragraph.segmentScreenPos2d(first_seg);
+      const last_pos = await this.waragraph.segmentScreenPos2d(last_seg);
+
+      console.warn(first_pos);
+      console.warn(last_pos);
+      const f_p = map_canvas_to_svg({ x: first_pos.p0[0], y: first_pos.p0[1] });
+      const l_p = map_canvas_to_svg({ x: last_pos.p0[0], y: last_pos.p0[1] });
 
       link_start.setAttribute('x1', String(f_p.x));
       link_start.setAttribute('y1', String(f_p.y));
