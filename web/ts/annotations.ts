@@ -252,21 +252,11 @@ export class AnnotationPainter {
 
       const { path_name, path_interval, bed_record } = state.record;
 
-      // TODO should be derived from the view & canvas size
-
-
+      // TODO should be derived from the view & canvas size; no need to recompute
+      // for every single view change
       state.cached_path =
         await this.waragraph.graphLayout!
           .sample2DPath(path_interval.path_id, path_interval.start, path_interval.end, path_tolerance);
-      // state.cached_path
-
-      // state.cached_path =
-      //   this.waragraph.graph_viewer!
-      //     .sampleWorldSpacePath(path_interval, tolerance);
-          // .sampleCanvasSpacePath(path_step_slice, path_tolerance);
-
-      // state.cached_path =
-
 
 
       let svg_path = "";
