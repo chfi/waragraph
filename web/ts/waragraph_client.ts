@@ -298,7 +298,7 @@ export async function initializeWaragraphClient(base_url: URL) {
 
     path_data_col.append(viewer.container);
 
-    await addPathViewerLogicClient(viewer);
+    await addPathViewerLogicClient(graph_apis.arrowGFA, viewer);
 
     viewer.onResize();
     console.log(viewer);

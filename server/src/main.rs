@@ -406,6 +406,7 @@ fn rocket() -> _ {
             routes![
                 coordinate_system::global,
                 coordinate_system::global_segment_range,
+                coordinate_system::global_segment_at_offset,
                 coordinate_system::path_interval_to_global_blocks,
                 coordinate_system::get_segment_at_path_position
             ],

@@ -26,8 +26,9 @@ export interface ArrowGFA {
   pathMetadata(): Promise<[PathMetadata]>;
   pathSteps(id: number): Promise<Uint32Array | undefined>;
   segmentAtPathPosition(path: PathId, pos: Bp): Promise<number | undefined>;
-
+  segmentAtGlobalPosition(pos: Bp): Promise<number | undefined>;
   // depth data; or put that in DatasetStore & have the worker do it
+
 }
 
 
@@ -88,7 +89,13 @@ export async function serverAPIs(base_url: URL): Promise<
     },
 
     async segmentAtPathPosition(path: PathId, pos: Bp): Promise<number | undefined> {
-      const resp = await fetch(new URL(`/coordinate_system/segment_at_path_position?path_id=${path}&pos_bp=${pos}`, base_url));
+      const resp = await fetch(new URL(`/coordinate_system/path/segment_at_offset?path_id=${path}&pos_bp=${pos}`, base_url));
+      const json = await resp.json();
+      return json;
+    },
+
+    async segmentAtGlobalPosition(pos: Bp): Promise<number | undefined> {
+      const resp = await fetch(new URL(`/coordinate_system/global/segment_at_offset?pos_bp=${pos}`, base_url));
       const json = await resp.json();
       return json;
     }

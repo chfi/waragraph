@@ -4,6 +4,7 @@ import type { Bp, Segment, Handle, PathId, RGBObj } from './types';
 import { type WithPtr, wrapWasmPtr } from './wrap';
 
 import { View1D, type Viewport1D } from './waragraph';
+import { type Waragraph } from './waragraph_client';
 import { type WaragraphWorkerCtx, type PathViewerCtx } from './worker';
 
 import { placeTooltipAtPoint } from './tooltip';
@@ -18,9 +19,11 @@ import * as handler from './transfer_handlers';
 handler.setTransferHandlers(rxjs, Comlink);
 
 import * as FloatingUI from '@floating-ui/dom';
+import { ArrowGFA } from './graph_api';
 
 async function segmentAtCanvasX(
   // coord_sys_view,
+  graph_api: ArrowGFA,
   viewport: Viewport1D,
   canvas_width: number,
   x: number
@@ -31,7 +34,8 @@ async function segmentAtCanvasX(
   let bp_f = start + (x / canvas_width) * len;
   let bp = BigInt(Math.round(bp_f));
 
-  let segment = viewport.segmentAtOffset(bp);
+  // let segment = viewport.segmentAtOffset(bp);
+  let segment = graph_api.segmentAtGlobalPosition(bp);
 
   return segment;
 }
@@ -575,6 +579,7 @@ export async function addOverviewEventHandlers(overview, viewport: Viewport1D) {
 export async function addPathViewerLogicClient(
   // worker: Comlink.Remote<WaragraphWorkerCtx>,
   // paths_on_segment: (segment)
+  graph_api: ArrowGFA,
   path_viewer: PathViewer,
 ) {
   const { viewer_ctx, overlay_canvas } = path_viewer;
@@ -596,7 +601,8 @@ export async function addPathViewerLogicClient(
   });
 
 
-  /*
+  
+  
   mouseMove$.pipe(
     rxjs.distinct(),
     rxjs.throttleTime(50)
@@ -605,7 +611,8 @@ export async function addPathViewerLogicClient(
     let y = e.offsetY;
     let width = canvas.width;
 
-    let segment = await segmentAtCanvasX(path_viewer.viewport, width, x);
+    let segment = await segmentAtCanvasX(graph_api, path_viewer.viewport, width, x);
+    
     // console.log("segment at cursor: " + segment);
 
     let tooltip = document.getElementById('tooltip');
@@ -616,11 +623,10 @@ export async function addPathViewerLogicClient(
     placeTooltipAtPoint(e.clientX, e.clientY);
     // placeTooltipAtPoint(x, y);
 
-    let paths = await worker.pathsOnSegment(segment);
+    // let paths = await worker.pathsOnSegment(segment);
     // console.log("paths!!!");
     // console.log(paths);
   });
-    */
 
 
   const wheelScaleDelta$ = wheel$.pipe(

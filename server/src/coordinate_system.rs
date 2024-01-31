@@ -12,6 +12,17 @@ use rocket::{get, post, State};
 use waragraph_core::arrow_graph::ArrowGFA;
 use waragraph_core::coordinate_system::CoordSys;
 
+#[get("/global/segment_at_offset?<pos_bp>")]
+pub async fn global_segment_at_offset(
+    coord_sys_cache: &State<crate::CoordSysCache>,
+    pos_bp: u64,
+) -> Option<Json<u32>> {
+    let cs_map = coord_sys_cache.map.read().await;
+    let global_cs = cs_map.get("<global>")?;
+    let seg = global_cs.segment_at_pos(pos_bp);
+    Some(Json(seg))
+}
+
 #[get("/global/segment_range/<segment>")]
 pub async fn global_segment_range(
     coord_sys_cache: &State<crate::CoordSysCache>,
@@ -126,7 +137,7 @@ pub async fn path_interval_to_global_blocks(
 }
 
 // TODO the return type of this and so many other endpoints
-#[get("/segment_at_path_position?<path_id>&<pos_bp>")]
+#[get("/path/segment_at_offset?<path_id>&<pos_bp>")]
 pub async fn get_segment_at_path_position(
     graph: &State<Arc<ArrowGFA>>,
     coord_sys_cache: &State<crate::CoordSysCache>,
