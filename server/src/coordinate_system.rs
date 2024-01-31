@@ -12,6 +12,18 @@ use rocket::{get, post, State};
 use waragraph_core::arrow_graph::ArrowGFA;
 use waragraph_core::coordinate_system::CoordSys;
 
+#[get("/global/segment_range/<segment>")]
+pub async fn global_segment_range(
+    coord_sys_cache: &State<crate::CoordSysCache>,
+    segment: u32,
+) -> Option<Json<[u64; 2]>> {
+    let cs_map = coord_sys_cache.map.read().await;
+    let global_cs = cs_map.get("<global>")?;
+    let range = global_cs.segment_range(segment)?;
+
+    Some(Json([range.start, range.end]))
+}
+
 #[get("/global")]
 pub async fn global(coord_sys_cache: &State<crate::CoordSysCache>) -> Vec<u8> {
     let cs_map = coord_sys_cache.map.read().await;
