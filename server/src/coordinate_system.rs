@@ -27,12 +27,13 @@ pub async fn global_segment_at_offset(
 pub async fn global_segment_range(
     coord_sys_cache: &State<crate::CoordSysCache>,
     segment: u32,
-) -> Option<Json<[u64; 2]>> {
+) -> Option<Vec<u8>> {
     let cs_map = coord_sys_cache.map.read().await;
     let global_cs = cs_map.get("<global>")?;
     let range = global_cs.segment_range(segment)?;
-
-    Some(Json([range.start, range.end]))
+    let mut result: Vec<u8> = Vec::with_capacity(64 * 2);
+    result.extend_from_slice(bytemuck::cast_slice(&[range.start, range.end]));
+    Some(result)
 }
 
 #[get("/global")]

@@ -124,8 +124,8 @@ export class AnnotationPainter {
 
         enabled: false,
 
-        global_ranges: null,
-        cached_path: null,
+        global_ranges: undefined,
+        cached_path: undefined,
       });
 
       this.svg_root.append(g_el);
@@ -171,8 +171,6 @@ export class AnnotationPainter {
           this.waragraph.api_base_url));
           // .then(r => r.arrayBuffer());
 
-      console.log(record_ranges_resp);
-
       // const record_ranges = wasm_bindgen.path_slice_to_global_adj_partitions(path_step_slice);
       const ranges_arr = new Uint32Array(await record_ranges_resp.arrayBuffer());
 
@@ -191,10 +189,14 @@ export class AnnotationPainter {
         // }
 
         if (start_seg !== undefined && end_seg !== undefined) {
-          let start = viewport.segmentOffset(start_seg);
-          let end = viewport.segmentOffset(end_seg);
+          let first = await this.waragraph.graph.segmentGlobalRange(start_seg);
+          let last = await this.waragraph.graph.segmentGlobalRange(end_seg);
 
-          global_ranges.push({ start, end });
+          if (first === undefined || last === undefined) {
+            continue;
+          }
+
+          global_ranges.push({ start: Number(first.start), end: Number(last.end) });
         }
       }
 
@@ -284,24 +286,25 @@ export class AnnotationPainter {
 
         state.cached_path = { path, tolerance };
 
-        let svg_path = "";
+      }
 
-        if (state.cached_path !== undefined) {
-          for (let i = 0; i < state.cached_path.path.length; i += 2) {
-            let x = state.cached_path[i];
-            let y = state.cached_path[i + 1];
-            let p = vec2.fromValues(x, y);
-            // these are world space; need to apply 2D view matrix 
-            let q = vec2.create();
-            vec2.transformMat3(q, p, viewMatrix);
+      let svg_path = "";
 
-            let r = map_canvas_to_svg(q);
+      if (state.cached_path !== undefined) {
+        for (let i = 0; i < state.cached_path.path.length; i += 2) {
+          let x = state.cached_path.path[i];
+          let y = state.cached_path.path[i + 1];
+          let p = vec2.fromValues(x, y);
+          // these are world space; need to apply 2D view matrix 
+          let q = vec2.create();
+          vec2.transformMat3(q, p, viewMatrix);
 
-            if (svg_path.length === 0) {
-              svg_path += `M ${r[0]},${r[1]}`;
-            } else {
-              svg_path += ` L ${r[0]},${r[1]}`;
-            }
+          let r = map_canvas_to_svg(q);
+
+          if (svg_path.length === 0) {
+            svg_path += `M ${r[0]},${r[1]}`;
+          } else {
+            svg_path += ` L ${r[0]},${r[1]}`;
           }
         }
       }
@@ -326,8 +329,6 @@ export class AnnotationPainter {
         // `<path d="${svg_path}" stroke-width="0.5" fill="none" />`;
         `<path d="${svg_path}" stroke-width="0.5" stroke="${state.color}" fill="none" />`;
       // `<path d="${svg_path}" stroke-width="0.5" stroke="red" fill="none" />`;
-
-      // console.warn(state.cached_path);
     }
   }
 
@@ -361,7 +362,7 @@ export class AnnotationPainter {
     for (const record_state of this.record_states) {
       const { svg_g, record, global_ranges, color } = record_state;
 
-      if (global_ranges === null) {
+      if (global_ranges === undefined) {
         continue;
       }
 
@@ -455,7 +456,7 @@ fill="${color}"
     for (const record_state of this.record_states) {
       const { svg_g, record, cached_path, enabled, color } = record_state;
 
-      if (!enabled || cached_path === null) {
+      if (!enabled || cached_path === undefined) {
         // svg_g.innerHTML = '';
         // svg_g.style.setProperty('display', 'none');
         continue;
@@ -474,8 +475,6 @@ fill="${color}"
       const first_pos = await this.waragraph.segmentScreenPos2d(first_seg);
       const last_pos = await this.waragraph.segmentScreenPos2d(last_seg);
 
-      console.warn(first_pos);
-      console.warn(last_pos);
       const f_p = map_canvas_to_svg({ x: first_pos.p0[0], y: first_pos.p0[1] });
       const l_p = map_canvas_to_svg({ x: last_pos.p0[0], y: last_pos.p0[1] });
 
@@ -499,8 +498,6 @@ fill="${color}"
 
       const svg_path =
         svg_g.querySelector('.svg-overlay-2d > path');
-
-      // console.warn(svg_path);
 
       /*
       let svg_path = "";

@@ -149,16 +149,11 @@ export class Waragraph {
 
 
     // let seg_range = viewport.segmentRange(segment);
-    let seg_range_resp =
-      await fetch(new URL(`/coordinate_system/global/segment_range/${segment}`, this.api_base_url));
-    if (seg_range_resp.ok === false) {
-      return;
-    }
-    let seg_range = await seg_range_resp.json();
+    const seg_range = await this.graph.segmentGlobalRange(segment);
 
     let el = document.getElementById('viewer-' + path_name);
 
-    if (!el) {
+    if (!el || !seg_range) {
       return null;
     }
 
@@ -169,9 +164,9 @@ export class Waragraph {
     let view = viewport.get();
     let view_len = viewport.length;
 
-    // segmentRange (can) returns BigInts
-    let seg_s = Number(seg_range[0]);
-    let seg_e = Number(seg_range[1]);
+    // segmentRange returns BigInts
+    let seg_s = Number(seg_range.start);
+    let seg_e = Number(seg_range.end);
 
     let seg_start = (seg_s - view.start) / view_len;
     let seg_end = (seg_e - view.start) / view_len;
