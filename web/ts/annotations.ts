@@ -142,7 +142,7 @@ export class AnnotationPainter {
 
     const viewport = this.waragraph.global_viewport;
 
-    for (const state of this.record_states) {
+    this.record_states.forEach(async (state) => {
       const { bed_record, path_name, path_interval } = state.record;
 
       const bed = state.record.bed_record;
@@ -201,7 +201,7 @@ export class AnnotationPainter {
       }
 
       state.global_ranges = global_ranges;
-    }
+    });
   }
 
 
