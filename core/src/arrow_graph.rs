@@ -41,9 +41,51 @@ pub struct PathIndex {
     pub segment_path_matrix: SegmentPathMatrix,
 }
 
-// pub struct PathsOnSegmentIter<'a> {
-//     bitmap_iter:
-// }
+pub struct PathsOnSegmentIter<I>
+where
+    I: Iterator<Item = (u32, u32)>,
+{
+    iter: I,
+    current: Option<(u32, u32)>,
+    done: bool,
+}
+
+impl<I> Iterator for PathsOnSegmentIter<I>
+where
+    I: Iterator<Item = (u32, u32)>,
+{
+    type Item = u32;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.done {
+            return None;
+        }
+
+        if self.current.is_none() {
+            if let Some((ix, bits)) = self.iter.next() {
+                self.current = Some((ix, bits));
+            } else {
+                self.done = true;
+                return None;
+            }
+        }
+
+        let (ix, bits) = self.current?;
+
+        let bit = bits.trailing_zeros();
+        let out = ix * 32 + bit;
+
+        let new_bits = bits ^ bit;
+
+        if new_bits == 0 {
+            self.current = None;
+        } else {
+            self.current = Some((ix, new_bits));
+        }
+
+        Some(out)
+    }
+}
 
 impl PathIndex {
     pub fn from_arrow_gfa(gfa: &ArrowGFA) -> Self {
@@ -53,38 +95,20 @@ impl PathIndex {
         }
     }
 
-    pub fn paths_on_segment<'a>(
+    pub fn paths_on_segment_iter<'a>(
         &'a self,
         segment: u32,
-    ) -> Option<impl Iterator<Item = u32> + 'a> {
-        // TODO
+    ) -> Option<PathsOnSegmentIter<impl Iterator<Item = (u32, u32)>>> {
         let bitmap = self.segment_path_matrix.paths_on_segment(segment)?;
+        let (is, ds) = bitmap.into_raw_storage();
 
-        // bitmap.iter().flat_map(|(ix, &bits)| {
-        //     // bits.
-        //     // bits.
-        //     todo!();
-        // })
+        let iter = PathsOnSegmentIter {
+            iter: std::iter::zip(is, ds),
+            current: None,
+            done: false,
+        };
 
-        // TODO
-        Some(std::iter::empty())
-        /*
-        if let Some(bitmap) =
-            self.0.segment_path_matrix.paths_on_segment(segment)
-        {
-            let paths = Vec::new();
-
-            for (ix, &bits) in bitmap.iter() {
-                log::warn!("{ix} - {:b}", bits);
-            }
-
-            paths
-        } else {
-            log::error!("segment out of bounds");
-
-            Vec::new()
-        }
-        */
+        Some(iter)
     }
 }
 

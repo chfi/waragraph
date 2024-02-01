@@ -47,7 +47,13 @@ pub async fn paths_on_segment(
     path_index: &State<Arc<PathIndex>>,
     segment: u32,
 ) -> Option<Vec<u8>> {
-    let vec = path_index.segment_path_matrix.paths_on_segment(segment)?;
+    let paths = path_index.paths_on_segment_iter(segment)?;
 
-    todo!();
+    let mut out: Vec<u8> = Vec::new();
+
+    for path in paths {
+        out.extend_from_slice(&bytemuck::cast_slice(&[path]));
+    }
+
+    Some(out)
 }
