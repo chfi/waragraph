@@ -30,9 +30,15 @@ interface AnnotationRecord {
 
   global_ranges: Array<{ start: number, end: number }> | null;
   // cached_path: wasm_bindgen.CanvasPathTrace | null;
-  cached_path: Float32Array | undefined;
+  // cached_path: Float32Array | undefined;
+  cached_path: CachedPath | undefined;
 
   color?: string;
+}
+
+interface CachedPath {
+  path: Float32Array;
+  tolerance: number;
 }
 
 let _wasm;
@@ -236,7 +242,10 @@ export class AnnotationPainter {
 
     const viewMatrix = this.waragraph.graph_viewer!.getViewMatrix();
 
-    const path_tolerance = 10;
+    // let's say tolerance should be 5px
+    const view_obj = this.waragraph.graph_viewer!.getView();
+    const world_per_px = view_obj.width / canvas.width;
+    const tolerance = 5.0 * world_per_px;
 
     const map_canvas_to_svg = (v) => {
       let x_ = 100 * v[0] / canvas.width;
@@ -252,33 +261,51 @@ export class AnnotationPainter {
 
       const { path_name, path_interval, bed_record } = state.record;
 
-      // TODO should be derived from the view & canvas size; no need to recompute
-      // for every single view change
-      state.cached_path =
-        await this.waragraph.graphLayout!
-          .sample2DPath(path_interval.path_id, path_interval.start, path_interval.end, path_tolerance);
-
-
-      let svg_path = "";
+      let update_path = state.cached_path === undefined;
 
       if (state.cached_path !== undefined) {
-        for (let i = 0; i < state.cached_path.length; i += 2) {
-          let x = state.cached_path[i];
-          let y = state.cached_path[i + 1];
-          let p = vec2.fromValues(x, y);
-          // these are world space; need to apply 2D view matrix 
-          let q = vec2.create();
-          vec2.transformMat3(q, p, viewMatrix);
+        // TODO tune
+        if (Math.abs(tolerance - state.cached_path.tolerance) > 10.0) {
+          update_path = true;
+        }
+      }
 
-          let r = map_canvas_to_svg(q);
+      // TODO: asynchronously update the SVG path string, rather than wait on each
+      // in a loop (use SVG transform for translations)
+      if (update_path) {
+        const path = 
+          await this.waragraph.graphLayout!
+            .sample2DPath(path_interval.path_id, path_interval.start, path_interval.end, tolerance);
 
-          if (svg_path.length === 0) {
-            svg_path += `M ${r[0]},${r[1]}`;
-          } else {
-            svg_path += ` L ${r[0]},${r[1]}`;
+        if (path === undefined) {
+          console.error("Error sampling 2D path, ignoring");
+          continue;
+        }
+
+        state.cached_path = { path, tolerance };
+
+        let svg_path = "";
+
+        if (state.cached_path !== undefined) {
+          for (let i = 0; i < state.cached_path.path.length; i += 2) {
+            let x = state.cached_path[i];
+            let y = state.cached_path[i + 1];
+            let p = vec2.fromValues(x, y);
+            // these are world space; need to apply 2D view matrix 
+            let q = vec2.create();
+            vec2.transformMat3(q, p, viewMatrix);
+
+            let r = map_canvas_to_svg(q);
+
+            if (svg_path.length === 0) {
+              svg_path += `M ${r[0]},${r[1]}`;
+            } else {
+              svg_path += ` L ${r[0]},${r[1]}`;
+            }
           }
         }
       }
+
 
       // state.cached_path.forEach(
 

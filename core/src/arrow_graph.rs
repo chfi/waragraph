@@ -66,7 +66,8 @@ impl PathIndex {
         //     todo!();
         // })
 
-        None
+        // TODO
+        Some(std::iter::empty())
         /*
         if let Some(bitmap) =
             self.0.segment_path_matrix.paths_on_segment(segment)
