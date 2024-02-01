@@ -41,12 +41,49 @@ pub struct PathIndex {
     pub segment_path_matrix: SegmentPathMatrix,
 }
 
+// pub struct PathsOnSegmentIter<'a> {
+//     bitmap_iter:
+// }
+
 impl PathIndex {
     pub fn from_arrow_gfa(gfa: &ArrowGFA) -> Self {
         let segment_path_matrix = SegmentPathMatrix::from_arrow_gfa(gfa);
         Self {
             segment_path_matrix,
         }
+    }
+
+    pub fn paths_on_segment<'a>(
+        &'a self,
+        segment: u32,
+    ) -> Option<impl Iterator<Item = u32> + 'a> {
+        // TODO
+        let bitmap = self.segment_path_matrix.paths_on_segment(segment)?;
+
+        // bitmap.iter().flat_map(|(ix, &bits)| {
+        //     // bits.
+        //     // bits.
+        //     todo!();
+        // })
+
+        None
+        /*
+        if let Some(bitmap) =
+            self.0.segment_path_matrix.paths_on_segment(segment)
+        {
+            let paths = Vec::new();
+
+            for (ix, &bits) in bitmap.iter() {
+                log::warn!("{ix} - {:b}", bits);
+            }
+
+            paths
+        } else {
+            log::error!("segment out of bounds");
+
+            Vec::new()
+        }
+        */
     }
 }
 

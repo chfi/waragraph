@@ -378,9 +378,12 @@ fn rocket() -> _ {
         cs_map.insert("<global>".to_string(), Arc::new(cs));
     }
 
+    let path_index = PathIndex::from_arrow_gfa(&agfa);
+
     log::info!("Launching server");
     rocket::build()
         .manage(Arc::new(agfa))
+        .manage(Arc::new(path_index))
         .manage(cs_cache)
         .manage(datasets)
         .manage(graph_layout)

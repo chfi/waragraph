@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use rocket::serde::{json::Json, Serialize};
 use rocket::{get, post, State};
-use waragraph_core::arrow_graph::ArrowGFA;
+use waragraph_core::arrow_graph::{ArrowGFA, PathIndex};
 
 #[derive(Serialize)]
 #[serde(crate = "rocket::serde")]
@@ -40,4 +40,14 @@ pub async fn path_steps(graph: &State<Arc<ArrowGFA>>, path_id: u32) -> Vec<u8> {
     let mut out: Vec<u32> = Vec::with_capacity(buf.len());
     out.extend_from_slice(buf.values());
     bytemuck::cast_vec(out)
+}
+
+#[get("/paths_on_segment/<segment>")]
+pub async fn paths_on_segment(
+    path_index: &State<Arc<PathIndex>>,
+    segment: u32,
+) -> Option<Vec<u8>> {
+    let vec = path_index.segment_path_matrix.paths_on_segment(segment)?;
+
+    todo!();
 }
