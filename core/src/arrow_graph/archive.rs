@@ -3,7 +3,7 @@ use arrow2::{
     chunk::Chunk,
     datatypes::{DataType, Field, Metadata, Schema},
     io::ipc::{
-        read::FileReader,
+        read::{FileMetadata, FileReader},
         write::{FileWriter, WriteOptions},
     },
     offset::Offsets,
@@ -19,27 +19,27 @@ use std::{io::prelude::*, path::PathBuf};
 
 use super::*;
 
+fn find_field_by_name<'a>(
+    metadata: &'a FileMetadata,
+    name: &str,
+) -> std::io::Result<(usize, &'a Field)> {
+    metadata
+        .schema
+        .fields
+        .iter()
+        .enumerate()
+        .find(|(_, f)| f.name == name)
+        .ok_or_else(|| std::io::Error::other(format!("Missing field {name}")))
+}
+
 fn deserialize_segments<R: Read + Seek>(
-    mut reader: FileReader<R>,
+    reader: FileReader<R>,
 ) -> Result<(BinaryArray<i32>, Utf8Array<i32>), arrow2::error::Error> {
     let metadata = reader.metadata().clone();
-    let get_field = |name: &str| {
-        metadata
-            .schema
-            .fields
-            .iter()
-            .enumerate()
-            .find(|(_, f)| f.name == name)
-            .ok_or_else(|| {
-                std::io::Error::other(format!("Missing field {name}"))
-            })
-    };
 
-    let seg_sequences_field = get_field("segment_sequences")?;
-    let seg_names_field = get_field("segment_names")?;
-
-    let segment_sequences: BinaryArray<i32>;
-    let segment_names: Utf8Array<i32>;
+    let seg_sequences_field =
+        find_field_by_name(&metadata, "segment_sequences")?;
+    let seg_names_field = find_field_by_name(&metadata, "segment_names")?;
 
     // NB: right now there's only ever one chunk per message
     let mut batches = Vec::new();
@@ -56,36 +56,84 @@ fn deserialize_segments<R: Read + Seek>(
     let sequences = &arrays[seg_sequences_field.0];
     let names = &arrays[seg_names_field.0];
 
-    println!("sequences datatype: {:?}", sequences.data_type());
-    println!("names datatype: {:?}", names.data_type());
-
     let sequences = sequences.as_any().downcast_ref::<BinaryArray<i32>>();
     let names = names.as_any().downcast_ref::<Utf8Array<i32>>();
 
-    // println!("{sequences:?}");
-    // println!("{names:?}");
+    Ok((sequences.unwrap().clone(), names.unwrap().clone()))
+}
 
-    /*
-    for (i, c) in reader.enumerate() {
-        println!("chunk {i}");
-        if let Ok(c) = c {
-            println!("    length {}", c.len());
-            let count = c.arrays().len();
-            println!("    arrays count {}", count);
-            segment_chunks.push(c);
-        }
+fn deserialize_links<R: Read + Seek>(
+    reader: FileReader<R>,
+) -> Result<(UInt32Array, UInt32Array), arrow2::error::Error> {
+    let metadata = reader.metadata().clone();
+    let (from_ix, _from) = find_field_by_name(&metadata, "from")?;
+    let (to_ix, _to) = find_field_by_name(&metadata, "to")?;
+
+    let mut batches = Vec::new();
+    for chunk in reader {
+        batches.push(chunk?);
     }
 
-    println!("{} chunks", segment_chunks.len());
-    */
+    if batches.len() > 1 {
+        eprintln!("Ignoring batches after the first");
+    }
 
-    Ok((sequences.unwrap().clone(), names.unwrap().clone()))
+    let arrays = &batches[0].arrays();
+
+    let from = arrays[from_ix]
+        .as_any()
+        .downcast_ref::<UInt32Array>()
+        .cloned();
+    let to = arrays[to_ix]
+        .as_any()
+        .downcast_ref::<UInt32Array>()
+        .cloned();
+
+    Ok((from.unwrap(), to.unwrap()))
+}
+
+fn deserialize_path_names<R: Read + Seek>(
+    reader: FileReader<R>,
+) -> Result<Utf8Array<i32>, arrow2::error::Error> {
+    let mut batches = Vec::new();
+    for chunk in reader {
+        batches.push(chunk?);
+    }
+
+    if batches.len() > 1 {
+        eprintln!("Ignoring batches after the first");
+    }
+
+    let arrays = &batches[0].arrays();
+
+    let names = arrays[0].as_any().downcast_ref::<Utf8Array<i32>>().cloned();
+
+    Ok(names.unwrap())
+}
+
+fn deserialize_path<R: Read + Seek>(
+    reader: FileReader<R>,
+) -> Result<UInt32Array, arrow2::error::Error> {
+    let mut batches = Vec::new();
+    for chunk in reader {
+        batches.push(chunk?);
+    }
+
+    if batches.len() > 1 {
+        eprintln!("Ignoring batches after the first");
+    }
+
+    let arrays = &batches[0].arrays();
+
+    let steps = arrays[0].as_any().downcast_ref::<UInt32Array>().cloned();
+
+    Ok(steps.unwrap())
 }
 
 impl ArrowGFA {
     pub fn read_archive(
         path: impl AsRef<std::path::Path>,
-    ) -> std::io::Result<Self> {
+    ) -> Result<Self, arrow2::error::Error> {
         use std::ops::Range;
 
         let file = File::open(&path)?;
@@ -105,74 +153,80 @@ impl ArrowGFA {
 
             let path = entry.path()?;
 
-            println!("{path:?}");
-
             if let Ok(ix_str) = path.strip_prefix("path/") {
                 let ix_str = ix_str.file_name().and_then(|s| s.to_str());
                 if let Some(ix) = ix_str.and_then(|s| s.parse::<u32>().ok()) {
-                    println!("Path {ix} -- {}..{}", offset, end);
                     path_arrays_index.insert(ix, offset..end);
                 } else {
                     eprintln!("Error parsing path index from `{path:?}`");
                 }
             } else {
-                println!("Field {path:?} -- {}..{}", offset, end);
                 field_index.insert(path.to_path_buf(), offset..end);
             }
         }
 
         let path_arrays_index = {
-            let mut index = path_arrays_index
-                .into_iter()
-                .enumerate()
-                .collect::<Vec<_>>();
+            let mut index = path_arrays_index.into_iter().collect::<Vec<_>>();
             index.sort_by_key(|(i, _)| *i);
-            index.into_iter().map(|(_, v)| v).collect::<Vec<_>>()
+            index
         };
 
-        let mut file = File::open(&path)?;
+        let file = File::open(&path)?;
         let mmap = unsafe { memmap2::Mmap::map(&file)? };
+
+        let create_reader_for_range =
+            |range: Range<usize>| -> Result<_, arrow2::error::Error> {
+                let file_slice = &mmap[range];
+                let mut cursor = Cursor::new(file_slice);
+                let metadata =
+                    arrow2::io::ipc::read::read_file_metadata(&mut cursor)?;
+                Ok(FileReader::new(cursor, metadata.clone(), None, None))
+            };
 
         // segments
         let segments_range = field_index
             .get("segments".as_ref() as &std::path::Path)
             .ok_or(std::io::Error::other("`segments` not found in archive"))?;
-
-        let segments_slice = &mmap[segments_range.clone()];
-        let mut segments_cursor = Cursor::new(segments_slice);
-        let metadata =
-            arrow2::io::ipc::read::read_file_metadata(&mut segments_cursor)
-                .map_err(|e| std::io::Error::other(e))?;
-
-        println!("{metadata:#?}");
-
-        let arrow_reader =
-            FileReader::new(segments_cursor, metadata.clone(), None, None);
+        let segments_reader = create_reader_for_range(segments_range.clone())?;
 
         let (segment_sequences, segment_names) =
-            deserialize_segments(arrow_reader)
+            deserialize_segments(segments_reader)
                 .map_err(|e| std::io::Error::other(e))?;
-
-        println!("sequence count: {}", segment_sequences.len());
-
-        /*
 
         // links
         let links_range = field_index
             .get("links".as_ref() as &std::path::Path)
             .ok_or(std::io::Error::other("`links` not found in archive"))?;
+        let links_reader = create_reader_for_range(links_range.clone())?;
+
+        let (link_from, link_to) = deserialize_links(links_reader)?;
 
         // path names
-        let links_range = field_index
+        let path_names_range = field_index
             .get("path_names".as_ref() as &std::path::Path)
             .ok_or(std::io::Error::other(
                 "`path_names` not found in archive",
             ))?;
 
-        // path steps
-        */
+        let names_reader = create_reader_for_range(path_names_range.clone())?;
+        let path_names = deserialize_path_names(names_reader)?;
 
-        todo!();
+        let mut path_steps = Vec::new();
+        // path steps
+        for (_path_ix, range) in path_arrays_index {
+            let steps_reader = create_reader_for_range(range)?;
+            let steps = deserialize_path(steps_reader)?;
+            path_steps.push(steps);
+        }
+
+        Ok(ArrowGFA {
+            segment_sequences,
+            segment_names: Some(segment_names),
+            link_from,
+            link_to,
+            path_names,
+            path_steps,
+        })
     }
 
     pub fn write_archive(
@@ -324,6 +378,8 @@ impl ArrowGFA {
                     format!("path/{path_ix}"),
                     buf.as_slice(),
                 )?;
+
+                buf.clear();
 
                 Ok(())
             };
