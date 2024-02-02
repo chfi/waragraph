@@ -62,6 +62,7 @@ console_error_panic_hook = "0.1.7"
 
 async-trait = "0.1"
 
+# arrow.workspace = true
 arrow2 = { workspace = true, features = [
 "io_json",
 "io_ipc",

@@ -21,6 +21,9 @@ reunion = "0.1"
 sprs.workspace = true
 # three-edge-connected = "0.2"
 
+tar = "0.4"
+
+# arrow.workspace = true
 arrow2 = { workspace = true, features = [
 "io_json",
 "io_ipc",

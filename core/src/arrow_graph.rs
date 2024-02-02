@@ -4,10 +4,16 @@ use arrow2::{
     datatypes::{DataType, Field, Metadata, Schema},
     offset::Offsets,
 };
+
+// use arrow::{
+//     array::{BinaryArray, StructArray, UInt32Array, Utf8Array},
+// };
+
 use smallvec::SmallVec;
 
 // use crate::types::{Bp, Edge, Node, OrientedNode, PathId};
 
+pub mod archive;
 pub mod parser;
 
 pub use parser::arrow_graph_from_gfa;
