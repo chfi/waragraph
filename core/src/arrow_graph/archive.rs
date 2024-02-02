@@ -19,6 +19,69 @@ use std::{io::prelude::*, path::PathBuf};
 
 use super::*;
 
+fn deserialize_segments<R: Read + Seek>(
+    mut reader: FileReader<R>,
+) -> Result<(BinaryArray<i32>, Utf8Array<i32>), arrow2::error::Error> {
+    let metadata = reader.metadata().clone();
+    let get_field = |name: &str| {
+        metadata
+            .schema
+            .fields
+            .iter()
+            .enumerate()
+            .find(|(_, f)| f.name == name)
+            .ok_or_else(|| {
+                std::io::Error::other(format!("Missing field {name}"))
+            })
+    };
+
+    let seg_sequences_field = get_field("segment_sequences")?;
+    let seg_names_field = get_field("segment_names")?;
+
+    let segment_sequences: BinaryArray<i32>;
+    let segment_names: Utf8Array<i32>;
+
+    // NB: right now there's only ever one chunk per message
+    let mut batches = Vec::new();
+    for chunk in reader {
+        batches.push(chunk?);
+    }
+
+    if batches.len() > 1 {
+        eprintln!("Ignoring batches after the first");
+    }
+
+    let arrays = &batches[0].arrays();
+
+    let sequences = &arrays[seg_sequences_field.0];
+    let names = &arrays[seg_names_field.0];
+
+    println!("sequences datatype: {:?}", sequences.data_type());
+    println!("names datatype: {:?}", names.data_type());
+
+    let sequences = sequences.as_any().downcast_ref::<BinaryArray<i32>>();
+    let names = names.as_any().downcast_ref::<Utf8Array<i32>>();
+
+    // println!("{sequences:?}");
+    // println!("{names:?}");
+
+    /*
+    for (i, c) in reader.enumerate() {
+        println!("chunk {i}");
+        if let Ok(c) = c {
+            println!("    length {}", c.len());
+            let count = c.arrays().len();
+            println!("    arrays count {}", count);
+            segment_chunks.push(c);
+        }
+    }
+
+    println!("{} chunks", segment_chunks.len());
+    */
+
+    Ok((sequences.unwrap().clone(), names.unwrap().clone()))
+}
+
 impl ArrowGFA {
     pub fn read_archive(
         path: impl AsRef<std::path::Path>,
@@ -84,22 +147,15 @@ impl ArrowGFA {
         println!("{metadata:#?}");
 
         let arrow_reader =
-            FileReader::new(segments_cursor, metadata, None, None);
+            FileReader::new(segments_cursor, metadata.clone(), None, None);
 
-        let mut segment_chunks = Vec::new();
-        // let segment_chunks = arrow_reader.collect
+        let (segment_sequences, segment_names) =
+            deserialize_segments(arrow_reader)
+                .map_err(|e| std::io::Error::other(e))?;
 
-        for c in arrow_reader {
-            if let Ok(c) = c {
-                segment_chunks.push(c);
-            }
-        }
-
-        println!("{segment_chunks:#?}");
+        println!("sequence count: {}", segment_sequences.len());
 
         /*
-        let segment_sequences: BinaryArray<i32>;
-        let segment_names: Utf8Array<i32>;
 
         // links
         let links_range = field_index
