@@ -308,32 +308,33 @@ impl CoordSysCache {
     }
 }
 
-#[launch]
-fn rocket() -> _ {
+#[rocket::main]
+async fn main() -> anyhow::Result<()> {
     env_logger::init();
 
     let args = std::env::args().collect::<Vec<_>>();
 
-    let gfa = &args[1];
+    let graph_path = &args[1];
 
-    log::info!("Parsing GFA {gfa}");
+    let agfa = if graph_path.to_ascii_lowercase().ends_with("gfa") {
+        log::info!("Parsing GFA {graph_path}");
 
-    let gfa = std::fs::File::open(gfa)
-        .map(std::io::BufReader::new)
-        .unwrap();
+        let gfa =
+            std::fs::File::open(graph_path).map(std::io::BufReader::new)?;
 
-    let agfa =
-        waragraph_core::arrow_graph::parser::arrow_graph_from_gfa(gfa).unwrap();
+        waragraph_core::arrow_graph::parser::arrow_graph_from_gfa(gfa)?
+    } else {
+        log::info!("Parsing archived graph {graph_path}");
+        // parse as archived arrow GFA
+        ArrowGFA::read_archive(graph_path)?
+    };
 
     use waragraph_core::graph_layout::GraphLayout;
 
     let tsv = &args[2];
 
     log::info!("Parsing layout TSV {tsv}");
-    let graph_layout = match GraphLayout::from_tsv(tsv) {
-        Ok(g) => g,
-        Err(e) => panic!("${:#?}", e),
-    };
+    let graph_layout = GraphLayout::from_tsv(tsv)?;
 
     log::info!("Precomputing data");
     // TODO these should be computed on demand
@@ -354,7 +355,8 @@ fn rocket() -> _ {
 
         datasets
             .path_map
-            .blocking_write()
+            .write()
+            .await
             .insert("depth".to_string(), depth_data);
 
         let graph_depth = agfa
@@ -365,14 +367,15 @@ fn rocket() -> _ {
 
         datasets
             .graph_map
-            .blocking_write()
+            .write()
+            .await
             .insert("depth".to_string(), Arc::new(graph_depth));
     }
 
     let cs_cache = CoordSysCache::default();
 
     {
-        let mut cs_map = cs_cache.map.blocking_write();
+        let mut cs_map = cs_cache.map.write().await;
 
         let cs = CoordSys::global_from_arrow_gfa(&agfa);
         cs_map.insert("<global>".to_string(), Arc::new(cs));
@@ -381,7 +384,7 @@ fn rocket() -> _ {
     let path_index = PathIndex::from_arrow_gfa(&agfa);
 
     log::info!("Launching server");
-    rocket::build()
+    let _rocket = rocket::build()
         .manage(Arc::new(agfa))
         .manage(Arc::new(path_index))
         .manage(cs_cache)
@@ -415,6 +418,10 @@ fn rocket() -> _ {
             ],
         )
         .mount("/sample", routes![sample_path_data])
+        .launch()
+        .await?;
+
+    Ok(())
 }
 
 #[derive(Clone)]

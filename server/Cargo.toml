@@ -8,6 +8,8 @@ edition = "2021"
 [dependencies]
 rocket = { version = "0.5", features = ["json"] }
 
+anyhow.workspace = true
+
 waragraph-core.workspace = true
 sprs.workspace = true
 
