@@ -13,7 +13,10 @@ use smallvec::SmallVec;
 
 // use crate::types::{Bp, Edge, Node, OrientedNode, PathId};
 
+// TODO best to put it behind a feature
+#[cfg(not(target_arch = "wasm32"))]
 pub mod archive;
+
 pub mod parser;
 
 pub use parser::arrow_graph_from_gfa;

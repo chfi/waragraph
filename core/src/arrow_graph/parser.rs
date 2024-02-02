@@ -1,11 +1,9 @@
 use ahash::{AHashMap, HashMap};
 use arrow2::{
-    array::{
-        BinaryArray, UInt32Array, Utf8Array,
-    },
+    array::{BinaryArray, UInt32Array, Utf8Array},
     buffer::Buffer,
-    datatypes::{DataType},
-    offset::{OffsetsBuffer},
+    datatypes::DataType,
+    offset::OffsetsBuffer,
 };
 use smallvec::SmallVec;
 
@@ -14,24 +12,6 @@ use std::io::prelude::*;
 // use crate::{Bp, Edge, Node, OrientedNode, PathId};
 
 use super::ArrowGFA;
-
-pub struct ChunkParser {
-    segment_id_map: HashMap<SmallVec<[u8; 12]>, u32>,
-
-    sequences: Vec<u8>,
-    sequence_offsets: Vec<i32>,
-    links_from: Vec<u32>,
-    links_to: Vec<u32>,
-
-    path_names: Vec<Vec<u8>>,
-    path_steps: Vec<Vec<u32>>,
-}
-
-impl ChunkParser {
-    pub fn finish(self) -> ArrowGFA {
-        todo!();
-    }
-}
 
 pub fn arrow_graph_from_gfa<S: BufRead + Seek>(
     mut gfa_reader: S,
