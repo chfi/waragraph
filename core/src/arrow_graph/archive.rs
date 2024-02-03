@@ -14,6 +14,7 @@ use std::{
     collections::HashMap,
     fs::File,
     io::{BufReader, Cursor, SeekFrom},
+    sync::Arc,
 };
 use std::{io::prelude::*, path::PathBuf};
 
@@ -131,6 +132,135 @@ fn deserialize_path<R: Read + Seek>(
 }
 
 impl ArrowGFA {
+    // NB: if the Arc<memmap2::Mmap> is dropped, the `ArrowGFA` is invalidated...
+    pub unsafe fn mmap_archive(
+        path: impl AsRef<std::path::Path>,
+    ) -> Result<(Self, Arc<memmap2::Mmap>), arrow2::error::Error> {
+        use std::ops::Range;
+
+        let file = File::open(&path)?;
+        let mut archive = tar::Archive::new(file);
+
+        let entries = archive.entries_with_seek()?;
+
+        let mut field_index: HashMap<PathBuf, Range<usize>> =
+            HashMap::default();
+        let mut path_arrays_index: HashMap<u32, Range<usize>> =
+            HashMap::default();
+
+        for entry in entries {
+            let entry = entry?;
+            let offset = entry.raw_file_position() as usize;
+            let end = offset + entry.size() as usize;
+
+            let path = entry.path()?;
+
+            if let Ok(ix_str) = path.strip_prefix("path/") {
+                let ix_str = ix_str.file_name().and_then(|s| s.to_str());
+                if let Some(ix) = ix_str.and_then(|s| s.parse::<u32>().ok()) {
+                    path_arrays_index.insert(ix, offset..end);
+                } else {
+                    eprintln!("Error parsing path index from `{path:?}`");
+                }
+            } else {
+                field_index.insert(path.to_path_buf(), offset..end);
+            }
+        }
+
+        let path_arrays_index = {
+            let mut index = path_arrays_index.into_iter().collect::<Vec<_>>();
+            index.sort_by_key(|(i, _)| *i);
+            index
+        };
+
+        let file = File::open(&path)?;
+
+        let mmap = std::sync::Arc::new(unsafe { memmap2::Mmap::map(&file)? });
+
+        let memory_map_chunk =
+            |range: &Range<usize>| -> Result<_, arrow2::error::Error> {
+                let file_slice = &mmap[range.clone()];
+                let mut cursor = Cursor::new(file_slice);
+                let data = Arc::new(&mmap[range.clone()]);
+                let metadata =
+                    arrow2::io::ipc::read::read_file_metadata(&mut cursor)?;
+
+                let dicts = unsafe {
+                    arrow2::mmap::mmap_dictionaries_unchecked(
+                        &metadata,
+                        data.clone(),
+                    )?
+                };
+
+                let chunk = unsafe {
+                    arrow2::mmap::mmap_unchecked(&metadata, &dicts, data, 0)?
+                };
+
+                Ok((metadata, chunk))
+            };
+
+        // segments
+        let segments_range = field_index
+            .get("segments".as_ref() as &std::path::Path)
+            .ok_or(std::io::Error::other("`segments` not found in archive"))?;
+
+        let (_seg_meta, seg_chunk) = memory_map_chunk(segments_range)?;
+
+        let arrays = &seg_chunk.arrays();
+
+        let segment_sequences =
+            arrays[0].as_any().downcast_ref::<BinaryArray<i32>>();
+
+        let segment_names = arrays[1].as_any().downcast_ref::<Utf8Array<i32>>();
+
+        // links
+
+        let links_range = field_index
+            .get("links".as_ref() as &std::path::Path)
+            .ok_or(std::io::Error::other("`links` not found in archive"))?;
+
+        let (_link_meta, link_chunk) = memory_map_chunk(links_range)?;
+        let arrays = &link_chunk.arrays();
+        let link_from = arrays[0].as_any().downcast_ref::<UInt32Array>();
+        let link_to = arrays[1].as_any().downcast_ref::<UInt32Array>();
+
+        // path names
+
+        let path_names_range = field_index
+            .get("path_names".as_ref() as &std::path::Path)
+            .ok_or(std::io::Error::other(
+                "`path_names` not found in archive",
+            ))?;
+
+        let (_names_meta, names_chunk) = memory_map_chunk(path_names_range)?;
+        let arrays = &names_chunk.arrays();
+        let path_names = arrays[0].as_any().downcast_ref::<Utf8Array<i32>>();
+
+        // path steps
+        let mut path_steps = Vec::new();
+
+        for (_path_ix, range) in path_arrays_index {
+            let (_meta, steps_chunk) = memory_map_chunk(&range)?;
+
+            let arrays = &steps_chunk.arrays();
+            let steps = arrays[0].as_any().downcast_ref::<UInt32Array>();
+
+            path_steps.push(steps.cloned().unwrap());
+        }
+
+        Ok((
+            ArrowGFA {
+                segment_sequences: segment_sequences.cloned().unwrap(),
+                segment_names: segment_names.cloned(),
+                link_from: link_from.cloned().unwrap(),
+                link_to: link_to.cloned().unwrap(),
+                path_names: path_names.cloned().unwrap(),
+                path_steps,
+            },
+            mmap,
+        ))
+    }
+
     pub fn read_archive(
         path: impl AsRef<std::path::Path>,
     ) -> Result<Self, arrow2::error::Error> {
