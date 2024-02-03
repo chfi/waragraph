@@ -324,9 +324,17 @@ async fn main() -> anyhow::Result<()> {
 
         waragraph_core::arrow_graph::parser::arrow_graph_from_gfa(gfa)?
     } else {
-        log::info!("Parsing archived graph {graph_path}");
+        log::info!("Deserializing archived graph {graph_path}");
         // parse as archived arrow GFA
-        ArrowGFA::read_archive(graph_path)?
+
+        let t = std::time::Instant::now();
+        let (agfa, mmap) = unsafe { ArrowGFA::mmap_archive(graph_path)? };
+        let elapsed = t.elapsed().as_millis();
+        log::info!("Read graph in {elapsed} ms");
+        // if the memory map itself goes out of memory, the ArrowGFA is invalidated;
+        // since it's going to live for the entire application, just leak it here
+        std::mem::forget(mmap);
+        agfa
     };
 
     use waragraph_core::graph_layout::GraphLayout;
