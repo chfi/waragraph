@@ -459,15 +459,105 @@ async function loadBedFile(waragraph: Waragraph, file: File) {
 
 }
 
+async function controlSidebarPanel(waragraph) {
+  const controlsDiv = document.createElement('div');
+  controlsDiv.classList.add('bed-panel');
+
+  const paneTitle = document.createElement('h5');
+  paneTitle.innerHTML = 'Control Panel';
+  paneTitle.classList.add('mb-1');
+
+
+  const break_el = document.createElement('hr');
+  break_el.classList.add('my-1')
+
+  const controlRangeLabel = document.createElement('label');
+  controlRangeLabel.innerHTML = 'Jump to 1D range';
+
+  const rangeInputRow = document.createElement('div');
+  rangeInputRow.classList.add('row');
+
+  const labelDiv = document.createElement('div');
+  labelDiv.title = 'label-group';
+
+  const inputDiv = document.createElement('div');
+  inputDiv.title = 'input-group';
+
+  const labelStart = document.createElement('label');
+  labelStart.textContent = 'Start:';
+  labelStart.htmlFor = 'control-input-range-start';
+  labelStart.classList.add('full-width');
+  labelStart.style.height = '50%'
+
+  const inputStart = document.createElement('input');
+  inputStart.type = 'text';
+  inputStart.id = 'control-input-range-start';
+  inputStart.placeholder = 'Start';
+  inputStart.setAttribute('type', 'text');
+  inputStart.setAttribute('inputmode', 'numeric');
+  inputStart.setAttribute('pattern', '\d*');
+  inputStart.classList.add('full-width')
+
+  const labelEnd = document.createElement('label');
+  labelEnd.textContent = 'End:';
+  labelEnd.htmlFor = 'control-input-range-end';
+  labelEnd.classList.add('full-width');
+  labelEnd.style.height = '50%'
+
+  const inputEnd = document.createElement('input');
+  inputEnd.type = 'text';
+  inputEnd.id = 'control-input-range-end';
+  inputEnd.placeholder = 'End';
+  inputEnd.setAttribute('type', 'text');
+  inputEnd.setAttribute('inputmode', 'numeric');
+  inputEnd.setAttribute('pattern', '\d*');
+  inputEnd.classList.add('full-width');
+
+  labelDiv.appendChild(labelStart);
+  labelDiv.appendChild(labelEnd);
+  labelDiv.classList.add('col-2');
+
+  inputDiv.appendChild(inputStart);
+  inputDiv.appendChild(inputEnd);
+  inputDiv.classList.add('col-10');
+
+  rangeInputRow.appendChild(labelDiv);
+  rangeInputRow.appendChild(inputDiv);
+
+  const inputGroup = document.createElement('div');
+  inputGroup.title = 'input-group';
+  inputGroup.classList.add('col-12');
+
+  const inputButton = document.createElement('button');
+  inputButton.type = 'button';
+  inputButton.id = 'control-input-range-button';
+  inputButton.classList.add('full-width');
+  inputButton.textContent = 'Go'; 
+  inputGroup.appendChild(inputButton);
+
+  controlsDiv.appendChild(paneTitle);
+  controlsDiv.appendChild(break_el);
+  controlsDiv.appendChild(controlRangeLabel);
+  controlsDiv.appendChild(rangeInputRow);
+  controlsDiv.appendChild(inputGroup);
+
+  return controlsDiv;
+}
 
 async function bedSidebarPanel(waragraph) {
   const bed_pane = document.createElement('div');
   bed_pane.classList.add('bed-panel');
 
+  const pane_title = document.createElement('h5');
+  pane_title.innerHTML = 'BED Panel';
+  pane_title.classList.add('mb-1');
+
+  const break_el = document.createElement('hr');
+  break_el.classList.add('my-1')
+
   const bed_list = document.createElement('div');
   bed_list.id = 'bed-file-list';
 
-  bed_pane.append(bed_list);
 
   const file_label = document.createElement('label');
   file_label.setAttribute('for', 'bed-file-input');
@@ -488,9 +578,12 @@ async function bedSidebarPanel(waragraph) {
     }
   });
 
+  bed_pane.append(pane_title);
+  bed_pane.append(break_el)
   bed_pane.append(file_label);
   bed_pane.append(file_entry);
   bed_pane.append(file_button);
+  bed_pane.append(bed_list);
 
   {
 
@@ -575,6 +668,10 @@ export async function initializeBedSidebarPanel(waragraph: Waragraph) {
   });
 
   document
-    .getElementById('sidebar')!
+    .getElementById('sidebar-bed')!
     .append(await bedSidebarPanel(waragraph));
+
+  document
+    .getElementById('sidebar-controls')!
+    .append(await controlSidebarPanel(waragraph));
 }

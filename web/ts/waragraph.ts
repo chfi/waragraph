@@ -1,5 +1,7 @@
 import init_module, * as wasm_bindgen from 'waragraph';
 
+import 'bootstrap/dist/css/bootstrap.min.css';
+
 import type { WaragraphWorkerCtx, PathViewerCtx } from './worker';
 
 import { initializePathViewer, addOverviewEventHandlers, addPathViewerLogic } from './path_viewer_ui';
@@ -96,8 +98,9 @@ export class Viewport1D {
   set(start: Bp, end: Bp) {
     let s = Number(start);
     let e = Number(end);
+
     this.view.set(s, e);
-    this.subject.next({ start: s, end: s });
+    this.subject.next({ start: s, end: e });
   }
 
   push() {
@@ -909,30 +912,47 @@ function appendPathListElements(height, left_tag, right_tag) {
 
 
 async function addViewRangeInputListeners(viewport: Viewport1D) {
-  const start_el = document.getElementById('path-viewer-range-start') as HTMLInputElement;
-  const end_el = document.getElementById('path-viewer-range-end') as HTMLInputElement;
+  const start_el = document.getElementById('control-input-range-start') as HTMLInputElement;
+  const end_el = document.getElementById('control-input-range-end') as HTMLInputElement;
+  const go_el = document.getElementById('control-input-range-button') as HTMLInputElement;
 
   let init_view = viewport.get();
 
   start_el.value = String(init_view.start);
   end_el.value = String(init_view.end);
 
+  const view_start = document.getElementById('path-viewer-range-start') as HTMLInputElement;
+  const view_end = document.getElementById('path-viewer-range-end') as HTMLInputElement;
+
+  view_start.value = String(init_view.start);
+  view_end.value = String(init_view.end);
+
   const handler = (_event) => {
-    const start = parseFloat(start_el.value);
-    const end = parseFloat(end_el.value);
+    var start = parseFloat(start_el.value);
+    var end = parseFloat(end_el.value);
+    
     if (!isNaN(start) && !isNaN(end)) {
+
+      if (end > viewport.max) {
+        end = viewport.max;
+        end_el.value = String(end);
+      }
+
       viewport.set(start, end);
     }
+
+    view_start.value = String(start);
+    view_end.value = String(end);
+    
   };
 
-  start_el.addEventListener('change', handler);
-  end_el.addEventListener('change', handler);
+  go_el.addEventListener('click', handler);
 
   const view_subject = viewport.subject;
 
   view_subject.subscribe((view) => {
-    start_el.value = String(Math.round(view.start));
-    end_el.value = String(Math.round(view.end));
+    view_start.value = String(Math.round(view.start));
+    view_end.value = String(Math.round(view.end));
   });
 }
 
