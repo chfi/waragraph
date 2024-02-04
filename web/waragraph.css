@@ -1,23 +1,40 @@
 html, body, .root-grid {
   margin: 0;
   padding: 0;
-  height: 100%; /* Fill the entire height of the viewport */
-  width: 100%; /* Fill the entire width of the viewport */
-  overflow: clip;
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 
 .sidebar {
     display: flex;
-    flex-direction: column;
-    overflow: scroll;
+    flex-direction: row;
+    
+    padding: 10px;
+
+    border: 1px black;
 
     grid-column: 1;
     grid-row: 1;
+    height: 100vh;
+}
+
+.sidebar-panel {
+  border: 2px solid #ccc;
+  background-color: #eee;
+  box-shadow: 2px 4px 4px rgba(0, 0, 0, 0.1);
+  border-radius: 2px;
+  padding-left: 15px;
+  padding-right: 15px;
+  flex: 0 0 92%;
+  height: 48%;
+  margin: auto;
+  overflow-y: scroll;
+  box-sizing: border-box;
 }
 
 body {
   display: flex; /* Use flexbox to make the child div take up full height */
-  flex-direction: column; /* Stack children vertically */
+  flex-direction: column; /* Stack children vertically */  
 }
 
 .viz-grid {
@@ -27,8 +44,7 @@ body {
 
   grid-column: 3 / 4;
   grid-row: 1;
-  height: 100%;
-  width: 100%;
+  height: 100vh;
 }
 
 .root-grid {
@@ -199,4 +215,32 @@ body {
   100% {
     transform: rotate(360deg);
   }
+}
+
+.square-outline {
+  width: 100%;
+  /* Maintain square aspect ratio */
+  border: 3px solid;
+  /* Outline */
+  padding: 10px;
+  /* Adjust padding as needed */
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  border-color: black;
+  box-shadow: 4px 4px 8px rgba(0, 0, 0, 0.1);
+  border-radius: 10px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.clearfix::after {
+  content: "";
+  display: table;
+  clear: both;
+}
+
+.full-width {
+  width: 100%;
 }

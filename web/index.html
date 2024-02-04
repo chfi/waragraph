@@ -9,9 +9,11 @@
 
     <div style="display: none" class="root-grid root-sidebar-open" id="root-container">
 
-      <div class="sidebar" id="sidebar">
+      <div class="sidebar row justify-content-center" id="sidebar-container">
+        <div class="sidebar-panel row" id="sidebar-bed"></div>
+        <div class="sidebar-panel row" id="sidebar-controls"></div>
       </div>
-
+      
       <div class="gutter-column gutter-column-sidebar"></div>
 
       <div class="viz-grid" id="viz-container">
@@ -20,7 +22,7 @@
 
         <div class="gutter-row gutter-row-1"></div>
 
-        <div id="path-viewer-container">
+        <div id="path-viewer-container" style="overscroll-behavior: none;">
           <div class="path-viewer-column" id="path-viewer-left-column">
           </div>
 
@@ -32,21 +34,69 @@
       </div>
     </div>
 
-    <div id="file-inputs">
-
-      <div>
-        <label for="gfa-file">Choose a GFA file</label>
-        <input type="file" id="gfa-file" name="gfa" accept=".gfa"></input>
+    <div id="canvas">
+      <div class="container">
+        <div class="row justify-content-center">
+          <div class="col-auto text-center content p-6">
+            <h1 id="title">Waragraph</h1> <!-- Title -->
+          </div>
+        </div>
+    
+        <div id="file-inputs" class="row justify-content-center" style="margin-top: 40px;">
+          <div id="file-inputs" class="col-auto content">
+            <div class="row justify-content-center mt-2 mb-4">
+              <!-- GFA input -->
+              <div class="col-md-5 mx-3 square-outline text-center my-auto">
+                <div class="row">
+                  <div class="col-12">
+                    <img src="icons/upload.png" alt="File Icon" style="height: 150px;">
+                  </div>
+                </div>
+                <div class="row">
+                  <div class="col-12">
+                    <label for="gfa-file">Choose a GFA file</label>
+                  </div>
+                </div>
+                <div class="row">
+                  <div class="col-12">
+                    <input type="file" id="gfa-file" name="gfa" accept=".gfa">
+                  </div>
+                </div>
+              </div>
+        
+              <!-- TSV input -->
+              <div class="col-md-5 mx-3 square-outline text-center my-auto">
+                <div class="row">
+                  <div class="col-12">
+                    <img src="icons/upload.png" alt="File Icon" style="height: 150px;">
+                  </div>
+                </div>
+                <div class="row">
+                  <div class="col-12">
+                    <label for="layout-file">Choose a TSV layout file</label>
+                  </div>
+                </div>
+                <div class="row">
+                  <div class="col-12">
+                    <input type="file" id="layout-file" name="layout" accept=".tsv">
+                  </div>
+                </div>
+              </div>
+            </div>
+        
+            <!-- Button row -->
+            <div class="row">
+              <div class="col-12 text-center">
+                <button id="load-data" class="btn btn-dark">Load data</button>
+              </div>
+            </div>
+          </div>
+        
+        </div>
       </div>
-
-      <div>
-        <label for="layout-file">Choose a TSV layout file</label>
-        <input type="file" id="layout-file" name="layout" accept=".tsv"></input>
-      </div>
-
-      <button id="load-data">Load data</button>
-
     </div>
+
+
 
     <div id="tooltip" role="tooltip"></div>
 
@@ -63,7 +113,7 @@
 
           const viz_root = document.getElementById('viz-container');
 
-          document.getElementById('file-inputs').setAttribute('hidden', '');
+          document.getElementById('canvas').setAttribute('hidden', '');
           document.getElementById('root-container').style.removeProperty('display');
 
           const spinner_par = document.createElement('div');
