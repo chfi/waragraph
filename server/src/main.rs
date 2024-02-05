@@ -208,6 +208,67 @@ async fn get_sample_path_name_world_space(
     .await
 }
 
+#[post(
+    "/path_data/<dataset_key>/<left>/<right>/<bin_count>",
+    data = "<path_names>"
+)]
+async fn batch_sample_path_data(
+    graph: &State<Arc<ArrowGFA>>,
+    cs_cache: &State<CoordSysCache>,
+    dataset_cache: &State<DatasetsCache>,
+    path_names: rocket::serde::json::Json<Vec<String>>,
+    dataset_key: &str,
+    left: u64,
+    right: u64,
+    bin_count: u32,
+) -> Option<Vec<u8>> {
+    use rocket::tokio::task::spawn_blocking;
+
+    let cs = {
+        let cs_map = cs_cache.map.read().await;
+        cs_map.get("<global>").unwrap().clone()
+    };
+
+    let datasets = dataset_cache.path_map.read().await;
+    let dataset = datasets.get(dataset_key)?.clone();
+
+    let path_datasets = path_names
+        .iter()
+        .map(|name| -> Option<_> {
+            let path_id = graph.path_name_id(name)?;
+            let path_data = dataset.get(&PathId(path_id))?;
+            Some(path_data.clone())
+        })
+        .collect::<Vec<_>>();
+
+    let output = spawn_blocking(move || {
+        let mut output =
+            Vec::<u8>::with_capacity(bin_count as usize * 4 * path_names.len());
+
+        for (i, path) in path_datasets.into_iter().enumerate() {
+            let start = i * bin_count as usize;
+            let end = start + bin_count as usize;
+            let slice = &mut output[start..end];
+            if let Some(path_data) = path {
+                cs.sample_impl(
+                    left..=right,
+                    path_data.indices(),
+                    path_data.data(),
+                    bytemuck::cast_slice_mut(&mut output),
+                );
+            } else {
+                slice.fill(0);
+            }
+        }
+
+        Some(output)
+    })
+    .await
+    .ok()?;
+
+    output
+}
+
 #[get("/path_data/<path_name>/<dataset>/<left>/<right>/<bin_count>")]
 async fn sample_path_data(
     graph: &State<Arc<ArrowGFA>>,
@@ -219,12 +280,6 @@ async fn sample_path_data(
     right: u64,
     bin_count: u32,
 ) -> Option<Vec<u8>> {
-    let path_id = graph.path_name_id(path_name)?;
-
-    // let cs = cs_cache
-    //     .get_or_compute_for_path(graph.inner(), path_id)
-    //     .await?;
-
     // TODO: this only samples against the global coord sys for now
     let cs = {
         let cs_map = cs_cache.map.read().await;
@@ -425,7 +480,7 @@ async fn main() -> anyhow::Result<()> {
                 coordinate_system::get_segment_at_path_position
             ],
         )
-        .mount("/sample", routes![sample_path_data])
+        .mount("/sample", routes![sample_path_data, batch_sample_path_data])
         .launch()
         .await?;
 
