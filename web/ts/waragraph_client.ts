@@ -149,6 +149,8 @@ export class Waragraph {
 
 
     // let seg_range = viewport.segmentRange(segment);
+    // TODO this should probably be done in TS instead; store the coordinate systems
+    // that are *used for 1D visualizations* as arrow tables in TS & compute on those
     const seg_range = await this.graph.segmentGlobalRange(segment);
 
     let el = document.getElementById('viewer-' + path_name);
@@ -197,12 +199,49 @@ export async function initializeWaragraphClient(base_url: URL) {
   }
   let cs = await tableFromIPC(cs_resp);
 
+
+
   let step_offsets = cs.getChild('step_offsets')!;
   let max = step_offsets.get(step_offsets.length - 1);
 
   let cs_arrow = new CoordSysArrow(cs);
 
   let global_viewport = new Viewport1D(cs_arrow as CoordSysInterface);
+
+
+  console.log("fetching layout data");
+  const layout_table = await fetch(new URL('/graph_layout', base_url))
+    .then(r => r.arrayBuffer())
+    .then(data => tableFromIPC(data));
+
+  console.log(layout_table);
+
+  // TODO get from the server; this will do for now
+  const segment_count = layout_table.getChild('x')!.length / 2;
+
+  console.log(layout_table);
+  console.log("segment count: ", segment_count);
+
+  const data_resp = await fetch(new URL('/graph_dataset/depth', base_url));
+  const data_buffer = await data_resp.arrayBuffer();
+  const depth_data = new Float32Array(data_buffer);
+
+  const depth_color_buffer = new ArrayBuffer(depth_data.length * 4);
+  // const depth_color = new Uint32Array(depth_data.length);
+  const depth_color_bytes = new Uint8Array(depth_color_buffer);
+
+  depth_data.forEach((val, i) => {
+    let color = spectralScale(val);
+    let [r, g, b] = color.rgb();
+    depth_color_bytes[i * 4] = r;
+    depth_color_bytes[i * 4 + 1] = g;
+    depth_color_bytes[i * 4 + 2] = b;
+    depth_color_bytes[i * 4 + 3] = 255;
+  });
+
+  const depth_color = new Uint32Array(depth_color_buffer);
+
+
 
   const path_name_col = document.getElementById('path-viewer-left-column')!;
   const path_data_col = document.getElementById('path-viewer-right-column')!;
@@ -270,11 +309,10 @@ export async function initializeWaragraphClient(base_url: URL) {
   );
 
 
-  const paths = await graph_apis.arrowGFA.pathMetadata();
 
-  for (const path of paths) {
-    console.log(path);
+  let paths = await graph_apis.arrowGFA.pathMetadata();
 
+  const path_promises = paths.map(async (path) => {
     const color_below = { r: 1.0, g: 1.0, b: 1.0 };
     const color_above = wasm_bindgen.path_name_hash_color_obj(path.name);
 
@@ -296,10 +334,9 @@ export async function initializeWaragraphClient(base_url: URL) {
     await addPathViewerLogicClient(graph_apis.arrowGFA, viewer);
 
     viewer.onResize();
-    console.log(viewer);
-
-    viewer.isVisible = true;
-    viewer.sampleAndDraw(global_viewport.get());
+    // console.log(viewer);
+    // viewer.isVisible = true;
+    // viewer.sampleAndDraw(global_viewport.get());
 
     viewer.container.classList.add('path-list-flex-item');
 
@@ -310,7 +347,13 @@ export async function initializeWaragraphClient(base_url: URL) {
     path_name_col.append(name_el);
 
     path_viewers.push(viewer);
+  });
 
+  await Promise.all(path_promises);
+
+  /*
+  for (const path of paths) {
+    console.log(path);
       // this.resize_obs
       //   .pipe(rxjs.throttleTime(500))
       //   .subscribe((_) => {
@@ -319,39 +362,8 @@ export async function initializeWaragraphClient(base_url: URL) {
       //   })
 
   }
+   */
 
-
-  console.log("fetching layout data");
-  const layout_table = await fetch(new URL('/graph_layout', base_url))
-    .then(r => r.arrayBuffer())
-    .then(data => tableFromIPC(data));
-
-  console.log(layout_table);
-
-  // TODO get from the server; this will do for now
-  const segment_count = layout_table.getChild('x')!.length / 2;
-
-  console.log(layout_table);
-  console.log("segment count: ", segment_count);
-
-  const data_resp = await fetch(new URL('/graph_dataset/depth', base_url));
-  const data_buffer = await data_resp.arrayBuffer();
-  const depth_data = new Float32Array(data_buffer);
-
-  const depth_color_buffer = new ArrayBuffer(depth_data.length * 4);
-  // const depth_color = new Uint32Array(depth_data.length);
-  const depth_color_bytes = new Uint8Array(depth_color_buffer);
-
-  depth_data.forEach((val, i) => {
-    let color = spectralScale(val);
-    let [r, g, b] = color.rgb();
-    depth_color_bytes[i * 4] = r;
-    depth_color_bytes[i * 4 + 1] = g;
-    depth_color_bytes[i * 4 + 2] = b;
-    depth_color_bytes[i * 4 + 3] = 255;
-  });
-
-  const depth_color = new Uint32Array(depth_color_buffer);
 
   const graph_viewer = await graphViewerFromData(
     document.getElementById('graph-viewer-container'),
@@ -359,9 +371,11 @@ export async function initializeWaragraphClient(base_url: URL) {
     depth_color
   );
 
+
   console.log(graph_viewer);
   graph_viewer.draw();
 
+  console.log("creating Waragraph");
   const waragraph = new Waragraph(
     base_url,
     { graph_viewer, path_viewers },
@@ -370,6 +384,7 @@ export async function initializeWaragraphClient(base_url: URL) {
     graph_apis.graphLayout
   );
 
+  console.log("almost there");
   waragraph.resize_observable.subscribe(() => {
     const doc_bounds = document.documentElement.getBoundingClientRect();
     const bounds = path_data_col.getBoundingClientRect();
@@ -382,8 +397,11 @@ export async function initializeWaragraphClient(base_url: URL) {
   });
 
   appendSvgViewport();
+  console.log("initializing sidebar");
 
   await initializeBedSidebarPanel(waragraph);
+
+  console.log("done?");
 
 }
 

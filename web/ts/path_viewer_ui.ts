@@ -322,9 +322,6 @@ export async function initializePathViewerClient(
   const path_viewer =
     new PathViewer(viewer_ctx, container, data_canvas, overlay_canvas, path_name, viewport);
 
-
-  await path_viewer.sampleAndDraw(viewport.get());
-
   return path_viewer;
 }
 
