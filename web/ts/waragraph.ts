@@ -483,7 +483,8 @@ export class Waragraph {
         input.id = id;
         input.setAttribute('type', 'text');
         input.setAttribute('inputmode', 'numeric');
-        input.setAttribute('pattern', '\d*');
+        input.setAttribute('pattern', '\\d*');
+        input.setAttribute('disabled', '');   // input function moved to control panel
         input.style.setProperty('height', '100%');
         range_input.append(input);
       }
@@ -912,38 +913,39 @@ function appendPathListElements(height, left_tag, right_tag) {
 
 
 async function addViewRangeInputListeners(viewport: Viewport1D) {
-  const start_el = document.getElementById('control-input-range-start') as HTMLInputElement;
-  const end_el = document.getElementById('control-input-range-end') as HTMLInputElement;
+
+  // control pane inputs
+  const start_input = document.getElementById('control-input-range-start') as HTMLInputElement;
+  const end_input = document.getElementById('control-input-range-end') as HTMLInputElement;
   const go_el = document.getElementById('control-input-range-button') as HTMLInputElement;
 
   let init_view = viewport.get();
 
-  start_el.value = String(init_view.start);
-  end_el.value = String(init_view.end);
+  start_input.value = String(init_view.start);
+  end_input.value = String(init_view.end);
 
-  const view_start = document.getElementById('path-viewer-range-start') as HTMLInputElement;
-  const view_end = document.getElementById('path-viewer-range-end') as HTMLInputElement;
+  // graph view inputs (disabled), for displaying the current selection only
+  const start_view = document.getElementById('path-viewer-range-start') as HTMLInputElement;
+  const end_view = document.getElementById('path-viewer-range-end') as HTMLInputElement;
 
-  view_start.value = String(init_view.start);
-  view_end.value = String(init_view.end);
+  // init view range
+  start_view.value = String(init_view.start);
+  end_view.value = String(init_view.end);
 
   const handler = (_event) => {
-    var start = parseFloat(start_el.value);
-    var end = parseFloat(end_el.value);
+    var start = parseFloat(start_input.value);
+    var end = parseFloat(end_input.value);
     
     if (!isNaN(start) && !isNaN(end)) {
 
+      // bound checking
       if (end > viewport.max) {
         end = viewport.max;
-        end_el.value = String(end);
+        end_input.value = String(end);
       }
 
       viewport.set(start, end);
     }
-
-    view_start.value = String(start);
-    view_end.value = String(end);
-    
   };
 
   go_el.addEventListener('click', handler);
@@ -951,8 +953,8 @@ async function addViewRangeInputListeners(viewport: Viewport1D) {
   const view_subject = viewport.subject;
 
   view_subject.subscribe((view) => {
-    view_start.value = String(Math.round(view.start));
-    view_end.value = String(Math.round(view.end));
+    start_view.value = String(Math.round(view.start));
+    end_view.value = String(Math.round(view.end));
   });
 }
 
