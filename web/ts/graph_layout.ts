@@ -29,6 +29,41 @@ export class GraphLayoutTable {
     return { p0, p1 };
   }
 
+  samplePath(path: Uint32Array, tolerance: number): Float32Array {
+    const points = new Float32Array(path.length * 2);
+
+    let step_count = 0;
+    let added = 0;
+
+    let last_point: vec2 | null = null;
+
+    for (const handle of path) {
+      const pos = this.table.get(handle);
+
+      const i = step_count * 2;
+
+      const p = points.subarray(i, i + 2) as vec2;
+
+      const dist = last_point === null ? Infinity : vec2.dist(p, last_point);
+
+      if (dist > tolerance) {
+        last_point = p;
+        points[i] = pos['x'];
+        points[i + 1] = pos['y'];
+        added += 1;
+      }
+
+      step_count += 1;
+
+    }
+
+    const out_buffer = new ArrayBuffer(added * 2 * 4);
+    const out = new Float32Array(out_buffer);
+    out.set(points.subarray(0, added * 2));
+
+    return out;
+  }
+
   iterateSegments(): Iterable<{ segment: number, p0: vec2, p1: vec2 }> {
     return new SegmentPositionIterator(this.table);
   }
