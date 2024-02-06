@@ -584,6 +584,7 @@ async function bedSidebarPanel(waragraph) {
     }
   });
 
+  // added sidebar panel css styles
   bed_pane.append(pane_title);
   bed_pane.append(break_el)
   bed_pane.append(file_label);

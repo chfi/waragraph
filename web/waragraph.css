@@ -217,23 +217,6 @@ body {
   }
 }
 
-.square-outline {
-  width: 100%;
-  /* Maintain square aspect ratio */
-  border: 3px solid;
-  /* Outline */
-  padding: 10px;
-  /* Adjust padding as needed */
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  border-color: black;
-  box-shadow: 4px 4px 8px rgba(0, 0, 0, 0.1);
-  border-radius: 10px;
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-}
 
 .clearfix::after {
   content: "";

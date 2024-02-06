@@ -39,7 +39,7 @@
 .splash-mask {
   width: 100%;
   height: 100%;
-  background-color: rgba(0, 0, 0, 0.5); /* Semi-transparent black mask */
+  background-color: rgba(0, 0, 0, 0.5); 
   display: flex;
   align-items: center;
   justify-content: center;
@@ -47,19 +47,18 @@
 
 .title-box {
   text-align: center;
-  color: white; /* Adjust color as needed */
+  color: white;
   padding: 20px;
   text-shadow: 7px 7px 10px rgba(0, 0, 0, 0.7);
 }
 
-/* Optional: additional styling for buttons if needed */
 .btn {
   margin: 5px;
 }
 
 .content-pane {
   padding: 20px 0; /* Top and bottom padding */
-  background-color: #f8f9fa; /* A light background color, adjust as needed */
+  background-color: #f8f9fa; 
 }
 
 .container {
