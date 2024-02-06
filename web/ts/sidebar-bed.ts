@@ -467,7 +467,7 @@ async function controlSidebarPanel(waragraph) {
 
   const pane_title = document.createElement('h5');
   pane_title.innerHTML = 'Control Panel';
-  pane_title.classList.add('mb-1');
+  pane_title.classList.add('mt-2');
 
 
   const break_el = document.createElement('hr');
@@ -552,7 +552,7 @@ async function bedSidebarPanel(waragraph) {
 
   const pane_title = document.createElement('h5');
   pane_title.innerHTML = 'BED Panel';
-  pane_title.classList.add('mb-1');
+  pane_title.classList.add('mt-2');
 
   const break_el = document.createElement('hr');
   break_el.classList.add('my-1')
