@@ -498,6 +498,8 @@ async function controlSidebarPanel(waragraph) {
   input_start.setAttribute('type', 'text');
   input_start.setAttribute('inputmode', 'numeric');
   input_start.setAttribute('pattern', '\d*');
+  input_start.setAttribute('min', '0')
+  input_start.setAttribute('step', '1')
   input_start.classList.add('full-width')
 
   const label_end = document.createElement('label');
@@ -513,6 +515,8 @@ async function controlSidebarPanel(waragraph) {
   input_end.setAttribute('type', 'text');
   input_end.setAttribute('inputmode', 'numeric');
   input_end.setAttribute('pattern', '\d*');
+  input_end.setAttribute('min', '0')
+  input_end.setAttribute('step', '1')
   input_end.classList.add('full-width');
 
   label_div.appendChild(label_start);

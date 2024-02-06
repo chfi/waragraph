@@ -939,9 +939,26 @@ async function addViewRangeInputListeners(viewport: Viewport1D) {
     if (!isNaN(start) && !isNaN(end)) {
 
       // bound checking
+      
+      if (start < 0) {
+        start = 0;
+        start_input.value = String(start);
+      }
+      if (start >= viewport.max) {
+        start = viewport.max - 1;
+        start_input.value = String(start);
+      }
+      if (end <= 0) {
+        end = start + 1;
+        end_input.value = String(end);
+      }
       if (end > viewport.max) {
         end = viewport.max;
         end_input.value = String(end);
+      }
+      if (start >= end) {
+        start = end -1;
+        start_input.value = String(start);
       }
 
       viewport.set(start, end);
