@@ -1,5 +1,7 @@
 import init_module, * as wasm_bindgen from 'waragraph';
 
+import 'bootstrap/dist/css/bootstrap.min.css';
+
 import type { WaragraphWorkerCtx, PathViewerCtx } from './worker';
 
 import { initializePathViewer, addOverviewEventHandlers, addPathViewerLogic } from './path_viewer_ui';
@@ -96,8 +98,9 @@ export class Viewport1D {
   set(start: Bp, end: Bp) {
     let s = Number(start);
     let e = Number(end);
+
     this.view.set(s, e);
-    this.subject.next({ start: s, end: s });
+    this.subject.next({ start: s, end: e });
   }
 
   push() {
@@ -480,7 +483,8 @@ export class Waragraph {
         input.id = id;
         input.setAttribute('type', 'text');
         input.setAttribute('inputmode', 'numeric');
-        input.setAttribute('pattern', '\d*');
+        input.setAttribute('pattern', '\\d*');
+        input.setAttribute('disabled', '');   // input function moved to control panel
         input.style.setProperty('height', '100%');
         range_input.append(input);
       }
@@ -909,30 +913,65 @@ function appendPathListElements(height, left_tag, right_tag) {
 
 
 async function addViewRangeInputListeners(viewport: Viewport1D) {
-  const start_el = document.getElementById('path-viewer-range-start') as HTMLInputElement;
-  const end_el = document.getElementById('path-viewer-range-end') as HTMLInputElement;
+
+  // control pane inputs
+  const start_input = document.getElementById('control-input-range-start') as HTMLInputElement;
+  const end_input = document.getElementById('control-input-range-end') as HTMLInputElement;
+  const go_el = document.getElementById('control-input-range-button') as HTMLInputElement;
 
   let init_view = viewport.get();
 
-  start_el.value = String(init_view.start);
-  end_el.value = String(init_view.end);
+  start_input.value = String(init_view.start);
+  end_input.value = String(init_view.end);
+
+  // graph view inputs (disabled), for displaying the current selection only
+  const start_view = document.getElementById('path-viewer-range-start') as HTMLInputElement;
+  const end_view = document.getElementById('path-viewer-range-end') as HTMLInputElement;
+
+  // init view range
+  start_view.value = String(init_view.start);
+  end_view.value = String(init_view.end);
 
   const handler = (_event) => {
-    const start = parseFloat(start_el.value);
-    const end = parseFloat(end_el.value);
+    var start = parseFloat(start_input.value);
+    var end = parseFloat(end_input.value);
+    
     if (!isNaN(start) && !isNaN(end)) {
+
+      // bound checking
+      
+      if (start < 0) {
+        start = 0;
+        start_input.value = String(start);
+      }
+      if (start >= viewport.max) {
+        start = viewport.max - 1;
+        start_input.value = String(start);
+      }
+      if (end <= 0) {
+        end = start + 1;
+        end_input.value = String(end);
+      }
+      if (end > viewport.max) {
+        end = viewport.max;
+        end_input.value = String(end);
+      }
+      if (start >= end) {
+        start = end -1;
+        start_input.value = String(start);
+      }
+
       viewport.set(start, end);
     }
   };
 
-  start_el.addEventListener('change', handler);
-  end_el.addEventListener('change', handler);
+  go_el.addEventListener('click', handler);
 
   const view_subject = viewport.subject;
 
   view_subject.subscribe((view) => {
-    start_el.value = String(Math.round(view.start));
-    end_el.value = String(Math.round(view.end));
+    start_view.value = String(Math.round(view.start));
+    end_view.value = String(Math.round(view.end));
   });
 }
 

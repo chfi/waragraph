@@ -1,0 +1,144 @@
+
+.navbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background-color: #333;
+  color: white;
+  padding: 0 20px;
+}
+
+.navbar-logo a {
+  color: white;
+  text-decoration: none;
+  font-size: 24px;
+}
+
+.navbar-links {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+}
+
+.navbar-links li {
+  margin-left: 20px;
+}
+
+.navbar-links a {
+  color: white;
+  text-decoration: none;
+  padding: 10px;
+  display: block;
+}
+
+.navbar-links a:hover {
+  background-color: #555;
+}
+
+.splash-mask {
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.5); 
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.title-box {
+  text-align: center;
+  color: white;
+  padding: 20px;
+  text-shadow: 7px 7px 10px rgba(0, 0, 0, 0.7);
+}
+
+.btn {
+  margin: 5px;
+}
+
+.content-pane {
+  padding: 20px 0; /* Top and bottom padding */
+  background-color: #f8f9fa; 
+}
+
+.container {
+  width: 80%; 
+  height: 40%;
+  margin: 0 auto; 
+  padding: 0 15px; 
+  background-color: #ffffff; 
+  box-shadow: 0 4px 7px rgba(0, 0, 0, 0.2);
+}
+
+span input button{
+  font-family: 'Montserrat', sans-serif;
+}
+
+#home-content-top {
+  /* background-image: url('images/paper-background.png');
+  background-size:contain;
+  justify-content: center; */
+  background-color: #f9f9f9;
+}
+
+.home-content-top-item {
+  display: flex;
+  justify-content: center; 
+  align-items: center; 
+}
+
+.box {
+  background-color: #939598;
+  border: 2px solid #939598;
+  border-radius: 4px;
+}
+
+.content {
+  background-color: #939598; 
+  border: 10px solid #939598;
+  border-radius: 4px;
+  padding: 20px;
+  border-color: #939598;
+  box-shadow: 10px 10px 12px rgba(0, 0, 0, 0.1);
+}
+
+.square-outline {
+  height: 30%;
+  margin: 0 auto;background-color: white;
+}
+
+.pill a:hover {
+  background-color: #333;
+}
+
+.data-container {
+  width: 90%;
+  height: 80%;
+  padding: 10px;
+}
+
+.sample-data-container {
+  overflow-y: scroll;
+  overflow-x: hidden;
+}
+
+.custom-data-container {
+  overflow-x: hidden;
+}
+
+.file-input {
+  margin: auto;
+}
+
+.load-button {
+  width: 80%;
+}
+
+li.active {
+  background-color: #28a745;
+}
+
+.nav-pills .nav-link.active, .list-group-item.active {
+  background-color: #FF8200;
+  border-color: #FF8200;
+}

@@ -459,15 +459,111 @@ async function loadBedFile(waragraph: Waragraph, file: File) {
 
 }
 
+// Build controls panel
+// TODO: extract to method reusable statements
+async function controlSidebarPanel(waragraph) {
+  const controls_div = document.createElement('div');
+  controls_div.classList.add('bed-panel');
+
+  const pane_title = document.createElement('h5');
+  pane_title.innerHTML = 'Control Panel';
+  pane_title.classList.add('mt-2');
+
+
+  const break_el = document.createElement('hr');
+  break_el.classList.add('my-1')
+
+  const control_range_label = document.createElement('label');
+  control_range_label.innerHTML = 'Jump to 1D range';
+
+  const range_input_row = document.createElement('div');
+  range_input_row.classList.add('row');
+
+  const label_div = document.createElement('div');
+  label_div.title = 'label-group';
+
+  const input_div = document.createElement('div');
+  input_div.title = 'input-group';
+
+  const label_start = document.createElement('label');
+  label_start.textContent = 'Start:';
+  label_start.htmlFor = 'control-input-range-start';
+  label_start.classList.add('full-width');
+  label_start.style.height = '50%'
+
+  const input_start = document.createElement('input');
+  input_start.type = 'text';
+  input_start.id = 'control-input-range-start';
+  input_start.placeholder = 'Start';
+  input_start.setAttribute('type', 'text');
+  input_start.setAttribute('inputmode', 'numeric');
+  input_start.setAttribute('pattern', '\\d*');
+  input_start.setAttribute('min', '0')
+  input_start.setAttribute('step', '1')
+  input_start.classList.add('full-width')
+
+  const label_end = document.createElement('label');
+  label_end.textContent = 'End:';
+  label_end.htmlFor = 'control-input-range-end';
+  label_end.classList.add('full-width');
+  label_end.style.height = '50%'
+
+  const input_end = document.createElement('input');
+  input_end.type = 'text';
+  input_end.id = 'control-input-range-end';
+  input_end.placeholder = 'End';
+  input_end.setAttribute('type', 'text');
+  input_end.setAttribute('inputmode', 'numeric');
+  input_end.setAttribute('pattern', '\\d*');
+  input_end.setAttribute('min', '0')
+  input_end.setAttribute('step', '1')
+  input_end.classList.add('full-width');
+
+  label_div.appendChild(label_start);
+  label_div.appendChild(label_end);
+  label_div.classList.add('col-2');
+
+  input_div.appendChild(input_start);
+  input_div.appendChild(input_end);
+  input_div.classList.add('col-10');
+
+  range_input_row.appendChild(label_div);
+  range_input_row.appendChild(input_div);
+
+  const input_group = document.createElement('div');
+  input_group.title = 'input-group';
+  input_group.classList.add('col-12');
+
+  const input_button = document.createElement('button');
+  input_button.type = 'button';
+  input_button.id = 'control-input-range-button';
+  input_button.classList.add('full-width');
+  input_button.textContent = 'Go'; 
+  input_group.appendChild(input_button);
+
+  controls_div.appendChild(pane_title);
+  controls_div.appendChild(break_el);
+  controls_div.appendChild(control_range_label);
+  controls_div.appendChild(range_input_row);
+  controls_div.appendChild(input_group);
+
+  return controls_div;
+}
 
 async function bedSidebarPanel(waragraph) {
   const bed_pane = document.createElement('div');
   bed_pane.classList.add('bed-panel');
 
+  const pane_title = document.createElement('h5');
+  pane_title.innerHTML = 'BED Panel';
+  pane_title.classList.add('mt-2');
+
+  const break_el = document.createElement('hr');
+  break_el.classList.add('my-1')
+
   const bed_list = document.createElement('div');
   bed_list.id = 'bed-file-list';
 
-  bed_pane.append(bed_list);
 
   const file_label = document.createElement('label');
   file_label.setAttribute('for', 'bed-file-input');
@@ -488,9 +584,13 @@ async function bedSidebarPanel(waragraph) {
     }
   });
 
+  // added sidebar panel css styles
+  bed_pane.append(pane_title);
+  bed_pane.append(break_el)
   bed_pane.append(file_label);
   bed_pane.append(file_entry);
   bed_pane.append(file_button);
+  bed_pane.append(bed_list);
 
   {
 
@@ -575,6 +675,10 @@ export async function initializeBedSidebarPanel(waragraph: Waragraph) {
   });
 
   document
-    .getElementById('sidebar')!
+    .getElementById('sidebar-bed')!
     .append(await bedSidebarPanel(waragraph));
+
+  document
+    .getElementById('sidebar-controls')!
+    .append(await controlSidebarPanel(waragraph));
 }

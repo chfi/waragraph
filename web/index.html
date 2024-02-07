@@ -1,57 +1,142 @@
 <!DOCTYPE html>
-  <head>
-    <meta content="text/html;charset=utf-8" http-equiv="Content-Type"/>
-    <title>Waragraph Web</title>
-    <link rel="stylesheet" href="waragraph.css"/>
-  </head>
-  <body>
+
+<head>
+  <meta content="text/html;charset=utf-8" http-equiv="Content-Type" />
+  <title>Waragraph Web</title>
+  <link rel="stylesheet" href="waragraph.css" />
+  <link rel="stylesheet" href="web.css" />
+</head>
+
+<body>
 
 
-    <div style="display: none" class="root-grid root-sidebar-open" id="root-container">
+  <div style="display: none" class="root-grid root-sidebar-open" id="root-container">
 
-      <div class="sidebar" id="sidebar">
+    <div class="sidebar row justify-content-center" id="sidebar-container">
+      <div class="sidebar-panel row" id="sidebar-bed"></div>
+      <div class="sidebar-panel row" id="sidebar-controls"></div>
+    </div>
+
+    <div class="gutter-column gutter-column-sidebar"></div>
+
+    <div class="viz-grid" id="viz-container">
+      <div id="graph-viewer-container">
       </div>
 
-      <div class="gutter-column gutter-column-sidebar"></div>
+      <div class="gutter-row gutter-row-1"></div>
 
-      <div class="viz-grid" id="viz-container">
-        <div id="graph-viewer-container">
+      <div id="path-viewer-container" style="overscroll-behavior: none;">
+        <div class="path-viewer-column" id="path-viewer-left-column">
         </div>
 
-        <div class="gutter-row gutter-row-1"></div>
+        <div class="gutter-column gutter-column-1"></div>
 
-        <div id="path-viewer-container">
-          <div class="path-viewer-column" id="path-viewer-left-column">
-          </div>
-
-          <div class="gutter-column gutter-column-1"></div>
-
-          <div class="path-viewer-column" id="path-viewer-right-column">
-          </div>
+        <div class="path-viewer-column" id="path-viewer-right-column">
         </div>
       </div>
     </div>
+  </div>
 
-    <div id="file-inputs">
+  <div id="web-canvas">
+    <div class="d-flex" id="home-canvas">
+      <div class="d-flex flex-column flex-shrink-0 p-2 text-white"
+        style="width: 260px; height: 100vh; background-color: #115740; box-shadow: 10px 4px 4px #222;">
+        <hr class="mb-0">
+        <img class="d-flex align-items-center mb-3 mb-md-0 me-md-auto" width="100%"
+          src="images/UTHSC-primary-stacked.png" alt="UTHSC logo">
+        <span
+          class="d-flex align-items-center mb-3 mb-md-0 me-md-auto text-white text-center text-decoration-none">Department
+          of Genetics, Genomics & Informatics</span>
+        <hr>
+        <ul class="nav nav-pills flex-column mb-auto">
+          <li class="nav-item pill">
+            <a class="nav-link active" href="#">Home</a>
+          </li>
+          <li class="nav-item pill">
+            <a class="nav-link text-white" href="https://github.com/chfi/waragraph/tree/web" target="_blank">GitHub</a>
+          </li>
+        </ul>
 
-      <div>
-        <label for="gfa-file">Choose a GFA file</label>
-        <input type="file" id="gfa-file" name="gfa" accept=".gfa"></input>
+        <hr class="mb-0">
+        <div>
+          <span>waragraph web beta</span>
+        </div>
       </div>
+      <div class="d-flex flex-column" style="flex-grow: 1; height: 100vh;">
+        <div id="home-content-top" class="flex-column" style="flex-grow: 1; overflow-y: auto;">
+          <div class="h2 mt-5 mb-1 home-content-top-item">
+            <img src="icons/logo-2.png" style="margin: 2px;" alt="icon" height="60" width="60">
+            <span class="h1 mb-0" style="color: black; font-size: 60px;">Waragraph</span>
+          </div>
+          <div class="h6 text-center mb-4">
+            <span>- A sequence alignment visualization tool -</span>
+          </div>
 
-      <div>
-        <label for="layout-file">Choose a TSV layout file</label>
-        <input type="file" id="layout-file" name="layout" accept=".tsv"></input>
+          <div class="container">
+            <div class="row justify-content-center">
+              <div class="row text-center">
+                <span class="my-2">Graph Creation Menu</span>
+              </div>
+              <hr>
+              <div class="row px-4">
+                <!-- <div class="col-md-6">
+                  <div class="row text-center mb-2">
+                    <span>Try some sample data:</span>
+                  </div>
+                  <div class="container justify-content-center data-container sample-data-container">
+                    <div class="row justify-content-center">
+                      <span>Data from experiment 1</span>
+                      <button id="sample-data-1" class="btn btn-dark load-button">Load data</button>
+                    </div>
+                    <div class="row justify-content-center">
+                      <span>Data from experiment 2</span>
+                      <button id="sample-data-2" class="btn btn-dark load-button">Load data</button>
+                    </div>
+                    <div class="row justify-content-center">
+                      <span>Data from experiment 3</span>
+                      <button id="sample-data-3" class="btn btn-dark load-button justify-content-center">Load
+                        data</button>
+                    </div>
+                  </div>
+                </div> -->
+                <div class="col-md-12">
+                  <div class="row text-center mb-2">
+                    <span>Load your data:</span>
+                  </div>
+                  <div class="container justify-content-center data-container custom-data-container">
+                    <div class="file-input flex-column">
+                      <span>Upload a custom GFA file</span>
+                      <input type="file" id="gfa-file" name="gfa" accept=".gfa">
+
+                    </div>
+                    <div class="file-input">
+                      <span>Upload a custom TSV file</span>
+                      <input type="file" id="layout-file" name="layout" accept=".tsv">
+                    </div>
+                    <div class="row justify-content-center">
+                      <button id="load-data" class="btn btn-dark load-button">Load data</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+
+        <div style="height: 2px; background-color: #ff8200;">
+        </div>
+        <div style="height: 32px; background-color: #115740;">
+        </div>
       </div>
-
-      <button id="load-data">Load data</button>
-
     </div>
 
     <div id="tooltip" role="tooltip"></div>
 
     <script type="module">
       import { initializeWaragraph } from './ts/waragraph';
+
 
       document.getElementById('load-data').addEventListener('click', async (ev) => {
           let gfa_file = document.getElementById("gfa-file").files[0];
@@ -63,7 +148,7 @@
 
           const viz_root = document.getElementById('viz-container');
 
-          document.getElementById('file-inputs').setAttribute('hidden', '');
+          document.getElementById('web-canvas').setAttribute('hidden', '');
           document.getElementById('root-container').style.removeProperty('display');
 
           const spinner_par = document.createElement('div');
@@ -111,5 +196,6 @@
       });
 
     </script>
-  </body>
+</body>
+
 </html>
