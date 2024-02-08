@@ -2,10 +2,15 @@ import { vec2 } from "gl-matrix";
 import { GraphLayoutTable } from "./graph_layout";
 import { GraphViewer, View2DObj } from "./graph_viewer";
 
+export interface SVGExportOptions {
+  min_world_length?: number,
+}
+
 export function export2DViewportSvg(
   graph_viewer: GraphViewer,
   graph_layout: GraphLayoutTable,
-  // color: (segment: number) => { r: number, g: number, b: number, a: number },
+  color: (segment: number) => { r: number, g: number, b: number, a: number },
+  options?: SVGExportOptions,
 ): SVGSVGElement {
 
   const view = graph_viewer.getView();
@@ -21,28 +26,34 @@ export function export2DViewportSvg(
 
   const iter = graph_layout.iterateSegments();
 
+  const min_world_length = options?.min_world_length ? options.min_world_length : 0.0;
+
   // need to iterate in pairs, as when filling the buffers
   for (const { segment, p0, p1 } of iter) {
 
     if (lineSegmentIntersectsAABB2D(aabbMin, aabbMax, p0, p1)) {
-      // const q0 = vec2.create();
-      // const q1 = vec2.create();
 
-      // vec2.transformMat3(q0, p0, mat);
-      // vec2.transformMat3(q1, p1, mat);
+      const len = vec2.distance(p0, p1);
+
+      if (len < min_world_length) {
+        continue;
+      }
 
       const el = document.createElementNS('http://www.w3.org/2000/svg', 'line') as SVGLineElement;
-      // el.setAttribute('x1', String(q0[0]));
-      // el.setAttribute('y1', String(q0[1]));
-      // el.setAttribute('x2', String(q1[0]));
-      // el.setAttribute('y2', String(q1[1]));
       el.setAttribute('x1', String(p0[0]));
       el.setAttribute('y1', String(p0[1]));
       el.setAttribute('x2', String(p1[0]));
       el.setAttribute('y2', String(p1[1]));
 
       // TODO
-      el.setAttribute('stroke', 'green');
+      const {r,g,b,a} = color(segment);
+      if (a === 0) {
+        continue;
+      }
+
+      const fmt = (v: number) => Math.round(v * 255);
+      el.setAttribute('stroke', `rgb(${fmt(r)} ${fmt(g)} ${fmt(b)}`);
+      el.setAttribute('stroke-opacity', `${a}`);
       el.setAttribute('stroke-width', '1%');
 
       svg_el.append(el);

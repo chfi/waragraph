@@ -123,7 +123,16 @@ export class Waragraph {
   
 
   export2DSVG() {
-    let svg = export2DViewportSvg(this.graph_viewer, this.graphLayoutTable);
+
+    // const options = {
+    //   min_world_length: // derive from viewport size & (desired?) canvas size
+    // };
+
+    const color = (_) => {
+      return { r: 0.1, g: 0.7, b: 0.0, a: 1.0 };
+    };
+
+    let svg = export2DViewportSvg(this.graph_viewer, this.graphLayoutTable, color);
     console.log(svg);
 
     if (svg instanceof SVGSVGElement) {
