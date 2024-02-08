@@ -386,6 +386,7 @@ export class AnnotationPainter {
       const link_end = svg_g.querySelector('.svg-overlay-link-end') as SVGLineElement;
 
       let interval = record.path_interval;
+
       const first_seg = await this.waragraph.graph.segmentAtPathPosition(interval.path_id, interval.start);
       const last_seg = await this.waragraph.graph.segmentAtPathPosition(interval.path_id, interval.end);
       // const first_seg = record.path_step_slice.at(0) >> 1;
@@ -466,6 +467,8 @@ fill="${color}"
       return { x: x_, y: y_ };
     };
 
+    const view_mat = this.waragraph.graph_viewer!.getViewMatrix();
+
     // for (const { svg_g, record, cached_path, enabled, color } of this.record_states) {
     for (const record_state of this.record_states) {
       const { svg_g, record, cached_path, enabled, color } = record_state;
@@ -480,17 +483,13 @@ fill="${color}"
       const link_end = svg_g.querySelector('.svg-overlay-link-end') as SVGLineElement;
 
       let interval = record.path_interval;
-      const first_seg = await this.waragraph.graph.segmentAtPathPosition(interval.path_id, interval.start);
-      const last_seg = await this.waragraph.graph.segmentAtPathPosition(interval.path_id, interval.end);
 
-      // const first_seg = record.path_step_slice.at(0) >> 1;
-      // const last_seg = record.path_step_slice.at(-1) >> 1;
-
-      const first_pos = await this.waragraph.segmentScreenPos2d(first_seg);
-      const last_pos = await this.waragraph.segmentScreenPos2d(last_seg);
-
-      const f_p = map_canvas_to_svg({ x: first_pos.p0[0], y: first_pos.p0[1] });
-      const l_p = map_canvas_to_svg({ x: last_pos.p0[0], y: last_pos.p0[1] });
+      const first_pos = vec2.create();
+      const last_pos = vec2.create();
+      vec2.transformMat3(first_pos, record_state.start_world_2d, view_mat);
+      vec2.transformMat3(last_pos, record_state.end_world_2d, view_mat);
+      const f_p = map_canvas_to_svg({ x: first_pos[0], y: first_pos[1] });
+      const l_p = map_canvas_to_svg({ x: last_pos[0], y: last_pos[1] });
 
       link_start.setAttribute('x1', String(f_p.x));
       link_start.setAttribute('y1', String(f_p.y));

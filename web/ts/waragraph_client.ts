@@ -133,7 +133,7 @@ export class Waragraph {
     let p0 = vec2.create();
     let p1 = vec2.create();
     vec2.transformMat3(p0, world_pos.subarray(0, 2), mat);
-    vec2.transformMat3(p0, world_pos.subarray(2, 4), mat);
+    vec2.transformMat3(p1, world_pos.subarray(2, 4), mat);
 
     return { p0, p1 };
   }

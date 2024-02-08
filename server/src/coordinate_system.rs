@@ -205,18 +205,19 @@ pub async fn prepare_annotation_records(
     for record in records.0 {
         let path_steps = graph.path_steps(record.path_id);
 
+        let path_cs = coord_sys_cache
+            .get_or_compute_for_path(graph, record.path_id)
+            .await?;
+
         // TODO should probably not fail the entire request here
-        let step_range = cs.bp_to_step_range(record.start_bp, record.end_bp);
+        let step_range =
+            path_cs.bp_to_step_range(record.start_bp, record.end_bp);
         let first_step = path_steps.get(*step_range.start())?;
         let last_step = path_steps.get(*step_range.end())?;
 
         // TODO take orientation into account
         let [x0, y0, ..] = graph_layout.segment_position(first_step >> 1)?;
         let [.., x1, y1] = graph_layout.segment_position(last_step >> 1)?;
-
-        let path_cs = coord_sys_cache
-            .get_or_compute_for_path(graph, record.path_id)
-            .await?;
 
         let blocks_1d_bp = path_interval_to_global_blocks_impl(
             graph,
@@ -229,7 +230,7 @@ pub async fn prepare_annotation_records(
 
         // TODO orientation here too
         let first_range = cs.segment_range(first_step >> 1)?;
-        let last_range = cs.segment_range(first_step >> 1)?;
+        let last_range = cs.segment_range(last_step >> 1)?;
 
         let start_bp = first_range.start;
         let end_bp = last_range.end;
