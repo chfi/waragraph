@@ -138,6 +138,31 @@ export class Waragraph {
     return { p0, p1 };
   }
 
+  globalBpToPathViewerPos(path_name: string, global_bp: number) {
+    const el = document.getElementById('viewer-' + path_name);
+
+    if (!el) {
+      return null;
+    }
+
+    let el_rect = el.getBoundingClientRect();
+
+    let viewport = this.global_viewport;
+
+    let view = viewport.get();
+    let view_len = viewport.length;
+
+    let x_norm = (global_bp - view.start) / view_len;
+
+    let width = el_rect.width;
+    let y0 = el_rect.y;
+    let y1 = el_rect.y + el_rect.height;
+
+    let x = el_rect.left + x_norm * width;
+
+    return { x, y0, y1 };
+  }
+
   async segmentScreenPos1d(path: PathId | string, segment: number) {
     let path_name: string | undefined;
 

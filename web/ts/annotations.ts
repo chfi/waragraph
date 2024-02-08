@@ -385,23 +385,20 @@ export class AnnotationPainter {
       const link_start = svg_g.querySelector('.svg-overlay-link-start') as SVGLineElement;
       const link_end = svg_g.querySelector('.svg-overlay-link-end') as SVGLineElement;
 
-      let interval = record.path_interval;
+      const start_pos = this.waragraph.globalBpToPathViewerPos(record.path_name, record_state.start_bp);
+      const end_pos = this.waragraph.globalBpToPathViewerPos(record.path_name, record_state.end_bp);
 
-      const first_seg = await this.waragraph.graph.segmentAtPathPosition(interval.path_id, interval.start);
-      const last_seg = await this.waragraph.graph.segmentAtPathPosition(interval.path_id, interval.end);
-      // const first_seg = record.path_step_slice.at(0) >> 1;
-      // const last_seg = record.path_step_slice.at(-1) >> 1;
-
-      const first_pos = await this.waragraph.segmentScreenPos1d(record.path_name, first_seg);
-      const last_pos = await this.waragraph.segmentScreenPos1d(record.path_name, last_seg);
+      // if (start_pos === null || end_pos === null) {
+      //   continue;
+      // }
 
       let f_p, l_p;
       if (is_1d_visible) {
-        f_p = map_pos(first_pos.x0, first_pos.y0);
-        l_p = map_pos(last_pos.x1, last_pos.y1);
+        f_p = map_pos(start_pos.x, start_pos.y0);
+        l_p = map_pos(end_pos.x, end_pos.y1);
       } else {
-        f_p = map_pos(first_pos.x0, data_list_rect.top);
-        l_p = map_pos(last_pos.x1, data_list_rect.top);
+        f_p = map_pos(start_pos.x, data_list_rect.top);
+        l_p = map_pos(end_pos.x, data_list_rect.top);
       }
 
 
