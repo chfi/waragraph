@@ -28,7 +28,16 @@ interface AnnotationRecord {
   record: BEDRecord;
   enabled: boolean;
 
-  global_ranges: Array<{ start: number, end: number }> | null;
+  // handles
+  step_endpoints: { first: number, last: number } | undefined;
+  // in the viz/global coordinate system
+  start_bp: number | undefined;
+  end_bp: number | undefined;
+  
+  start_world_2d: vec2 | undefined;
+  end_world_2d: vec2 | undefined;
+  
+  global_ranges: Array<{ start: number, end: number }> | undefined;
   // cached_path: wasm_bindgen.CanvasPathTrace | null;
   // cached_path: Float32Array | undefined;
   cached_path: CachedPath | undefined;
@@ -142,8 +151,34 @@ export class AnnotationPainter {
 
     const viewport = this.waragraph.global_viewport;
 
-    this.record_states.forEach(async (state) => {
-      const { bed_record, path_name, path_interval } = state.record;
+    const annotation_ranges = this.record_states.map((state) => {
+      const { path_id, start, end } = state.record.path_interval;
+      const start_bp = Number(start);
+      const end_bp = Number(end);
+      return { path_id, start_bp, end_bp };
+    });
+
+    const req =
+      new Request(
+        new URL(`/coordinate_system/prepare_annotation_records`, this.waragraph.api_base_url),
+        { method: 'POST', body: JSON.stringify(annotation_ranges) }
+      );
+
+    const prepared_req = await fetch(req);
+
+    if (!prepared_req.ok) {
+      console.error("Error preparing annotations");
+      return;
+    }
+
+    const prepared = await prepared_req.json();
+
+    console.log(prepared);
+
+    prepared.forEach((annot, i) => {
+      const state = this.record_states[i];
+
+      // const { bed_record, path_name, path_interval } = state.record;
 
       const bed = state.record.bed_record;
 
@@ -165,42 +200,21 @@ export class AnnotationPainter {
       state.svg_g.setAttribute('color', color);
 
       //// global coordinate space rectangles for the 1D path views
-
-      const record_ranges_resp =
-        await fetch(new URL(`/coordinate_system/path_interval_to_global_blocks?path_id=${path_interval.path_id}&start_bp=${path_interval.start}&end_bp=${path_interval.end}`,
-          this.waragraph.api_base_url));
-          // .then(r => r.arrayBuffer());
-
-      // const record_ranges = wasm_bindgen.path_slice_to_global_adj_partitions(path_step_slice);
-      const ranges_arr = new Uint32Array(await record_ranges_resp.arrayBuffer());
-
-      // const ranges_arr = record_ranges.ranges_as_u32_array();
-      const range_count = ranges_arr.length / 2;
-
       const global_ranges = [];
 
-
-      for (let ri = 0; ri < range_count; ri++) {
-        let start_seg = ranges_arr.at(2 * ri);
-        let end_seg = ranges_arr.at(2 * ri + 1);
-
-        // if (end_seg === undefined) {
-        //   end_seg = start_seg + 1;
-        // }
-
-        if (start_seg !== undefined && end_seg !== undefined) {
-          let first = await this.waragraph.graph.segmentGlobalRange(start_seg);
-          let last = await this.waragraph.graph.segmentGlobalRange(end_seg);
-
-          if (first === undefined || last === undefined) {
-            continue;
-          }
-
-          global_ranges.push({ start: Number(first.start), end: Number(last.end) });
-        }
+      for (const [start, end] of annot.blocks_1d_bp) {
+        global_ranges.push({ start, end });
       }
 
       state.global_ranges = global_ranges;
+
+      state.step_endpoints = { first: annot.first_step, last: annot.last_step };
+      state.start_bp = annot.start_bp;
+      state.end_bp = annot.end_bp;
+
+      state.start_world_2d = vec2.fromValues(annot.start_world_x, annot.start_world_y);
+      state.end_world_2d = vec2.fromValues(annot.end_world_x, annot.end_world_y);
+
     });
   }
 

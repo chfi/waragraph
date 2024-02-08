@@ -85,7 +85,7 @@ pub async fn path_interval_to_global_blocks_impl(
     path_id: u32,
     start_bp: u64,
     end_bp: u64,
-) -> Vec<u8> {
+) -> Vec<[u64; 2]> {
     let step_range = path_cs.bp_to_step_range(start_bp, end_bp);
 
     let steps = graph.path_steps(path_id);
@@ -103,7 +103,7 @@ pub async fn path_interval_to_global_blocks_impl(
         let seg_ix = handle >> 1;
 
         if seg_ix.abs_diff(prev_seg_ix) > 2 {
-            ranges.push([range_start, prev_seg_ix]);
+            ranges.push([range_start as u64, prev_seg_ix as u64]);
             range_start = seg_ix;
         }
 
@@ -111,16 +111,10 @@ pub async fn path_interval_to_global_blocks_impl(
     }
 
     if range_start != prev_seg_ix {
-        ranges.push([range_start, prev_seg_ix]);
+        ranges.push([range_start as u64, prev_seg_ix as u64]);
     }
 
-    let mut out: Vec<u8> = Vec::with_capacity(ranges.len() * 8);
-
-    for range in ranges {
-        out.extend_from_slice(bytemuck::cast_slice(&range));
-    }
-
-    out
+    ranges
 }
 
 #[get("/path_interval_to_global_blocks?<path_id>&<start_bp>&<end_bp>")]
@@ -136,10 +130,18 @@ pub async fn path_interval_to_global_blocks(
         .await
         .unwrap();
 
-    path_interval_to_global_blocks_impl(
+    let ranges = path_interval_to_global_blocks_impl(
         graph, path_cs, path_id, start_bp, end_bp,
     )
-    .await
+    .await;
+
+    let mut out: Vec<u8> = Vec::with_capacity(ranges.len() * 8);
+
+    for range in ranges {
+        out.extend_from_slice(bytemuck::cast_slice(&range));
+    }
+
+    out
 }
 
 // TODO the return type of this and so many other endpoints
@@ -173,17 +175,20 @@ pub struct PreparedAnnotation {
     first_step: u32,
     last_step: u32,
 
+    start_bp: u64,
+    end_bp: u64,
+
     start_world_x: f32,
     start_world_y: f32,
     end_world_x: f32,
     end_world_y: f32,
 
-    blocks_1d_bp: Vec<u64>,
+    blocks_1d_bp: Vec<[u64; 2]>,
 }
 
 // #[post("/prepare_annotation_record/<coord_sys>", data = "<record>")]
-#[post("/prepare_annotation_record", data = "<records>")]
-pub async fn prepare_annotation_record(
+#[post("/prepare_annotation_records", data = "<records>")]
+pub async fn prepare_annotation_records(
     graph: &State<Arc<ArrowGFA>>,
     coord_sys_cache: &State<crate::CoordSysCache>,
     graph_layout: &State<GraphLayout>,
@@ -205,21 +210,37 @@ pub async fn prepare_annotation_record(
         let first_step = path_steps.get(*step_range.start())?;
         let last_step = path_steps.get(*step_range.end())?;
 
-        let [x0, y0, ..] = graph_layout.segment_position(first_step)?;
-        let [.., x1, y1] = graph_layout.segment_position(last_step)?;
+        // TODO take orientation into account
+        let [x0, y0, ..] = graph_layout.segment_position(first_step >> 1)?;
+        let [.., x1, y1] = graph_layout.segment_position(last_step >> 1)?;
 
         let path_cs = coord_sys_cache
             .get_or_compute_for_path(graph, record.path_id)
             .await?;
 
         let blocks_1d_bp = path_interval_to_global_blocks_impl(
-            graph, path_cs, path_id, start_bp, end_bp,
+            graph,
+            path_cs,
+            record.path_id,
+            record.start_bp,
+            record.end_bp,
         )
         .await;
+
+        // TODO orientation here too
+        let first_range = cs.segment_range(first_step >> 1)?;
+        let last_range = cs.segment_range(first_step >> 1)?;
+
+        let start_bp = first_range.start;
+        let end_bp = last_range.end;
 
         result.push(PreparedAnnotation {
             first_step,
             last_step,
+
+            start_bp,
+            end_bp,
+
             start_world_x: x0,
             start_world_y: y0,
             end_world_x: x1,
