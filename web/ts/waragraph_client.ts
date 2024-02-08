@@ -19,6 +19,8 @@ import { PathId } from './types';
 import Split from 'split-grid';
 import { initializeBedSidebarPanel } from './sidebar-bed';
 import { vec2 } from 'gl-matrix';
+import { GraphLayoutTable } from './graph_layout';
+import { export2DViewportSvg } from './svg_export';
 
 export class Waragraph {
   graph_viewer: GraphViewer | undefined;
@@ -28,6 +30,7 @@ export class Waragraph {
   // path_index: PathIndex;
 
   graphLayout: GraphLayout | undefined;
+  graphLayoutTable: GraphLayoutTable | undefined;
 
   global_viewport: Viewport1D;
 
@@ -42,13 +45,15 @@ export class Waragraph {
     viewers: { graph_viewer?: GraphViewer, path_viewers: Array<PathViewer> },
     graph: ArrowGFA,
     global_viewport: Viewport1D,
-    graphLayout?: GraphLayout,
+    layout: 
+    { graphLayout?: GraphLayout, graphLayoutTable?: GraphLayoutTable },
   ) {
     this.graph_viewer = viewers.graph_viewer;
     this.path_viewers = viewers.path_viewers;
     this.graph = graph;
     this.global_viewport = global_viewport;
-    this.graphLayout = graphLayout;
+    this.graphLayout = layout.graphLayout;
+    this.graphLayoutTable = layout.graphLayoutTable;
 
     this.api_base_url = base_url;
 
@@ -116,6 +121,29 @@ export class Waragraph {
 
   }
   
+
+  export2DSVG() {
+    let svg = export2DViewportSvg(this.graph_viewer, this.graphLayoutTable);
+    console.log(svg);
+
+    if (svg instanceof SVGSVGElement) {
+      svg.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+
+      // save to file
+      const blob = new Blob([svg.outerHTML], { type: 'image/svg+xml;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+
+      const downloadLink = document.createElement('a');
+      downloadLink.href = url;
+      downloadLink.download = "waragraph.svg";
+
+      document.body.appendChild(downloadLink);
+      downloadLink.click();
+
+      document.body.removeChild(downloadLink);
+      URL.revokeObjectURL(url);
+    }
+  }
 
   async segmentScreenPos2d(segment: number) {
     if (this.graph_viewer === undefined) {
@@ -239,6 +267,8 @@ export async function initializeWaragraphClient(base_url: URL) {
     .then(r => r.arrayBuffer())
     .then(data => tableFromIPC(data));
 
+  const graph_layout_table = new GraphLayoutTable(layout_table);
+
   console.log(layout_table);
 
   // TODO get from the server; this will do for now
@@ -336,6 +366,8 @@ export async function initializeWaragraphClient(base_url: URL) {
 
 
   let paths = await graph_apis.arrowGFA.pathMetadata();
+  paths = paths.slice(0, 1000);
+  console.log(`preparing ${paths.length} path viewers`);
 
   const path_promises = paths.map(async (path) => {
     const color_below = { r: 1.0, g: 1.0, b: 1.0 };
@@ -406,7 +438,7 @@ export async function initializeWaragraphClient(base_url: URL) {
     { graph_viewer, path_viewers },
     graph_apis.arrowGFA,
     global_viewport,
-    graph_apis.graphLayout
+    { graphLayout: graph_apis.graphLayout, graphLayoutTable: graph_layout_table }
   );
 
   console.log("almost there");
@@ -427,6 +459,8 @@ export async function initializeWaragraphClient(base_url: URL) {
   await initializeBedSidebarPanel(waragraph);
 
   console.log("done?");
+
+  window.waragraph = waragraph;
 
 }
 
