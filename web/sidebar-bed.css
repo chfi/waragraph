@@ -18,6 +18,7 @@
 .bed-file-name {
     font-family: sans-serif;
     font-weight: bold;
+    margin-top: 15px;
 }
 
 .bed-file-row {
@@ -29,6 +30,17 @@
 .bed-row-label {
     font-family: monospace;
     grid-column: 1;
+    cursor: pointer;
+    margin: 3px;
+    margin-left: 10px;
+    padding-left: 10px;
+}
+
+.bed-row-label:hover {
+    border-radius: 2px;
+    background-color: #333;
+    color: aliceblue;
+    width: 100%;
 }
 
 .bed-row-1d {
@@ -40,8 +52,15 @@
 }
 
 .highlight-enabled {
-    background-color: #EEE;
-    color: #111;
+    border: 2px solid #28a745;
+    border-radius: 2px;
+    width: 100%;
+    background-color: #28a745;
+    color: white;
+    cursor: pointer;
+    margin: 1px;
+    margin-left: 9px;
+    padding-left: 9px;
 }
 
 .highlight-disabled {
