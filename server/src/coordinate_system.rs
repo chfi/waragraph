@@ -81,6 +81,7 @@ pub async fn global(coord_sys_cache: &State<crate::CoordSysCache>) -> Vec<u8> {
 
 pub async fn path_interval_to_global_blocks_impl(
     graph: &Arc<ArrowGFA>,
+    global_cs: Arc<CoordSys>,
     path_cs: Arc<CoordSys>,
     path_id: u32,
     start_bp: u64,
@@ -94,7 +95,7 @@ pub async fn path_interval_to_global_blocks_impl(
 
     let sorted = step_slice.values_iter().copied().collect::<Vec<_>>();
 
-    let mut ranges = Vec::new();
+    let mut segment_ranges = Vec::new();
 
     let mut range_start = sorted[0] >> 1;
     let mut prev_seg_ix = sorted[0] >> 1;
@@ -103,7 +104,7 @@ pub async fn path_interval_to_global_blocks_impl(
         let seg_ix = handle >> 1;
 
         if seg_ix.abs_diff(prev_seg_ix) > 2 {
-            ranges.push([range_start as u64, prev_seg_ix as u64]);
+            segment_ranges.push([range_start, prev_seg_ix]);
             range_start = seg_ix;
         }
 
@@ -111,8 +112,17 @@ pub async fn path_interval_to_global_blocks_impl(
     }
 
     if range_start != prev_seg_ix {
-        ranges.push([range_start as u64, prev_seg_ix as u64]);
+        segment_ranges.push([range_start, prev_seg_ix]);
     }
+
+    let ranges = segment_ranges
+        .into_iter()
+        .filter_map(|[start, end]| {
+            let start_bp = global_cs.segment_range(start)?.start;
+            let end_bp = global_cs.segment_range(end)?.end;
+            Some([start_bp, end_bp])
+        })
+        .collect::<Vec<_>>();
 
     ranges
 }
@@ -125,13 +135,18 @@ pub async fn path_interval_to_global_blocks(
     start_bp: u64,
     end_bp: u64,
 ) -> Vec<u8> {
+    let global_cs = {
+        let cs_map = coord_sys_cache.map.read().await;
+        cs_map.get("<global>").unwrap().clone()
+    };
+
     let path_cs = coord_sys_cache
         .get_or_compute_for_path(graph, path_id)
         .await
         .unwrap();
 
     let ranges = path_interval_to_global_blocks_impl(
-        graph, path_cs, path_id, start_bp, end_bp,
+        graph, global_cs, path_cs, path_id, start_bp, end_bp,
     )
     .await;
 
@@ -195,7 +210,7 @@ pub async fn prepare_annotation_records(
     records: Json<Vec<AnnotationRange>>,
     // coord_sys: String,
 ) -> Option<Json<Vec<PreparedAnnotation>>> {
-    let cs = {
+    let global_cs = {
         let cs_map = coord_sys_cache.map.read().await;
         cs_map.get("<global>")?.clone()
     };
@@ -221,6 +236,7 @@ pub async fn prepare_annotation_records(
 
         let blocks_1d_bp = path_interval_to_global_blocks_impl(
             graph,
+            global_cs.clone(),
             path_cs,
             record.path_id,
             record.start_bp,
@@ -229,8 +245,8 @@ pub async fn prepare_annotation_records(
         .await;
 
         // TODO orientation here too
-        let first_range = cs.segment_range(first_step >> 1)?;
-        let last_range = cs.segment_range(last_step >> 1)?;
+        let first_range = global_cs.segment_range(first_step >> 1)?;
+        let last_range = global_cs.segment_range(last_step >> 1)?;
 
         let start_bp = first_range.start;
         let end_bp = last_range.end;
