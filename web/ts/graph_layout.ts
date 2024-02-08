@@ -8,6 +8,11 @@ import { vec2 } from "gl-matrix";
 export class GraphLayoutTable {
   table: Table;
 
+  constructor(table: Table) {
+    // TODO check fields
+    this.table = table;
+  }
+
   segmentPosition(segment: number): { p0: vec2, p1: vec2 } | null {
     if (!Number.isInteger(segment)) {
       return null;

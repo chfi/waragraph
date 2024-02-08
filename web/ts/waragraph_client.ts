@@ -39,6 +39,9 @@ export class Waragraph {
 
   api_base_url: URL;
 
+  // only used for SVG export
+  // kinda hacky but fine for now; might copy the buffers back from GPU when needed later
+  color_buffers: Map<string, Uint32Array>;
 
   constructor(
     base_url: URL,
@@ -54,6 +57,8 @@ export class Waragraph {
     this.global_viewport = global_viewport;
     this.graphLayout = layout.graphLayout;
     this.graphLayoutTable = layout.graphLayoutTable;
+
+    this.color_buffers = new Map();
 
     this.api_base_url = base_url;
 
@@ -128,8 +133,19 @@ export class Waragraph {
     //   min_world_length: // derive from viewport size & (desired?) canvas size
     // };
 
-    const color = (_) => {
-      return { r: 0.1, g: 0.7, b: 0.0, a: 1.0 };
+    // const color = (_) => {
+    //   return { r: 0.1, g: 0.7, b: 0.0, a: 1.0 };
+    // };
+
+    const color_buf = this.color_buffers.get('depth');
+
+    const color = (seg: number) => {
+      let val = color_buf.at(seg);
+      let r = ((val >> 0) & 0xFF) / 255;
+      let g = ((val >> 8) & 0xFF) / 255;
+      let b = ((val >> 16) & 0xFF) / 255;
+      let a = ((val >> 24) & 0xFF) / 255;
+      return { r, g, b, a };
     };
 
     let svg = export2DViewportSvg(this.graph_viewer, this.graphLayoutTable, color);
@@ -449,6 +465,8 @@ export async function initializeWaragraphClient(base_url: URL) {
     global_viewport,
     { graphLayout: graph_apis.graphLayout, graphLayoutTable: graph_layout_table }
   );
+
+  waragraph.color_buffers.set('depth', depth_color);
 
   console.log("almost there");
   waragraph.resize_observable.subscribe(() => {
