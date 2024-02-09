@@ -300,7 +300,7 @@ export class AnnotationPainter {
       // in a loop (use SVG transform for translations)
       if (update_path) {
         const path = 
-          await this.waragraph.graphLayoutTable!
+          this.waragraph.graphLayoutTable!
             .sample2DPath(state.path_steps, tolerance);
 
         if (path === undefined) {

@@ -39,15 +39,14 @@ export interface PathIndex {
 }
 
 
-export interface GraphLayout {
-  sample2DPath(path_id: PathId, start: Bp, end: Bp, tolerance: number): Promise<Float32Array | undefined>;
-
-  segmentPosition(segment: number): Promise<Float32Array | undefined>;
-}
+// export interface GraphLayout {
+//   sample2DPath(path_id: PathId, start: Bp, end: Bp, tolerance: number): Promise<Float32Array | undefined>;
+//   segmentPosition(segment: number): Promise<Float32Array | undefined>;
+// }
 
 
 export async function serverAPIs(base_url: URL): Promise<
-  { arrowGFA: ArrowGFA, pathIndex: PathIndex, graphLayout: GraphLayout }
+  { arrowGFA: ArrowGFA, pathIndex: PathIndex }
 > {
 
   let segmentSequences: Uint8Array | undefined = undefined;
@@ -126,26 +125,6 @@ export async function serverAPIs(base_url: URL): Promise<
     }
   };
 
-  const graphLayout = {
-    async sample2DPath(path: PathId, start: Bp, end: Bp, tolerance: number): Promise<Float32Array | undefined> {
-      const query =
-        new URL(`/graph_layout/sample_path_id?path_id=${path}&start_bp=${start}&end_bp=${end}&tolerance=${tolerance}`, base_url);
-      const resp = await fetch(query);
-      const buffer = await resp.arrayBuffer();
-      return new Float32Array(buffer);
-    },
 
-    async segmentPosition(segment: number): Promise<Float32Array | undefined> {
-      const resp = await fetch(new URL(`/graph_layout/segment_position/${segment}`, base_url));
-      if (resp.ok === false) {
-        return;
-      }
-
-      const buf = await resp.arrayBuffer();
-      return new Float32Array(buf);
-    }
-  };
-
-
-  return { arrowGFA, pathIndex, graphLayout };
+  return { arrowGFA, pathIndex };
 }

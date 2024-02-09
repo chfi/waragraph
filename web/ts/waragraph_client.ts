@@ -29,7 +29,6 @@ export class Waragraph {
   graph: ArrowGFA;
   // path_index: PathIndex;
 
-  // graphLayout: GraphLayout | undefined;
   graphLayoutTable: GraphLayoutTable | undefined;
 
   global_viewport: Viewport1D;
@@ -55,7 +54,6 @@ export class Waragraph {
     this.path_viewers = viewers.path_viewers;
     this.graph = graph;
     this.global_viewport = global_viewport;
-    // this.graphLayout = layout.graphLayout;
     this.graphLayoutTable = layout.graphLayoutTable;
 
     this.color_buffers = new Map();
