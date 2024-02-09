@@ -47,6 +47,52 @@ export function appendSvgViewport() {
 
   el.outerHTML = body;
   el.style.setProperty('position', 'absolute');
+
+  const mask_2d = document.createElementNS('http://www.w3.org/2000/svg', 'mask') as SVGMaskElement;
+  const mask_1d = document.createElementNS('http://www.w3.org/2000/svg', 'mask') as SVGMaskElement;
+
+  mask_2d.setAttribute('id', 'mask-2d-view');
+  mask_1d.setAttribute('id', 'mask-path-viewers');
+
+  el.append(mask_2d);
+  el.append(mask_1d);
+}
+
+export function updateSVGMasks() {
+  const svg_div = document.getElementById('svg-container')!;
+
+  const rect_cont = svg_div.getBoundingClientRect();
+
+  const mask_2d = svg_div.querySelector('#mask-2d-view');
+  const mask_1d = svg_div.querySelector('#mask-path-viewers');
+
+  // get the 2D view canvas
+
+  const rect_2d = document
+    .getElementById('graph-viewer-2d-overlay')!
+    .getBoundingClientRect();
+
+  const width_2d = rect_2d.width / rect_cont.width;
+  const height_2d = rect_2d.height / rect_cont.height;
+
+  mask_2d.innerHTML =
+    `<rect fill="white" x="0" y="0" width="${width_2d}" height="${height_2d}"/>`;
+
+  // get the right path viewer column
+
+  const rect_1d = document
+    .getElementById('path-viewer-right-column')!
+    .getBoundingClientRect();
+
+  const x_1d = rect_1d.left / rect_cont.width;
+  const y_1d = rect_1d.top / rect_cont.height;
+  const width_1d = rect_1d.width / rect_cont.width;
+  const height_1d = rect_1d.height / rect_cont.height;
+
+  mask_1d.innerHTML =
+    `<rect fill="white" x="${x_1d}" y="${y_1d}" width="${width_1d}" height="${height_1d}"/>`;
+
+
 }
 
 

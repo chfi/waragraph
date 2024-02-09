@@ -11,7 +11,7 @@ import { CoordSysArrow, CoordSysInterface } from './coordinate_system';
 import { GraphViewer, graphViewerFromData } from './graph_viewer';
 import { ArrowGFA, GraphLayout, PathIndex, serverAPIs } from './graph_api';
 
-import { addViewRangeInputListeners, appendPathListElements, appendSvgViewport } from './dom';
+import { addViewRangeInputListeners, appendPathListElements, appendSvgViewport, updateSVGMasks } from './dom';
 import { OverviewMap } from './overview';
 
 import * as chroma from 'chroma-js';
@@ -120,6 +120,8 @@ export class Waragraph {
       for (const viewer of this.path_viewers) {
         viewer.onResize();
       }
+
+      updateSVGMasks();
     });
 
   }

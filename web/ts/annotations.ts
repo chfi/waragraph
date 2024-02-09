@@ -351,7 +351,7 @@ export class AnnotationPainter {
       state.svg_g.querySelector('.svg-overlay-2d > path').outerHTML =
         // svg_g.innerHTML =
         // `<path d="${svg_path}" stroke-width="0.5" fill="none" />`;
-        `<path d="${svg_path}" stroke-width="0.5" stroke="${state.color}" fill="none" />`;
+        `<path d="${svg_path}" mask="url(#mask-2d-view)" stroke-width="0.5" stroke="${state.color}" fill="none" />`;
       // `<path d="${svg_path}" stroke-width="0.5" stroke="red" fill="none" />`;
     }
   }
@@ -418,6 +418,7 @@ export class AnnotationPainter {
       link_end.setAttribute('y2', String(l_p.y));
 
       const svg_g_1d = svg_g.querySelector('.svg-overlay-1d');
+      svg_g_1d.setAttribute('mask', 'url(#mask-path-viewers)');
 
       const data_canvas = document.getElementById('viewer-' + record.path_name);
       const data_rect = data_canvas.getBoundingClientRect();
