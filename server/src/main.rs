@@ -469,7 +469,14 @@ async fn main() -> anyhow::Result<()> {
             ],
         )
         .mount("/", routes![datasets::get_graph_dataset])
-        .mount("/", routes![paths::path_metadata, paths::path_steps])
+        .mount(
+            "/",
+            routes![
+                paths::path_metadata,
+                paths::path_steps,
+                paths::paths_on_segment
+            ],
+        )
         .mount(
             "/coordinate_system",
             routes![

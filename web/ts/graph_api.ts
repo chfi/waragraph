@@ -120,8 +120,12 @@ export async function serverAPIs(base_url: URL): Promise<
 
   const pathIndex = {
     async pathsOnSegment(segment: number): Promise<Uint32Array | undefined> {
-      console.warn("TODO implement server path index");
-      return undefined;
+      const resp = await fetch(new URL(`/paths_on_segment/${segment}`, base_url));
+      if (!resp.ok) {
+        return;
+      }
+      const resp_buf = await resp.arrayBuffer();
+      return new Uint32Array(resp_buf);
     }
   };
 

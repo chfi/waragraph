@@ -389,8 +389,6 @@ export async function initializeWaragraphClient(base_url: URL) {
 
 
   let paths = await graph_apis.arrowGFA.pathMetadata();
-  paths = paths.slice(0, 1000);
-  console.log(`preparing ${paths.length} path viewers`);
 
   const path_promises = paths.map(async (path) => {
     const color_below = { r: 1.0, g: 1.0, b: 1.0 };
@@ -411,7 +409,7 @@ export async function initializeWaragraphClient(base_url: URL) {
 
     path_data_col.append(viewer.container);
 
-    await addPathViewerLogicClient(graph_apis.arrowGFA, viewer);
+    await addPathViewerLogicClient(graph_apis.arrowGFA, graph_apis.pathIndex, viewer);
 
     viewer.onResize();
     // console.log(viewer);

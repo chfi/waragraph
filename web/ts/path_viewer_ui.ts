@@ -19,7 +19,7 @@ import * as handler from './transfer_handlers';
 handler.setTransferHandlers(rxjs, Comlink);
 
 import * as FloatingUI from '@floating-ui/dom';
-import { ArrowGFA } from './graph_api';
+import { ArrowGFA, PathIndex } from './graph_api';
 
 async function segmentAtCanvasX(
   // coord_sys_view,
@@ -577,6 +577,7 @@ export async function addPathViewerLogicClient(
   // worker: Comlink.Remote<WaragraphWorkerCtx>,
   // paths_on_segment: (segment)
   graph_api: ArrowGFA,
+  path_index: PathIndex,
   path_viewer: PathViewer,
 ) {
   const { viewer_ctx, overlay_canvas } = path_viewer;
@@ -620,6 +621,11 @@ export async function addPathViewerLogicClient(
     placeTooltipAtPoint(e.clientX, e.clientY);
     // placeTooltipAtPoint(x, y);
 
+    if (segment !== undefined) {
+      let paths = await path_index.pathsOnSegment(segment);
+      console.log("paths on segment: ");
+      console.log(paths);
+    }
     // let paths = await worker.pathsOnSegment(segment);
     // console.log("paths!!!");
     // console.log(paths);
