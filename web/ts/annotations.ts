@@ -33,6 +33,8 @@ interface AnnotationRecord {
   // in the viz/global coordinate system
   start_bp: number | undefined;
   end_bp: number | undefined;
+
+  path_steps: Uint32Array | undefined;
   
   start_world_2d: vec2 | undefined;
   end_world_2d: vec2 | undefined;
@@ -128,13 +130,19 @@ export class AnnotationPainter {
       g_el.append(g_link_end);
 
       this.record_states.push({
-        svg_g: g_el,
-        record,
+          svg_g: g_el,
+          record,
 
-        enabled: false,
+          enabled: false,
 
-        global_ranges: undefined,
-        cached_path: undefined,
+          global_ranges: undefined,
+          cached_path: undefined,
+
+          step_endpoints: undefined,
+          start_bp: undefined,
+          end_bp: undefined,
+          start_world_2d: undefined,
+          end_world_2d: undefined
       });
 
       this.svg_root.append(g_el);
@@ -211,6 +219,8 @@ export class AnnotationPainter {
       state.step_endpoints = { first: annot.first_step, last: annot.last_step };
       state.start_bp = annot.start_bp;
       state.end_bp = annot.end_bp;
+
+      state.path_steps = Uint32Array.from(annot.path_steps);
 
       state.start_world_2d = vec2.fromValues(annot.start_world_x, annot.start_world_y);
       state.end_world_2d = vec2.fromValues(annot.end_world_x, annot.end_world_y);
@@ -290,8 +300,8 @@ export class AnnotationPainter {
       // in a loop (use SVG transform for translations)
       if (update_path) {
         const path = 
-          await this.waragraph.graphLayout!
-            .sample2DPath(path_interval.path_id, path_interval.start, path_interval.end, tolerance);
+          await this.waragraph.graphLayoutTable!
+            .sample2DPath(state.path_steps, tolerance);
 
         if (path === undefined) {
           console.error("Error sampling 2D path, ignoring");

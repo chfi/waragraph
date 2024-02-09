@@ -34,7 +34,7 @@ export class GraphLayoutTable {
     return { p0, p1 };
   }
 
-  samplePath(path: Uint32Array, tolerance: number): Float32Array {
+  sample2DPath(path: Uint32Array, tolerance: number): Float32Array {
     const points = new Float32Array(path.length * 2);
 
     let step_count = 0;

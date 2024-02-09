@@ -29,7 +29,7 @@ export class Waragraph {
   graph: ArrowGFA;
   // path_index: PathIndex;
 
-  graphLayout: GraphLayout | undefined;
+  // graphLayout: GraphLayout | undefined;
   graphLayoutTable: GraphLayoutTable | undefined;
 
   global_viewport: Viewport1D;
@@ -49,13 +49,13 @@ export class Waragraph {
     graph: ArrowGFA,
     global_viewport: Viewport1D,
     layout: 
-    { graphLayout?: GraphLayout, graphLayoutTable?: GraphLayoutTable },
+    { graphLayoutTable?: GraphLayoutTable },
   ) {
     this.graph_viewer = viewers.graph_viewer;
     this.path_viewers = viewers.path_viewers;
     this.graph = graph;
     this.global_viewport = global_viewport;
-    this.graphLayout = layout.graphLayout;
+    // this.graphLayout = layout.graphLayout;
     this.graphLayoutTable = layout.graphLayoutTable;
 
     this.color_buffers = new Map();
@@ -175,7 +175,7 @@ export class Waragraph {
       return;
     }
 
-    let world_pos = await this.graphLayout!.segmentPosition(segment);
+    let world_pos = this.graphLayoutTable!.segmentPosition(segment);
 
     if (!world_pos) {
       return;
@@ -463,7 +463,7 @@ export async function initializeWaragraphClient(base_url: URL) {
     { graph_viewer, path_viewers },
     graph_apis.arrowGFA,
     global_viewport,
-    { graphLayout: graph_apis.graphLayout, graphLayoutTable: graph_layout_table }
+    { graphLayoutTable: graph_layout_table }
   );
 
   waragraph.color_buffers.set('depth', depth_color);

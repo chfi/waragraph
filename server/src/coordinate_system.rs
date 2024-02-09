@@ -198,6 +198,7 @@ pub struct PreparedAnnotation {
     end_world_x: f32,
     end_world_y: f32,
 
+    path_steps: Vec<u32>,
     blocks_1d_bp: Vec<[u64; 2]>,
 }
 
@@ -229,6 +230,12 @@ pub async fn prepare_annotation_records(
             path_cs.bp_to_step_range(record.start_bp, record.end_bp);
         let first_step = path_steps.get(*step_range.start())?;
         let last_step = path_steps.get(*step_range.end())?;
+
+        let path_steps = path_steps
+            .clone()
+            .sliced(*step_range.start(), *step_range.end() - 1);
+
+        let path_steps = path_steps.values().to_vec();
 
         // TODO take orientation into account
         let [x0, y0, ..] = graph_layout.segment_position(first_step >> 1)?;
@@ -262,6 +269,8 @@ pub async fn prepare_annotation_records(
             start_world_y: y0,
             end_world_x: x1,
             end_world_y: y1,
+
+            path_steps,
             blocks_1d_bp,
         });
     }
