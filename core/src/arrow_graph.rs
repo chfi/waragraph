@@ -86,7 +86,7 @@ where
 
         let new_bits = bits ^ bit;
 
-        if new_bits == 0 {
+        if bit == 0 {
             self.current = None;
         } else {
             self.current = Some((ix, new_bits));

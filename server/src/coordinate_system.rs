@@ -231,9 +231,10 @@ pub async fn prepare_annotation_records(
         let first_step = path_steps.get(*step_range.start())?;
         let last_step = path_steps.get(*step_range.end())?;
 
-        let path_steps = path_steps
-            .clone()
-            .sliced(*step_range.start(), *step_range.end() - 1);
+        let path_steps = path_steps.clone().sliced(
+            *step_range.start(),
+            *step_range.end() - *step_range.start() + 1,
+        );
 
         let path_steps = path_steps.values().to_vec();
 
