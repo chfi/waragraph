@@ -29,7 +29,18 @@ export function appendSvgViewport() {
   const body = `
 <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"
      id="viz-svg-overlay"
+     preserveAspectRatio="none meet"
+     style="width: 100%; height: 100%"
 >
+<defs>
+  <mask id="mask-2d-view">
+    <rect fill="white" x="0" y="0" width="100" height="50" />
+  </mask>
+
+  <mask id="mask-path-viewers">
+    <rect fill="white" x="0" y="50" width="100" height="50" />
+  </mask>
+</defs>
 </svg>
 `;
   let parent = document.createElement('div');
@@ -39,23 +50,18 @@ export function appendSvgViewport() {
   parent.style.setProperty('grid-row', '1 / -1');
   parent.style.setProperty('background-color', 'transparent');
   parent.style.setProperty('pointer-events', 'none');
+  parent.style.setProperty('width', '100%');
+  parent.style.setProperty('height', '100%');
+
   document.getElementById('viz-container')?.append(parent);
 
-  let el = document.createElement('svg');
+  let el = document.createElementNS('http://www.w3.org/2000/svg', 'svg') as SVGSVGElement;
 
   parent.append(el);
 
   el.outerHTML = body;
+
   el.style.setProperty('position', 'absolute');
-
-  const mask_2d = document.createElementNS('http://www.w3.org/2000/svg', 'mask') as SVGMaskElement;
-  const mask_1d = document.createElementNS('http://www.w3.org/2000/svg', 'mask') as SVGMaskElement;
-
-  mask_2d.setAttribute('id', 'mask-2d-view');
-  mask_1d.setAttribute('id', 'mask-path-viewers');
-
-  el.append(mask_2d);
-  el.append(mask_1d);
 }
 
 export function updateSVGMasks() {
@@ -67,31 +73,30 @@ export function updateSVGMasks() {
   const mask_1d = svg_div.querySelector('#mask-path-viewers');
 
   // get the 2D view canvas
-
   const rect_2d = document
-    .getElementById('graph-viewer-2d-overlay')!
+    .getElementById('graph-viewer-container')!
     .getBoundingClientRect();
 
+  const x_2d = (rect_2d.left - rect_cont.left) / rect_cont.width;
+  const y_2d = (rect_2d.top - rect_cont.top) / rect_cont.height;
   const width_2d = rect_2d.width / rect_cont.width;
   const height_2d = rect_2d.height / rect_cont.height;
 
   mask_2d.innerHTML =
-    `<rect fill="white" x="0" y="0" width="${width_2d}" height="${height_2d}"/>`;
+    `<rect fill="white" x="${x_2d * 100}" y="${y_2d * 100}" width="${width_2d * 100}" height="${height_2d * 100}"/>`;
 
   // get the right path viewer column
-
   const rect_1d = document
     .getElementById('path-viewer-right-column')!
     .getBoundingClientRect();
 
-  const x_1d = rect_1d.left / rect_cont.width;
-  const y_1d = rect_1d.top / rect_cont.height;
+  const x_1d = (rect_1d.left - rect_cont.left) / rect_cont.width;
+  const y_1d = (rect_1d.top - rect_cont.top) / rect_cont.height;
   const width_1d = rect_1d.width / rect_cont.width;
   const height_1d = rect_1d.height / rect_cont.height;
 
   mask_1d.innerHTML =
-    `<rect fill="white" x="${x_1d}" y="${y_1d}" width="${width_1d}" height="${height_1d}"/>`;
-
+    `<rect fill="white" x="${x_1d * 100}" y="${y_1d * 100}" width="${width_1d * 100}" height="${height_1d * 100}"/>`;
 
 }
 
