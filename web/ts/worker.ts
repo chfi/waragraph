@@ -64,11 +64,16 @@ export class WaragraphWorkerCtx {
   }
 
   buildPathCoordinateSystem(path_name: string): wasm_bindgen.CoordSys & WithPtr | undefined {
-    const path_id = this.graph?.path_id(path_name);
+    try {
+      const path_id = this.graph?.path_id(path_name);
 
-    if (this.graph && path_id) {
-      const path_cs = wasm_bindgen.CoordSys.path_from_arrow_gfa(this.graph, path_id);
-      return path_cs as wasm_bindgen.CoordSys & WithPtr;
+      if (this.graph && path_id !== undefined) {
+        const path_cs = wasm_bindgen.CoordSys.path_from_arrow_gfa(this.graph, path_id);
+        return path_cs as wasm_bindgen.CoordSys & WithPtr;
+      }
+    } catch (e) {
+      console.error(`path not found: ${path_name}`);
+      return;
     }
   }
 
