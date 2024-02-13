@@ -101,7 +101,7 @@ export class Viewport1D {
     let s = Number(start);
     let e = Number(end);
     this.view.set(s, e);
-    this.subject.next({ start: s, end: s });
+    this.subject.next({ start: s, end: e });
   }
 
   push() {
@@ -189,6 +189,7 @@ export class Waragraph {
 
   resize_obs: rxjs.Subject<unknown> | undefined;
 
+  global_viewport: Viewport1D;
 
   coordinate_systems: Map<string, wasm_bindgen.CoordSys>;
   viewports_1d: Map<string, Viewport1D>;
@@ -218,6 +219,7 @@ export class Waragraph {
   }
 
 
+    /*
   async get1DViewport(desc?: ViewportDesc | { name: string }) {
 
     if (desc === undefined) {
@@ -275,7 +277,9 @@ export class Waragraph {
     return viewport;
 
   }
+     */
 
+    /*
   async getCoordinateSystem(key: string): Promise<wasm_bindgen.CoordSys | undefined> {
     let cs = this.coordinate_systems.get(key);
 
@@ -306,6 +310,7 @@ export class Waragraph {
 
     return cs;
   }
+     */
 
   // setGraphSegmentData(data_name, data: ArrayBufferView) {
   // }
@@ -358,6 +363,7 @@ export class Waragraph {
   async initializeTree(opts: WaragraphOptions) {
     this.resize_obs = new rxjs.Subject();
 
+    /*
     const root = document.createElement('div');
     root.classList.add('root-grid');
     root.id = 'waragraph-root';
@@ -382,6 +388,7 @@ export class Waragraph {
       </div>
     </div>
   </div>`;
+     */
 
     appendSvgViewport();
 
@@ -874,17 +881,6 @@ export async function initializeWaragraph(opts: WaragraphOptions = {}) {
       waragraph.path_viewers.push(path_viewer);
 
     }
-
-
-    /*
-    if (typeof data === "string") {
-      if (data === "depth") {
-        data = await waragraph.worker_ctx.getComputedPathDataset(data);
-      } else {
-        throw `Unknown data '${data}'`;
-      }
-    }
-      */
 
 
   }
