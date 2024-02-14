@@ -1,6 +1,6 @@
 import init_module, * as wasm_bindgen from 'waragraph';
 
-import { preparePathHighlightOverlay } from '../graph_viewer';
+import { preparePathHighlightOverlay } from './graph_viewer';
 import { AnnotationPainter } from './annotations';
 import * as CanvasTracks from '../canvas_tracks';
 import { wrapWasmPtr } from './wrap';
@@ -462,6 +462,43 @@ async function loadBedFile(waragraph: Waragraph, file: File) {
 // Build controls panel
 // TODO: extract to method reusable statements
 async function controlSidebarPanel(waragraph) {
+
+  // Method to create a label
+  function createLabel(text, htmlFor, height = '50%') {
+    const label = document.createElement('label');
+    label.textContent = text;
+    label.htmlFor = htmlFor;
+    label.classList.add('full-width');
+    label.style.height = height;
+    return label;
+  }
+
+  // Method to create an input
+  function createInput(id, placeholder) {
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.id = id;
+    input.placeholder = placeholder;
+    input.setAttribute('inputmode', 'numeric');
+    input.setAttribute('pattern', '\\d*');
+    input.setAttribute('min', '0');
+    input.setAttribute('step', '1');
+    input.classList.add('full-width');
+    return input;
+  }
+
+  // Method to create a button
+  function createButton(id, text) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.id = id;
+    button.classList.add('full-width');
+    button.textContent = text;
+    return button;
+  }
+
+  // 1D control creation
+
   const controls_div = document.createElement('div');
   controls_div.classList.add('bed-panel');
 
@@ -469,9 +506,8 @@ async function controlSidebarPanel(waragraph) {
   pane_title.innerHTML = 'Control Panel';
   pane_title.classList.add('mt-2');
 
-
   const break_el = document.createElement('hr');
-  break_el.classList.add('my-1')
+  break_el.classList.add('my-1');
 
   const control_range_label = document.createElement('label');
   control_range_label.innerHTML = 'Jump to 1D range';
@@ -481,74 +517,86 @@ async function controlSidebarPanel(waragraph) {
 
   const label_div = document.createElement('div');
   label_div.title = 'label-group';
+  label_div.classList.add('col-2');
 
   const input_div = document.createElement('div');
   input_div.title = 'input-group';
-
-  const label_start = document.createElement('label');
-  label_start.textContent = 'Start:';
-  label_start.htmlFor = 'control-input-range-start';
-  label_start.classList.add('full-width');
-  label_start.style.height = '50%'
-
-  const input_start = document.createElement('input');
-  input_start.type = 'text';
-  input_start.id = 'control-input-range-start';
-  input_start.placeholder = 'Start';
-  input_start.setAttribute('type', 'text');
-  input_start.setAttribute('inputmode', 'numeric');
-  input_start.setAttribute('pattern', '\\d*');
-  input_start.setAttribute('min', '0')
-  input_start.setAttribute('step', '1')
-  input_start.classList.add('full-width')
-
-  const label_end = document.createElement('label');
-  label_end.textContent = 'End:';
-  label_end.htmlFor = 'control-input-range-end';
-  label_end.classList.add('full-width');
-  label_end.style.height = '50%'
-
-  const input_end = document.createElement('input');
-  input_end.type = 'text';
-  input_end.id = 'control-input-range-end';
-  input_end.placeholder = 'End';
-  input_end.setAttribute('type', 'text');
-  input_end.setAttribute('inputmode', 'numeric');
-  input_end.setAttribute('pattern', '\\d*');
-  input_end.setAttribute('min', '0')
-  input_end.setAttribute('step', '1')
-  input_end.classList.add('full-width');
-
-  label_div.appendChild(label_start);
-  label_div.appendChild(label_end);
-  label_div.classList.add('col-2');
-
-  input_div.appendChild(input_start);
-  input_div.appendChild(input_end);
   input_div.classList.add('col-10');
-
-  range_input_row.appendChild(label_div);
-  range_input_row.appendChild(input_div);
 
   const input_group = document.createElement('div');
   input_group.title = 'input-group';
   input_group.classList.add('col-12');
 
-  const input_button = document.createElement('button');
-  input_button.type = 'button';
-  input_button.id = 'control-input-range-button';
-  input_button.classList.add('full-width');
-  input_button.textContent = 'Go'; 
+  const label_start = createLabel('Start:', 'control-input-range-start');
+  const input_start = createInput('control-input-range-start', 'Start');
+  const label_end = createLabel('End:', 'control-input-range-end');
+  const input_end = createInput('control-input-range-end', 'End');
+  const input_button = createButton('control-input-range-button', 'Go');
+
+  // Segment control creation
+
+  const control_segment_label = document.createElement('label');
+  control_segment_label.innerHTML = 'Jump to 2D segment';
+
+  const segment_input_row = document.createElement('div');
+  segment_input_row.classList.add('row');
+
+  const label_div_segment_start = document.createElement('div');
+  label_div_segment_start.title = 'label-group-segment';
+  label_div_segment_start.classList.add('col-2');
+
+  const input_div_segment = document.createElement('div');
+  input_div_segment.title = 'input-group-segment';
+  input_div_segment.classList.add('col-10');
+
+  const input_group_segment = document.createElement('div');
+  input_group.title = 'input-group';
+  input_group.classList.add('col-12');
+
+  const label_segment = createLabel('Start', 'control-input-segment-start');
+  const input_start_segment = createInput('control-input-segment-start', 'Segment');
+  const input_button_segment = createButton('control-input-segment-button', 'Jump to Segment');
+
+
+
+  // Populate child divs
+
+  label_div.appendChild(label_start);
+  label_div.appendChild(label_end);
+
+  input_div.appendChild(input_start);
+  input_div.appendChild(input_end);
+
+  range_input_row.appendChild(label_div);
+  range_input_row.appendChild(input_div);
   input_group.appendChild(input_button);
+
+  label_div_segment_start.appendChild(label_segment);
+  input_div_segment.appendChild(input_start_segment);
+
+  segment_input_row.appendChild(label_div_segment_start);
+  segment_input_row.appendChild(input_div_segment);
+
+  input_group_segment.appendChild(input_button_segment);
+
+
+  // Populate parent div
 
   controls_div.appendChild(pane_title);
   controls_div.appendChild(break_el);
   controls_div.appendChild(control_range_label);
   controls_div.appendChild(range_input_row);
   controls_div.appendChild(input_group);
+  controls_div.appendChild(control_segment_label);
+  controls_div.appendChild(segment_input_row);
+  controls_div.appendChild(input_group_segment);
+
+  console.warn('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!1');
+
 
   return controls_div;
 }
+
 
 async function bedSidebarPanel(waragraph) {
   const bed_pane = document.createElement('div');

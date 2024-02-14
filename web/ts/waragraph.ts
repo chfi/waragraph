@@ -391,6 +391,7 @@ export class Waragraph {
       container!.append(this.graph_viewer.overlay_canvas);
 
       this.graph_viewer.resize();
+      
     }
 
 
@@ -491,6 +492,7 @@ export class Waragraph {
 
       // TODO
       await addViewRangeInputListeners(viewport);
+      await addSegmentJumpInputListeners(this.graph_viewer);
 
       // TODO: factor out sequence track bit maybe
 
@@ -973,6 +975,42 @@ async function addViewRangeInputListeners(viewport: Viewport1D) {
     start_view.value = String(Math.round(view.start));
     end_view.value = String(Math.round(view.end));
   });
+}
+
+// Segment jump function on control panel
+async function addSegmentJumpInputListeners(graph_viewer) {
+
+  const segment_input = document.getElementById('control-input-segment-start') as HTMLInputElement;
+  const segment_button = document.getElementById('control-input-segment-button') as HTMLInputElement;
+
+  const handler = (_event) => {
+
+    var segment = parseInt(segment_input.value);
+
+    if (!isNaN(segment)) {
+
+      // TODO: bounds check
+      const position = graph_viewer.getSegmentPos(segment);
+
+      if (position !== null) {
+        // Center of segment
+        const midpoint = {
+          x: (position.x0 + position.x1) / 2.0,
+          y: (position.y0 + position.y1) / 2.0
+        };
+
+        console.warn('Jumping to ' + String(midpoint.x + ', ' + String(midpoint.y)));
+
+        // Jump to segment
+        graph_viewer.setViewCenter(midpoint.x, midpoint.y);
+      }
+      else {
+        console.warn('Segment is null');
+      }
+    }
+  }
+  
+  segment_button.addEventListener('click', handler);
 }
 
 
