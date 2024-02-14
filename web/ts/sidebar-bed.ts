@@ -510,7 +510,8 @@ async function controlSidebarPanel(waragraph) {
   break_el.classList.add('my-1');
 
   const control_range_label = document.createElement('label');
-  control_range_label.innerHTML = 'Jump to 1D range';
+  control_range_label.innerHTML = 'Jump to 1D range:';
+  control_range_label.classList.add('strong');
 
   const range_input_row = document.createElement('div');
   range_input_row.classList.add('row');
@@ -536,7 +537,8 @@ async function controlSidebarPanel(waragraph) {
   // Segment control creation
 
   const control_segment_label = document.createElement('label');
-  control_segment_label.innerHTML = 'Jump to 2D segment';
+  control_segment_label.innerHTML = 'Jump to 2D segment:';
+  control_segment_label.classList.add('strong');
 
   const segment_input_row = document.createElement('div');
   segment_input_row.classList.add('row');
@@ -550,11 +552,11 @@ async function controlSidebarPanel(waragraph) {
   input_div_segment.classList.add('col-10');
 
   const input_group_segment = document.createElement('div');
-  input_group.title = 'input-group';
-  input_group.classList.add('col-12');
+  input_group_segment.title = 'input-group';
+  input_group_segment.classList.add('col-12');
 
-  const label_segment = createLabel('Start', 'control-input-segment-start');
-  const input_start_segment = createInput('control-input-segment-start', 'Segment');
+  const label_segment = createLabel('Start:', 'control-input-segment-start');
+  const input_start_segment = createInput('control-input-segment-start', 'segment');
   const input_button_segment = createButton('control-input-segment-button', 'Jump to Segment');
 
 
@@ -570,6 +572,7 @@ async function controlSidebarPanel(waragraph) {
   range_input_row.appendChild(label_div);
   range_input_row.appendChild(input_div);
   input_group.appendChild(input_button);
+  input_group.classList.add('m-2');
 
   label_div_segment_start.appendChild(label_segment);
   input_div_segment.appendChild(input_start_segment);
@@ -578,6 +581,7 @@ async function controlSidebarPanel(waragraph) {
   segment_input_row.appendChild(input_div_segment);
 
   input_group_segment.appendChild(input_button_segment);
+  input_group_segment.classList.add('m-2');
 
 
   // Populate parent div
@@ -590,9 +594,6 @@ async function controlSidebarPanel(waragraph) {
   controls_div.appendChild(control_segment_label);
   controls_div.appendChild(segment_input_row);
   controls_div.appendChild(input_group_segment);
-
-  console.warn('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!1');
-
 
   return controls_div;
 }
@@ -615,7 +616,8 @@ async function bedSidebarPanel(waragraph) {
 
   const file_label = document.createElement('label');
   file_label.setAttribute('for', 'bed-file-input');
-  file_label.innerHTML = 'Load BED file';
+  file_label.innerHTML = 'Load BED file:';
+  file_label.classList.add('strong');
 
   const file_entry = document.createElement('input');
   file_entry.id = 'bed-file-input';
@@ -625,6 +627,7 @@ async function bedSidebarPanel(waragraph) {
 
   const file_button = document.createElement('button');
   file_button.innerHTML = 'Load';
+  file_button.classList.add('m-2');
 
   file_button.addEventListener('click', (ev) => {
     for (const file of file_entry.files) {

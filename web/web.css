@@ -142,3 +142,7 @@ li.active {
   background-color: #FF8200;
   border-color: #FF8200;
 }
+
+.strong {
+  font-weight: bold;
+}
