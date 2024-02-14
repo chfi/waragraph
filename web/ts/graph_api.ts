@@ -1,6 +1,9 @@
 import * as wasm_bindgen from 'waragraph';
 
+import * as Comlink from 'comlink';
+
 import { Bp, PathId } from "./types";
+import { WaragraphWorkerCtx } from './worker';
 
 
 
@@ -47,83 +50,51 @@ export interface PathIndex {
 // }
 
 
-export async function standaloneAPIs(
-  graph: wasm_bindgen.ArrowGFAWrapped,
-  path_index: wasm_bindgen.PathIndexWrapped,
-): Promise<
+export async function standaloneAPIs(worker: Comlink.Remote<WaragraphWorkerCtx>): Promise<
   { arrowGFA: ArrowGFA, pathIndex: PathIndex }
 > {
 
-
   const arrowGFA = {
     async segmentSequencesArray(): Promise<Uint8Array> {
-      // if (segmentSequences !== undefined) {
-      //   return segmentSequences;
-      // }
-
-      // const resp = await fetch(new URL("/sequence_array", base_url));
-      // const buffer = await resp.arrayBuffer();
-      // return new Uint8Array(buffer);
+      return worker.segmentSequencesArray();
     },
 
     async pathIdFromName(name: string): Promise<number | undefined> {
-      // return path_name_id_map.get(name);
+      return worker.pathIdFromName(name);
     },
 
     async pathNameFromId(id: number): Promise<string | undefined> {
-      // return path_metadata[id]?.name;
+      return worker.pathNameFromId(id);
     },
 
     async pathMetadata(): Promise<[PathMetadata]> {
-      // return path_metadata;
+      return worker.pathMetadata();
     },
 
     async pathSteps(id: number): Promise<Uint32Array | undefined> {
-      // const resp = await fetch(new URL(`/path_steps/${id}`, base_url));
-      // const buffer = await resp.arrayBuffer();
-      // return new Uint32Array(buffer);
+      return worker.pathSteps(id);
     },
 
     async segmentAtPathPosition(path: PathId, pos: Bp): Promise<number | undefined> {
-      // const resp = await fetch(new URL(`/coordinate_system/path/segment_at_offset?path_id=${path}&pos_bp=${pos}`, base_url));
-      // const json = await resp.json();
-      // return json;
+      return worker.segmentAtPathPosition(path, pos);
     },
 
     async segmentAtGlobalPosition(pos: Bp): Promise<number | undefined> {
-      // const resp = await fetch(new URL(`/coordinate_system/global/segment_at_offset?pos_bp=${pos}`, base_url));
-      // const json = await resp.json();
-      // return json;
+      return worker.segmentAtGlobalPosition(pos);
     },
 
     async segmentGlobalRange(segment: number): Promise<{ start: bigint, end: bigint } | undefined> {
-      // const resp = await fetch(new URL(`/coordinate_system/global/segment_range/${segment}`, base_url));
-      // if (!resp.ok) {
-      //   return;
-      // }
-      // const buf = await resp.arrayBuffer();
-      // const array = new BigUint64Array(buf);
-      // if (array.length != 2) {
-      //   return;
-      // }
-      // const start = array.at(0)!;
-      // const end = array.at(1)!;
-      // return { start, end };
+      return worker.segmentGlobalRange(segment);
     }
   };
 
   const pathIndex = {
     async pathsOnSegment(segment: number): Promise<Uint32Array | undefined> {
-      // const resp = await fetch(new URL(`/paths_on_segment/${segment}`, base_url));
-      // if (!resp.ok) {
-      //   return;
-      // }
-      // const resp_buf = await resp.arrayBuffer();
-      // return new Uint32Array(resp_buf);
+      return worker.pathsOnSegment(segment);
     }
   };
   
-  return undefined as any;
+  return { arrowGFA, pathIndex };
 }
 
 

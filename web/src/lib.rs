@@ -623,6 +623,33 @@ impl ArrowGFAWrapped {
         }
     }
 
+    pub fn path_metadata(&self) -> Vec<js_sys::Object> {
+        let mut paths = Vec::new();
+
+        for (ix, path_name) in self.0.path_names.iter().enumerate() {
+            let path_id = ix as u32;
+
+            let step_count = self.0.path_steps(path_id).len();
+
+            let obj = js_sys::Object::default();
+            js_sys::Reflect::set(obj.as_ref(), &"id".into(), &path_id.into());
+            js_sys::Reflect::set(
+                obj.as_ref(),
+                &"name".into(),
+                &path_name.into(),
+            );
+            js_sys::Reflect::set(
+                obj.as_ref(),
+                &"stepCount".into(),
+                &step_count.into(),
+            );
+
+            paths.push(obj);
+        }
+
+        paths
+    }
+
     pub fn path_steps(
         &self,
         path_name: &str,

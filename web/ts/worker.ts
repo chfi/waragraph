@@ -6,16 +6,19 @@ import type { Bp, Segment, Handle, PathId, RGBObj } from './types';
 import * as Comlink from 'comlink';
 import * as rxjs from 'rxjs';
 import * as handler from './transfer_handlers';
+import { PathMetadata } from './graph_api';
 handler.setTransferHandlers(rxjs, Comlink);
 
 let wasm;
-
 
 
 export class WaragraphWorkerCtx {
   graph: wasm_bindgen.ArrowGFAWrapped | undefined;
   path_index: wasm_bindgen.PathIndexWrapped | undefined;
 
+
+  global_coord_sys: wasm_bindgen.CoordSys | undefined;
+  path_coord_sys_cache: Map<string, wasm_bindgen.CoordSys>;
 
   constructor(wasm_module, wasm_memory) {
     if (wasm === undefined) {
@@ -24,6 +27,8 @@ export class WaragraphWorkerCtx {
       wasm_bindgen.set_panic_hook();
       console.warn("initialized wasm on worker");
     }
+
+    this.path_coord_sys_cache = new Map();
 
   }
 
@@ -58,16 +63,37 @@ export class WaragraphWorkerCtx {
   }
 
   buildGlobalCoordinateSystem(): wasm_bindgen.CoordSys & WithPtr | undefined {
+    if (this.global_coord_sys !== undefined) {
+      return this.global_coord_sys as wasm_bindgen.CoordSys & WithPtr;
+    }
+
     if (this.graph) {
-      return wasm_bindgen.CoordSys.global_from_arrow_gfa(this.graph) as wasm_bindgen.CoordSys & WithPtr;
+      const csys = wasm_bindgen.CoordSys.global_from_arrow_gfa(this.graph) as wasm_bindgen.CoordSys & WithPtr;
+      this.global_coord_sys = csys;
+      return csys;
     }
   }
 
-  buildPathCoordinateSystem(path_name: string): wasm_bindgen.CoordSys & WithPtr | undefined {
+  buildPathCoordinateSystem(path: string | number): wasm_bindgen.CoordSys & WithPtr | undefined {
+    let path_name;
+
+    if (typeof path === "number") {
+      path_name = this.graph!.path_name(path);
+    } else {
+      path_name = path;
+    }
+
+    let csys = this.path_coord_sys_cache.get(path_name);
+
+    if (csys !== undefined) {
+      return csys as wasm_bindgen.CoordSys & WithPtr;
+    }
+
     const path_id = this.graph?.path_id(path_name);
 
     if (this.graph && path_id) {
       const path_cs = wasm_bindgen.CoordSys.path_from_arrow_gfa(this.graph, path_id);
+      this.path_coord_sys_cache.set(path_name, path_cs);
       return path_cs as wasm_bindgen.CoordSys & WithPtr;
     }
   }
@@ -127,14 +153,56 @@ export class WaragraphWorkerCtx {
     }
   }
 
+  segmentSequencesArray(): Uint8Array {
+    return this.graph!.segment_sequences_array();
+  }
+
+  pathIdFromName(name: string): number | undefined {
+    try {
+      return this.graph?.path_id(name);
+    } catch (e) {
+      return undefined;
+    }
+  }
+  
+  pathNameFromId(id: number): string | undefined {
+    try {
+      return this.graph?.path_name(id);
+    } catch (e) {
+      return undefined;
+    }
+  }
+  
+  pathMetadata(): [PathMetadata] {
+    return this.graph.path_metadata();
+  }
+  
+  pathSteps(id: number): Uint32Array | undefined {
+    let name = this.pathNameFromId(id);
+    return this.graph?.path_steps(name);
+  }
+  
+  segmentAtPathPosition(path: PathId, pos: Bp): number | undefined {
+    const csys = this.buildPathCoordinateSystem(path)
+    return csys?.segment_at_pos(BigInt(pos))
+  }
+  
+  segmentAtGlobalPosition(pos: Bp): number | undefined {
+    const csys = this.buildGlobalCoordinateSystem();
+    return csys?.segment_at_pos(BigInt(pos));
+  }
+  
+  segmentGlobalRange(segment: number): { start: bigint, end: bigint } | undefined {
+    // really needs just the sequences array
+    const csys = this.buildGlobalCoordinateSystem();
+    return csys?.segment_range(segment);
+  }
+
   pathsOnSegment(segment: number): Uint32Array | undefined {
     return this.path_index?.paths_on_segment(segment);
   }
 
 }
-
-
-
 
 
 
@@ -193,51 +261,11 @@ export class PathViewerCtx {
 // first thing is to wait for the wasm memory (and compiled module)
 // & initialize wasm_bindgen
 
-
 declare var DedicatedWorkerGlobalScope: any;
 
 // TODO this (and other) worker files need to be in a separate folder
 // with its own tsconfig.json, with `lib` including `webworker` but not `dom`
 if (DedicatedWorkerGlobalScope) {
-
-  // Comlink.expose({ initWorkerCtx });
-
   Comlink.expose(WaragraphWorkerCtx);
-
-  /*
-  self.onmessage = async (event) => {
-    self.onmessage = undefined;
-    // console.log(event);
-    // console.log("received message");
-    // console.log(typeof event.data);
-    // console.log(event.data);
-
-    wasm = await init_wasm(undefined, event.data);
-    wasm_bindgen.set_panic_hook();
-
-    // TODO create & expose WaragraphWorker
-
-    // const wg_worker = new WaragraphWorker();
-    // Comlink.expose(wg_worker);
-    
-  }
-  */
-
-
 }
-
-
-/*
-async function initWorkerCtx(wasm_memory: WebAssembly.Memory): Promise<WaragraphWorkerCtx> {
-  wasm = await init_wasm(undefined, wasm_memory);
-  wasm_bindgen.set_panic_hook();
-
-  // const ctx = new WaragraphWorkerCtx();
-
-  console.warn(ctx);
-  return ctx;
-}
-  */
-
-
 
