@@ -31,3 +31,13 @@ export function segment_pos_obj(x0, y0, x1, y1) {
 export function create_view_obj(x, y, width, height) {
     return { x, y, width, height };
 }
+
+export function copy_into_shared_buffer(mem, src_ptr, src_len) {
+    const new_memory = new SharedArrayBuffer(src_len);
+    const dst = new Uint8Array(new_memory);
+
+    const src_bytes = new Uint8Array(mem.buffer, src_ptr, src_len);
+    dst.set(src_bytes, 0);
+
+    return new_memory;
+}

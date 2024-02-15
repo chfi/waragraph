@@ -303,8 +303,38 @@ impl PathViewer {
 #[wasm_bindgen]
 pub struct CoordSys(pub(crate) waragraph_core::coordinate_system::CoordSys);
 
+#[wasm_bindgen(module = "/js/util.js")]
+extern "C" {
+    fn copy_into_shared_buffer(
+        mem: JsValue,
+        src_ptr: *const u8,
+        src_len: u32,
+    ) -> JsValue;
+}
+
 #[wasm_bindgen]
 impl CoordSys {
+    pub fn to_shared_arrays(self) -> js_sys::Array {
+        let node_order_ptr = self.0.node_order.values().as_ptr() as *const u8;
+        let len = 4 * self.0.node_order.len() as u32;
+
+        let node_order = copy_into_shared_buffer(
+            wasm_bindgen::memory(),
+            node_order_ptr,
+            len,
+        );
+
+        let offsets_ptr = self.0.step_offsets.buffer().as_ptr() as *const u8;
+
+        let step_offsets = copy_into_shared_buffer(
+            wasm_bindgen::memory(),
+            offsets_ptr,
+            4 * self.0.step_offsets.len() as u32,
+        );
+
+        js_sys::Array::from_iter([node_order, step_offsets])
+    }
+
     pub fn global_from_arrow_gfa(graph: &ArrowGFAWrapped) -> Self {
         let cs =
             waragraph_core::coordinate_system::CoordSys::global_from_arrow_gfa(

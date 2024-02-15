@@ -1,6 +1,6 @@
 
 
-import { DataType, Table, Vector } from 'apache-arrow';
+import { DataType, Table, Vector, makeTable } from 'apache-arrow';
 import { TypedArray } from 'apache-arrow/interfaces';
 
 export interface CoordSysInterface {
@@ -57,9 +57,21 @@ export class CoordSysArrow {
 
 
 
-export async function coordSysFromTable(
+export function coordSysFromBuffers(
+  node_order_buf: SharedArrayBuffer,
+  step_offsets_buf: SharedArrayBuffer,
+): CoordSysArrow  {
+
+  const node_order = new Uint32Array(node_order_buf);
+  const step_offsets = new Int32Array(step_offsets_buf);
+
+  const table = makeTable({ node_order, step_offsets });
+  return new CoordSysArrow(table);
+}
+
+export function coordSysFromTable(
   table: Table,
-){
+): CoordSysArrow {
   return new CoordSysArrow(table);
 }
 

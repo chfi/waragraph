@@ -51,6 +51,8 @@ export async function initializeWaragraphStandalone(
 
   // create TS coordinate system (global)...
 
+  const global_cs = await waragraph_worker.getGlobalCoordinateSystem();
 
+  console.warn(global_cs);
   // then it should be pretty much the same as the rest of the init function in waragraph_client.ts
 }

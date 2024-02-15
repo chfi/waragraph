@@ -7,6 +7,7 @@ import * as Comlink from 'comlink';
 import * as rxjs from 'rxjs';
 import * as handler from './transfer_handlers';
 import { PathMetadata } from './graph_api';
+import { CoordSysArrow, coordSysFromBuffers } from './coordinate_system';
 handler.setTransferHandlers(rxjs, Comlink);
 
 let wasm;
@@ -17,8 +18,8 @@ export class WaragraphWorkerCtx {
   path_index: wasm_bindgen.PathIndexWrapped | undefined;
 
 
-  global_coord_sys: wasm_bindgen.CoordSys | undefined;
-  path_coord_sys_cache: Map<string, wasm_bindgen.CoordSys>;
+  global_coord_sys: CoordSysArrow;
+  path_coord_sys_cache: Map<string, CoordSysArrow>;
 
   constructor(wasm_module, wasm_memory) {
     if (wasm === undefined) {
@@ -62,20 +63,24 @@ export class WaragraphWorkerCtx {
     return (this.path_index as wasm_bindgen.PathIndexWrapped & WithPtr).__wbg_ptr;
   }
 
-  buildGlobalCoordinateSystem(): wasm_bindgen.CoordSys & WithPtr | undefined {
+  // buildGlobalCoordinateSystem(): wasm_bindgen.CoordSys & WithPtr | undefined {
+  getGlobalCoordinateSystem(): CoordSysArrow | undefined {
     if (this.global_coord_sys !== undefined) {
-      return this.global_coord_sys as wasm_bindgen.CoordSys & WithPtr;
+      return this.global_coord_sys;
     }
 
     if (this.graph) {
-      const csys = wasm_bindgen.CoordSys.global_from_arrow_gfa(this.graph) as wasm_bindgen.CoordSys & WithPtr;
+      const [node_order, step_offsets] =
+        wasm_bindgen.CoordSys.global_from_arrow_gfa(this.graph).to_shared_arrays();
+      const csys = coordSysFromBuffers(node_order, step_offsets);
+
       this.global_coord_sys = csys;
       return csys;
     }
   }
 
-  buildPathCoordinateSystem(path: string | number): wasm_bindgen.CoordSys & WithPtr | undefined {
-    let path_name;
+  getPathCoordinateSystem(path: string | number): CoordSysArrow | undefined {
+    let path_name: string;
 
     if (typeof path === "number") {
       path_name = this.graph!.path_name(path);
@@ -86,15 +91,19 @@ export class WaragraphWorkerCtx {
     let csys = this.path_coord_sys_cache.get(path_name);
 
     if (csys !== undefined) {
-      return csys as wasm_bindgen.CoordSys & WithPtr;
+      return csys;
     }
 
     const path_id = this.graph?.path_id(path_name);
 
     if (this.graph && path_id) {
-      const path_cs = wasm_bindgen.CoordSys.path_from_arrow_gfa(this.graph, path_id);
+
+      const [node_order, step_offsets] =
+        wasm_bindgen.CoordSys.path_from_arrow_gfa(this.graph, path_id).to_shared_arrays();
+      const path_cs = coordSysFromBuffers(node_order, step_offsets);
+
       this.path_coord_sys_cache.set(path_name, path_cs);
-      return path_cs as wasm_bindgen.CoordSys & WithPtr;
+      return path_cs;
     }
   }
 
