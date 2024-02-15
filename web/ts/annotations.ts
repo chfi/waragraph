@@ -15,7 +15,7 @@ import { type Waragraph } from './waragraph_client';
 
 import * as CanvasTracks from './canvas_tracks';
 import { PathViewer } from './path_viewer_ui';
-import { ArrowGFA, GraphLayout } from './graph_api';
+import { ArrowGFA } from './graph_api';
 
 
 
@@ -58,11 +58,6 @@ export class AnnotationPainter {
   callback_key: string;
   waragraph: Waragraph;
 
-  // arrowGFA: ArrowGFA;
-  // pathIndex: PathIndex;
-  // graphLayout: GraphLayout | undefined;
-  // path_api: { sample2DPath(path_id: PathId, 
-
   svg_root: SVGSVGElement;
   record_states: AnnotationRecord[];
 
@@ -86,7 +81,6 @@ export class AnnotationPainter {
 
     this.waragraph = waragraph;
     // this.arrowGFA = waragraph.graph;
-    // this.graphLayout = waragraph.graphLayout;
 
     this.svg_root = createSVGElement('g');
     this.svg_root.id = this.callback_key;

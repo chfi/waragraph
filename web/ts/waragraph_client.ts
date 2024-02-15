@@ -9,7 +9,7 @@ import { Viewport1D, globalSequenceTrack } from './waragraph';
 import { tableFromIPC, tableFromArrays } from 'apache-arrow';
 import { CoordSysArrow, CoordSysInterface } from './coordinate_system';
 import { GraphViewer, graphViewerFromData } from './graph_viewer';
-import { ArrowGFA, GraphLayout, PathIndex, serverAPIs } from './graph_api';
+import { ArrowGFA, PathIndex, serverAPIs } from './graph_api';
 
 import { addViewRangeInputListeners, appendPathListElements, appendSvgViewport, updateSVGMasks } from './dom';
 import { OverviewMap } from './overview';
@@ -185,8 +185,8 @@ export class Waragraph {
 
     let p0 = vec2.create();
     let p1 = vec2.create();
-    vec2.transformMat3(p0, world_pos.subarray(0, 2), mat);
-    vec2.transformMat3(p1, world_pos.subarray(2, 4), mat);
+    vec2.transformMat3(p0, world_pos.p0, mat);
+    vec2.transformMat3(p1, world_pos.p1, mat);
 
     return { p0, p1 };
   }
@@ -267,8 +267,6 @@ export class Waragraph {
 export async function initializeWaragraphClient(base_url: URL) {
 
   const wasm = await init_module();
-
-  const graph_apis = await serverAPIs(base_url);
   
   let cs_resp = await fetch(new URL('/coordinate_system/global', base_url));
 
@@ -286,6 +284,7 @@ export async function initializeWaragraphClient(base_url: URL) {
 
   let global_viewport = new Viewport1D(cs_arrow as CoordSysInterface);
 
+  const graph_apis = await serverAPIs(base_url, cs_arrow);
 
   console.log("fetching layout data");
   const layout_table = await fetch(new URL('/graph_layout', base_url))

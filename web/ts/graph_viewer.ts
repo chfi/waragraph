@@ -872,6 +872,7 @@ export interface SegmentPositions {
 }
 
 
+/*
 function wrap_segment_pos_api(
   waragraph: Waragraph,
   seg_pos: wasm_bindgen.SegmentPositions
@@ -899,6 +900,7 @@ function wrap_segment_pos_api(
     },
   };
 }
+ */
 
 /*
 function server_segment_pos_api(
