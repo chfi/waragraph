@@ -1,9 +1,54 @@
-import { Table } from "apache-arrow";
+import { Table, makeTable } from "apache-arrow";
 import { vec2 } from "gl-matrix";
 
 
 
 
+export async function graphLayoutFromTSV(
+  tsv_file: Blob,
+): Promise<GraphLayoutTable> {
+  let position_lines = blobLineIterator(tsv_file);
+
+  let header = await position_lines.next();
+
+  const regex = /([^\s]+)\t([^\s]+)\t([^\s]+)/;
+
+  const parse_next = async () => {
+    let line = await position_lines.next();
+
+    let match = line.value?.match(regex);
+    if (!match) {
+      return null;
+    }
+
+    // let ix = parseInt(match[1]);
+    let x = parseFloat(match[2]);
+    let y = parseFloat(match[3]);
+
+    return { x, y };
+  }
+
+  const xs = [];
+  const ys = [];
+
+  for (;;) {
+    const row = await parse_next();
+    if (row === null) {
+      break;
+    }
+
+    const { x, y } = row;
+    xs.push(x);
+    ys.push(y);
+  }
+
+  const table = makeTable({
+    x: Float32Array.from(xs),
+    y: Float32Array.from(ys)
+  });
+
+  return new GraphLayoutTable(table);
+}
 
 export class GraphLayoutTable {
   table: Table;
@@ -109,3 +154,38 @@ class SegmentPositionIterator implements Iterable<{ segment: number, p0: vec2, p
   }
 }
 
+
+
+export async function* blobLineIterator(blob: Blob) {
+  const utf8Decoder = new TextDecoder("utf-8");
+  let stream = blob.stream();
+  let reader = stream.getReader();
+
+  let { value: chunk, done: readerDone } = await reader.read();
+
+  let chunk_str = chunk ? utf8Decoder.decode(chunk, { stream: true }) : "";
+
+  let re = /\r\n|\n|\r/gm;
+  let startIndex = 0;
+
+  for (;;) {
+    let result = re.exec(chunk_str);
+    if (!result) {
+      if (readerDone) {
+        break;
+      }
+      let remainder = chunk_str.substring(startIndex);
+      ({ value: chunk, done: readerDone } = await reader.read());
+      chunk_str =
+        remainder + (chunk ? utf8Decoder.decode(chunk, { stream: true }) : "");
+      startIndex = re.lastIndex = 0;
+      continue;
+    }
+    yield chunk_str.substring(startIndex, result.index);
+    startIndex = re.lastIndex;
+  }
+  if (startIndex < chunk_str.length) {
+    // last line didn't end in a newline char
+    yield chunk_str.substring(startIndex);
+  }
+}

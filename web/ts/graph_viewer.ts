@@ -11,6 +11,7 @@ import { type PathInterval, type Bp } from './types';
 
 import { Table } from 'apache-arrow';
 import { Waragraph } from './waragraph';
+import { blobLineIterator } from './graph_layout';
 
 let wasm;
 let _raving_ctx;
@@ -746,43 +747,6 @@ export async function graphViewerFromData(
 
 }
 
-// adapted from https://developer.mozilla.org/en-US/docs/Web/API/ReadableStreamDefaultReader/read
-async function* blobLineIterator(blob: Blob) {
-  const utf8Decoder = new TextDecoder("utf-8");
-  // let response = await fetch(fileURL);
-  // let reader = response.body.getReader();
-  let stream = blob.stream();
-  let reader = stream.getReader();
-
-  let { value: chunk, done: readerDone } = await reader.read();
-
-  let chunk_str = chunk ? utf8Decoder.decode(chunk, { stream: true }) : "";
-  // chunk = chunk ? utf8Decoder.decode(chunk, { stream: true }) : "";
-
-  let re = /\r\n|\n|\r/gm;
-  let startIndex = 0;
-
-  for (;;) {
-    let result = re.exec(chunk_str);
-    if (!result) {
-      if (readerDone) {
-        break;
-      }
-      let remainder = chunk_str.substring(startIndex);
-      ({ value: chunk, done: readerDone } = await reader.read());
-      chunk_str =
-        remainder + (chunk ? utf8Decoder.decode(chunk, { stream: true }) : "");
-      startIndex = re.lastIndex = 0;
-      continue;
-    }
-    yield chunk_str.substring(startIndex, result.index);
-    startIndex = re.lastIndex;
-  }
-  if (startIndex < chunk_str.length) {
-    // last line didn't end in a newline char
-    yield chunk_str.substring(startIndex);
-  }
-}
 
 async function fillPositionBuffersFromTSV(
   raving_ctx: wasm_bindgen.RavingCtx,

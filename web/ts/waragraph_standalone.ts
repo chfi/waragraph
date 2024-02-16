@@ -23,9 +23,10 @@ import { PathId } from './types';
 import Split from 'split-grid';
 import { initializeBedSidebarPanel } from './sidebar-bed';
 import { vec2 } from 'gl-matrix';
-import { GraphLayoutTable } from './graph_layout';
+import { GraphLayoutTable, graphLayoutFromTSV } from './graph_layout';
 import { export2DViewportSvg } from './svg_export';
 import { WaragraphWorkerCtx } from './worker';
+import { applyColorScaleToBuffer, spectralScale } from './color';
 
 
 
@@ -33,7 +34,7 @@ import { WaragraphWorkerCtx } from './worker';
 // input should be options including files; lightweight version of the Options in waragraph.ts, roughly
 export async function initializeWaragraphStandalone(
   gfa: URL | string | Blob,
-  graph_layout?: URL | string | Blob,
+  graph_layout: Blob,
 ) {
   const wasm = await init_module();
 
@@ -175,4 +176,6 @@ export async function initializeWaragraphStandalone(
   });
 
   await Promise.all(path_promises);
+
+
 }
