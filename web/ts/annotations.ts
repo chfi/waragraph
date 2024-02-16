@@ -66,19 +66,6 @@ export class AnnotationPainter {
   constructor(waragraph: Waragraph, name: string, records: Iterable<BEDRecord>) {
     this.callback_key = "painter-" + name;
 
-    // TODO this needs to change; should the wasm memory still be shared? hrmmmm
-    // if (!_wasm) {
-    //   init_module(undefined, waragraph.wasm.memory)
-    //     .then((module) => {
-    //       _wasm = module;
-    //       wasm_bindgen.set_panic_hook();
-    //     });
-    // }
-
-    // this.record_svg_gs = [];
-    // this.svg_parent = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-    // this.record_canvas_paths = [];
-
     this.waragraph = waragraph;
     // this.arrowGFA = waragraph.graph;
 
@@ -144,12 +131,6 @@ export class AnnotationPainter {
   }
 
   async prepareRecords() {
-
-    // const viewport = await this.waragraph.get1DViewport();
-    // if (viewport === undefined) {
-    //   throw new Error("No viewport available");
-    // }
-    // const cs_view = await this.waragraph.worker_obj.globalCoordSysView();
 
     const viewport = this.waragraph.global_viewport;
 
@@ -247,11 +228,6 @@ export class AnnotationPainter {
       if (this.last_2d_view !== view_2d_obj) {
         resample = true;
       }
-      // let { width, height } = this.last_2d_view;
-      // if (view_2d_obj.width !== width
-      //   || view_2d_obj.height !== height) {
-      //   resample = true;
-      // }
     }
 
     if (resample === false) {
@@ -326,21 +302,6 @@ export class AnnotationPainter {
           }
         }
       }
-
-
-      // state.cached_path.forEach(
-
-      /*
-      state.cached_path.with_points((x, y) => {
-        const p = map_canvas_to_svg({ x, y });
-
-        if (svg_path.length === 0) {
-          svg_path += `M ${p.x},${p.y}`;
-        } else {
-          svg_path += ` L ${p.x},${p.y}`;
-        }
-      });
-       */
 
       state.svg_g.querySelector('.svg-overlay-2d > path').outerHTML =
         // svg_g.innerHTML =
@@ -514,51 +475,9 @@ fill="${color}"
       const svg_path =
         svg_g.querySelector('.svg-overlay-2d > path');
 
-      /*
-      let svg_path = "";
-
-      cached_path.with_points((x, y) => {
-        const p = map_canvas_to_svg({ x, y });
-
-        if (svg_path.length === 0) {
-          svg_path += `M ${p.x},${p.y}`;
-        } else {
-          svg_path += ` L ${p.x},${p.y}`;
-        }
-      });
-
-      svg_g.querySelector('.svg-overlay-2d').innerHTML =
-        // svg_g.innerHTML =
-        // `<path d="${svg_path}" stroke-width="0.5" fill="none" />`;
-        `<path d="${svg_path}" stroke-width="0.5" stroke="${color}" fill="none" />`;
-      // `<path d="${svg_path}" stroke-width="0.5" stroke="red" fill="none" />`;
-       */
     }
 
   }
-
-
-  // this would be nice to have, but the cached paths are entirely
-  // canvas space -- what i want is to have the sampled paths in world
-  // space (i.e. the number of samples should depend on the apparent
-  // size of the path on the canvas, but the points are in world
-  // space)
-  /*
-followAnnotationPath(record_name) {
-  const record = this.record_states.find((state) => state.record.bed_record.name == record_name);
-  if (record === undefined) {
-    return;
-  }
-
-  const cached_path = record.cached_path;
-
-  if (cached_path === null) {
-    return;
-  }
-
-
-}
-   */
 
 }
 

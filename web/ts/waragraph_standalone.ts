@@ -131,9 +131,6 @@ export async function initializeWaragraphStandalone(
   let paths = await graph_apis.arrowGFA.pathMetadata();
 
   const path_promises = paths.map(async (path) => {
-    const color_below = { r: 1.0, g: 1.0, b: 1.0 };
-    const color_above = wasm_bindgen.path_name_hash_color_obj(path.name);
-
     const path_data =
       await waragraph.worker_ctx.getComputedPathDataset('depth', path.name);
 
@@ -155,9 +152,6 @@ export async function initializeWaragraphStandalone(
     await addPathViewerLogicClient(graph_apis.arrowGFA, graph_apis.pathIndex, viewer);
 
     viewer.onResize();
-    // console.log(viewer);
-    // viewer.isVisible = true;
-    // viewer.sampleAndDraw(global_viewport.get());
 
     viewer.container.classList.add('path-list-flex-item');
 
@@ -176,8 +170,6 @@ export async function initializeWaragraphStandalone(
   const depth_data = await waragraph_worker.getComputedGraphDataset('depth');
   const depth_color = new Uint32Array(depth_data.length);
   applyColorScaleToBuffer(spectralScale, depth_data, depth_color)
-
-
 
 
   const graph_viewer = await graphViewerFromData(

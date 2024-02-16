@@ -33,22 +33,6 @@ function findPathName(cand: string): string {
 }
 
 
-// let waragraph_viz: WaragraphViz;
-let wasm;
-
-function createPathOffsetMap(path_name: string): (bp: number) => number {
-  const regex = /.+:(\d+)-(\d+)$/;
-  if (!path_name) {
-    throw `Path ${path_name} not found`;
-  }
-  const found = path_name.match(regex);
-
-  const start = found === null ? 0 : Number(found[1]);
-
-  return (bp) => bp - start;
-}
-
-
 function bedToPathInterval(bed_entry, path_name: string): PathNameInterval {
   if (!path_name) {
     throw `Path ${path_name} not found`;
@@ -108,115 +92,6 @@ function transformBedRange(bed_entry) {
 
   return new_entry;
 }
-
-function bedEntryColorOrFn(bed_entry, color_fn) {
-  let color;
-
-  if (typeof bed_entry.itemRgb === "string") {
-    let [r, g, b] = bed_entry.itemRgb.split(',');
-    color = `rgb(${r * 255},${g * 255},${b * 255})`;
-  } else if (bed_entry.color) {
-    color = bed_entry.color;
-  } else {
-    let { r, g, b } = wasm_bindgen.path_name_hash_color_obj(bed_entry.name);
-    color = `rgb(${r * 255},${g * 255},${b * 255})`;
-  }
-
-  if (typeof color_fn === 'function') {
-    color = color_fn(bed_entry);
-  }
-
-  return color;
-}
-
-/*
-async function createDrawBedEntryFn1d(bed_entry, color_fn) {
-    //
-    let path_name = findPathName(bed_entry.chrom);
-    let path_offset_map = createPathOffsetMap(path_name);
-
-    let graph_raw = await waragraph_viz.worker_obj.getGraph();
-    let graph = wasm_bindgen.ArrowGFAWrapped.__wrap(graph_raw.__wbg_ptr);
-    let path_steps = graph.path_steps(path_name);
-
-    // let color = bedEntryColorOrFn(bed_entry, color_fn);
-
-    let entry = { start: bed_entry.chromStart,
-                  end: bed_entry.chromEnd,
-                  label: bed_entry.name };
-
-    entry.color = bedEntryColorOrFn(bed_entry, color_fn);
-
-    const cs_view = await waragraph_viz.worker_obj.globalCoordSysView();
-
-    let global_entries = [];
-
-    try {
-        // console.warn(entry);
-        let path_range = await waragraph_viz
-            .worker_obj
-            .pathRangeToStepRange(path_name, entry.start, entry.end);
-
-        // console.warn(path_range);
-        let slice = path_steps.slice(path_range.start, path_range.end);
-        // console.warn(slice);
-
-        // console.log("steps in ", bed_entry.name, ": ", slice.length);
-
-        let seg_ranges = wasm_bindgen.path_slice_to_global_adj_partitions(slice);
-        let seg_ranges_arr = seg_ranges.ranges_as_u32_array();
-        let range_count = seg_ranges_arr.length / 2;
-
-        for (let ri = 0; ri < range_count; ri++) {
-            let start_seg = seg_ranges_arr.at(2 * ri);
-            let end_seg = seg_ranges_arr.at(2 * ri + 1);
-
-            if (start_seg !== undefined && end_seg !== undefined) {
-                let start = await cs_view.segmentOffset(start_seg);
-                let end = await cs_view.segmentOffset(end_seg);
-
-                global_entries.push({start, end, color: entry.color});
-            }
-        }
-    } catch (e) {
-        // TODO
-        throw "Error creating 1D highlight track: " + e;
-    }
-
-    let callback = CanvasTracks.createHighlightCallback(global_entries);
-
-    return callback;
-}
-
-async function createDrawBedEntryFn2d(bed_entry, color_fn) {
-    // console.log(bed_entry);
-    let path_name = findPathName(bed_entry.chrom);
-    // console.log(path_name);
-    let path_offset_map = createPathOffsetMap(path_name);
-
-    let seg_pos = waragraph_viz.graph_viewer.segment_positions;
-
-    let graph_raw = await waragraph_viz.worker_obj.getGraph();
-    let graph = wasm_bindgen.ArrowGFAWrapped.__wrap(graph_raw.__wbg_ptr);
-    let path_steps = graph.path_steps(path_name);
-
-    let path_cs = await waragraph_viz.worker_obj.pathCoordSys(path_name);
-
-    let entry = { start: bed_entry.chromStart,
-                  end: bed_entry.chromEnd,
-                  label: bed_entry.name };
-
-    entry.color = bedEntryColorOrFn(bed_entry, color_fn);
-
-    let callback_2d = 
-        preparePathHighlightOverlay(seg_pos,
-                                    path_steps,
-                                    path_cs,
-                                    [entry]);
-
-    return callback_2d;
-}
-*/
 
 export interface BEDRecord {
   record_index: number;
