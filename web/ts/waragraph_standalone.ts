@@ -134,23 +134,18 @@ export async function initializeWaragraphStandalone(
     const color_below = { r: 1.0, g: 1.0, b: 1.0 };
     const color_above = wasm_bindgen.path_name_hash_color_obj(path.name);
 
+    const path_data =
+      await waragraph.worker_ctx.getComputedPathDataset('depth', path.name);
+
     const viewer = await initializePathViewer(
       waragraph_worker,
       path.name,
       global_viewport,
-      // data,
-    );
-    /*
-    const viewer = await initializePathViewerClient(
-      path.name,
-      global_viewport, 
-      base_url,
-      "depth",
+      path_data,
       0.5,
-      color_below,
-      color_above
+      { r: 1, g: 1, b: 1 },
+      wasm_bindgen.path_name_hash_color_obj(path.name)
     );
-     */
 
     viewer.container.style.setProperty('flex-basis', '20px');
     viewer.container.path_viewer = viewer;
@@ -176,6 +171,58 @@ export async function initializeWaragraphStandalone(
   });
 
   await Promise.all(path_promises);
+
+  // compute graph depth data colors for 2D
+  const depth_data = await waragraph_worker.getComputedGraphDataset('depth');
+  const depth_color = new Uint32Array(depth_data.length);
+  applyColorScaleToBuffer(spectralScale, depth_data, depth_color)
+
+
+
+
+  const graph_viewer = await graphViewerFromData(
+    document.getElementById('graph-viewer-container'),
+    layout_table,
+    depth_color
+  );
+
+
+  console.log(graph_viewer);
+  graph_viewer.draw();
+
+  const graph_layout_table = graphLayoutFromTSV(graph_layout);
+
+  console.log("creating Waragraph");
+  const waragraph = new Waragraph(
+    base_url,
+    { graph_viewer, path_viewers },
+    graph_apis.arrowGFA,
+    global_viewport,
+    { graphLayoutTable: graph_layout_table }
+  );
+
+  waragraph.color_buffers.set('depth', depth_color);
+
+  console.log("almost there");
+  waragraph.resize_observable.subscribe(() => {
+    const doc_bounds = document.documentElement.getBoundingClientRect();
+    const bounds = path_data_col.getBoundingClientRect();
+    const width = doc_bounds.right - bounds.left;
+    overview_canvas.width = width;
+    seq_canvas.width = width;
+
+    overview.draw();
+    seq_track.draw_last();
+  });
+
+  appendSvgViewport();
+  console.log("initializing sidebar");
+
+  await initializeBedSidebarPanel(waragraph);
+
+  console.log("done?");
+
+  window.waragraph = waragraph;
 
 
 }
