@@ -1023,10 +1023,26 @@ async function addSegmentJumpInputListeners(graph_viewer) {
           y: (position.y0 + position.y1) / 2.0
         };
 
-        console.warn('Jumping to ' + String(midpoint.x + ', ' + String(midpoint.y)));
-
         // Jump to segment
+        const view = document.getElementById('graph-viewer-2d');
+        view.style.display = 'none';
+        graph_viewer.resetView();
         graph_viewer.setViewCenter(midpoint.x, midpoint.y);
+
+        setTimeout(() => {
+          const screen_position = graph_viewer.getSegmentScreenPos(segment);
+
+          const midpoint_screen = {
+            x: (screen_position.start[0]),
+            y: (screen_position.start[1])
+          }
+
+          let zoom_x = midpoint_screen.x / graph_viewer.overlay_canvas.width;
+          let zoom_y = midpoint_screen.y / graph_viewer.overlay_canvas.height;
+          graph_viewer.zoom(zoom_x, zoom_y, .05);
+          view.style.display = 'block';
+      }, 10);
+
       }
       else {
         console.warn('Segment is null');
