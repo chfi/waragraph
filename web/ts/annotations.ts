@@ -16,11 +16,24 @@ import { type Waragraph } from './waragraph_client';
 import * as CanvasTracks from './canvas_tracks';
 import { PathViewer } from './path_viewer_ui';
 import { ArrowGFA } from './graph_api';
+import { PathInterval } from './types';
 
 
 
 function createSVGElement(tag) {
   return document.createElementNS('http://www.w3.org/2000/svg', tag);
+}
+
+
+export interface AnnotationGeometry {
+  start_world_p: vec2,
+  end_world_p: vec2,
+
+  path_steps: Uint32Array;
+
+  start_bp_1d: number;
+  end_bp_1d: number;
+  blocks_1d_bp: Array<number>;
 }
 
 interface AnnotationRecord {

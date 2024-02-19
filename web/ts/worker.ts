@@ -1,13 +1,14 @@
 import init_wasm, * as wasm_bindgen from 'waragraph';
 
 import { wrapWasmPtr, type WithPtr } from './wrap';
-import type { Bp, Segment, Handle, PathId, RGBObj } from './types';
+import type { Bp, Segment, Handle, PathId, RGBObj, PathInterval } from './types';
 
 import * as Comlink from 'comlink';
 import * as rxjs from 'rxjs';
 import * as handler from './transfer_handlers';
 import { PathMetadata } from './graph_api';
 import { CoordSysArrow, coordSysFromBuffers } from './coordinate_system';
+import { AnnotationGeometry } from './annotations';
 handler.setTransferHandlers(rxjs, Comlink);
 
 let wasm;
@@ -209,6 +210,31 @@ export class WaragraphWorkerCtx {
 
   pathsOnSegment(segment: number): Uint32Array | undefined {
     return this.path_index?.paths_on_segment(segment);
+  }
+
+
+
+  ////
+
+  prepareAnnotationRecords(intervals: Iterable<PathInterval>): Array<AnnotationGeometry> {
+
+    // get global coordinate system
+
+    const out: AnnotationGeometry[] = [];
+
+    for (const annot of intervals) {
+      // get path coordinate system
+
+      // get subpath range
+
+      // get subpath steps
+
+      // get world position (!) for 2D
+
+      // map to global blocks for 1D
+    }
+
+    return out;
   }
 
 }
