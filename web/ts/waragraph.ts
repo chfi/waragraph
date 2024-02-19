@@ -77,7 +77,7 @@ export class Viewport1D {
     if (view) {
       this.view = view;
     } else {
-      const max = coord_sys.max_f64();
+      const max = coord_sys.max();
       this.view = wasm_bindgen.View1D.new(0, max, BigInt(max))
     }
 

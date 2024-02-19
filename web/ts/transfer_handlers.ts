@@ -1,3 +1,5 @@
+import { Table } from "apache-arrow";
+
 export function setTransferHandlers(rxjs, Comlink) {
     const { Observable, Observer, Subscribable, Subscription } = rxjs;
     
@@ -49,6 +51,21 @@ export function setTransferHandlers(rxjs, Comlink) {
             return Comlink.transferHandlers.get('proxy').serialize({
                 unsubscribe: () => value.unsubscribe()
             });
+        }
+    });
+
+    
+    Comlink.transferHandlers.set('table', {
+        canHandle: (value) => {
+            return value instanceof Table;
+        },
+        deserialize: (value) => {
+          return new Table(value.schema, value.batches, value._offsets);
+        },
+        serialize: (value) => {
+          console.warn("serializing");
+          console.warn(value);
+          return [value, []];
         }
     });
 

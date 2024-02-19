@@ -52,11 +52,15 @@ export async function initializeWaragraphStandalone(
 
   // create TS coordinate system (global)...
 
-  const global_cs = await waragraph_worker.getGlobalCoordinateSystem();
+  console.warn("preparing global coordinate system");
+  const global_cs = await waragraph_worker.getGlobalCoordinateSystem()
+    .then((cs) => new CoordSysArrow(cs.table));
+
+
+  console.warn("preparing global viewport");
 
   const global_viewport = new Viewport1D(global_cs as CoordSysInterface);
 
-  console.warn(global_cs);
   // then it should be pretty much the same as the rest of the init function in waragraph_client.ts
 
   const graph_depth = await waragraph_worker.getComputedGraphDataset('depth');
