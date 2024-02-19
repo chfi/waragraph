@@ -63,9 +63,9 @@
 
 .container {
   width: 80%; 
-  height: 40%;
+  min-height: 40%;
   margin: 0 auto; 
-  padding: 0 15px; 
+  padding-bottom: 15px; 
   background-color: #ffffff; 
   box-shadow: 0 4px 7px rgba(0, 0, 0, 0.2);
 }
