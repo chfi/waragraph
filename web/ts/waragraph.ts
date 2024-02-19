@@ -1048,7 +1048,7 @@ async function addSegmentJumpInputListeners(graph_viewer) {
           let zoom_y = midpoint_screen.y / graph_viewer.overlay_canvas.height;
           graph_viewer.zoom(zoom_x, zoom_y, .05);
           view.style.display = 'block';
-      }, 10);
+      }, 100);
 
       }
       else {
