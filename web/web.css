@@ -146,3 +146,22 @@ li.active {
 .strong {
   font-weight: bold;
 }
+
+.page-border {
+  background-color: #555;
+  width: 12px;
+  height: 100%;
+}
+
+.page-border-chrome {
+  background-color: #555;
+
+  width: 5px;
+  height: 100%;
+}
+
+.page-border-scroll-chrome {
+  background-color: #555;
+  width: 20px;
+  height: 100%;
+}

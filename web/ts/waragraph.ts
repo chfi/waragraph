@@ -487,6 +487,8 @@ export class Waragraph {
         input.setAttribute('pattern', '\\d*');
         input.setAttribute('disabled', '');   // input function moved to control panel
         input.style.setProperty('height', '100%');
+        input.style.setProperty('background-color', '#FFFFFF');
+        input.style.setProperty('opacity', '1');
         range_input.append(input);
       }
 
@@ -524,23 +526,45 @@ export class Waragraph {
         .subscribe(() => {
           this.graph_viewer?.resize();
 
-          const doc_bounds = document.documentElement.getBoundingClientRect();
-          // const win_width = window.innerWidth;
-          const bounds = path_data_col.getBoundingClientRect();
-          const width = doc_bounds.right - bounds.left;
-
-          overview_canvas.width = width;
-          seq_canvas.width = width;
-          // overview_canvas.width = overview_slots.right.clientWidth;
-          // seq_canvas.width = seq_slots.right.clientWidth;
-
-          // overview_canvas.height = overview_slots.right.clientHeight;
-          // seq_canvas.height = seq_slots.right.clientHeight;
-
-          overview.draw();
-          seq_track.draw_last();
+          resizeView();
         });
+        
+      function resizeView() {
+        const doc_bounds = document.documentElement.getBoundingClientRect();
+        // const win_width = window.innerWidth;
+        const bounds = path_data_col.getBoundingClientRect();
+        var width = doc_bounds.right - bounds.left;
+        // account for scroll bar
+        const containter = document.getElementById('path-viewer-container');
+        const border = document.getElementById('1d-border');
 
+        const isChrome = /Chrome/.test(navigator.userAgent) && /Google Inc/.test(navigator.vendor);
+
+        if (isChrome) { // handles ugly chrome scroll bars
+          if (containter.scrollHeight > containter.clientHeight) {
+            width = width - 20;
+            border.classList.add('page-border-scroll-chrome');
+          }
+          else {
+            width = width - 5;
+            border.classList.add('page-border-chrome');
+          }
+        }
+        else { 
+          width = width - 5;
+          border.classList.add('page-border');
+        }
+        
+        overview_canvas.width = width;
+        seq_canvas.width = width;
+        // overview_canvas.width = overview_slots.right.clientWidth;
+        // seq_canvas.width = seq_slots.right.clientWidth;
+
+        // overview_canvas.height = overview_slots.right.clientHeight;
+        // seq_canvas.height = seq_slots.right.clientHeight;
+        overview.draw();
+        seq_track.draw_last();
+      }
     }
 
     if (this.intersection_observer === undefined) {

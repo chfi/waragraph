@@ -84,7 +84,7 @@ body {
 
 .path-data-canvas {
     overflow: hidden;
-    /* width: 100%; */
+    width: 100%;
     position: absolute;
 }
 
@@ -140,6 +140,8 @@ body {
 
     z-index: 100;
     pointer-events: none;
+
+    overflow-y: hidden;
 }
 
 
