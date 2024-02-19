@@ -542,17 +542,14 @@ export class Waragraph {
 
         if (isChrome) { // handles ugly chrome scroll bars
           if (containter.scrollHeight > containter.clientHeight) {
-            width = width - 20;
-            border.classList.add('page-border-scroll-chrome');
+            width = width - 19;
           }
-          else {
-            width = width - 5;
-            border.classList.add('page-border-chrome');
+          else {  // gets the view off the side of the screen a bit
+            width = width - 3;
           }
         }
         else { 
-          width = width - 5;
-          border.classList.add('page-border');
+          width = width - 3;
         }
         
         overview_canvas.width = width;
@@ -999,6 +996,16 @@ async function addViewRangeInputListeners(viewport: Viewport1D) {
     start_view.value = String(Math.round(view.start));
     end_view.value = String(Math.round(view.end));
   });
+
+  // potential fix for offscreen bars not rendering until resize
+  // drawback: causes ugly stutter on firefox while scrolling
+
+  const pathViewerContainer = document.getElementById('path-viewer-container');
+
+  pathViewerContainer.addEventListener('scroll', () => {
+    window.dispatchEvent(new Event('resize'));
+  });
+  
 }
 
 // Segment jump function on control panel

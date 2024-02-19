@@ -147,7 +147,7 @@ li.active {
   font-weight: bold;
 }
 
-.page-border {
+/* .page-border {
   background-color: #555;
   width: 12px;
   height: 100%;
@@ -162,6 +162,29 @@ li.active {
 
 .page-border-scroll-chrome {
   background-color: #555;
-  width: 20px;
+  width: 18px;
   height: 100%;
+} */
+
+.pointer {
+  cursor: pointer;
 }
+
+.control-row-label {
+  grid-column: 1;
+  cursor: pointer;
+  margin: 3px;
+}
+
+.control-row-label:hover {
+  border-radius: 2px;
+  background-color: #333;
+  color: aliceblue;
+  width: 100%;
+}
+
+/* .control-dropdown {
+  background-color: #f9f9f9;
+  border-radius: 2px;
+  padding: 2px;
+} */
