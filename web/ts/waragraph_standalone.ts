@@ -27,6 +27,7 @@ import { GraphLayoutTable, graphLayoutFromTSV } from './graph_layout';
 import { export2DViewportSvg } from './svg_export';
 import { WaragraphWorkerCtx } from './worker';
 import { applyColorScaleToBuffer, spectralScale } from './color';
+import { Waragraph } from './waragraph_client';
 
 
 
@@ -186,21 +187,20 @@ export async function initializeWaragraphStandalone(
   applyColorScaleToBuffer(spectralScale, depth_data, depth_color)
 
 
+  const graph_layout_table = await graphLayoutFromTSV(graph_layout);
+
   const graph_viewer = await graphViewerFromData(
     document.getElementById('graph-viewer-container'),
-    layout_table,
+    graph_layout_table.table,
     depth_color
   );
-
 
   console.log(graph_viewer);
   graph_viewer.draw();
 
-  const graph_layout_table = graphLayoutFromTSV(graph_layout);
-
   console.log("creating Waragraph");
   const waragraph = new Waragraph(
-    base_url,
+    new URL("localhost:8080/"), // temp hack
     { graph_viewer, path_viewers },
     graph_apis.arrowGFA,
     global_viewport,

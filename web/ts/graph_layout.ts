@@ -31,6 +31,11 @@ export async function graphLayoutFromTSV(
   const xs = [];
   const ys = [];
 
+  let x_min = Infinity;
+  let y_min = Infinity;
+  let x_max = -Infinity;
+  let y_max = -Infinity;
+
   for (;;) {
     const row = await parse_next();
     if (row === null) {
@@ -40,6 +45,11 @@ export async function graphLayoutFromTSV(
     const { x, y } = row;
     xs.push(x);
     ys.push(y);
+
+    x_min = Math.min(x_min, x);
+    y_min = Math.min(y_min, y);
+    x_max = Math.max(x_max, x);
+    y_max = Math.max(y_max, y);
   }
 
   const table = makeTable({
@@ -47,15 +57,20 @@ export async function graphLayoutFromTSV(
     y: Float32Array.from(ys)
   });
 
-  return new GraphLayoutTable(table);
+  return new GraphLayoutTable(table, vec2.fromValues(x_min, y_min), vec2.fromValues(x_max, y_max));
 }
 
 export class GraphLayoutTable {
   table: Table;
 
-  constructor(table: Table) {
+  aabb_min: vec2;
+  aabb_max: vec2;
+
+  constructor(table: Table, aabb_min: vec2, aabb_max: vec2) {
     // TODO check fields
     this.table = table;
+    this.aabb_min = aabb_min;
+    this.aabb_max = aabb_max;
   }
 
   segmentPosition(segment: number): { p0: vec2, p1: vec2 } | null {
