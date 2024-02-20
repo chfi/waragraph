@@ -191,7 +191,7 @@ export async function initializeWaragraphStandalone(
 
   const graph_viewer = await graphViewerFromData(
     document.getElementById('graph-viewer-container'),
-    graph_layout_table.table,
+    graph_layout_table,
     depth_color
   );
 
@@ -200,7 +200,6 @@ export async function initializeWaragraphStandalone(
 
   console.log("creating Waragraph");
   const waragraph = new Waragraph(
-    new URL("localhost:8080/"), // temp hack
     { graph_viewer, path_viewers },
     graph_apis.arrowGFA,
     global_viewport,

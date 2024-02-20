@@ -36,19 +36,19 @@ export class Waragraph {
   resize_observable: rxjs.Subject<void>;
   intersection_observer: IntersectionObserver | undefined;
 
-  api_base_url: URL;
+  api_base_url: URL | undefined;
 
   // only used for SVG export
   // kinda hacky but fine for now; might copy the buffers back from GPU when needed later
   color_buffers: Map<string, Uint32Array>;
 
   constructor(
-    base_url: URL,
     viewers: { graph_viewer?: GraphViewer, path_viewers: Array<PathViewer> },
     graph: ArrowGFA,
     global_viewport: Viewport1D,
     layout: 
     { graphLayoutTable?: GraphLayoutTable },
+    base_url?: URL,
   ) {
     this.graph_viewer = viewers.graph_viewer;
     this.path_viewers = viewers.path_viewers;
@@ -456,11 +456,11 @@ export async function initializeWaragraphClient(base_url: URL) {
 
   console.log("creating Waragraph");
   const waragraph = new Waragraph(
-    base_url,
     { graph_viewer, path_viewers },
     graph_apis.arrowGFA,
     global_viewport,
-    { graphLayoutTable: graph_layout_table }
+    { graphLayoutTable: graph_layout_table },
+    base_url,
   );
 
   waragraph.color_buffers.set('depth', depth_color);

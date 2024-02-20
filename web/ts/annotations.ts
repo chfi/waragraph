@@ -154,20 +154,29 @@ export class AnnotationPainter {
       return { path_id, start_bp, end_bp };
     });
 
-    const req =
-      new Request(
-        new URL(`/coordinate_system/prepare_annotation_records`, this.waragraph.api_base_url),
-        { method: 'POST', body: JSON.stringify(annotation_ranges) }
-      );
+    let prepared;
 
-    const prepared_req = await fetch(req);
+    if (this.waragraph.api_base_url instanceof URL) {
+      const req =
+        new Request(
+          new URL(`/coordinate_system/prepare_annotation_records`, this.waragraph.api_base_url),
+          { method: 'POST', body: JSON.stringify(annotation_ranges) }
+        );
 
-    if (!prepared_req.ok) {
-      console.error("Error preparing annotations");
-      return;
+      const prepared_req = await fetch(req);
+      prepared = await prepared_req.json();
+
+      if (!prepared_req.ok) {
+        console.error("Error preparing annotations");
+        return;
+      }
+    } else {
+      // TODO use alternative interface (worker)
+      console.error("WIP annotations in standalone");
+
+      prepared = [];
     }
 
-    const prepared = await prepared_req.json();
 
     console.log(prepared);
 

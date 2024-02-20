@@ -11,7 +11,7 @@ import { type PathInterval, type Bp } from './types';
 
 import { Table } from 'apache-arrow';
 import { Waragraph } from './waragraph';
-import { blobLineIterator } from './graph_layout';
+import { GraphLayoutTable, blobLineIterator } from './graph_layout';
 
 let wasm;
 let _raving_ctx;
@@ -547,7 +547,7 @@ export async function initializeGraphViewer(
 
 export async function graphViewerFromData(
   container: HTMLDivElement,
-  layout_data: Blob | Table,
+  layout_data: Blob | Table | GraphLayoutTable,
   color_data?: Uint32Array,
 ): Promise<GraphViewer> {
   const wasm = await init_module();
@@ -584,12 +584,14 @@ export async function graphViewerFromData(
   if (layout_data instanceof Blob) {
     // Blobs are taken to be TSV as text; could be improved
     graph_bounds = await fillPositionBuffersFromTSV(_raving_ctx, position_buffers, layout_data);
-  // } else if (layout_data instanceof Table) {
-  } else {
+  } else if (layout_data instanceof Table) {
     graph_bounds = await fillPositionBuffersFromArrow(_raving_ctx, position_buffers, layout_data);
+  } else if (layout_data instanceof GraphLayoutTable) {
+    await fillPositionBuffersFromArrow(_raving_ctx, position_buffers, layout_data.table);
+    const [min_x, min_y] = layout_data.aabb_min;
+    const [max_x, max_y] = layout_data.aabb_max;
+    graph_bounds = { min_x, min_y, max_x, max_y };
   } 
-
-  console.warn(graph_bounds);
 
   const segment_count = position_buffers.len();
   if (segment_count === 0) {
