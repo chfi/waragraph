@@ -7,7 +7,7 @@ import { PathViewer, addOverviewEventHandlers, addPathViewerLogic, addPathViewer
 import { Viewport1D, globalSequenceTrack } from './waragraph';
 
 import { tableFromIPC, tableFromArrays } from 'apache-arrow';
-import { CoordSysArrow, CoordSysInterface } from './coordinate_system';
+import { CoordSysArrow, CoordSysInterface, coordSysFromTable } from './coordinate_system';
 import { GraphViewer, graphViewerFromData } from './graph_viewer';
 import { ArrowGFA, PathIndex, serverAPIs } from './graph_api';
 
@@ -280,7 +280,7 @@ export async function initializeWaragraphClient(base_url: URL) {
   let step_offsets = cs.getChild('step_offsets')!;
   let max = step_offsets.get(step_offsets.length - 1);
 
-  let cs_arrow = new CoordSysArrow(cs);
+  let cs_arrow = coordSysFromTable(cs);
 
   let global_viewport = new Viewport1D(cs_arrow as CoordSysInterface);
 

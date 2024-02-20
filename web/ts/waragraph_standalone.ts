@@ -53,9 +53,13 @@ export async function initializeWaragraphStandalone(
   // create TS coordinate system (global)...
 
   console.warn("preparing global coordinate system");
-  const global_cs = await waragraph_worker.getGlobalCoordinateSystem()
-    .then((cs) => new CoordSysArrow(cs.table));
+  const global_cs = await waragraph_worker.getGlobalCoordinateSystem();
+    // .then((cs) => new CoordSysArrow(cs.table));
 
+  console.warn(typeof global_cs);
+  console.warn(global_cs instanceof CoordSysArrow);
+  console.warn(global_cs);
+  console.warn(global_cs.max());
 
   console.warn("preparing global viewport");
 
@@ -136,7 +140,13 @@ export async function initializeWaragraphStandalone(
 
   const path_promises = paths.map(async (path) => {
     const path_data =
-      await waragraph.worker_ctx.getComputedPathDataset('depth', path.name);
+      await waragraph_worker.getComputedPathDataset('depth', path.name);
+
+    console.warn(path_data);
+
+    const color = 
+      wasm_bindgen.path_name_hash_color_obj(path.name);
+    console.warn(color);
 
     const viewer = await initializePathViewer(
       waragraph_worker,
@@ -144,8 +154,8 @@ export async function initializeWaragraphStandalone(
       global_viewport,
       path_data,
       0.5,
-      { r: 1, g: 1, b: 1 },
-      wasm_bindgen.path_name_hash_color_obj(path.name)
+      { r: 1, g: 1, b: 1, a: 1.0 },
+      color
     );
 
     viewer.container.style.setProperty('flex-basis', '20px');

@@ -356,7 +356,7 @@ export async function initializePathViewer(
   const viewer_ctx =
     await worker_ctx.createPathViewer(
       Comlink.transfer(offscreen, [offscreen]),
-      viewport.coord_sys as wasm_bindgen.CoordSys & WithPtr,
+      // viewport.coord_sys as wasm_bindgen.CoordSys & WithPtr,
       path_name,
       data,
       threshold,

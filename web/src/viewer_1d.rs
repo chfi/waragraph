@@ -314,7 +314,7 @@ extern "C" {
 
 #[wasm_bindgen]
 impl CoordSys {
-    pub fn to_shared_arrays(self) -> js_sys::Array {
+    pub fn as_shared_arrays(&self) -> js_sys::Array {
         let node_order_ptr = self.0.node_order.values().as_ptr() as *const u8;
         let len = 4 * self.0.node_order.len() as u32;
 

@@ -9,6 +9,7 @@ import * as handler from './transfer_handlers';
 import { PathMetadata } from './graph_api';
 import { CoordSysArrow, coordSysFromBuffers } from './coordinate_system';
 import { AnnotationGeometry } from './annotations';
+import { Table, makeTable } from 'apache-arrow';
 handler.setTransferHandlers(rxjs, Comlink);
 
 let wasm;
@@ -19,6 +20,7 @@ export class WaragraphWorkerCtx {
   path_index: wasm_bindgen.PathIndexWrapped | undefined;
 
 
+  global_coord_sys_wasm: wasm_bindgen.CoordSys;
   global_coord_sys: CoordSysArrow;
   path_coord_sys_cache: Map<string, CoordSysArrow>;
 
@@ -64,6 +66,19 @@ export class WaragraphWorkerCtx {
     return (this.path_index as wasm_bindgen.PathIndexWrapped & WithPtr).__wbg_ptr;
   }
 
+  getGlobalCoordinateSystemPtr(): wasm_bindgen.CoordSys | undefined {
+    if (this.global_coord_sys_wasm !== undefined) {
+      return this.global_coord_sys_wasm;
+    }
+
+    if (this.graph) {
+      const csys =
+        wasm_bindgen.CoordSys.global_from_arrow_gfa(this.graph)
+      this.global_coord_sys_wasm = csys;
+      return csys;
+    }
+  }
+
   // buildGlobalCoordinateSystem(): wasm_bindgen.CoordSys & WithPtr | undefined {
   getGlobalCoordinateSystem(): CoordSysArrow | undefined {
     if (this.global_coord_sys !== undefined) {
@@ -71,8 +86,9 @@ export class WaragraphWorkerCtx {
     }
 
     if (this.graph) {
-      const [node_order, step_offsets] =
-        wasm_bindgen.CoordSys.global_from_arrow_gfa(this.graph).to_shared_arrays();
+      // const [node_order, step_offsets] =
+      //   wasm_bindgen.CoordSys.global_from_arrow_gfa(this.graph).as_shared_arrays();
+      const [node_order, step_offsets] = this.getGlobalCoordinateSystemPtr().as_shared_arrays();
       const csys = coordSysFromBuffers(node_order, step_offsets);
 
       this.global_coord_sys = csys;
@@ -110,15 +126,15 @@ export class WaragraphWorkerCtx {
 
   createPathViewer(
     offscreen_canvas: OffscreenCanvas,
-    coord_sys_: WithPtr,
+    // coord_sys_: WithPtr,
     path_name: string,
     data: wasm_bindgen.SparseData,
     threshold: number,
     color_below: RGBObj,
     color_above: RGBObj,
   ) {
-
-    const coord_sys = wrapWasmPtr(wasm_bindgen.CoordSys, coord_sys_.__wbg_ptr) as wasm_bindgen.CoordSys;
+    // const coord_sys = wrapWasmPtr(wasm_bindgen.CoordSys, coord_sys_.__wbg_ptr) as wasm_bindgen.CoordSys;
+    const coord_sys = this.getGlobalCoordinateSystemPtr();
 
     const data_wrapped = wrapWasmPtr(wasm_bindgen.SparseData, data.__wbg_ptr);
 
@@ -193,19 +209,19 @@ export class WaragraphWorkerCtx {
   }
   
   segmentAtPathPosition(path: PathId, pos: Bp): number | undefined {
-    const csys = this.buildPathCoordinateSystem(path)
-    return csys?.segment_at_pos(BigInt(pos))
+    const csys = this.getPathCoordinateSystem(path)
+    return csys?.segmentAtPosition(BigInt(pos))
   }
   
   segmentAtGlobalPosition(pos: Bp): number | undefined {
-    const csys = this.buildGlobalCoordinateSystem();
-    return csys?.segment_at_pos(BigInt(pos));
+    const csys = this.getGlobalCoordinateSystem();
+    return csys?.segmentAtPosition(BigInt(pos));
   }
   
   segmentGlobalRange(segment: number): { start: bigint, end: bigint } | undefined {
     // really needs just the sequences array
-    const csys = this.buildGlobalCoordinateSystem();
-    return csys?.segment_range(segment);
+    const csys = this.getGlobalCoordinateSystem();
+    return csys?.segmentRange(segment);
   }
 
   pathsOnSegment(segment: number): Uint32Array | undefined {

@@ -80,9 +80,6 @@ export function coordSysFromBuffers(
   const step_offsets = new Int32Array(step_offsets_buf);
 
   return new CoordSysArrow(node_order, step_offsets);
-
-  // const table = makeTable({ node_order, step_offsets });
-  // return new CoordSysArrow(table);
 }
 
 export function coordSysFromTable(

@@ -1,6 +1,7 @@
-import { DataType, Field, RecordBatch, Schema, Table, makeData } from "apache-arrow";
+import { DataType, Field, RecordBatch, Schema, Struct, Table, makeData, makeVector } from "apache-arrow";
 import { fieldFromJSON, schemaFromJSON } from "apache-arrow/ipc/metadata/json";
 import { JSONTypeAssembler } from "apache-arrow/visitor/jsontypeassembler";
+import { CoordSysArrow } from "./coordinate_system";
 
 export function setTransferHandlers(rxjs, Comlink) {
     const { Observable, Observer, Subscribable, Subscription } = rxjs;
@@ -56,6 +57,20 @@ export function setTransferHandlers(rxjs, Comlink) {
         }
     });
 
+  Comlink.transferHandlers.set('CoordSysArrow', {
+    canHandle: (value) => {
+      return value instanceof CoordSysArrow;
+    },
+    serialize: (csys: CoordSysArrow) => {
+      const node_order = csys.node_order.data.map((data) => data.values);
+      const step_offsets = csys.step_offsets.data.map((data) => data.values);
+
+      return [{ step_offsets, node_order }, ];
+    },
+    deserialize: (value) => {
+      return new CoordSysArrow(value.node_order, value.step_offsets);
+    }
+  });
     
     Comlink.transferHandlers.set('table', {
         canHandle: (value) => {
