@@ -1,4 +1,6 @@
-import { Table } from "apache-arrow";
+import { DataType, Field, RecordBatch, Schema, Table, makeData } from "apache-arrow";
+import { fieldFromJSON, schemaFromJSON } from "apache-arrow/ipc/metadata/json";
+import { JSONTypeAssembler } from "apache-arrow/visitor/jsontypeassembler";
 
 export function setTransferHandlers(rxjs, Comlink) {
     const { Observable, Observer, Subscribable, Subscription } = rxjs;
@@ -60,13 +62,90 @@ export function setTransferHandlers(rxjs, Comlink) {
             return value instanceof Table;
         },
         deserialize: (value) => {
-          return new Table(value.schema, value.batches, value._offsets);
+          console.warn("deserializing");
+          console.warn(value);
+
+          console.warn(`deserializing schema ${value.schema}`);
+          console.warn(value.schema);
+
+          // console.warn
+          const fields = schemaFieldsFromJSON(value.schema, value.dictionaries);
+          const metadata = customMetadataFromJSON(value.metadata);
+
+          console.warn("fields");
+          console.warn(fields);
+          console.warn(metadata);
+
+          const schema = new Schema(fields, metadata, value.dictionaries);
+          console.warn(schema);
+
+          const batches: RecordBatch[] = [];
+          console.warn(value.batches);
+          for (const batch of value.batches) {
+            console.warn(batch);
+            console.warn(batch.schema);
+            console.warn(batch.data);
+
+            batches.push(new RecordBatch(schema, batch.data));
+          }
+        
+          return new Table(value.schema, batches, value._offsets);
         },
-        serialize: (value) => {
+      serialize: (value: Table) => {
           console.warn("serializing");
           console.warn(value);
-          return [value, []];
+
+        console.warn(`JSON field: ${JSON.stringify(fieldToJSON(value.schema.fields[0]))}`);
+
+        console.warn("original field");
+        console.warn(value.schema.fields[0]);
+        const field = fieldToJSON(value.schema.fields[0]);
+        console.warn(field);
+
+        console.warn("fieldFromJSON");
+        console.warn(fieldFromJSON(field));
+
+        console.warn(value.schema);
+        const schema = 
+          { fields: value.schema.fields.map(field => fieldToJSON(field)),
+            metadata: value.schema.metadata,
+            dictionaries: value.schema.dictionaries
+          };
+        console.warn("stringified schema: ", schema);
+
+          // @ts-ignore
+          // const result = { schema: value.schema, batches: value.batches, _offsets: value._offsets };
+          const result = { schema, batches: value.batches, _offsets: value._offsets };
+          console.warn(result);
+          return [
+            result,
+            []
+          ];
         }
     });
 
+}
+
+
+// taken from https://github.com/apache/arrow/blob/a690088193711447aa4d526f2257027f9a459efa/js/src/ipc/writer.ts#L56
+function fieldToJSON({ name, type, nullable }: Field): Record<string, unknown> {
+    const assembler = new JSONTypeAssembler();
+    return {
+        'name': name, 'nullable': nullable,
+        'type': assembler.visit(type),
+        'children': (type.children || []).map((field: any) => fieldToJSON(field)),
+        'dictionary': !DataType.isDictionary(type) ? undefined : {
+            'id': type.id,
+            'isOrdered': type.isOrdered,
+            'indexType': assembler.visit(type.indices)
+        }
+    };
+}
+
+function schemaFieldsFromJSON(_schema: any, dictionaries?: Map<number, DataType>) {
+    return (_schema['fields'] || []).filter(Boolean).map((f: any) => Field.fromJSON(f, dictionaries));
+}
+
+function customMetadataFromJSON(metadata: { key: string; value: string }[] = []) {
+    return new Map<string, string>(metadata.map(({ key, value }) => [key, value]));
 }
