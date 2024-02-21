@@ -65,9 +65,17 @@ export class GraphLayoutTable {
   aabb_min: vec2;
   aabb_max: vec2;
 
-  constructor(x: Vector, y: Vector, aabb_min: vec2, aabb_max: vec2) {
-    this.x = x;
-    this.y = y;
+  constructor(x: Vector | Float32Array, y: Vector | Float32Array, aabb_min: vec2, aabb_max: vec2) {
+    if (x instanceof Vector) {
+      this.x = x;
+    } else {
+      this.x = makeVector(x);
+    }
+    if (y instanceof Vector) {
+      this.y = y;
+    } else {
+      this.y = makeVector(y);
+    }
     this.aabb_min = aabb_min;
     this.aabb_max = aabb_max;
   }

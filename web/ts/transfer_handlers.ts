@@ -2,6 +2,7 @@ import { DataType, Field, RecordBatch, Schema, Struct, Table, makeData, makeVect
 import { fieldFromJSON, schemaFromJSON } from "apache-arrow/ipc/metadata/json";
 import { JSONTypeAssembler } from "apache-arrow/visitor/jsontypeassembler";
 import { CoordSysArrow } from "./coordinate_system";
+import { GraphLayoutTable } from "./graph_layout";
 
 export function setTransferHandlers(rxjs, Comlink) {
     const { Observable, Observer, Subscribable, Subscription } = rxjs;
@@ -71,73 +72,24 @@ export function setTransferHandlers(rxjs, Comlink) {
       return new CoordSysArrow(value.node_order, value.step_offsets);
     }
   });
+
+  Comlink.transferHandlers.set('GraphLayoutTable', {
+    canHandle: (value) => {
+      return value instanceof GraphLayoutTable;
+    },
+    serialize: (layout: GraphLayoutTable) => {
+      const { aabb_min, aabb_max } = layout;
+
+      const x = layout.x.data.map((data) => data.values);
+      const y = layout.y.data.map((data) => data.values);
+
+      return [{ x, y, aabb_min, aabb_max }, ];
+    },
+    deserialize: ({ x, y, aabb_min, aabb_max }) => {
+      return new GraphLayoutTable(x, y, aabb_min, aabb_max);
+    }
+  });
     
-    Comlink.transferHandlers.set('table', {
-        canHandle: (value) => {
-            return value instanceof Table;
-        },
-        deserialize: (value) => {
-          console.warn("deserializing");
-          console.warn(value);
-
-          console.warn(`deserializing schema ${value.schema}`);
-          console.warn(value.schema);
-
-          // console.warn
-          const fields = schemaFieldsFromJSON(value.schema, value.dictionaries);
-          const metadata = customMetadataFromJSON(value.metadata);
-
-          console.warn("fields");
-          console.warn(fields);
-          console.warn(metadata);
-
-          const schema = new Schema(fields, metadata, value.dictionaries);
-          console.warn(schema);
-
-          const batches: RecordBatch[] = [];
-          console.warn(value.batches);
-          for (const batch of value.batches) {
-            console.warn(batch);
-            console.warn(batch.schema);
-            console.warn(batch.data);
-
-            batches.push(new RecordBatch(schema, batch.data));
-          }
-        
-          return new Table(value.schema, batches, value._offsets);
-        },
-      serialize: (value: Table) => {
-          console.warn("serializing");
-          console.warn(value);
-
-        console.warn(`JSON field: ${JSON.stringify(fieldToJSON(value.schema.fields[0]))}`);
-
-        console.warn("original field");
-        console.warn(value.schema.fields[0]);
-        const field = fieldToJSON(value.schema.fields[0]);
-        console.warn(field);
-
-        console.warn("fieldFromJSON");
-        console.warn(fieldFromJSON(field));
-
-        console.warn(value.schema);
-        const schema = 
-          { fields: value.schema.fields.map(field => fieldToJSON(field)),
-            metadata: value.schema.metadata,
-            dictionaries: value.schema.dictionaries
-          };
-        console.warn("stringified schema: ", schema);
-
-          // @ts-ignore
-          // const result = { schema: value.schema, batches: value.batches, _offsets: value._offsets };
-          const result = { schema, batches: value.batches, _offsets: value._offsets };
-          console.warn(result);
-          return [
-            result,
-            []
-          ];
-        }
-    });
 
 }
 
