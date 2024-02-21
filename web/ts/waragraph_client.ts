@@ -292,7 +292,19 @@ export async function initializeWaragraphClient(base_url: URL) {
     .then(r => r.arrayBuffer())
     .then(data => tableFromIPC(data));
 
-  const graph_layout_table = new GraphLayoutTable(layout_table);
+  const layout_x = layout_table.getChild('x');
+  const layout_y = layout_table.getChild('y');
+
+  console.error("layout table");
+  console.warn(layout_table);
+
+  const parseMetadata = (key: string) => {
+    return parseFloat(layout_table.schema.metadata.get(key));
+  };
+  const aabb_min = vec2.fromValues(parseMetadata('aabb_min_x'), parseMetadata('aabb_min_y'));
+  const aabb_max = vec2.fromValues(parseMetadata('aabb_max_x'), parseMetadata('aabb_max_y'));
+
+  const graph_layout_table = new GraphLayoutTable(layout_x, layout_y, aabb_min, aabb_max);
 
   console.log(layout_table);
 

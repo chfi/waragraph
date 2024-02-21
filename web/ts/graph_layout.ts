@@ -1,4 +1,4 @@
-import { Table, makeTable } from "apache-arrow";
+import { Table, Vector, makeTable, makeVector } from "apache-arrow";
 import { vec2 } from "gl-matrix";
 
 
@@ -28,8 +28,8 @@ export async function graphLayoutFromTSV(
     return { x, y };
   }
 
-  const xs = [];
-  const ys = [];
+  const xs: number[] = [];
+  const ys: number[] = [];
 
   let x_min = Infinity;
   let y_min = Infinity;
@@ -52,25 +52,30 @@ export async function graphLayoutFromTSV(
     y_max = Math.max(y_max, y);
   }
 
-  const table = makeTable({
-    x: Float32Array.from(xs),
-    y: Float32Array.from(ys)
-  });
+  const x = makeVector(Float32Array.from(xs));
+  const y = makeVector(Float32Array.from(ys));
 
-  return new GraphLayoutTable(table, vec2.fromValues(x_min, y_min), vec2.fromValues(x_max, y_max));
+  return new GraphLayoutTable(x, y, vec2.fromValues(x_min, y_min), vec2.fromValues(x_max, y_max));
 }
 
 export class GraphLayoutTable {
-  table: Table;
+  x: Vector;
+  y: Vector;
 
   aabb_min: vec2;
   aabb_max: vec2;
 
-  constructor(table: Table, aabb_min: vec2, aabb_max: vec2) {
-    // TODO check fields
-    this.table = table;
+  constructor(x: Vector, y: Vector, aabb_min: vec2, aabb_max: vec2) {
+    this.x = x;
+    this.y = y;
     this.aabb_min = aabb_min;
     this.aabb_max = aabb_max;
+  }
+
+  endpointPosition(endpoint: number): vec2 | null {
+    const x = this.x.get(endpoint);
+    const y = this.y.get(endpoint);
+    return vec2.fromValues(x, y);
   }
 
   segmentPosition(segment: number): { p0: vec2, p1: vec2 } | null {
@@ -81,15 +86,15 @@ export class GraphLayoutTable {
     let s0 = segment << 1;
     let s1 = s0 + 1;
 
-    let q0 = this.table.get(s0);
-    let q1 = this.table.get(s1);
+    let q0 = this.endpointPosition(s0);
+    let q1 = this.endpointPosition(s1);
 
     if (q0 === null || q1 === null) {
       return null;
     }
 
-    let p0 = vec2.fromValues(q0['x'], q0['y']);
-    let p1 = vec2.fromValues(q1['x'], q1['y']);
+    let p0 = vec2.fromValues(q0[0], q0[1]);
+    let p1 = vec2.fromValues(q1[0], q1[1]);
 
     return { p0, p1 };
   }
@@ -103,7 +108,7 @@ export class GraphLayoutTable {
     let last_point: vec2 | null = null;
 
     for (const handle of path) {
-      const pos = this.table.get(handle);
+      const pos = this.endpointPosition(handle);
 
       const i = step_count * 2;
 
@@ -113,8 +118,8 @@ export class GraphLayoutTable {
 
       if (dist > tolerance) {
         last_point = p;
-        points[i] = pos['x'];
-        points[i + 1] = pos['y'];
+        points[i] = pos[0];
+        points[i + 1] = pos[1];
         added += 1;
       }
 
@@ -130,35 +135,44 @@ export class GraphLayoutTable {
   }
 
   iterateSegments(): Iterable<{ segment: number, p0: vec2, p1: vec2 }> {
-    return new SegmentPositionIterator(this.table);
+    return new SegmentPositionIterator(this.x, this.y);
   }
 }
 
 
 class SegmentPositionIterator implements Iterable<{ segment: number, p0: vec2, p1: vec2 }> {
-  table: Table;
+  // table: Table;
+  x: Vector;
+  y: Vector;
 
-  constructor(table: Table) {
-    this.table = table;
+  // constructor(table: Table) {
+    // this.table = table;
+  constructor(x: Vector, y: Vector) {
+    this.x = x;
+    this.y = y;
   }
 
   [Symbol.iterator](): Iterator<{ segment: number, p0: vec2; p1: vec2; }, any, undefined> {
 
-    const iter = this.table[Symbol.iterator]();
+    const x_iter = this.x[Symbol.iterator]();
+    const y_iter = this.y[Symbol.iterator]();
+    // const iter = this.table[Symbol.iterator]();
 
     let nextSegment = 0;
 
     return {
       next: () => {
-        let row0 = iter.next();
-        let row1 = iter.next();
+        let x0 = x_iter.next();
+        let y0 = y_iter.next();
+        let x1 = x_iter.next();
+        let y1 = y_iter.next();
 
-        if (row0.done || row1.done) {
+        if (x0.done || y0.done || y1.done || x1.done) {
           return { value: null, done: true };
         }
 
-        let p0 = vec2.fromValues(row0.value['x'], row0.value['y']);
-        let p1 = vec2.fromValues(row1.value['x'], row1.value['y']);
+        let p0 = vec2.fromValues(x0.value, y0.value);
+        let p1 = vec2.fromValues(x1.value, y1.value);
         let segment = nextSegment;
         nextSegment += 1;
 

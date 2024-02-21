@@ -650,13 +650,11 @@ impl ArrowGFAWrapped {
         paths
     }
 
-    pub fn path_steps(
+    pub fn path_steps_id(
         &self,
-        path_name: &str,
+        path_id: u32,
     ) -> Result<js_sys::Uint32Array, JsValue> {
-        let path_index = self.path_id(path_name)?;
-
-        let steps = &self.0.path_steps(path_index);
+        let steps = &self.0.path_steps(path_id);
         let slice = steps.values().as_slice();
 
         let ptr = slice.as_ptr();
@@ -667,6 +665,14 @@ impl ArrowGFAWrapped {
             ptr as u32,
             slice.len() as u32,
         ))
+    }
+
+    pub fn path_steps(
+        &self,
+        path_name: &str,
+    ) -> Result<js_sys::Uint32Array, JsValue> {
+        let path_id = self.path_id(path_name)?;
+        self.path_steps_id(path_id)
     }
 
     pub fn segment_sequences_array(&self) -> js_sys::Uint8Array {

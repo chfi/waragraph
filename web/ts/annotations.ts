@@ -158,7 +158,7 @@ export class AnnotationPainter {
 
     const annotation_ranges = this.record_states.map((state) => state.record.path_interval);
 
-    const prepared = this.prepareAnnotationRecords(annotation_ranges);
+    const prepared = await this.prepareAnnotationRecords(annotation_ranges);
 
     if (prepared === undefined) {
       console.error("Error preparing annotations");
