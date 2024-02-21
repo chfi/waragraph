@@ -511,6 +511,21 @@ export async function initializeWaragraphClient(base_url: URL) {
       return;
     }
 
+    const json = await prepared_req.json();
+
+    const results: AnnotationGeometry[] = json.map((annot) => {
+      return {
+        start_world_p: vec2.fromValues(annot.start_world_x, annot.start_world_y),
+        end_world_p: vec2.fromValues(annot.end_world_x, annot.end_world_y),
+
+        start_bp_1d: annot.start_bp,
+        end_bp_1d: annot.end_bp,
+
+        path_steps: Uint32Array.from(annot.path_steps),
+        blocks_1d_bp: Uint32Array.from(annot.blocks_1d_bp),
+      }
+    });
+
     return prepared_req.json();
   };
 

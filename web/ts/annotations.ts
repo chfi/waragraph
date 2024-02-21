@@ -199,14 +199,17 @@ export class AnnotationPainter {
 
       state.global_ranges = global_ranges;
 
-      state.step_endpoints = { first: annot.first_step, last: annot.last_step };
-      state.start_bp = annot.start_bp;
-      state.end_bp = annot.end_bp;
+      const first_step = annot.path_steps[0];
+      const last_step = annot.path_steps[annot.path_steps.length - 1];
 
-      state.path_steps = Uint32Array.from(annot.path_steps);
+      state.step_endpoints = { first: first_step, last: last_step };
+      state.start_bp = annot.start_bp_1d;
+      state.end_bp = annot.end_bp_1d;
 
-      state.start_world_2d = vec2.fromValues(annot.start_world_x, annot.start_world_y);
-      state.end_world_2d = vec2.fromValues(annot.end_world_x, annot.end_world_y);
+      state.path_steps = annot.path_steps;
+
+      state.start_world_2d = annot.start_world_p;
+      state.end_world_2d = annot.end_world_p;
 
     });
   }

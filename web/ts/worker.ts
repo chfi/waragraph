@@ -10,6 +10,7 @@ import { PathMetadata } from './graph_api';
 import { CoordSysArrow, coordSysFromBuffers } from './coordinate_system';
 import { AnnotationGeometry } from './annotations';
 import { Table, makeTable } from 'apache-arrow';
+import { GraphLayoutTable } from './graph_layout';
 handler.setTransferHandlers(rxjs, Comlink);
 
 let wasm;
@@ -19,9 +20,12 @@ export class WaragraphWorkerCtx {
   graph: wasm_bindgen.ArrowGFAWrapped | undefined;
   path_index: wasm_bindgen.PathIndexWrapped | undefined;
 
+  graph_layout_table: GraphLayoutTable;
 
   global_coord_sys_wasm: wasm_bindgen.CoordSys;
   global_coord_sys: CoordSysArrow;
+
+  path_coord_sys_wasm: Map<string, wasm_bindgen.CoordSys>;
   path_coord_sys_cache: Map<string, CoordSysArrow>;
 
   constructor(wasm_module, wasm_memory) {
@@ -96,6 +100,27 @@ export class WaragraphWorkerCtx {
     }
   }
 
+  getPathCoordinateSystemPtr(path: string | number): wasm_bindgen.CoordSys | undefined {
+    let path_name: string;
+
+    if (typeof path === "number") {
+      path_name = this.graph!.path_name(path);
+    } else {
+      path_name = path;
+    }
+
+    let csys = this.path_coord_sys_wasm.get(path_name);
+
+    if (csys === undefined) {
+      const path_id = this.graph?.path_id(path_name);
+      csys = 
+        wasm_bindgen.CoordSys.path_from_arrow_gfa(this.graph, path_id);
+      this.path_coord_sys_wasm.set(path_name, csys);
+    };
+
+    return csys;
+  }
+
   getPathCoordinateSystem(path: string | number): CoordSysArrow | undefined {
     let path_name: string;
 
@@ -105,23 +130,23 @@ export class WaragraphWorkerCtx {
       path_name = path;
     }
 
-    let csys = this.path_coord_sys_cache.get(path_name);
+    let path_cs = this.path_coord_sys_cache.get(path_name);
 
-    if (csys !== undefined) {
-      return csys;
-    }
+    if (path_cs === undefined) {
+      const cs_wasm = this.getPathCoordinateSystemPtr(path)
 
-    const path_id = this.graph?.path_id(path_name);
-
-    if (this.graph && path_id) {
+      if (cs_wasm === undefined) {
+        console.error(`Could not create coordinate system for path ${path_name}`);
+        return;
+      }
 
       const [node_order, step_offsets] =
-        wasm_bindgen.CoordSys.path_from_arrow_gfa(this.graph, path_id).to_shared_arrays();
+        cs_wasm.as_shared_arrays();
       const path_cs = coordSysFromBuffers(node_order, step_offsets);
-
       this.path_coord_sys_cache.set(path_name, path_cs);
-      return path_cs;
     }
+
+    return path_cs;
   }
 
   createPathViewer(
@@ -231,23 +256,56 @@ export class WaragraphWorkerCtx {
 
 
   ////
+  setGraphLayoutTable(layout: GraphLayoutTable) {
+    this.graph_layout_table = layout;
+  }
 
   prepareAnnotationRecords(intervals: Iterable<PathInterval>): Array<AnnotationGeometry> {
+    if (this.graph_layout_table === undefined) {
+      throw new Error("GraphLayout not set on worker");
+    }
 
     // get global coordinate system
+    const global_cs = this.getGlobalCoordinateSystemPtr();
 
     const out: AnnotationGeometry[] = [];
 
     for (const annot of intervals) {
       // get path coordinate system
+      const path_cs = this.getPathCoordinateSystemPtr(annot.path_id);
 
       // get subpath range
+      const step_range = path_cs.bp_to_step_range(BigInt(annot.start), BigInt(annot.end));
 
       // get subpath steps
+      const path_steps = this.graph!.path_steps_id(annot.path_id);
+      const subpath = path_steps.subarray(step_range.start, step_range.end);
+
+      const first_step = path_steps[0];
+      const last_step = path_steps[path_steps.length - 1];
 
       // get world position (!) for 2D
+      const pos0 = this.graph_layout_table.endpointPosition(first_step);
+      const pos1 = this.graph_layout_table.endpointPosition(last_step);
+
+      const first_range = global_cs!.segment_range(first_step);
+      const last_range = global_cs!.segment_range(last_step);
+
+      const blocks_1d_bp = wasm_bindgen.path_slice_to_global_adj_partitions(subpath).ranges_as_u32_array();
 
       // map to global blocks for 1D
+      const geom = {
+        start_world_p: pos0,
+        end_world_p: pos1,
+
+        path_steps: subpath,
+
+        start_bp_1d: first_range.start,
+        end_bp_1d: last_range.end,
+        blocks_1d_bp,
+      } as AnnotationGeometry;
+
+      out.push(geom);
     }
 
     return out;

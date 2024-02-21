@@ -19,7 +19,7 @@ import { addViewRangeInputListeners, appendPathListElements, appendSvgViewport, 
 import { OverviewMap } from './overview';
 
 import * as chroma from 'chroma-js';
-import { PathId } from './types';
+import { PathId, PathInterval } from './types';
 import Split from 'split-grid';
 import { initializeBedSidebarPanel } from './sidebar-bed';
 import { vec2 } from 'gl-matrix';
@@ -28,6 +28,7 @@ import { export2DViewportSvg } from './svg_export';
 import { WaragraphWorkerCtx } from './worker';
 import { applyColorScaleToBuffer, spectralScale } from './color';
 import { Waragraph } from './waragraph_client';
+import { AnnotationGeometry } from './annotations';
 
 
 
@@ -223,7 +224,13 @@ export async function initializeWaragraphStandalone(
   appendSvgViewport();
   console.log("initializing sidebar");
 
-  await initializeBedSidebarPanel(waragraph);
+  await waragraph_worker.setGraphLayoutTable(graph_layout_table);
+
+  const prepareAnnotationRecords = async (intervals: PathInterval[]): Promise<AnnotationGeometry[] | undefined> => {
+    return waragraph_worker.prepareAnnotationRecords(intervals);
+  };
+
+  await initializeBedSidebarPanel(waragraph, prepareAnnotationRecords);
 
   console.log("done?");
 
