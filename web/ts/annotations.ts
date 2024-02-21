@@ -70,17 +70,26 @@ let _wasm;
 export class AnnotationPainter {
   callback_key: string;
   waragraph: Waragraph;
+  
+  arrowGFA: ArrowGFA;
+  prepareAnnotationRecords: (intervals: PathInterval[]) => Promise<AnnotationGeometry[] | undefined>;
 
   svg_root: SVGSVGElement;
   record_states: AnnotationRecord[];
 
   last_2d_view: { x: number, y: number, width: number, height: number } | null;
 
-  constructor(waragraph: Waragraph, name: string, records: Iterable<BEDRecord>) {
+  constructor(
+    waragraph: Waragraph,
+    prepareAnnotationRecords: (intervals: PathInterval[]) => Promise<AnnotationGeometry[] | undefined>,
+    name: string,
+    records: Iterable<BEDRecord>
+  ) {
     this.callback_key = "painter-" + name;
 
     this.waragraph = waragraph;
-    // this.arrowGFA = waragraph.graph;
+    this.arrowGFA = waragraph.graph;
+    this.prepareAnnotationRecords = prepareAnnotationRecords;
 
     this.svg_root = createSVGElement('g');
     this.svg_root.id = this.callback_key;
@@ -147,36 +156,13 @@ export class AnnotationPainter {
 
     const viewport = this.waragraph.global_viewport;
 
-    const annotation_ranges = this.record_states.map((state) => {
-      const { path_id, start, end } = state.record.path_interval;
-      const start_bp = Number(start);
-      const end_bp = Number(end);
-      return { path_id, start_bp, end_bp };
-    });
+    const annotation_ranges = this.record_states.map((state) => state.record.path_interval);
 
-    let prepared;
+    const prepared = this.prepareAnnotationRecords(annotation_ranges);
 
-    if (this.waragraph.api_base_url instanceof URL) {
-      const req =
-        new Request(
-          new URL(`/coordinate_system/prepare_annotation_records`, this.waragraph.api_base_url),
-          { method: 'POST', body: JSON.stringify(annotation_ranges) }
-        );
-
-      const prepared_req = await fetch(req);
-      prepared = await prepared_req.json();
-
-      if (!prepared_req.ok) {
-        console.error("Error preparing annotations");
-        return;
-      }
-    } else {
-      // TODO use alternative interface (worker)
-      console.error("WIP annotations in standalone");
-
-      prepared = [];
+    if (prepared === undefined) {
+      console.error("Error preparing annotations");
     }
-
 
     console.log(prepared);
 

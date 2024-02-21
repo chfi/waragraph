@@ -1,7 +1,7 @@
 import init_module, * as wasm_bindgen from 'waragraph';
 
 import { preparePathHighlightOverlay } from './graph_viewer';
-import { AnnotationPainter } from './annotations';
+import { AnnotationGeometry, AnnotationPainter } from './annotations';
 import * as CanvasTracks from './canvas_tracks';
 import { wrapWasmPtr } from './wrap';
 
@@ -15,6 +15,7 @@ import { computePosition } from '@floating-ui/dom';
 
 import '../sidebar-bed.css';
 import { PathInterval, PathNameInterval } from './types';
+import { ArrowGFA } from './graph_api';
 
 let pathNamesMap = new Map();
 
@@ -121,9 +122,11 @@ class BEDFile {
     //   svg_shared: svg element
   }
 
-  async appendRecords(waragraph: Waragraph, record_lines) {
-
-    const graph = waragraph.graph;
+  async appendRecords(
+    graph: ArrowGFA,
+    prepareAnnotationRecords: (intervals: PathInterval[]) => Promise<AnnotationGeometry[] | undefined>,
+    record_lines
+  ) {
 
     for (const bed_record of record_lines) {
       if (Number.isNaN(bed_record.chromStart)
@@ -166,15 +169,18 @@ class BEDFile {
     }
   }
 
-  async initializeAnnotationPainter(waragraph: Waragraph) {
+  async initializeAnnotationPainter(
+    waragraph: Waragraph,
+    prepareAnnotationRecords: (intervals: PathInterval[]) => Promise<AnnotationGeometry[] | undefined>,
+  ) {
     this.annotation_painter =
-      new AnnotationPainter(waragraph, this.file_name, this.records);
+      new AnnotationPainter(waragraph, prepareAnnotationRecords, this.file_name, this.records);
 
     await this.annotation_painter.prepareRecords();
 
     let prev_view = waragraph.graph_viewer?.getView();
 
-    document.getElementById('viz-svg-overlay')
+    document.getElementById('viz-svg-overlay')!
       .append(this.annotation_painter.svg_root);
 
     // TODO: there are other cases when this should run, especially once
@@ -194,12 +200,12 @@ class BEDFile {
         //     this.annotation_painter.resample2DPaths(view_2d);
         // }
 
-        if (prev_view.x != x || prev_view.y !== y || update_pos) {
+        if (prev_view?.x != x || prev_view?.y !== y || update_pos) {
           // update SVG path offsets;
           // should also happen on resample
 
-          await this.annotation_painter.resample2DPaths();
-          await this.annotation_painter.updateSVGPaths();
+          await this.annotation_painter!.resample2DPaths();
+          await this.annotation_painter!.updateSVGPaths();
           prev_view = view_2d;
         }
 
@@ -212,14 +218,14 @@ class BEDFile {
         rxjs.throttleTime(50),
       )
       .subscribe((view_1d) => {
-        this.annotation_painter.updateSVG1D(view_1d);
+        this.annotation_painter!.updateSVG1D(view_1d);
       });
 
 
   }
 
   recordAnnotationVizState(record_index: number) {
-    return this.annotation_painter.record_states[record_index];
+    return this.annotation_painter!.record_states[record_index];
   }
 
   createListElement(): HTMLDivElement {
@@ -247,7 +253,7 @@ class BEDFile {
       // add checkboxes/buttons for toggling... or just selection?
       // still want something to signal visibility in 1d & 2d, e.g. "eye icons"
 
-      const viz_states = this.annotation_painter.record_states;
+      const viz_states = this.annotation_painter!.record_states;
 
       label_div.addEventListener('click', async (ev) => {
         let state = viz_states[record.record_index];
@@ -276,8 +282,8 @@ class BEDFile {
             child.setAttribute('display', 'inline');
           }
 
-          await this.annotation_painter.resample2DPaths();
-          await this.annotation_painter.updateSVGPaths();
+          await this.annotation_painter!.resample2DPaths();
+          await this.annotation_painter!.updateSVGPaths();
 
           state.enabled = true;
         }
@@ -317,16 +323,20 @@ class BEDFile {
 
 }
 
-async function loadBedFile(waragraph: Waragraph, file: File) {
+async function loadBedFile(
+  waragraph: Waragraph,
+  prepareAnnotationRecords: (intervals: PathInterval[]) => Promise<AnnotationGeometry[] | undefined>,
+  file: File
+) {
   const bed_file = new BEDFile(file.name);
   const bed_text = await file.text();
 
   const parser = new BED();
   const bed_lines = bed_text.split('\n').map(line => parser.parseLine(line));
 
-  await bed_file.appendRecords(waragraph, bed_lines);
+  await bed_file.appendRecords(waragraph.graph, prepareAnnotationRecords, bed_lines);
 
-  bed_file.initializeAnnotationPainter(waragraph);
+  bed_file.initializeAnnotationPainter(waragraph, prepareAnnotationRecords);
 
   const bed_list = document.getElementById('bed-file-list');
 
@@ -336,7 +346,10 @@ async function loadBedFile(waragraph: Waragraph, file: File) {
 }
 
 
-async function bedSidebarPanel(waragraph) {
+async function bedSidebarPanel(
+  waragraph: Waragraph,
+  prepareAnnotationRecords: (intervals: PathInterval[]) => Promise<AnnotationGeometry[] | undefined>,
+) {
   const bed_pane = document.createElement('div');
   bed_pane.classList.add('bed-panel');
 
@@ -360,7 +373,7 @@ async function bedSidebarPanel(waragraph) {
 
   file_button.addEventListener('click', (ev) => {
     for (const file of file_entry.files) {
-      loadBedFile(waragraph, file);
+      loadBedFile(waragraph, prepareAnnotationRecords, file);
     }
   });
 
@@ -423,7 +436,7 @@ async function bedSidebarPanel(waragraph) {
   document.addEventListener('click', (ev) => {
     let tgt = ev.target as HTMLElement;
     let id = "sidebar-bed-context-menu";
-    let ctx_menu_el = document.getElementById(id);
+    let ctx_menu_el = document.getElementById(id)!;
     let ctx_open = ctx_menu_el.style.display === 'flex';
     if (!tgt.closest('#' + id) && ctx_open) {
       ctx_menu_el.style.setProperty('display', 'none');
@@ -434,10 +447,12 @@ async function bedSidebarPanel(waragraph) {
   return bed_pane;
 }
 
-
-
 // export async function initializeBedSidebarPanel(waragraph: Waragraph) {
-export async function initializeBedSidebarPanel(waragraph: Waragraph) {
+export async function initializeBedSidebarPanel(
+  waragraph: Waragraph,
+  // prepareAnnotationRecords: (ranges: {path_id: number, start_bp: number, end_bp: number}) =>
+  prepareAnnotationRecords: (intervals: PathInterval[]) => Promise<AnnotationGeometry[] | undefined>,
+) {
   // waragraph_viz = warapi;
 
   // if (!wasm) {
@@ -452,5 +467,5 @@ export async function initializeBedSidebarPanel(waragraph: Waragraph) {
 
   document
     .getElementById('sidebar')!
-    .append(await bedSidebarPanel(waragraph));
+    .append(await bedSidebarPanel(waragraph, prepareAnnotationRecords));
 }

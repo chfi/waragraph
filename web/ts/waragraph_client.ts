@@ -15,12 +15,13 @@ import { addViewRangeInputListeners, appendPathListElements, appendSvgViewport, 
 import { OverviewMap } from './overview';
 
 import * as chroma from 'chroma-js';
-import { PathId } from './types';
+import { PathId, PathInterval } from './types';
 import Split from 'split-grid';
 import { initializeBedSidebarPanel } from './sidebar-bed';
 import { vec2 } from 'gl-matrix';
 import { GraphLayoutTable } from './graph_layout';
 import { export2DViewportSvg } from './svg_export';
+import { type AnnotationGeometry } from './annotations';
 
 export class Waragraph {
   graph_viewer: GraphViewer | undefined;
@@ -480,7 +481,31 @@ export async function initializeWaragraphClient(base_url: URL) {
   appendSvgViewport();
   console.log("initializing sidebar");
 
-  await initializeBedSidebarPanel(waragraph);
+  const prepareAnnotationRecords = async (intervals: PathInterval[]): Promise<AnnotationGeometry[] | undefined> => {
+    const annotation_ranges = intervals.map(({path_id, start, end}) => {
+      return { path_id, start_bp: Number(start), end_bp: Number(end) };
+    });
+
+    const req =
+      new Request(
+        new URL(`/coordinate_system/prepare_annotation_records`, this.waragraph.api_base_url),
+        { method: 'POST', body: JSON.stringify(annotation_ranges) }
+      );
+
+    const prepared_req = await fetch(req);
+
+    if (!prepared_req.ok) {
+      console.error("Error preparing annotations");
+      return;
+    }
+
+    return prepared_req.json();
+  };
+
+  await initializeBedSidebarPanel(
+    waragraph,
+    prepareAnnotationRecords,
+  );
 
   console.log("done?");
 
