@@ -68,8 +68,6 @@ export async function initializeWaragraphStandalone(
   const global_viewport = new Viewport1D(global_cs as CoordSysInterface);
 
   // then it should be pretty much the same as the rest of the init function in waragraph_client.ts
-
-  const graph_depth = await waragraph_worker.getComputedGraphDataset('depth');
   
   // use color map from waragraph_client
 
@@ -222,7 +220,6 @@ export async function initializeWaragraphStandalone(
   });
 
   appendSvgViewport();
-  console.log("initializing sidebar");
 
   await waragraph_worker.setGraphLayoutTable(graph_layout_table);
 
@@ -230,9 +227,10 @@ export async function initializeWaragraphStandalone(
     return waragraph_worker.prepareAnnotationRecords(intervals);
   };
 
+  console.log("initializing sidebar");
   await initializeBedSidebarPanel(waragraph, prepareAnnotationRecords);
 
-  console.log("done?");
+  console.log("done");
 
   window.waragraph = waragraph;
 

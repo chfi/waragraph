@@ -65,8 +65,7 @@ export function setTransferHandlers(rxjs, Comlink) {
     serialize: (csys: CoordSysArrow) => {
       const node_order = csys.node_order.data.map((data) => data.values);
       const step_offsets = csys.step_offsets.data.map((data) => data.values);
-
-      return [{ step_offsets, node_order }, ];
+      return [{ step_offsets, node_order }, []];
     },
     deserialize: (value) => {
       return new CoordSysArrow(value.node_order, value.step_offsets);
@@ -79,12 +78,11 @@ export function setTransferHandlers(rxjs, Comlink) {
     },
     serialize: (layout: GraphLayoutTable) => {
       const { aabb_min, aabb_max } = layout;
-
       const x = layout.x.data.map((data) => data.values);
       const y = layout.y.data.map((data) => data.values);
-
-      return [{ x, y, aabb_min, aabb_max }, ];
+      return [{ x, y, aabb_min, aabb_max }, []];
     },
+    // deserialize: ({ x, y, aabb_min, aabb_max }) => {
     deserialize: ({ x, y, aabb_min, aabb_max }) => {
       return new GraphLayoutTable(x, y, aabb_min, aabb_max);
     }

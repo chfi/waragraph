@@ -36,6 +36,7 @@ export class WaragraphWorkerCtx {
       console.warn("initialized wasm on worker");
     }
 
+    this.path_coord_sys_wasm = new Map();
     this.path_coord_sys_cache = new Map();
 
   }
@@ -256,6 +257,7 @@ export class WaragraphWorkerCtx {
 
 
   ////
+
   setGraphLayoutTable(layout: GraphLayoutTable) {
     this.graph_layout_table = layout;
   }
