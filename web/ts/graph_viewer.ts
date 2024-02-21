@@ -9,7 +9,7 @@ import { wrapWasmPtr } from './wrap';
 
 import { type PathInterval, type Bp } from './types';
 
-import { Table } from 'apache-arrow';
+import { Float32, Table, Vector } from 'apache-arrow';
 import { Waragraph } from './waragraph';
 import { GraphLayoutTable, blobLineIterator } from './graph_layout';
 
@@ -585,9 +585,11 @@ export async function graphViewerFromData(
     // Blobs are taken to be TSV as text; could be improved
     graph_bounds = await fillPositionBuffersFromTSV(_raving_ctx, position_buffers, layout_data);
   } else if (layout_data instanceof Table) {
-    graph_bounds = await fillPositionBuffersFromArrow(_raving_ctx, position_buffers, layout_data);
+    const x = layout_data.getChild('x');
+    const y = layout_data.getChild('y');
+    graph_bounds = await fillPositionBuffersFromArrowVectors(_raving_ctx, position_buffers, x, y);
   } else if (layout_data instanceof GraphLayoutTable) {
-    await fillPositionBuffersFromArrow(_raving_ctx, position_buffers, layout_data.table);
+    await fillPositionBuffersFromArrowVectors(_raving_ctx, position_buffers, layout_data.x, layout_data.y);
     const [min_x, min_y] = layout_data.aabb_min;
     const [max_x, max_y] = layout_data.aabb_max;
     graph_bounds = { min_x, min_y, max_x, max_y };
@@ -827,92 +829,40 @@ async function fillPositionBuffersFromTSV(
 }
 
 
-// TODO: sample_steps should probably... be path name + range;
-// until i decide how i want to send entire segment/step lists to the server
-// time to add a path interval type?
-export interface SegmentPositions {
-  // sample_steps: (steps: Uint32Array, tolerance: number) => Promise<Float32Array>;
-  // sample_steps: (steps: Uint32Array, tolerance: number) => Promise<Float32Array>;
-  sample_path: (interval: PathInterval, tolerance: number) => Promise<Float32Array>;
-  segment_position: (segment: number) => Promise<{ p0: vec2, p1: vec2 } | null>;
-}
-
-
-/*
-function wrap_segment_pos_api(
-  waragraph: Waragraph,
-  seg_pos: wasm_bindgen.SegmentPositions
-  // graph: wasm_bindgen.ArrowGFAWrapped,
-): SegmentPositions {
-  return {
-    // sample_steps: async (path: Uint32Array, tolerance: number) => {
-    //   return seg_pos.sample_path_world_space(steps, tolerance);
-    // },
-    sample_path: async (interval: PathInterval, tolerance: number) => {
-      let path_id = interval.path_id;
-      let path_name = waragraph.graph.path_name(path_id);
-
-      const path_cs = await waragraph.getCoordinateSystem("path:" + path_name);
-
-      const path_steps = waragraph.graph.path_steps(path_name);
-      const step_range = path_cs!.bp_to_step_range(BigInt(interval.start), BigInt(interval.end));
-      const path_slice = path_steps.slice(step_range.start, step_range.end);
-
-      return seg_pos.sample_path_world_space(path_slice, tolerance);
-      // return new Float32Array(0);
-    },
-    segment_position: async (segment: number) => {
-      return seg_pos.segment_pos(segment);
-    },
-  };
-}
- */
-
-/*
-function server_segment_pos_api(
-  baseURI: URL,
-): SegmentPositions {
-  return {
-    sample_steps: async (steps: Uint32Array, tolerance: number) => {
-      return new Float32Array(0);
-      // return seg_pos.sample_path_world_space(steps, tolerance);
-    },
-    segment_position: async (segment: number) => {
-      let uri = `graph_layout/sample_path/
-      // let resp = await fetch(new URL(
-
-      // return seg_pos.segment_pos(segment);
-    },
-  }
-}
-*/
-
-
-async function fillPositionBuffersFromArrow(
+async function fillPositionBuffersFromArrowVectors(
   raving_ctx: wasm_bindgen.RavingCtx,
   buffers: wasm_bindgen.PagedBuffers,
-  positions: Table,
+  x: Vector<Float32>,
+  y: Vector<Float32>,
+  // positions: Table,
 ): Promise<{ min_x: number; max_x: number; min_y: number; max_y: number; }> {
 
   let page_byte_size = buffers.page_size();
   let page_buffer = new ArrayBuffer(Number(page_byte_size));
   let page_view = new DataView(page_buffer);
 
-  const pos_iter = positions[Symbol.iterator]();
+  const x_iter = x[Symbol.iterator]();
+  const y_iter = y[Symbol.iterator]();
 
   const get_next = () => {
-    let result = pos_iter.next();
+    let res_x = x_iter.next();
+    let res_y = y_iter.next();
 
-    if (result.done) {
+    if (res_x.done || res_y.done) {
       return null;
     }
 
-    let x = result.value['x'];
-    let y = result.value['y'];
+    let x = res_x.value;
+    let y = res_y.value;
 
     return { x, y };
   };
-    
+
+
+  let min_x = Infinity;
+  let min_y = Infinity;
+  let max_x = -Infinity;
+  let max_y = -Infinity;
 
   let seg_i = 0;
   let offset = 0;
@@ -924,6 +874,12 @@ async function fillPositionBuffersFromArrow(
     if (p0 == null || p1 == null) {
       break;
     }
+
+    min_x = Math.min(min_x, p0.x, p1.x);
+    min_y = Math.min(min_y, p0.y, p1.y);
+
+    max_x = Math.max(max_x, p0.x, p1.x);
+    max_y = Math.max(max_y, p0.y, p1.y);
 
     page_view.setFloat32(offset, p0!.x, true);
     page_view.setFloat32(offset + 4, p0!.y, true);
@@ -945,16 +901,6 @@ async function fillPositionBuffersFromArrow(
       console.warn(`closing with appending page, offset ${offset}`);
       buffers.append_page(raving_ctx, new Uint8Array(page_buffer, 0, offset));
   }
-
-  const parse_metadata = (key: string) => {
-    let metadata = positions.schema.metadata;
-    return parseFloat(metadata.get(key)!);
-  };
-
-  let min_x = parse_metadata('aabb_min_x');
-  let min_y = parse_metadata('aabb_min_y');
-  let max_x = parse_metadata('aabb_max_x');
-  let max_y = parse_metadata('aabb_max_y');
 
   return { min_x, max_x, min_y, max_y };
 }
