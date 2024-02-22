@@ -522,11 +522,11 @@ export async function initializeWaragraphClient(base_url: URL) {
         end_bp_1d: annot.end_bp,
 
         path_steps: Uint32Array.from(annot.path_steps),
-        blocks_1d_bp: Uint32Array.from(annot.blocks_1d_bp),
+        blocks_1d_bp: annot.blocks_1d_bp,
       }
     });
 
-    return prepared_req.json();
+    return results;
   };
 
   await initializeBedSidebarPanel(

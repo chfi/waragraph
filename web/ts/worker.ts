@@ -283,17 +283,28 @@ export class WaragraphWorkerCtx {
       const path_steps = this.graph!.path_steps_id(annot.path_id);
       const subpath = path_steps.subarray(step_range.start, step_range.end);
 
-      const first_step = path_steps[0];
-      const last_step = path_steps[path_steps.length - 1];
+      const first_step = subpath[0];
+      const last_step = subpath[subpath.length - 1];
 
       // get world position (!) for 2D
       const pos0 = this.graph_layout_table.endpointPosition(first_step);
       const pos1 = this.graph_layout_table.endpointPosition(last_step);
 
-      const first_range = global_cs!.segment_range(first_step);
-      const last_range = global_cs!.segment_range(last_step);
+      const first_range = global_cs!.segment_range(first_step >> 1);
+      const last_range = global_cs!.segment_range(last_step >> 1);
 
-      const blocks_1d_bp = wasm_bindgen.path_slice_to_global_adj_partitions(subpath).ranges_as_u32_array();
+      const blocks_1d_bp_arr = wasm_bindgen.path_slice_to_global_adj_partitions(subpath).ranges_as_u32_array();
+
+      const blocks_1d_bp: Array<number[]> = [];
+
+      blocks_1d_bp_arr.reduce<number[]>((acc, val) => {
+        if (acc.length === 0) {
+          return [val];
+        } else {
+          blocks_1d_bp.push([acc[0], val]);
+          return [];
+        }
+      }, []);
 
       // map to global blocks for 1D
       const geom = {
@@ -302,8 +313,8 @@ export class WaragraphWorkerCtx {
 
         path_steps: subpath,
 
-        start_bp_1d: first_range.start,
-        end_bp_1d: last_range.end,
+        start_bp_1d: Number(first_range.start),
+        end_bp_1d: Number(last_range.end),
         blocks_1d_bp,
       } as AnnotationGeometry;
 
