@@ -371,7 +371,7 @@ async fn main() -> anyhow::Result<()> {
 
     let graph_path = &args[1];
 
-    let agfa = if graph_path.to_ascii_lowercase().ends_with("gfa") {
+    let agfa = if graph_path.to_ascii_lowercase() == "gfa" {
         log::info!("Parsing GFA {graph_path}");
 
         let gfa =

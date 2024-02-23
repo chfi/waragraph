@@ -359,13 +359,20 @@ impl ArrowGFA {
         })
     }
 
-    pub fn write_archive(
+    pub fn write_archive_file(
         &self,
         path: impl AsRef<std::path::Path>,
     ) -> std::io::Result<()> {
-        // create file
         let file = File::create(path)?;
-        let mut archive_builder = tar::Builder::new(file);
+        self.write_archive(file)
+    }
+
+    pub fn write_archive<W: std::io::Write>(
+        &self,
+        out: W,
+    ) -> std::io::Result<()> {
+        // create file
+        let mut archive_builder = tar::Builder::new(out);
 
         // buffer to hold the serialized representation;
         // can probably be avoided

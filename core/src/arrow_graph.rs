@@ -39,10 +39,8 @@ pub struct ArrowGFA {
     pub link_to: UInt32Array,
 
     pub path_names: Utf8Array<i32>,
-    // TODO: path_steps should be a ListArray
     path_steps: Vec<UInt32Array>,
-    // TODO: finish this!!
-    // path_step_list: ListArray<i32>,
+    // segment_optional_fields:
 }
 
 #[derive(Debug, Clone)]

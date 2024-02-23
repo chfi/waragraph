@@ -2,8 +2,8 @@
 members = [
     "core",
     "web",
-    "server",
-    # "app",
+    "server", 
+    "convert",
 ]
 
 resolver = "2"

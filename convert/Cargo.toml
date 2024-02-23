@@ -1,0 +1,26 @@
+[package]
+name = "waragraph-convert"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+anyhow.workspace = true
+
+waragraph-core.workspace = true
+
+log.workspace = true
+env_logger = "0.11"
+
+arrow2 = { workspace = true, features = [
+"io_json",
+"io_ipc",
+# "io_ipc_compression",
+"io_parquet",
+# "io_parquet_compression",
+"io_print",
+"compute",
+"arrow",
+] }
+clap = { version = "4.5.1", features = ["derive"] }
