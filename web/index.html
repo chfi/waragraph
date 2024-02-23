@@ -9,7 +9,6 @@
 
 <body>
 
-
   <div style="display: none" class="root-grid root-sidebar-open" id="root-container">
 
     <div class="sidebar row justify-content-center" id="sidebar-container">
@@ -38,101 +37,6 @@
     </div>
   </div>
 
-  <div id="web-canvas">
-    <div class="d-flex" id="home-canvas">
-      <div class="d-flex flex-column flex-shrink-0 p-2 text-white"
-        style="width: 260px; height: 100vh; background-color: #115740; box-shadow: 10px 4px 4px #222;">
-        <hr class="mb-0">
-        <img class="d-flex align-items-center mb-3 mb-md-0 me-md-auto" width="100%"
-          src="images/UTHSC-primary-stacked.png" alt="UTHSC logo">
-        <span
-          class="d-flex align-items-center mb-3 mb-md-0 me-md-auto text-white text-center text-decoration-none">Department
-          of Genetics, Genomics & Informatics</span>
-        <hr>
-        <ul class="nav nav-pills flex-column mb-auto">
-          <li class="nav-item pill">
-            <a class="nav-link active" href="#">Home</a>
-          </li>
-          <li class="nav-item pill">
-            <a class="nav-link text-white" href="https://github.com/chfi/waragraph/tree/web" target="_blank">GitHub</a>
-          </li>
-        </ul>
-
-        <hr class="mb-0">
-        <div>
-          <span>waragraph web beta</span>
-        </div>
-      </div>
-      <div class="d-flex flex-column" style="flex-grow: 1; height: 100vh;">
-        <div id="home-content-top" class="flex-column" style="flex-grow: 1; overflow-y: auto;">
-          <div class="h2 mt-5 mb-1 home-content-top-item">
-            <img src="icons/logo-2.png" style="margin: 2px;" alt="icon" height="60" width="60">
-            <span class="h1 mb-0" style="color: black; font-size: 60px;">Waragraph</span>
-          </div>
-          <div class="h6 text-center mb-4">
-            <span>- A sequence alignment visualization tool -</span>
-          </div>
-
-          <div class="container">
-            <div class="row justify-content-center">
-              <div class="row text-center">
-                <span class="my-2">Graph Creation Menu</span>
-              </div>
-              <hr>
-              <div class="row px-4">
-                <!-- <div class="col-md-6">
-                  <div class="row text-center mb-2">
-                    <span>Try some sample data:</span>
-                  </div>
-                  <div class="container justify-content-center data-container sample-data-container">
-                    <div class="row justify-content-center">
-                      <span>Data from experiment 1</span>
-                      <button id="sample-data-1" class="btn btn-dark load-button">Load data</button>
-                    </div>
-                    <div class="row justify-content-center">
-                      <span>Data from experiment 2</span>
-                      <button id="sample-data-2" class="btn btn-dark load-button">Load data</button>
-                    </div>
-                    <div class="row justify-content-center">
-                      <span>Data from experiment 3</span>
-                      <button id="sample-data-3" class="btn btn-dark load-button justify-content-center">Load
-                        data</button>
-                    </div>
-                  </div>
-                </div> -->
-                <div class="col-md-12">
-                  <div class="row text-center mb-2">
-                    <span>Load your data:</span>
-                  </div>
-                  <div class="container justify-content-center data-container custom-data-container">
-                    <div class="file-input flex-column">
-                      <span>Upload a custom GFA file</span>
-                      <input type="file" id="gfa-file" name="gfa" accept=".gfa">
-
-                    </div>
-                    <div class="file-input">
-                      <span>Upload a custom TSV file</span>
-                      <input type="file" id="layout-file" name="layout" accept=".tsv">
-                    </div>
-                    <div class="row justify-content-center">
-                      <button id="load-data" class="btn btn-dark load-button">Load data</button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-        </div>
-
-
-        <div style="height: 2px; background-color: #ff8200;">
-        </div>
-        <div style="height: 32px; background-color: #115740;">
-        </div>
-      </div>
-    </div>
-  </div>
 
 
   <div id="tooltip" role="tooltip"></div>
@@ -140,8 +44,7 @@
 
 
   <script type="module">
-    import { initializeWaragraph } from './ts/waragraph';
-
+    import { initializeWaragraphClient } from './ts/waragraph_client';
 
       document.getElementById('load-data').addEventListener('click', async (ev) => {
           let gfa_file = document.getElementById("gfa-file").files[0];
@@ -178,31 +81,18 @@
 
           viz_root.append(spinner_par);
 
-          initializeWaragraph({
-            gfa: gfa_file,
 
-            graph_viewer: {
-              graph_layout: tsv_file,
-              data: "depth",
-            },
+          initializeWaragraphClient(new URL('http://localhost:8000'))
+              .then((wg) => {
+                  spinner_par.remove();
+                  // trigger initial resize on window load
+                  window.dispatchEvent(new Event('resize'));
+              });
 
-            path_viewers: {
-                path_names: '*',
-                viewport: { name: 'global', coordinate_system: 'graph' },
-                data: 'depth',
-                threshold: 0.5,
-                // color_above: { r: 1.0, g: 0.0, b: 0.0 },
-                color_above: 'hash_path_name',
-                color_below: { r: 0.0, g: 0.0, b: 0.0, a: 0.0 },
-            }
-          }).then((wg) => {
-            spinner_par.remove();
-            // trigger initial resize on window load
-            window.dispatchEvent(new Event('resize'));
-          });
       });
 
-    </script>
-</body>
+  </script>
+
+ </body>
 
 </html>

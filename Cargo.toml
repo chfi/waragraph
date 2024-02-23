@@ -23,6 +23,7 @@ ultraviolet = { version = "0.9", features = ["bytemuck", "f64", "mint"]}
 
 anyhow = "1.0"
 
+# arrow = "0.50"
 arrow2 = "0.17.2"
 parking_lot = "0.12.1"
 

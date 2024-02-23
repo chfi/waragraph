@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+  <head>
+    <meta content="text/html;charset=utf-8" http-equiv="Content-Type"/>
+    <title>Waragraph Web</title>
+    <link rel="stylesheet" href="waragraph.css"/>
+  </head>
+  <body>
+
+
+    <div class="root-grid root-sidebar-open" id="root-container" style="display: none;">
+
+      <div class="sidebar" id="sidebar"></div>
+      <div class="gutter-column gutter-column-sidebar"></div>
+      <div class="viz-grid" id="viz-container">
+        <div id="graph-viewer-container"></div>
+        <div class="gutter-row gutter-row-1"></div>
+        <div id="path-viewer-container">
+          <div class="path-viewer-column" id="path-viewer-left-column"></div>
+          <div class="gutter-column gutter-column-1"></div>
+          <div class="path-viewer-column" id="path-viewer-right-column"></div>
+        </div>
+      </div>
+    </div>
+
+    <div id="file-inputs">
+
+      <label for="graph-file">Choose a graph file</label>
+      <input type="file" id="graph-file" name="graph" accept=".gfa"></input>
+
+      <label for="layout-file">Choose a TSV layout file</label>
+      <input type="file" id="layout-file" name="layout" accept=".tsv"></input>
+      <button id="load-data">Load</button>
+    </div>
+
+    <div id="tooltip" role="tooltip"></div>
+
+    <script type="module">
+      // import { initializeWaragraphClient } from './ts/waragraph_client';
+
+      import { initializeWaragraphStandalone } from './ts/waragraph_standalone';
+
+      // initializeWaragraphClient(new URL('http://localhost:8000'));
+
+      document.getElementById('load-data').addEventListener('click', (ev) => {
+
+          let gfa_file = document.getElementById("graph-file").files[0];
+          let tsv_file = document.getElementById("layout-file").files[0];
+          if (!gfa_file || !tsv_file) {
+              return;
+          }
+          
+          initializeWaragraphStandalone(gfa_file, tsv_file);
+
+          document.getElementById('file-inputs').remove();
+          document.getElementById('root-container')
+              .removeAttribute('style');
+
+      });
+
+    </script>
+  </body>
+</html>

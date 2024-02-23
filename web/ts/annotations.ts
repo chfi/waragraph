@@ -6,17 +6,34 @@ import init_module, * as wasm_bindgen from 'waragraph';
 
 // import { preparePathHighlightOverlay } from '../graph_viewer';
 
+import { mat3, vec2, vec3 } from 'gl-matrix';
+
 import { BEDRecord } from './sidebar-bed';
 
 // import { WaragraphViz } from './index';
-import { type Waragraph } from './waragraph';
+import { type Waragraph } from './waragraph_client';
 
 import * as CanvasTracks from './canvas_tracks';
 import { PathViewer } from './path_viewer_ui';
+import { ArrowGFA } from './graph_api';
+import { PathInterval } from './types';
+
 
 
 function createSVGElement(tag) {
   return document.createElementNS('http://www.w3.org/2000/svg', tag);
+}
+
+
+export interface AnnotationGeometry {
+  start_world_p: vec2,
+  end_world_p: vec2,
+
+  path_steps: Uint32Array;
+
+  start_bp_1d: number;
+  end_bp_1d: number;
+  blocks_1d_bp: Array<number>;
 }
 
 interface AnnotationRecord {
@@ -24,10 +41,28 @@ interface AnnotationRecord {
   record: BEDRecord;
   enabled: boolean;
 
-  global_ranges: Array<{ start: number, end: number }> | null;
-  cached_path: wasm_bindgen.CanvasPathTrace | null;
+  // handles
+  step_endpoints: { first: number, last: number } | undefined;
+  // in the viz/global coordinate system
+  start_bp: number | undefined;
+  end_bp: number | undefined;
+
+  path_steps: Uint32Array | undefined;
+  
+  start_world_2d: vec2 | undefined;
+  end_world_2d: vec2 | undefined;
+  
+  global_ranges: Array<{ start: number, end: number }> | undefined;
+  // cached_path: wasm_bindgen.CanvasPathTrace | null;
+  // cached_path: Float32Array | undefined;
+  cached_path: CachedPath | undefined;
 
   color?: string;
+}
+
+interface CachedPath {
+  path: Float32Array;
+  tolerance: number;
 }
 
 let _wasm;
@@ -35,27 +70,26 @@ let _wasm;
 export class AnnotationPainter {
   callback_key: string;
   waragraph: Waragraph;
+  
+  arrowGFA: ArrowGFA;
+  prepareAnnotationRecords: (intervals: PathInterval[]) => Promise<AnnotationGeometry[] | undefined>;
+
   svg_root: SVGSVGElement;
   record_states: AnnotationRecord[];
 
   last_2d_view: { x: number, y: number, width: number, height: number } | null;
 
-  constructor(waragraph: Waragraph, name: string, records: Iterable<BEDRecord>) {
+  constructor(
+    waragraph: Waragraph,
+    prepareAnnotationRecords: (intervals: PathInterval[]) => Promise<AnnotationGeometry[] | undefined>,
+    name: string,
+    records: Iterable<BEDRecord>
+  ) {
     this.callback_key = "painter-" + name;
 
-    if (!_wasm) {
-      init_module(undefined, waragraph.wasm.memory)
-        .then((module) => {
-          _wasm = module;
-          wasm_bindgen.set_panic_hook();
-        });
-    }
-
-    // this.record_svg_gs = [];
-    // this.svg_parent = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-    // this.record_canvas_paths = [];
-
     this.waragraph = waragraph;
+    this.arrowGFA = waragraph.graph;
+    this.prepareAnnotationRecords = prepareAnnotationRecords;
 
     this.svg_root = createSVGElement('g');
     this.svg_root.id = this.callback_key;
@@ -99,13 +133,19 @@ export class AnnotationPainter {
       g_el.append(g_link_end);
 
       this.record_states.push({
-        svg_g: g_el,
-        record,
+          svg_g: g_el,
+          record,
 
-        enabled: false,
+          enabled: false,
 
-        global_ranges: null,
-        cached_path: null,
+          global_ranges: undefined,
+          cached_path: undefined,
+
+          step_endpoints: undefined,
+          start_bp: undefined,
+          end_bp: undefined,
+          start_world_2d: undefined,
+          end_world_2d: undefined
       });
 
       this.svg_root.append(g_el);
@@ -114,14 +154,22 @@ export class AnnotationPainter {
 
   async prepareRecords() {
 
-    const viewport = await this.waragraph.get1DViewport();
-    if (viewport === undefined) {
-      throw new Error("No viewport available");
-    }
-    // const cs_view = await this.waragraph.worker_obj.globalCoordSysView();
+    const viewport = this.waragraph.global_viewport;
 
-    for (const state of this.record_states) {
-      const { bed_record, path_name, path_step_slice } = state.record;
+    const annotation_ranges = this.record_states.map((state) => state.record.path_interval);
+
+    const prepared = await this.prepareAnnotationRecords(annotation_ranges);
+
+    if (prepared === undefined) {
+      console.error("Error preparing annotations");
+    }
+
+    console.log(prepared);
+
+    prepared.forEach((annot, i) => {
+      const state = this.record_states[i];
+
+      // const { bed_record, path_name, path_interval } = state.record;
 
       const bed = state.record.bed_record;
 
@@ -143,37 +191,31 @@ export class AnnotationPainter {
       state.svg_g.setAttribute('color', color);
 
       //// global coordinate space rectangles for the 1D path views
-
-      const record_ranges = wasm_bindgen.path_slice_to_global_adj_partitions(path_step_slice);
-
-      const ranges_arr = record_ranges.ranges_as_u32_array();
-      const range_count = ranges_arr.length / 2;
-
       const global_ranges = [];
 
-
-      for (let ri = 0; ri < range_count; ri++) {
-        let start_seg = ranges_arr.at(2 * ri);
-        let end_seg = ranges_arr.at(2 * ri + 1);
-
-        // if (end_seg === undefined) {
-        //   end_seg = start_seg + 1;
-        // }
-
-        if (start_seg !== undefined && end_seg !== undefined) {
-          let start = viewport.segmentOffset(start_seg);
-          let end = viewport.segmentOffset(end_seg);
-
-          global_ranges.push({ start, end });
-        }
+      for (const [start, end] of annot.blocks_1d_bp) {
+        global_ranges.push({ start, end });
       }
 
       state.global_ranges = global_ranges;
-    }
+
+      const first_step = annot.path_steps[0];
+      const last_step = annot.path_steps[annot.path_steps.length - 1];
+
+      state.step_endpoints = { first: first_step, last: last_step };
+      state.start_bp = annot.start_bp_1d;
+      state.end_bp = annot.end_bp_1d;
+
+      state.path_steps = annot.path_steps;
+
+      state.start_world_2d = annot.start_world_p;
+      state.end_world_2d = annot.end_world_p;
+
+    });
   }
 
 
-  resample2DPaths() {
+  async resample2DPaths() {
 
     const canvas = document.getElementById("graph-viewer-2d") as HTMLCanvasElement;
     const svg_rect =
@@ -182,13 +224,6 @@ export class AnnotationPainter {
 
     const svg_height_prop = canvas.height / svg_rect.height;
 
-    const map_canvas_to_svg = ({ x, y }) => {
-      let x_ = 100 * x / canvas.width;
-      let y_ = 100 * svg_height_prop * y / canvas.height;
-      return { x: x_, y: y_ };
-    };
-
-    const path_tolerance = 8;
 
     let resample = false;
 
@@ -204,11 +239,6 @@ export class AnnotationPainter {
       if (this.last_2d_view !== view_2d_obj) {
         resample = true;
       }
-      // let { width, height } = this.last_2d_view;
-      // if (view_2d_obj.width !== width
-      //   || view_2d_obj.height !== height) {
-      //   resample = true;
-      // }
     }
 
     if (resample === false) {
@@ -217,38 +247,78 @@ export class AnnotationPainter {
 
     this.last_2d_view = view_2d_obj;
 
+    const viewMatrix = this.waragraph.graph_viewer!.getViewMatrix();
+
+    // let's say tolerance should be 5px
+    const view_obj = this.waragraph.graph_viewer!.getView();
+    const world_per_px = view_obj.width / canvas.width;
+    const tolerance = 5.0 * world_per_px;
+
+    const map_canvas_to_svg = (v) => {
+      let x_ = 100 * v[0] / canvas.width;
+      let y_ = 100 * svg_height_prop * v[1] / canvas.height;
+      return vec2.fromValues(x_, y_);
+    };
+
     // for (let { record, cached_path, enabled } of this.record_states) {
     for (const state of this.record_states) {
       if (!state.enabled) {
         continue;
       }
 
-      const { path_name, path_step_slice, bed_record } = state.record;
+      const { path_name, path_interval, bed_record } = state.record;
 
-      state.cached_path =
-        this.waragraph.graph_viewer!
-          .sampleCanvasSpacePath(path_step_slice, path_tolerance);
+      let update_path = state.cached_path === undefined;
 
+      if (state.cached_path !== undefined) {
+        // TODO tune
+        if (Math.abs(tolerance - state.cached_path.tolerance) > 10.0) {
+          update_path = true;
+        }
+      }
+
+      // TODO: asynchronously update the SVG path string, rather than wait on each
+      // in a loop (use SVG transform for translations)
+      if (update_path) {
+        const path = 
+          this.waragraph.graphLayoutTable!
+            .sample2DPath(state.path_steps, tolerance);
+
+        if (path === undefined) {
+          console.error("Error sampling 2D path, ignoring");
+          continue;
+        }
+
+        state.cached_path = { path, tolerance };
+
+      }
 
       let svg_path = "";
 
-      state.cached_path.with_points((x, y) => {
-        const p = map_canvas_to_svg({ x, y });
+      if (state.cached_path !== undefined) {
+        for (let i = 0; i < state.cached_path.path.length; i += 2) {
+          let x = state.cached_path.path[i];
+          let y = state.cached_path.path[i + 1];
+          let p = vec2.fromValues(x, y);
+          // these are world space; need to apply 2D view matrix 
+          let q = vec2.create();
+          vec2.transformMat3(q, p, viewMatrix);
 
-        if (svg_path.length === 0) {
-          svg_path += `M ${p.x},${p.y}`;
-        } else {
-          svg_path += ` L ${p.x},${p.y}`;
+          let r = map_canvas_to_svg(q);
+
+          if (svg_path.length === 0) {
+            svg_path += `M ${r[0]},${r[1]}`;
+          } else {
+            svg_path += ` L ${r[0]},${r[1]}`;
+          }
         }
-      });
+      }
 
       state.svg_g.querySelector('.svg-overlay-2d > path').outerHTML =
         // svg_g.innerHTML =
         // `<path d="${svg_path}" stroke-width="0.5" fill="none" />`;
-        `<path d="${svg_path}" stroke-width="0.5" stroke="${state.color}" fill="none" />`;
+        `<path d="${svg_path}" mask="url(#mask-2d-view)" stroke-width="0.5" stroke="${state.color}" fill="none" />`;
       // `<path d="${svg_path}" stroke-width="0.5" stroke="red" fill="none" />`;
-
-      // console.warn(state.cached_path);
     }
   }
 
@@ -282,7 +352,7 @@ export class AnnotationPainter {
     for (const record_state of this.record_states) {
       const { svg_g, record, global_ranges, color } = record_state;
 
-      if (global_ranges === null) {
+      if (global_ranges === undefined) {
         continue;
       }
 
@@ -291,19 +361,20 @@ export class AnnotationPainter {
       const link_start = svg_g.querySelector('.svg-overlay-link-start') as SVGLineElement;
       const link_end = svg_g.querySelector('.svg-overlay-link-end') as SVGLineElement;
 
-      const first_seg = record.path_step_slice.at(0) >> 1;
-      const last_seg = record.path_step_slice.at(-1) >> 1;
+      const start_pos = this.waragraph.globalBpToPathViewerPos(record.path_name, record_state.start_bp);
+      const end_pos = this.waragraph.globalBpToPathViewerPos(record.path_name, record_state.end_bp);
 
-      const first_pos = await this.waragraph.segmentScreenPos1d(record.path_name, first_seg);
-      const last_pos = await this.waragraph.segmentScreenPos1d(record.path_name, last_seg);
+      // if (start_pos === null || end_pos === null) {
+      //   continue;
+      // }
 
       let f_p, l_p;
       if (is_1d_visible) {
-        f_p = map_pos(first_pos.x0, first_pos.y0);
-        l_p = map_pos(last_pos.x1, last_pos.y1);
+        f_p = map_pos(start_pos.x, start_pos.y0);
+        l_p = map_pos(end_pos.x, end_pos.y1);
       } else {
-        f_p = map_pos(first_pos.x0, data_list_rect.top);
-        l_p = map_pos(last_pos.x1, data_list_rect.top);
+        f_p = map_pos(start_pos.x, data_list_rect.top);
+        l_p = map_pos(end_pos.x, data_list_rect.top);
       }
 
 
@@ -313,6 +384,7 @@ export class AnnotationPainter {
       link_end.setAttribute('y2', String(l_p.y));
 
       const svg_g_1d = svg_g.querySelector('.svg-overlay-1d');
+      svg_g_1d.setAttribute('mask', 'url(#mask-path-viewers)');
 
       const data_canvas = document.getElementById('viewer-' + record.path_name);
       const data_rect = data_canvas.getBoundingClientRect();
@@ -350,7 +422,7 @@ fill="${color}"
 
   }
 
-  updateSVGPaths() {
+  async updateSVGPaths() {
     const canvas = document.getElementById("graph-viewer-2d") as HTMLCanvasElement;
     const w = canvas.width;
     const h = canvas.height;
@@ -369,11 +441,13 @@ fill="${color}"
       return { x: x_, y: y_ };
     };
 
+    const view_mat = this.waragraph.graph_viewer!.getViewMatrix();
+
     // for (const { svg_g, record, cached_path, enabled, color } of this.record_states) {
     for (const record_state of this.record_states) {
       const { svg_g, record, cached_path, enabled, color } = record_state;
 
-      if (!enabled || cached_path === null) {
+      if (!enabled || cached_path === undefined) {
         // svg_g.innerHTML = '';
         // svg_g.style.setProperty('display', 'none');
         continue;
@@ -382,14 +456,14 @@ fill="${color}"
       const link_start = svg_g.querySelector('.svg-overlay-link-start') as SVGLineElement;
       const link_end = svg_g.querySelector('.svg-overlay-link-end') as SVGLineElement;
 
-      const first_seg = record.path_step_slice.at(0) >> 1;
-      const last_seg = record.path_step_slice.at(-1) >> 1;
+      let interval = record.path_interval;
 
-      const first_pos = this.waragraph.segmentScreenPos2d(first_seg);
-      const last_pos = this.waragraph.segmentScreenPos2d(last_seg);
-
-      const f_p = map_canvas_to_svg({ x: first_pos.start[0], y: first_pos.start[1] });
-      const l_p = map_canvas_to_svg({ x: last_pos.end[0], y: last_pos.end[1] });
+      const first_pos = vec2.create();
+      const last_pos = vec2.create();
+      vec2.transformMat3(first_pos, record_state.start_world_2d, view_mat);
+      vec2.transformMat3(last_pos, record_state.end_world_2d, view_mat);
+      const f_p = map_canvas_to_svg({ x: first_pos[0], y: first_pos[1] });
+      const l_p = map_canvas_to_svg({ x: last_pos[0], y: last_pos[1] });
 
       link_start.setAttribute('x1', String(f_p.x));
       link_start.setAttribute('y1', String(f_p.y));
@@ -412,53 +486,8 @@ fill="${color}"
       const svg_path =
         svg_g.querySelector('.svg-overlay-2d > path');
 
-      // console.warn(svg_path);
-
-      /*
-      let svg_path = "";
-
-      cached_path.with_points((x, y) => {
-        const p = map_canvas_to_svg({ x, y });
-
-        if (svg_path.length === 0) {
-          svg_path += `M ${p.x},${p.y}`;
-        } else {
-          svg_path += ` L ${p.x},${p.y}`;
-        }
-      });
-
-      svg_g.querySelector('.svg-overlay-2d').innerHTML =
-        // svg_g.innerHTML =
-        // `<path d="${svg_path}" stroke-width="0.5" fill="none" />`;
-        `<path d="${svg_path}" stroke-width="0.5" stroke="${color}" fill="none" />`;
-      // `<path d="${svg_path}" stroke-width="0.5" stroke="red" fill="none" />`;
-       */
     }
 
   }
 
-
-  // this would be nice to have, but the cached paths are entirely
-  // canvas space -- what i want is to have the sampled paths in world
-  // space (i.e. the number of samples should depend on the apparent
-  // size of the path on the canvas, but the points are in world
-  // space)
-  /*
-followAnnotationPath(record_name) {
-  const record = this.record_states.find((state) => state.record.bed_record.name == record_name);
-  if (record === undefined) {
-    return;
-  }
-
-  const cached_path = record.cached_path;
-
-  if (cached_path === null) {
-    return;
-  }
-
-
 }
-   */
-
-}
-

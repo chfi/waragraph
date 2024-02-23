@@ -7,6 +7,12 @@ import init_module, * as wasm_bindgen from 'waragraph';
 import { placeTooltipAtPoint } from './tooltip';
 import { wrapWasmPtr } from './wrap';
 
+import { type PathInterval, type Bp } from './types';
+
+import { Float32, Table, Vector } from 'apache-arrow';
+import { Waragraph } from './waragraph';
+import { GraphLayoutTable, blobLineIterator } from './graph_layout';
+
 let wasm;
 let _raving_ctx;
 
@@ -23,7 +29,8 @@ interface OverlayCallbacks {
 
 export class GraphViewer {
   graph_viewer: wasm_bindgen.GraphViewer;
-  segment_positions: wasm_bindgen.SegmentPositions | undefined;
+  // segment_positions: wasm_bindgen.SegmentPositions | undefined;
+  segment_positions: SegmentPositions | undefined;
 
   initial_view: wasm_bindgen.View2D;
 
@@ -76,6 +83,14 @@ export class GraphViewer {
     }
   }
 
+  sampleWorldSpacePath(
+    interval: PathInterval,
+    tolerance: number,
+  ): Promise<Float32Array | undefined> {
+    return this.segment_positions?.sample_path(interval, tolerance);
+  }
+
+    /*
   sampleCanvasSpacePath(
     path_step_slice: Uint32Array,
     tolerance: number
@@ -90,6 +105,7 @@ export class GraphViewer {
       tolerance
     );
   }
+     */
 
   resetView() {
     let initial_view = this.initial_view.as_obj();
@@ -529,10 +545,10 @@ export async function initializeGraphViewer(
   return graph_viewer;
 }
 
-
-export async function graphViewerLayoutOnly(
-  layout_text: Blob,
+export async function graphViewerFromData(
   container: HTMLDivElement,
+  layout_data: Blob | Table | GraphLayoutTable,
+  color_data?: Uint32Array,
 ): Promise<GraphViewer> {
   const wasm = await init_module();
   wasm_bindgen.set_panic_hook();
@@ -556,14 +572,28 @@ export async function graphViewerLayoutOnly(
   overlay_canvas.width = container.clientWidth;
   overlay_canvas.height = container.clientHeight;
 
+  if (!_raving_ctx) {
+    _raving_ctx = await wasm_bindgen.RavingCtx.initialize_(gpu_canvas);
+  }
 
-  const raving_ctx = await wasm_bindgen.RavingCtx.initialize_(gpu_canvas);
 
-  _raving_ctx = raving_ctx;
+  const position_buffers = _raving_ctx.create_empty_paged_buffers(20n);
 
-  const position_buffers = raving_ctx.create_empty_paged_buffers(20n);
+  let graph_bounds: { min_x: any; max_x: any; min_y: any; max_y: any; };
 
-  const graph_bounds = await fillPositionPagedBuffers(raving_ctx, position_buffers, layout_text);
+  if (layout_data instanceof Blob) {
+    // Blobs are taken to be TSV as text; could be improved
+    graph_bounds = await fillPositionBuffersFromTSV(_raving_ctx, position_buffers, layout_data);
+  } else if (layout_data instanceof Table) {
+    const x = layout_data.getChild('x');
+    const y = layout_data.getChild('y');
+    graph_bounds = await fillPositionBuffersFromArrowVectors(_raving_ctx, position_buffers, x, y);
+  } else if (layout_data instanceof GraphLayoutTable) {
+    await fillPositionBuffersFromArrowVectors(_raving_ctx, position_buffers, layout_data.x, layout_data.y);
+    const [min_x, min_y] = layout_data.aabb_min;
+    const [max_x, max_y] = layout_data.aabb_max;
+    graph_bounds = { min_x, min_y, max_x, max_y };
+  } 
 
   const segment_count = position_buffers.len();
   if (segment_count === 0) {
@@ -571,24 +601,36 @@ export async function graphViewerLayoutOnly(
   }
   console.warn(`parsed ${segment_count} segment positions`);
 
-  const color_buffers = raving_ctx.create_paged_buffers(4n, segment_count);
-  const col_page_cap = color_buffers.page_capacity();
+  const color_buffers = _raving_ctx.create_paged_buffers(4n, segment_count);
+  const color_page_cap = color_buffers.page_capacity();
 
-  {
-    const col_buf_f_array = new Uint32Array(col_page_cap);
-    col_buf_f_array.fill(0xFF0000FF);
+  console.warn("uploading color data...");
 
-    console.warn("uploading color data...");
+  if (color_data === undefined) {
+      const col_buf_f_array = new Uint32Array(color_page_cap);
+      col_buf_f_array.fill(0xFF0000FF);
+
+      for (let page_ix = 0; page_ix < color_buffers.page_count(); page_ix++) {
+        let col_buf_array = new Uint8Array(col_buf_f_array.buffer);
+        color_buffers.upload_page(_raving_ctx, page_ix, col_buf_array);
+      }
+
+      color_buffers.set_len(segment_count);
+  } else {
+
     for (let page_ix = 0; page_ix < color_buffers.page_count(); page_ix++) {
-      console.warn("  page ", page_ix);
-      let col_buf_array = new Uint8Array(col_buf_f_array.buffer);
-      color_buffers.upload_page(raving_ctx, page_ix, col_buf_array);
+      const start = page_ix * color_page_cap;
+      const end = start + color_page_cap;
+      const color_page = color_data.subarray(start, end);
+      const page = new Uint8Array(color_page.buffer);
+
+      color_buffers.upload_page(_raving_ctx, page_ix, page);
     }
 
     color_buffers.set_len(segment_count);
-
-    console.warn("color data uploaded");
   }
+
+  console.warn("color data uploaded");
 
 
   let { min_x, max_x, min_y, max_y } = graph_bounds;
@@ -604,8 +646,9 @@ export async function graphViewerLayoutOnly(
     g_height,
   );
 
-  const viewer = wasm_bindgen.GraphViewer.new_with_buffers(raving_ctx, position_buffers, color_buffers, gpu_canvas, view);
+  const viewer = wasm_bindgen.GraphViewer.new_with_buffers(_raving_ctx, position_buffers, color_buffers, gpu_canvas, view);
 
+  console.warn(container.clientWidth, ", ", container.clientHeight);
   viewer.resize(_raving_ctx, container.clientWidth, container.clientHeight);
 
   viewer.draw_to_surface(_raving_ctx);
@@ -708,46 +751,8 @@ export async function graphViewerLayoutOnly(
 
 }
 
-// adapted from https://developer.mozilla.org/en-US/docs/Web/API/ReadableStreamDefaultReader/read
-async function* blobLineIterator(blob: Blob) {
-  const utf8Decoder = new TextDecoder("utf-8");
-  // let response = await fetch(fileURL);
-  // let reader = response.body.getReader();
-  let stream = blob.stream();
-  let reader = stream.getReader();
 
-  let { value: chunk, done: readerDone } = await reader.read();
-
-  let chunk_str = chunk ? utf8Decoder.decode(chunk, { stream: true }) : "";
-  // chunk = chunk ? utf8Decoder.decode(chunk, { stream: true }) : "";
-
-  let re = /\r\n|\n|\r/gm;
-  let startIndex = 0;
-
-  for (;;) {
-    let result = re.exec(chunk_str);
-    if (!result) {
-      if (readerDone) {
-        break;
-      }
-      let remainder = chunk_str.substring(startIndex);
-      ({ value: chunk, done: readerDone } = await reader.read());
-      chunk_str =
-        remainder + (chunk ? utf8Decoder.decode(chunk, { stream: true }) : "");
-      startIndex = re.lastIndex = 0;
-      continue;
-    }
-    yield chunk_str.substring(startIndex, result.index);
-    startIndex = re.lastIndex;
-  }
-  if (startIndex < chunk_str.length) {
-    // last line didn't end in a newline char
-    yield chunk_str.substring(startIndex);
-  }
-}
-
-
-async function fillPositionPagedBuffers(
+async function fillPositionBuffersFromTSV(
   raving_ctx: wasm_bindgen.RavingCtx,
   buffers: wasm_bindgen.PagedBuffers,
   position_tsv: Blob,
@@ -822,3 +827,83 @@ async function fillPositionPagedBuffers(
 
   return { min_x, min_y, max_x, max_y };
 }
+
+
+async function fillPositionBuffersFromArrowVectors(
+  raving_ctx: wasm_bindgen.RavingCtx,
+  buffers: wasm_bindgen.PagedBuffers,
+  x: Vector<Float32>,
+  y: Vector<Float32>,
+  // positions: Table,
+): Promise<{ min_x: number; max_x: number; min_y: number; max_y: number; }> {
+
+  let page_byte_size = buffers.page_size();
+  let page_buffer = new ArrayBuffer(Number(page_byte_size));
+  let page_view = new DataView(page_buffer);
+
+  const x_iter = x[Symbol.iterator]();
+  const y_iter = y[Symbol.iterator]();
+
+  const get_next = () => {
+    let res_x = x_iter.next();
+    let res_y = y_iter.next();
+
+    if (res_x.done || res_y.done) {
+      return null;
+    }
+
+    let x = res_x.value;
+    let y = res_y.value;
+
+    return { x, y };
+  };
+
+
+  let min_x = Infinity;
+  let min_y = Infinity;
+  let max_x = -Infinity;
+  let max_y = -Infinity;
+
+  let seg_i = 0;
+  let offset = 0;
+
+  for (;;) {
+    const p0 = get_next();
+    const p1 = get_next();
+
+    if (p0 == null || p1 == null) {
+      break;
+    }
+
+    min_x = Math.min(min_x, p0.x, p1.x);
+    min_y = Math.min(min_y, p0.y, p1.y);
+
+    max_x = Math.max(max_x, p0.x, p1.x);
+    max_y = Math.max(max_y, p0.y, p1.y);
+
+    page_view.setFloat32(offset, p0!.x, true);
+    page_view.setFloat32(offset + 4, p0!.y, true);
+    page_view.setFloat32(offset + 8, p1!.x, true);
+    page_view.setFloat32(offset + 12, p1!.y, true);
+    page_view.setUint32(offset + 16, seg_i, true);
+
+    seg_i += 1;
+    offset += 20;
+
+    if (offset >= page_byte_size) {
+      console.warn(`appending page, offset ${offset}`);
+      buffers.append_page(raving_ctx, new Uint8Array(page_buffer, 0, offset));
+      offset = 0;
+    }
+  }
+
+  if (offset !== 0) {
+      console.warn(`closing with appending page, offset ${offset}`);
+      buffers.append_page(raving_ctx, new Uint8Array(page_buffer, 0, offset));
+  }
+
+  return { min_x, max_x, min_y, max_y };
+}
+
+
+

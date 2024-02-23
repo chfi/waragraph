@@ -31,6 +31,9 @@ handler.setTransferHandlers(rxjs, Comlink);
 import Split from 'split-grid';
 
 import { mat3, vec2 } from 'gl-matrix';
+import { CoordSysInterface } from './coordinate_system';
+import { ArrowGFA, PathIndex } from './graph_api';
+import { addViewRangeInputListeners, appendPathListElements, appendSvgViewport } from './dom';
 
 
 // there really should be a better name for this...
@@ -65,17 +68,18 @@ export interface View1D {
 // one instance of this would be shared by all 1D views that should be "synced up"
 // including external tracks, eventually
 export class Viewport1D {
-  coord_sys: wasm_bindgen.CoordSys;
+  // coord_sys: wasm_bindgen.CoordSys;
+  coord_sys: CoordSysInterface;
   view: wasm_bindgen.View1D;
   subject: BehaviorSubject<View1D>;
 
-  constructor(coord_sys: wasm_bindgen.CoordSys, view?: wasm_bindgen.View1D) {
+  constructor(coord_sys: CoordSysInterface, view?: wasm_bindgen.View1D) {
     this.coord_sys = coord_sys;
 
     if (view) {
       this.view = view;
     } else {
-      const max = coord_sys.max_f64();
+      const max = coord_sys.max();
       this.view = wasm_bindgen.View1D.new(0, max, BigInt(max))
     }
 
@@ -178,14 +182,17 @@ export class Waragraph {
   wasm: wasm_bindgen.InitOutput;
   worker_ctx: Comlink.Remote<WaragraphWorkerCtx>;
 
-  graph: wasm_bindgen.ArrowGFAWrapped;
-  path_index: wasm_bindgen.PathIndexWrapped;
+  graph: ArrowGFA;
+  path_index: PathIndex;
+  // graph: wasm_bindgen.ArrowGFAWrapped;
+  // path_index: wasm_bindgen.PathIndexWrapped;
 
   graph_viewer: GraphViewer | undefined;
   path_viewers: Array<PathViewer>;
 
   resize_obs: rxjs.Subject<unknown> | undefined;
 
+  global_viewport: Viewport1D;
 
   coordinate_systems: Map<string, wasm_bindgen.CoordSys>;
   viewports_1d: Map<string, Viewport1D>;
@@ -215,6 +222,7 @@ export class Waragraph {
   }
 
 
+    /*
   async get1DViewport(desc?: ViewportDesc | { name: string }) {
 
     if (desc === undefined) {
@@ -272,7 +280,9 @@ export class Waragraph {
     return viewport;
 
   }
+     */
 
+    /*
   async getCoordinateSystem(key: string): Promise<wasm_bindgen.CoordSys | undefined> {
     let cs = this.coordinate_systems.get(key);
 
@@ -303,6 +313,7 @@ export class Waragraph {
 
     return cs;
   }
+     */
 
   // setGraphSegmentData(data_name, data: ArrayBufferView) {
   // }
@@ -355,6 +366,7 @@ export class Waragraph {
   async initializeTree(opts: WaragraphOptions) {
     this.resize_obs = new rxjs.Subject();
 
+    /*
     const root = document.createElement('div');
     root.classList.add('root-grid');
     root.id = 'waragraph-root';
@@ -379,6 +391,7 @@ export class Waragraph {
       </div>
     </div>
   </div>`;
+     */
 
     appendSvgViewport();
 
@@ -512,8 +525,9 @@ export class Waragraph {
 
       seq_slots.right.append(seq_canvas);
 
+      let seg_seq_array = await this.graph.segmentSequencesArray();
       let seq_track = globalSequenceTrack(
-        this.graph,
+        seg_seq_array,
         seq_canvas,
         viewport!.subject
       );
@@ -802,10 +816,7 @@ export async function initializeWaragraph(opts: WaragraphOptions = {}) {
   const waragraph = new Waragraph(wasm, waragraph_worker, graph_ptr, path_index_ptr);
 
   const graph_px = await waragraph.worker_ctx.graphProxy();
-  console.warn(graph_px);
-  console.warn("!!!!!");
 
-  console.warn(await graph_px.segment_count());
 
   if (opts.graph_viewer !== undefined) {
     // initialize 2D viewer
@@ -846,8 +857,10 @@ export async function initializeWaragraph(opts: WaragraphOptions = {}) {
 
     if (cfg.path_names === '*') {
       // use all path names
-      waragraph.graph.with_path_names((name: string) => {
-        path_names.push(name);
+      let path_metadata = await waragraph.graph.pathMetadata();
+
+      path_metadata.forEach((path) => {
+        path_names.push(path.name);
       });
     } else {
       for (const path_name of cfg.path_names) {
@@ -897,17 +910,6 @@ export async function initializeWaragraph(opts: WaragraphOptions = {}) {
     }
 
 
-    /*
-    if (typeof data === "string") {
-      if (data === "depth") {
-        data = await waragraph.worker_ctx.getComputedPathDataset(data);
-      } else {
-        throw `Unknown data '${data}'`;
-      }
-    }
-      */
-
-
   }
 
   // add the viewer elements to the DOM
@@ -917,154 +919,16 @@ export async function initializeWaragraph(opts: WaragraphOptions = {}) {
 }
 
 
-function appendPathListElements(height, left_tag, right_tag) {
-  const left = document.createElement(left_tag);
-  const right = document.createElement(right_tag);
-
-  const setStyles = (el) => {
-    el.style.setProperty("flex-basis", height + "px");
-  };
-
-  setStyles(left);
-  setStyles(right);
-
-  document.getElementById("path-viewer-left-column")?.append(left);
-  document.getElementById("path-viewer-right-column")?.append(right);
-
-  return { left, right };
-}
 
 
-async function addViewRangeInputListeners(viewport: Viewport1D) {
-
-  // control pane inputs
-  const start_input = document.getElementById('control-input-range-start') as HTMLInputElement;
-  const end_input = document.getElementById('control-input-range-end') as HTMLInputElement;
-  const go_el = document.getElementById('control-input-range-button') as HTMLInputElement;
-
-  let init_view = viewport.get();
-
-  start_input.value = String(init_view.start);
-  end_input.value = String(init_view.end);
-
-  // graph view inputs (disabled), for displaying the current selection only
-  const start_view = document.getElementById('path-viewer-range-start') as HTMLInputElement;
-  const end_view = document.getElementById('path-viewer-range-end') as HTMLInputElement;
-
-  // init view range
-  start_view.value = String(init_view.start);
-  end_view.value = String(init_view.end);
-
-  const handler = (_event) => {
-    var start = parseFloat(start_input.value);
-    var end = parseFloat(end_input.value);
-    
-    if (!isNaN(start) && !isNaN(end)) {
-
-      // bound checking
-      
-      if (start < 0) {
-        start = 0;
-        start_input.value = String(start);
-      }
-      if (start >= viewport.max) {
-        start = viewport.max - 1;
-        start_input.value = String(start);
-      }
-      if (end <= 0) {
-        end = start + 1;
-        end_input.value = String(end);
-      }
-      if (end > viewport.max) {
-        end = viewport.max;
-        end_input.value = String(end);
-      }
-      if (start >= end) {
-        start = end -1;
-        start_input.value = String(start);
-      }
-
-      viewport.set(start, end);
-    }
-  };
-
-  go_el.addEventListener('click', handler);
-
-  const view_subject = viewport.subject;
-
-  view_subject.subscribe((view) => {
-    start_view.value = String(Math.round(view.start));
-    end_view.value = String(Math.round(view.end));
-  });
-
-  // potential fix for offscreen bars not rendering until resize
-  // drawback: causes ugly stutter on firefox while scrolling
-
-  const pathViewerContainer = document.getElementById('path-viewer-container');
-
-  pathViewerContainer.addEventListener('scroll', () => {
-    window.dispatchEvent(new Event('resize'));
-  });
-  
-}
-
-// Segment jump function on control panel
-async function addSegmentJumpInputListeners(graph_viewer) {
-
-  const segment_input = document.getElementById('control-input-segment-start') as HTMLInputElement;
-  const segment_button = document.getElementById('control-input-segment-button') as HTMLInputElement;
-
-  const handler = (_event) => {
-
-    var segment = parseInt(segment_input.value);
-
-    if (!isNaN(segment)) {
-
-      // TODO: bounds check
-      const position = graph_viewer.getSegmentPos(segment);
-
-      if (position !== null) {
-        // Center of segment
-        const midpoint = {
-          x: (position.x0 + position.x1) / 2.0,
-          y: (position.y0 + position.y1) / 2.0
-        };
-
-        // Jump to segment
-        const view = document.getElementById('graph-viewer-2d');
-        view.style.display = 'none';
-        graph_viewer.resetView();
-        graph_viewer.setViewCenter(midpoint.x, midpoint.y);
-
-        setTimeout(() => {
-          const screen_position = graph_viewer.getSegmentScreenPos(segment);
-
-          const midpoint_screen = {
-            x: (screen_position.start[0]),
-            y: (screen_position.start[1])
-          }
-
-          let zoom_x = midpoint_screen.x / graph_viewer.overlay_canvas.width;
-          let zoom_y = midpoint_screen.y / graph_viewer.overlay_canvas.height;
-          graph_viewer.zoom(zoom_x, zoom_y, .05);
-          view.style.display = 'block';
-      }, 100);
-
-      }
-      else {
-        console.warn('Segment is null');
-      }
-    }
-  }
-  
-  segment_button.addEventListener('click', handler);
-}
-
-
-function globalSequenceTrack(graph: wasm_bindgen.ArrowGFAWrapped, canvas: HTMLCanvasElement, view_subject: rxjs.Subject<View1D>) {
+export function globalSequenceTrack(
+  // graph: wasm_bindgen.ArrowGFAWrapped,
+  seq_array: Uint8Array,
+  canvas: HTMLCanvasElement,
+  view_subject: rxjs.Subject<View1D>
+) {
 
   const min_px_per_bp = 8.0;
-  const seq_array = graph.segment_sequences_array();
 
   let last_view = null;
 
@@ -1099,29 +963,4 @@ function globalSequenceTrack(graph: wasm_bindgen.ArrowGFAWrapped, canvas: HTMLCa
   };
 
   return { draw_last };
-}
-
-
-function appendSvgViewport() {
-  const body = `
-<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"
-     id="viz-svg-overlay"
->
-</svg>
-`;
-  let parent = document.createElement('div');
-  parent.id = 'svg-container';
-  parent.style.setProperty('z-index', '10');
-  parent.style.setProperty('grid-column', '1');
-  parent.style.setProperty('grid-row', '1 / -1');
-  parent.style.setProperty('background-color', 'transparent');
-  parent.style.setProperty('pointer-events', 'none');
-  document.getElementById('viz-container')?.append(parent);
-
-  let el = document.createElement('svg');
-
-  parent.append(el);
-
-  el.outerHTML = body;
-  el.style.setProperty('position', 'absolute');
 }

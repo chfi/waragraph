@@ -1,5 +1,9 @@
 use ahash::HashSet;
-use arrow2::{array::PrimitiveArray, offset::OffsetsBuffer};
+use arrow2::{
+    array::PrimitiveArray,
+    datatypes::{DataType, Field},
+    offset::OffsetsBuffer,
+};
 
 use crate::arrow_graph::ArrowGFA;
 
@@ -9,21 +13,39 @@ use crate::arrow_graph::ArrowGFA;
 pub struct CoordSys {
     pub node_order: PrimitiveArray<u32>,
     // TODO offsets should probably be i64; maybe generic
+
+    // TODO should also not use offsetsbuffer, so that the size matches node_order;
+    // will need changing bp_to_step range etc.
     pub step_offsets: OffsetsBuffer<i32>,
     // step_offsets: PrimitiveArray<u32>,
 }
 
 impl CoordSys {
+    pub fn arrow_schema() -> arrow2::datatypes::Schema {
+        arrow2::datatypes::Schema::from(vec![
+            Field::new("node_order", DataType::UInt32, false),
+            Field::new("step_offsets", DataType::Int32, false),
+        ])
+    }
+
     pub fn segment_range(&self, segment: u32) -> Option<std::ops::Range<u64>> {
         let ix = segment as usize;
 
-        if ix >= self.step_offsets.len() {
+        if ix >= self.step_offsets.len_proxy() {
             return None;
         }
 
         let (start, end) = self.step_offsets.start_end(ix);
 
         Some((start as u64)..(end as u64))
+    }
+
+    pub fn segment_at_pos(&self, pos: u64) -> u32 {
+        let i = self
+            .step_offsets
+            .buffer()
+            .binary_search_by_key(&pos, |&o| o as u64);
+        i.unwrap_or_else(|i| i - 1) as u32
     }
 
     pub fn bp_to_step_range(
@@ -161,7 +183,11 @@ impl CoordSys {
         }
 
         for (_i, (value, size)) in std::iter::zip(bins, bin_sizes).enumerate() {
-            *value = *value / size;
+            if size == 0.0 {
+                *value = 0.0;
+            } else {
+                *value = *value / size;
+            }
         }
     }
 

@@ -1,11 +1,12 @@
 import init_module, * as wasm_bindgen from 'waragraph';
 
 import { preparePathHighlightOverlay } from './graph_viewer';
-import { AnnotationPainter } from './annotations';
-import * as CanvasTracks from '../canvas_tracks';
+import { AnnotationGeometry, AnnotationPainter } from './annotations';
+import * as CanvasTracks from './canvas_tracks';
 import { wrapWasmPtr } from './wrap';
 
-import { type Waragraph } from './waragraph';
+// import { type Waragraph } from './waragraph';
+import { type Waragraph } from './waragraph_client';
 
 import BED from '@gmod/bed';
 
@@ -13,6 +14,8 @@ import * as rxjs from 'rxjs';
 import { computePosition } from '@floating-ui/dom';
 
 import '../sidebar-bed.css';
+import { PathInterval, PathNameInterval } from './types';
+import { ArrowGFA } from './graph_api';
 
 let pathNamesMap = new Map();
 
@@ -31,27 +34,7 @@ function findPathName(cand: string): string {
 }
 
 
-// let waragraph_viz: WaragraphViz;
-let wasm;
-
-function createPathOffsetMap(path_name: string): (bp: number) => number {
-  const regex = /.+:(\d+)-(\d+)$/;
-  if (!path_name) {
-    throw `Path ${path_name} not found`;
-  }
-  const found = path_name.match(regex);
-
-  const start = found === null ? 0 : Number(found[1]);
-
-  return (bp) => bp - start;
-}
-
-interface PathRange {
-  start: number,
-  end: number,
-}
-
-function bedToPathRange(bed_entry, path_name: string): PathRange {
+function bedToPathInterval(bed_entry, path_name: string): PathNameInterval {
   if (!path_name) {
     throw `Path ${path_name} not found`;
   }
@@ -73,7 +56,7 @@ function bedToPathRange(bed_entry, path_name: string): PathRange {
     chromStart = 0;
   }
 
-  return { start: chromStart, end: chromEnd };
+  return { path_name, start: chromStart, end: chromEnd };
 }
 
 function transformBedRange(bed_entry) {
@@ -111,122 +94,13 @@ function transformBedRange(bed_entry) {
   return new_entry;
 }
 
-function bedEntryColorOrFn(bed_entry, color_fn) {
-  let color;
-
-  if (typeof bed_entry.itemRgb === "string") {
-    let [r, g, b] = bed_entry.itemRgb.split(',');
-    color = `rgb(${r * 255},${g * 255},${b * 255})`;
-  } else if (bed_entry.color) {
-    color = bed_entry.color;
-  } else {
-    let { r, g, b } = wasm_bindgen.path_name_hash_color_obj(bed_entry.name);
-    color = `rgb(${r * 255},${g * 255},${b * 255})`;
-  }
-
-  if (typeof color_fn === 'function') {
-    color = color_fn(bed_entry);
-  }
-
-  return color;
-}
-
-/*
-async function createDrawBedEntryFn1d(bed_entry, color_fn) {
-    //
-    let path_name = findPathName(bed_entry.chrom);
-    let path_offset_map = createPathOffsetMap(path_name);
-
-    let graph_raw = await waragraph_viz.worker_obj.getGraph();
-    let graph = wasm_bindgen.ArrowGFAWrapped.__wrap(graph_raw.__wbg_ptr);
-    let path_steps = graph.path_steps(path_name);
-
-    // let color = bedEntryColorOrFn(bed_entry, color_fn);
-
-    let entry = { start: bed_entry.chromStart,
-                  end: bed_entry.chromEnd,
-                  label: bed_entry.name };
-
-    entry.color = bedEntryColorOrFn(bed_entry, color_fn);
-
-    const cs_view = await waragraph_viz.worker_obj.globalCoordSysView();
-
-    let global_entries = [];
-
-    try {
-        // console.warn(entry);
-        let path_range = await waragraph_viz
-            .worker_obj
-            .pathRangeToStepRange(path_name, entry.start, entry.end);
-
-        // console.warn(path_range);
-        let slice = path_steps.slice(path_range.start, path_range.end);
-        // console.warn(slice);
-
-        // console.log("steps in ", bed_entry.name, ": ", slice.length);
-
-        let seg_ranges = wasm_bindgen.path_slice_to_global_adj_partitions(slice);
-        let seg_ranges_arr = seg_ranges.ranges_as_u32_array();
-        let range_count = seg_ranges_arr.length / 2;
-
-        for (let ri = 0; ri < range_count; ri++) {
-            let start_seg = seg_ranges_arr.at(2 * ri);
-            let end_seg = seg_ranges_arr.at(2 * ri + 1);
-
-            if (start_seg !== undefined && end_seg !== undefined) {
-                let start = await cs_view.segmentOffset(start_seg);
-                let end = await cs_view.segmentOffset(end_seg);
-
-                global_entries.push({start, end, color: entry.color});
-            }
-        }
-    } catch (e) {
-        // TODO
-        throw "Error creating 1D highlight track: " + e;
-    }
-
-    let callback = CanvasTracks.createHighlightCallback(global_entries);
-
-    return callback;
-}
-
-async function createDrawBedEntryFn2d(bed_entry, color_fn) {
-    // console.log(bed_entry);
-    let path_name = findPathName(bed_entry.chrom);
-    // console.log(path_name);
-    let path_offset_map = createPathOffsetMap(path_name);
-
-    let seg_pos = waragraph_viz.graph_viewer.segment_positions;
-
-    let graph_raw = await waragraph_viz.worker_obj.getGraph();
-    let graph = wasm_bindgen.ArrowGFAWrapped.__wrap(graph_raw.__wbg_ptr);
-    let path_steps = graph.path_steps(path_name);
-
-    let path_cs = await waragraph_viz.worker_obj.pathCoordSys(path_name);
-
-    let entry = { start: bed_entry.chromStart,
-                  end: bed_entry.chromEnd,
-                  label: bed_entry.name };
-
-    entry.color = bedEntryColorOrFn(bed_entry, color_fn);
-
-    let callback_2d = 
-        preparePathHighlightOverlay(seg_pos,
-                                    path_steps,
-                                    path_cs,
-                                    [entry]);
-
-    return callback_2d;
-}
-*/
-
 export interface BEDRecord {
   record_index: number;
   bed_record: any;
 
   path_name: string;
-  path_range: PathRange;
-  path_step_slice: Uint32Array;
+  path_interval: PathInterval;
+  // path_step_slice: Uint32Array;
 }
 
 class BEDFile {
@@ -248,9 +122,11 @@ class BEDFile {
     //   svg_shared: svg element
   }
 
-  async appendRecords(waragraph: Waragraph, record_lines) {
-
-    const graph = waragraph.graph;
+  async appendRecords(
+    graph: ArrowGFA,
+    prepareAnnotationRecords: (intervals: PathInterval[]) => Promise<AnnotationGeometry[] | undefined>,
+    record_lines
+  ) {
 
     for (const bed_record of record_lines) {
       if (Number.isNaN(bed_record.chromStart)
@@ -261,28 +137,31 @@ class BEDFile {
       const record_i = this.records.length;
 
       const path_name = findPathName(bed_record.chrom);
-      const path_range = bedToPathRange(bed_record, path_name);
+      const path_name_interval = bedToPathInterval(bed_record, path_name);
 
-      const path_cs = await waragraph.getCoordinateSystem("path:" + path_name);
+      // const path_cs = await waragraph.getCoordinateSystem("path:" + path_name);
 
-      if (path_cs === undefined) {
-        throw new Error(`Could not find coordinate system for path ${path_name}`);
-      }
+      // if (path_cs === undefined) {
+      //   throw new Error(`Could not find coordinate system for path ${path_name}`);
+      // }
       // const path_cs_raw = await waragraph_viz.worker_obj.pathCoordSys(path_name);
       // const path_cs = wrapWasmPtr(wasm_bindgen.CoordSys, path_cs_raw.__wbg_ptr);
 
-      const path_steps = graph.path_steps(path_name);
+      // const path_steps = graph.path_steps(path_name);
 
-      const step_range = path_cs.bp_to_step_range(BigInt(path_range.start), BigInt(path_range.end)) as { start: number, end: number };
+      // const step_range = path_cs.bp_to_step_range(BigInt(path_interval.start), BigInt(path_interval.end)) as { start: number, end: number };
       // const step_range = path_cs.bp_to_step_range(path_range.start, path_range.end);
-      const path_step_slice = path_steps.slice(step_range.start, step_range.end);
+      // const path_step_slice = path_steps.slice(step_range.start, step_range.end);
+
+      const path_id = await graph.pathIdFromName(path_name);
+      const path_interval = { path_id, start: path_name_interval.start, end: path_name_interval.end };
 
       const record = {
         record_index: record_i,
         bed_record,
         path_name,
-        path_range,
-        path_step_slice,
+        path_interval,
+        // path_step_slice,
       };
 
       this.records.push(record);
@@ -290,22 +169,25 @@ class BEDFile {
     }
   }
 
-  async initializeAnnotationPainter(waragraph: Waragraph) {
+  async initializeAnnotationPainter(
+    waragraph: Waragraph,
+    prepareAnnotationRecords: (intervals: PathInterval[]) => Promise<AnnotationGeometry[] | undefined>,
+  ) {
     this.annotation_painter =
-      new AnnotationPainter(waragraph, this.file_name, this.records);
+      new AnnotationPainter(waragraph, prepareAnnotationRecords, this.file_name, this.records);
 
     await this.annotation_painter.prepareRecords();
 
     let prev_view = waragraph.graph_viewer?.getView();
 
-    document.getElementById('viz-svg-overlay')
+    document.getElementById('viz-svg-overlay')!
       .append(this.annotation_painter.svg_root);
 
     // TODO: there are other cases when this should run, especially once
     // there's more than just 2D-focused SVG
     waragraph
       .graph_viewer?.view_subject
-      .subscribe((view_2d) => {
+      .subscribe(async (view_2d) => {
         const { x, y, width, height } = view_2d;
 
         let update_pos = false;
@@ -318,32 +200,32 @@ class BEDFile {
         //     this.annotation_painter.resample2DPaths(view_2d);
         // }
 
-        if (prev_view.x != x || prev_view.y !== y || update_pos) {
+        if (prev_view?.x != x || prev_view?.y !== y || update_pos) {
           // update SVG path offsets;
           // should also happen on resample
 
-          this.annotation_painter.resample2DPaths();
-          this.annotation_painter.updateSVGPaths();
+          await this.annotation_painter!.resample2DPaths();
+          await this.annotation_painter!.updateSVGPaths();
           prev_view = view_2d;
         }
 
       });
 
-    const viewport = await waragraph.get1DViewport();
+    const viewport = waragraph.global_viewport;
 
     viewport?.subject
       .pipe(rxjs.distinct(),
         rxjs.throttleTime(50),
       )
       .subscribe((view_1d) => {
-        this.annotation_painter.updateSVG1D(view_1d);
+        this.annotation_painter!.updateSVG1D(view_1d);
       });
 
 
   }
 
   recordAnnotationVizState(record_index: number) {
-    return this.annotation_painter.record_states[record_index];
+    return this.annotation_painter!.record_states[record_index];
   }
 
   createListElement(): HTMLDivElement {
@@ -371,9 +253,9 @@ class BEDFile {
       // add checkboxes/buttons for toggling... or just selection?
       // still want something to signal visibility in 1d & 2d, e.g. "eye icons"
 
-      const viz_states = this.annotation_painter.record_states;
+      const viz_states = this.annotation_painter!.record_states;
 
-      label_div.addEventListener('click', (ev) => {
+      label_div.addEventListener('click', async (ev) => {
         let state = viz_states[record.record_index];
 
         let svg_g_1d = state.svg_g.querySelector('.svg-overlay-1d') as SVGGElement;
@@ -400,8 +282,8 @@ class BEDFile {
             child.setAttribute('display', 'inline');
           }
 
-          this.annotation_painter.resample2DPaths();
-          this.annotation_painter.updateSVGPaths();
+          await this.annotation_painter!.resample2DPaths();
+          await this.annotation_painter!.updateSVGPaths();
 
           state.enabled = true;
         }
@@ -441,16 +323,20 @@ class BEDFile {
 
 }
 
-async function loadBedFile(waragraph: Waragraph, file: File) {
+async function loadBedFile(
+  waragraph: Waragraph,
+  prepareAnnotationRecords: (intervals: PathInterval[]) => Promise<AnnotationGeometry[] | undefined>,
+  file: File
+) {
   const bed_file = new BEDFile(file.name);
   const bed_text = await file.text();
 
   const parser = new BED();
   const bed_lines = bed_text.split('\n').map(line => parser.parseLine(line));
 
-  await bed_file.appendRecords(waragraph, bed_lines);
+  await bed_file.appendRecords(waragraph.graph, prepareAnnotationRecords, bed_lines);
 
-  bed_file.initializeAnnotationPainter(waragraph);
+  bed_file.initializeAnnotationPainter(waragraph, prepareAnnotationRecords);
 
   const bed_list = document.getElementById('bed-file-list');
 
@@ -666,7 +552,10 @@ async function controlSidebarPanel(waragraph) {
 }
 
 
-async function bedSidebarPanel(waragraph) {
+async function bedSidebarPanel(
+  waragraph: Waragraph,
+  prepareAnnotationRecords: (intervals: PathInterval[]) => Promise<AnnotationGeometry[] | undefined>,
+) {
   const bed_pane = document.createElement('div');
   bed_pane.classList.add('bed-panel');
 
@@ -698,7 +587,7 @@ async function bedSidebarPanel(waragraph) {
 
   file_button.addEventListener('click', (ev) => {
     for (const file of file_entry.files) {
-      loadBedFile(waragraph, file);
+      loadBedFile(waragraph, prepareAnnotationRecords, file);
     }
   });
 
@@ -765,7 +654,7 @@ async function bedSidebarPanel(waragraph) {
   document.addEventListener('click', (ev) => {
     let tgt = ev.target as HTMLElement;
     let id = "sidebar-bed-context-menu";
-    let ctx_menu_el = document.getElementById(id);
+    let ctx_menu_el = document.getElementById(id)!;
     let ctx_open = ctx_menu_el.style.display === 'flex';
     if (!tgt.closest('#' + id) && ctx_open) {
       ctx_menu_el.style.setProperty('display', 'none');
@@ -776,25 +665,27 @@ async function bedSidebarPanel(waragraph) {
   return bed_pane;
 }
 
-
-
-export async function initializeBedSidebarPanel(waragraph: Waragraph) {
+// export async function initializeBedSidebarPanel(waragraph: Waragraph) {
+export async function initializeBedSidebarPanel(
+  waragraph: Waragraph,
+  // prepareAnnotationRecords: (ranges: {path_id: number, start_bp: number, end_bp: number}) =>
+  prepareAnnotationRecords: (intervals: PathInterval[]) => Promise<AnnotationGeometry[] | undefined>,
+) {
   // waragraph_viz = warapi;
 
-  if (!wasm) {
-    wasm = await init_module(undefined, waragraph.wasm.memory);
-    wasm_bindgen.set_panic_hook();
-  }
+  // if (!wasm) {
+  //   wasm = await init_module(undefined, waragraph.wasm.memory);
+  //   wasm_bindgen.set_panic_hook();
+  // }
 
-  let path_id = 0;
-  waragraph.graph.with_path_names((name: string) => {
-    pathNamesMap.set(name, path_id);
-    path_id += 1;
+  const pathMetadata = await waragraph.graph.pathMetadata();
+  pathMetadata.forEach(path => {
+    pathNamesMap.set(path.name, path.id);
   });
 
   document
     .getElementById('sidebar-bed')!
-    .append(await bedSidebarPanel(waragraph));
+    .append(await bedSidebarPanel(waragraph, prepareAnnotationRecords));
 
   document
     .getElementById('sidebar-controls')!

@@ -5,7 +5,6 @@ use raving_wgpu::egui;
 use raving_wgpu::wgpu;
 use waragraph_core::arrow_graph::ArrowGFA;
 
-
 use std::collections::HashMap;
 use std::path::PathBuf;
 
@@ -24,7 +23,7 @@ use anyhow::Result;
 
 use ultraviolet::*;
 
-use waragraph_core::{Node};
+use waragraph_core::Node;
 
 use wasm_bindgen::prelude::*;
 
@@ -39,8 +38,6 @@ pub mod layout;
 pub mod view;
 
 // pub mod lyon_path_renderer;
-
-
 
 // use self::annotations::AnnotationLayer;
 use self::render::PolylineRenderer;
@@ -319,7 +316,8 @@ impl GraphViewer {
         let width = texture.texture.width();
         let height = texture.texture.height();
 
-        let node_width = 30.0;
+        // TODO make configurable/accessible from frontend
+        let node_width = 40.0;
 
         self.renderer.update_uniforms(
             &raving.gpu_state.queue,

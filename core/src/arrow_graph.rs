@@ -4,9 +4,18 @@ use arrow2::{
     datatypes::{DataType, Field, Metadata, Schema},
     offset::Offsets,
 };
+
+// use arrow::{
+//     array::{BinaryArray, StructArray, UInt32Array, Utf8Array},
+// };
+
 use smallvec::SmallVec;
 
 // use crate::types::{Bp, Edge, Node, OrientedNode, PathId};
+
+// TODO best to put it behind a feature
+#[cfg(not(target_arch = "wasm32"))]
+pub mod archive;
 
 pub mod parser;
 
@@ -41,12 +50,74 @@ pub struct PathIndex {
     pub segment_path_matrix: SegmentPathMatrix,
 }
 
+pub struct PathsOnSegmentIter<I>
+where
+    I: Iterator<Item = (u32, u32)>,
+{
+    iter: I,
+    current: Option<(u32, u32)>,
+    done: bool,
+}
+
+impl<I> Iterator for PathsOnSegmentIter<I>
+where
+    I: Iterator<Item = (u32, u32)>,
+{
+    type Item = u32;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.done {
+            return None;
+        }
+
+        if self.current.is_none() {
+            if let Some((ix, bits)) = self.iter.next() {
+                self.current = Some((ix, bits));
+            } else {
+                self.done = true;
+                return None;
+            }
+        }
+
+        let (ix, bits) = self.current?;
+
+        let bit = bits.trailing_zeros();
+        let out = ix * 32 + bit;
+
+        let new_bits = bits ^ bit;
+
+        if bit == 0 {
+            self.current = None;
+        } else {
+            self.current = Some((ix, new_bits));
+        }
+
+        Some(out)
+    }
+}
+
 impl PathIndex {
     pub fn from_arrow_gfa(gfa: &ArrowGFA) -> Self {
         let segment_path_matrix = SegmentPathMatrix::from_arrow_gfa(gfa);
         Self {
             segment_path_matrix,
         }
+    }
+
+    pub fn paths_on_segment_iter<'a>(
+        &'a self,
+        segment: u32,
+    ) -> Option<PathsOnSegmentIter<impl Iterator<Item = (u32, u32)>>> {
+        let bitmap = self.segment_path_matrix.paths_on_segment(segment)?;
+        let (is, ds) = bitmap.into_raw_storage();
+
+        let iter = PathsOnSegmentIter {
+            iter: std::iter::zip(is, ds),
+            current: None,
+            done: false,
+        };
+
+        Some(iter)
     }
 }
 
@@ -69,9 +140,9 @@ impl SegmentPathMatrix {
             vec![SmallVec::default(); gfa.segment_count()];
 
         let insert_segment = |map: &mut SmallVec<[(u32, u32); 4]>,
-                              path_index: u32| {
-            let bits_ix = path_index / 32;
-            let modulo = path_index % 32;
+                              path_id: u32| {
+            let bits_ix = path_id / 32;
+            let modulo = path_id % 32;
             let val = 1 << modulo;
 
             let result = map.binary_search_by_key(&bits_ix, |(k, _v)| *k);
@@ -83,13 +154,13 @@ impl SegmentPathMatrix {
         };
 
         for (path_i, steps) in gfa.path_steps.iter().enumerate() {
-            let path_index = path_i as u32;
-            // let bitset_index = path_index / 32;
+            let path_id = path_i as u32;
+            // let bitset_index = path_id / 32;
 
             for step_handle in steps.values_iter() {
                 let segment = step_handle >> 1;
                 let bitmap = &mut segment_paths[segment as usize];
-                insert_segment(bitmap, path_index);
+                insert_segment(bitmap, path_id);
             }
         }
 
@@ -194,8 +265,8 @@ impl ArrowGFA {
         self.path_names.len()
     }
 
-    pub fn path_steps(&self, path_index: u32) -> &UInt32Array {
-        &self.path_steps[path_index as usize]
+    pub fn path_steps(&self, path_id: u32) -> &UInt32Array {
+        &self.path_steps[path_id as usize]
     }
 
     pub fn segment_sequence(&self, segment_index: u32) -> &[u8] {
@@ -244,29 +315,29 @@ impl ArrowGFA {
         Some(path_ix as u32)
     }
 
-    pub fn path_name(&self, path_index: u32) -> Option<&str> {
-        self.path_names.get(path_index as usize)
+    pub fn path_name(&self, path_id: u32) -> Option<&str> {
+        self.path_names.get(path_id as usize)
     }
 
-    pub fn path_step_len(&self, path_index: u32) -> usize {
-        self.path_steps[path_index as usize].len()
+    pub fn path_step_len(&self, path_id: u32) -> usize {
+        self.path_steps[path_id as usize].len()
     }
 
     pub fn path_steps_iter<'a>(
         &'a self,
-        path_index: u32,
+        path_id: u32,
     ) -> impl Iterator<Item = u32> + 'a {
-        let steps = &self.path_steps[path_index as usize];
+        let steps = &self.path_steps[path_id as usize];
         steps.values_iter().copied()
     }
 
     pub fn path_slice(
         &self,
-        path_index: u32,
+        path_id: u32,
         start_step: usize,
         length: usize,
     ) -> UInt32Array {
-        let steps = &self.path_steps[path_index as usize];
+        let steps = &self.path_steps[path_id as usize];
         let slice = steps.clone().sliced(start_step, length);
         slice
     }
@@ -296,7 +367,7 @@ impl ArrowGFA {
 
     // pub fn path_vector_offsets(
     //     &self,
-    //     path_index: u32,
+    //     path_id: u32,
     // ) -> sprs::CsVecI<u32, u32> {
     //     let dim = self.segment_sequences.len();
     //     //
@@ -304,13 +375,13 @@ impl ArrowGFA {
 
     pub fn path_vector_sparse_u32(
         &self,
-        path_index: u32,
+        path_id: u32,
     ) -> sprs::CsVecI<u32, u32> {
         let dim = self.segment_sequences.len();
 
         let mut data = vec![0u32; dim];
 
-        let steps = &self.path_steps[path_index as usize];
+        let steps = &self.path_steps[path_id as usize];
 
         // step vectors are dense so can use values() here
         for step_h in steps.values_iter() {
@@ -343,9 +414,9 @@ impl ArrowGFA {
 
     pub fn path_step_offsets(
         &self,
-        path_index: u32,
+        path_id: u32,
     ) -> arrow2::offset::Offsets<i32> {
-        let steps = &self.path_steps[path_index as usize];
+        let steps = &self.path_steps[path_id as usize];
         arrow2::offset::Offsets::try_from_lengths(steps.values_iter().map(
             |step_handle| {
                 let i = step_handle >> 1;

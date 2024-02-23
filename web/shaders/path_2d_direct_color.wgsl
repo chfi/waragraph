@@ -80,19 +80,13 @@ fn vs_main(
   let x_basis = p1 - p0;
   let y_basis = normalize(vec2(-x_basis.y, x_basis.x));
 
-  let x0 = vec4(p0 + x_basis * pos.x, 0.0, 1.0);
-  let y0 = vec4(y_basis * pos.y, 0.0, 0.0);
+  let view_width = 2.0 * projection[0][0];
 
-  let px = projection * x0;
-  let py = y0;
+  let pp = p0 + x_basis * pos.x + y_basis * (config.node_width / view_width) * pos.y;
 
-  let point = px + py * config.node_width;
-  result.position = point;
+  result.position = projection * vec4(pp, 0.0, 1.0);
 
-  // unpack4x8unorm doesn't work on wasm https://github.com/gfx-rs/naga/issues/2006
-  // result.node_color = unpack4x8unorm(node_color);
-
-  let color_u = (vec4u(node_color) >> vec4u(24u, 16u, 8u, 0u))
+  let color_u = (vec4u(node_color) >> vec4u(0u, 8u, 16u, 24u))
                 & vec4u(255u);
 
   result.node_color = vec4f(color_u) / vec4f(255.0);

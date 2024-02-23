@@ -1,6 +1,6 @@
 import init_module, * as wasm_bindgen from 'waragraph';
 
-import { graphViewerLayoutOnly } from './graph_viewer';
+import { graphViewerFromData } from './graph_viewer';
 
 import { vec2 } from 'gl-matrix';
 
@@ -353,5 +353,5 @@ export async function testBig(layout_file: File) {
   container.style.setProperty('width', '100%');
   container.style.setProperty('height', '100%');
   document.body.append(container);
-  const graph_viewer = graphViewerLayoutOnly(layout_file, container);
+  const graph_viewer = graphViewerFromData(container, layout_file);
 }

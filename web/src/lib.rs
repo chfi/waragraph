@@ -232,6 +232,60 @@ impl CanvasPathTrace {
 
 #[wasm_bindgen]
 impl SegmentPositions {
+    // results are x, y positions, interleaved
+    pub fn sample_path_world_space(
+        &self,
+        path_slice: &[u32],
+        tolerance_ws: f32,
+    ) -> Result<Vec<f32>, JsValue> {
+        if path_slice.is_empty() {
+            return Ok(vec![]);
+        }
+
+        let tol_sq = tolerance_ws * tolerance_ws;
+
+        let path_vertices = path_slice.iter().flat_map(|&step_handle| {
+            let seg = step_handle >> 1;
+            let i = (seg * 2) as usize;
+
+            let p0 = Vec2::new(self.xs[i], self.ys[i]);
+            let p1 = Vec2::new(self.xs[i + 1], self.ys[i + 1]);
+
+            [p0, p1]
+        });
+
+        let mut last_vertex = None;
+
+        let mut points: Vec<Vec2> = Vec::new();
+
+        for p in path_vertices {
+            last_vertex = Some(p);
+
+            if let Some(last_p) = points.last().copied() {
+                let delta = p - last_p;
+                let _dist_sq = delta.mag_sq();
+
+                if delta.mag_sq() >= tol_sq {
+                    points.push(p);
+                }
+            } else {
+                points.push(p);
+            }
+        }
+
+        if points.len() == 1 {
+            if let Some(p) = last_vertex {
+                if p != points[0] {
+                    points.push(p);
+                }
+            }
+        }
+
+        let points: Vec<f32> = bytemuck::cast_vec(points);
+
+        Ok(points)
+    }
+
     pub fn sample_canvas_space_path(
         &self,
         view: &viewer_2d::view::View2D,
@@ -569,13 +623,38 @@ impl ArrowGFAWrapped {
         }
     }
 
-    pub fn path_steps(
-        &self,
-        path_name: &str,
-    ) -> Result<js_sys::Uint32Array, JsValue> {
-        let path_index = self.path_id(path_name)?;
+    pub fn path_metadata(&self) -> Vec<js_sys::Object> {
+        let mut paths = Vec::new();
 
-        let steps = &self.0.path_steps(path_index);
+        for (ix, path_name) in self.0.path_names.iter().enumerate() {
+            let path_id = ix as u32;
+
+            let step_count = self.0.path_steps(path_id).len();
+
+            let obj = js_sys::Object::default();
+            js_sys::Reflect::set(obj.as_ref(), &"id".into(), &path_id.into());
+            js_sys::Reflect::set(
+                obj.as_ref(),
+                &"name".into(),
+                &path_name.into(),
+            );
+            js_sys::Reflect::set(
+                obj.as_ref(),
+                &"stepCount".into(),
+                &step_count.into(),
+            );
+
+            paths.push(obj);
+        }
+
+        paths
+    }
+
+    pub fn path_steps_id(
+        &self,
+        path_id: u32,
+    ) -> Result<js_sys::Uint32Array, JsValue> {
+        let steps = &self.0.path_steps(path_id);
         let slice = steps.values().as_slice();
 
         let ptr = slice.as_ptr();
@@ -586,6 +665,14 @@ impl ArrowGFAWrapped {
             ptr as u32,
             slice.len() as u32,
         ))
+    }
+
+    pub fn path_steps(
+        &self,
+        path_name: &str,
+    ) -> Result<js_sys::Uint32Array, JsValue> {
+        let path_id = self.path_id(path_name)?;
+        self.path_steps_id(path_id)
     }
 
     pub fn segment_sequences_array(&self) -> js_sys::Uint8Array {

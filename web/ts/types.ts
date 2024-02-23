@@ -6,6 +6,11 @@ export type Segment = number;
 export type Handle = number;
 export type PathId = number;
 
+export type PathInterval =
+    { path_id: PathId, start: Bp, end: Bp };
+
+export type PathNameInterval =
+    { path_name: string, start: Bp, end: Bp };
 
 // idk about this but w/e
 export interface RGBObj {
