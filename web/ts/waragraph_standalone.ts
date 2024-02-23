@@ -27,7 +27,7 @@ import { GraphLayoutTable, graphLayoutFromTSV } from './graph_layout';
 import { export2DViewportSvg } from './svg_export';
 import { WaragraphWorkerCtx } from './worker';
 import { applyColorScaleToBuffer, spectralScale } from './color';
-import { Waragraph } from './waragraph_client';
+import { Waragraph } from './waragraph';
 import { AnnotationGeometry } from './annotations';
 
 
@@ -110,10 +110,6 @@ export async function initializeWaragraphStandalone(
     input.style.setProperty('height', '100%');
     range_input.append(input);
   }
-
-  // TODO
-  await addViewRangeInputListeners(global_viewport);
-  await addSegmentJumpInputListeners(this.graph_viewer);
 
   const seq_slots = appendPathListElements(20, 'div', 'div');
   seq_slots.left.classList.add('path-list-header');
@@ -207,7 +203,6 @@ export async function initializeWaragraphStandalone(
 
   waragraph.color_buffers.set('depth', depth_color);
 
-  console.log("almost there");
   waragraph.resize_observable.subscribe(() => {
     const doc_bounds = document.documentElement.getBoundingClientRect();
     const bounds = path_data_col.getBoundingClientRect();
@@ -229,6 +224,10 @@ export async function initializeWaragraphStandalone(
 
   console.log("initializing sidebar");
   await initializeBedSidebarPanel(waragraph, prepareAnnotationRecords);
+
+  // TODO
+  await addViewRangeInputListeners(global_viewport);
+  await addSegmentJumpInputListeners(waragraph);
 
   console.log("done");
 

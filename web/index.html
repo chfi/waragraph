@@ -37,59 +37,18 @@
     </div>
   </div>
 
-
-
   <div id="tooltip" role="tooltip"></div>
-
-
 
   <script type="module">
     import { initializeWaragraphClient } from './ts/waragraph_client';
 
-      document.getElementById('load-data').addEventListener('click', async (ev) => {
-          let gfa_file = document.getElementById("gfa-file").files[0];
-          let tsv_file = document.getElementById("layout-file").files[0];
+    document.getElementById('root-container').removeAttribute('style');
 
-          if (gfa_file === undefined || tsv_file === undefined) {
-              return;
-          }
-
-          const viz_root = document.getElementById('viz-container');
-
-          document.getElementById('web-canvas').setAttribute('hidden', '');
-          document.getElementById('root-container').style.removeProperty('display');
-
-          const spinner_par = document.createElement('div');
-          const spinner = document.createElement('div');
-          const spinner_text = document.createElement('div');
-          spinner.classList.add('lds-dual-ring');
-          spinner_par.style.setProperty('grid-column', '1');
-          spinner_par.style.setProperty('grid-row', '1');
-          spinner_par.style.setProperty('align-self', 'center');
-          spinner_par.style.setProperty('align-items', 'center');
-          spinner_par.style.setProperty('text-align', 'center');
-          spinner_par.style.setProperty('margin-left', 'auto');
-          spinner_par.style.setProperty('margin-right', 'auto');
-
-          spinner_text.style.setProperty('font-family', 'sans-serif');
-          spinner_text.style.setProperty('text-align', 'justify');
-          spinner_text.style.setProperty('width', '100%');
-          spinner_text.innerHTML = 'Loading graph';
-
-          spinner_par.append(spinner);
-          spinner_par.append(spinner_text);
-
-          viz_root.append(spinner_par);
-
-
-          initializeWaragraphClient(new URL('http://localhost:8000'))
-              .then((wg) => {
-                  spinner_par.remove();
-                  // trigger initial resize on window load
-                  window.dispatchEvent(new Event('resize'));
-              });
-
-      });
+    initializeWaragraphClient(new URL('http://localhost:8000'))
+        .then((wg) => {
+            // trigger initial resize on window load
+            window.dispatchEvent(new Event('resize'));
+        });
 
   </script>
 

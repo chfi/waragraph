@@ -29,8 +29,7 @@ interface OverlayCallbacks {
 
 export class GraphViewer {
   graph_viewer: wasm_bindgen.GraphViewer;
-  // segment_positions: wasm_bindgen.SegmentPositions | undefined;
-  segment_positions: SegmentPositions | undefined;
+  graph_layout: GraphLayoutTable;
 
   initial_view: wasm_bindgen.View2D;
 
@@ -48,8 +47,8 @@ export class GraphViewer {
     gpu_canvas: HTMLCanvasElement,
     overlay_canvas: HTMLCanvasElement,
     viewer: wasm_bindgen.GraphViewer,
+    graph_layout_table: GraphLayoutTable,
     container?: HTMLDivElement,
-    seg_pos?: wasm_bindgen.SegmentPositions,
   ) {
     this.gpu_canvas = gpu_canvas;
     this.overlay_canvas = overlay_canvas;
@@ -58,7 +57,8 @@ export class GraphViewer {
 
     // maybe just take the minimum raw data needed here
     this.graph_viewer = viewer;
-    this.segment_positions = seg_pos;
+    this.graph_layout = graph_layout_table;
+    // this.segment_positions = seg_pos;
 
     this.initial_view = this.graph_viewer.get_view();
     this.next_view = this.graph_viewer.get_view();
@@ -207,10 +207,12 @@ export class GraphViewer {
   }
 
   getSegmentPos(segment: number): { x0: number, y0: number, x1: number, y1: number } | null {
-    if (this.segment_positions === undefined) {
+    const pos = this.graph_layout.segmentPosition(segment);
+    if (pos === null) {
       return null;
-    } 
-    return this.segment_positions.segment_pos(segment);
+    }
+    const { p0, p1 } = pos;
+    return { x0: p0[0], y0: p0[1], x1: p1[0], y1: p1[1] };
   }
 
   getSegmentScreenPos(segment: number): { start: vec2, end: vec2 } | null {
@@ -375,179 +377,10 @@ function resize_view_dimensions(v_dims, c_old, c_new) {
 
 
 
-export async function initializeGraphViewer(
-  wasm_mem: WebAssembly.Memory,
-  graph_raw: { __wbg_ptr: number },
-  layout: URL | string | Blob,
-  container?: HTMLDivElement,
-) {
-  if (_wasm === undefined) {
-    _wasm = await init_module(undefined, wasm_mem);
-    wasm_bindgen.set_panic_hook();
-  }
-
-  // create canvases
-
-  let gpu_canvas = document.createElement('canvas');
-  let overlay_canvas = document.createElement('canvas');
-
-  gpu_canvas.id = 'graph-viewer-2d';
-  overlay_canvas.id = 'graph-viewer-2d-overlay';
-
-  gpu_canvas.style.setProperty('z-index', '0');
-  overlay_canvas.style.setProperty('z-index', '1');
-  // gpu_canvas.style.setProperty('z-index', '0');
-  // overlay_canvas.style.setProperty('z-index', '1');
-
-  let width, height;
-
-  if (container) {
-    container.append(gpu_canvas);
-    container.append(overlay_canvas);
-
-    width = container.clientWidth;
-    height = container.clientHeight;
-
-    // const width = container.clientWidth;
-    // const height = container.clientHeight;
-
-    gpu_canvas.width = width;
-    gpu_canvas.height = height;
-    overlay_canvas.width = width;
-    overlay_canvas.height = height;
-  }
-
-
-
-  if (_raving_ctx === undefined) {
-    // let canvas = document.getElementById('graph-viewer-2d');
-    _raving_ctx = await wasm_bindgen.RavingCtx.initialize_(gpu_canvas);
-  }
-
-  let layout_data;
-
-  if (layout instanceof Blob) {
-    layout_data = await layout.text();
-  } else {
-    layout_data = await fetch(layout).then(l => l.text());
-  }
-
-  const seg_pos = wasm_bindgen.SegmentPositions.from_tsv(layout_data);
-
-  const graph = wrapWasmPtr(wasm_bindgen.ArrowGFAWrapped, graph_raw.__wbg_ptr);
-
-  const viewer = wasm_bindgen.GraphViewer.new_dummy_data(
-    _raving_ctx,
-    graph,
-    seg_pos,
-    gpu_canvas
-  );
-
-  if (width && height) {
-    viewer.resize(_raving_ctx, width, height);
-  }
-
-  viewer.draw_to_surface(_raving_ctx);
-
-
-  const graph_viewer = new GraphViewer(gpu_canvas, overlay_canvas, viewer, container, seg_pos);
-
-  const draw_loop = () => {
-    if (graph_viewer.needRedraw()) {
-      graph_viewer.draw();
-    }
-
-    window.requestAnimationFrame(draw_loop);
-  };
-
-  draw_loop();
-
-  const mouseDown$ = rxjs.fromEvent(overlay_canvas, 'mousedown');
-  const mouseUp$ = rxjs.fromEvent(overlay_canvas, 'mouseup');
-  const mouseOut$ = rxjs.fromEvent(overlay_canvas, 'mouseout');
-  const mouseMove$ = rxjs.fromEvent<MouseEvent>(overlay_canvas, 'mousemove');
-
-
-  const hoveredSegment$ = mouseMove$.pipe(
-    rxjs.map((ev: MouseEvent) => ({ x: ev.offsetX, y: ev.offsetY })),
-    rxjs.distinct(),
-    rxjs.throttleTime(40),
-    rxjs.map(({ x, y }) => graph_viewer.lookup(x, y)),
-  );
-
-  hoveredSegment$.subscribe((segment) => {
-    let tooltip = document.getElementById('tooltip');
-
-    if (segment === null) {
-      tooltip.innerHTML = "";
-      tooltip.style.display = 'none';
-    } else if (graph_viewer.mousePos !== null) {
-      tooltip.innerHTML = `Segment ${segment}`;
-      tooltip.style.display = 'block';
-
-      let rect = document
-        .getElementById('graph-viewer-2d-overlay')
-        .getBoundingClientRect();
-      let { x, y } = graph_viewer.mousePos;
-
-      let gx = x + rect.left;
-      let gy = y + rect.top;
-
-      placeTooltipAtPoint(gx, gy);
-    }
-  })
-
-  mouseMove$.subscribe((event: MouseEvent) => {
-    graph_viewer.mousePos = { x: event.offsetX, y: event.offsetY };
-  });
-
-  mouseOut$.subscribe((event) => {
-    graph_viewer.mousePos = null;
-  });
-
-  const drag$ = mouseDown$.pipe(
-    rxjs.switchMap((event) => {
-      return mouseMove$.pipe(
-        rxjs.takeUntil(
-          rxjs.race(mouseUp$, mouseOut$)
-        )
-      )
-    })
-  );
-
-  drag$.subscribe((ev: MouseEvent) => {
-    let dx = ev.movementX;
-    let dy = ev.movementY;
-    let x = dx / overlay_canvas.width;
-    let y = dy / overlay_canvas.height;
-    graph_viewer.translate(-x, y);
-  });
-
-  const wheel$ = rxjs.fromEvent(overlay_canvas, 'wheel').pipe(
-    rxjs.tap(event => event.preventDefault())
-  );
-
-  wheel$.subscribe((event: WheelEvent) => {
-    let x = event.offsetX;
-    let y = overlay_canvas.height - event.offsetY;
-
-    let nx = x / overlay_canvas.width;
-    let ny = y / overlay_canvas.height;
-
-    let scale = event.deltaY > 0.0 ? 1.05 : 0.95;
-
-    graph_viewer.zoom(nx, ny, scale);
-  });
-
-  graph_viewer.resetView();
-
-
-  return graph_viewer;
-}
 
 export async function graphViewerFromData(
   container: HTMLDivElement,
-  layout_data: Blob | Table | GraphLayoutTable,
+  layout_data: GraphLayoutTable,
   color_data?: Uint32Array,
 ): Promise<GraphViewer> {
   const wasm = await init_module();
@@ -580,20 +413,12 @@ export async function graphViewerFromData(
   const position_buffers = _raving_ctx.create_empty_paged_buffers(20n);
 
   let graph_bounds: { min_x: any; max_x: any; min_y: any; max_y: any; };
-
-  if (layout_data instanceof Blob) {
-    // Blobs are taken to be TSV as text; could be improved
-    graph_bounds = await fillPositionBuffersFromTSV(_raving_ctx, position_buffers, layout_data);
-  } else if (layout_data instanceof Table) {
-    const x = layout_data.getChild('x');
-    const y = layout_data.getChild('y');
-    graph_bounds = await fillPositionBuffersFromArrowVectors(_raving_ctx, position_buffers, x, y);
-  } else if (layout_data instanceof GraphLayoutTable) {
+  {
     await fillPositionBuffersFromArrowVectors(_raving_ctx, position_buffers, layout_data.x, layout_data.y);
     const [min_x, min_y] = layout_data.aabb_min;
     const [max_x, max_y] = layout_data.aabb_max;
     graph_bounds = { min_x, min_y, max_x, max_y };
-  } 
+  }
 
   const segment_count = position_buffers.len();
   if (segment_count === 0) {
@@ -653,7 +478,7 @@ export async function graphViewerFromData(
 
   viewer.draw_to_surface(_raving_ctx);
 
-  const graph_viewer = new GraphViewer(gpu_canvas, overlay_canvas, viewer, container);
+  const graph_viewer = new GraphViewer(gpu_canvas, overlay_canvas, viewer, layout_data, container);
 
   const draw_loop = () => {
     if (graph_viewer.needRedraw()) {

@@ -2,62 +2,6 @@ import { Table, Vector, makeTable, makeVector } from "apache-arrow";
 import { vec2 } from "gl-matrix";
 
 
-
-
-export async function graphLayoutFromTSV(
-  tsv_file: Blob,
-): Promise<GraphLayoutTable> {
-  let position_lines = blobLineIterator(tsv_file);
-
-  let header = await position_lines.next();
-
-  const regex = /([^\s]+)\t([^\s]+)\t([^\s]+)/;
-
-  const parse_next = async () => {
-    let line = await position_lines.next();
-
-    let match = line.value?.match(regex);
-    if (!match) {
-      return null;
-    }
-
-    // let ix = parseInt(match[1]);
-    let x = parseFloat(match[2]);
-    let y = parseFloat(match[3]);
-
-    return { x, y };
-  }
-
-  const xs: number[] = [];
-  const ys: number[] = [];
-
-  let x_min = Infinity;
-  let y_min = Infinity;
-  let x_max = -Infinity;
-  let y_max = -Infinity;
-
-  for (;;) {
-    const row = await parse_next();
-    if (row === null) {
-      break;
-    }
-
-    const { x, y } = row;
-    xs.push(x);
-    ys.push(y);
-
-    x_min = Math.min(x_min, x);
-    y_min = Math.min(y_min, y);
-    x_max = Math.max(x_max, x);
-    y_max = Math.max(y_max, y);
-  }
-
-  const x = makeVector(Float32Array.from(xs));
-  const y = makeVector(Float32Array.from(ys));
-
-  return new GraphLayoutTable(x, y, vec2.fromValues(x_min, y_min), vec2.fromValues(x_max, y_max));
-}
-
 export class GraphLayoutTable {
   x: Vector;
   y: Vector;
@@ -146,6 +90,62 @@ export class GraphLayoutTable {
     return new SegmentPositionIterator(this.x, this.y);
   }
 }
+
+
+export async function graphLayoutFromTSV(
+  tsv_file: Blob,
+): Promise<GraphLayoutTable> {
+  let position_lines = blobLineIterator(tsv_file);
+
+  let header = await position_lines.next();
+
+  const regex = /([^\s]+)\t([^\s]+)\t([^\s]+)/;
+
+  const parse_next = async () => {
+    let line = await position_lines.next();
+
+    let match = line.value?.match(regex);
+    if (!match) {
+      return null;
+    }
+
+    // let ix = parseInt(match[1]);
+    let x = parseFloat(match[2]);
+    let y = parseFloat(match[3]);
+
+    return { x, y };
+  }
+
+  const xs: number[] = [];
+  const ys: number[] = [];
+
+  let x_min = Infinity;
+  let y_min = Infinity;
+  let x_max = -Infinity;
+  let y_max = -Infinity;
+
+  for (;;) {
+    const row = await parse_next();
+    if (row === null) {
+      break;
+    }
+
+    const { x, y } = row;
+    xs.push(x);
+    ys.push(y);
+
+    x_min = Math.min(x_min, x);
+    y_min = Math.min(y_min, y);
+    x_max = Math.max(x_max, x);
+    y_max = Math.max(y_max, y);
+  }
+
+  const x = makeVector(Float32Array.from(xs));
+  const y = makeVector(Float32Array.from(ys));
+
+  return new GraphLayoutTable(x, y, vec2.fromValues(x_min, y_min), vec2.fromValues(x_max, y_max));
+}
+
 
 
 class SegmentPositionIterator implements Iterable<{ segment: number, p0: vec2, p1: vec2 }> {

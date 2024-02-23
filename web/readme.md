@@ -11,9 +11,10 @@ rustup component add rust-src --toolchain nightly-2023-11-01
 ```
 
 build with `wasm-pack build --target web`, run `npm install` to get the JS dependencies,
-then start the dev server with parcel: `npx parcel index.html`
+then start the dev server with parcel: `npx parcel index_standalone.html`
 
-build it without starting the server using `npx parcel build index.html`, e.g. when using the rocket server in `../server`
+build it without starting the server using `npx parcel build`. If building for use in the server,
+use `index.html` instead: `npx parcel build index.html`.
 
 
 ### issues

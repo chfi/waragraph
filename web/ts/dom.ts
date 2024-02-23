@@ -2,7 +2,7 @@ import Split from "split-grid";
 import { GraphViewer } from "./graph_viewer";
 import { OverviewMap } from "./overview";
 import { PathViewer, addOverviewEventHandlers } from "./path_viewer_ui";
-import { Viewport1D, WaragraphOptions, globalSequenceTrack } from "./waragraph";
+import { Viewport1D, Waragraph, WaragraphOptions, globalSequenceTrack } from "./waragraph";
 
 import * as rxjs from 'rxjs';
 
@@ -101,6 +101,7 @@ export function updateSVGMasks() {
 }
 
 
+/*
 export async function addViewRangeInputListeners(viewport: Viewport1D) {
   const start_el = document.getElementById('path-viewer-range-start') as HTMLInputElement;
   const end_el = document.getElementById('path-viewer-range-end') as HTMLInputElement;
@@ -128,4 +129,133 @@ export async function addViewRangeInputListeners(viewport: Viewport1D) {
     end_el.value = String(Math.round(view.end));
   });
 }
+  */
+export async function addViewRangeInputListeners(viewport: Viewport1D) {
 
+  // control pane inputs
+  const start_input = document.getElementById('control-input-range-start') as HTMLInputElement;
+  const end_input = document.getElementById('control-input-range-end') as HTMLInputElement;
+  const go_el = document.getElementById('control-input-range-button') as HTMLInputElement;
+
+  let init_view = viewport.get();
+
+  start_input.value = String(init_view.start);
+  end_input.value = String(init_view.end);
+
+  // graph view inputs (disabled), for displaying the current selection only
+  const start_view = document.getElementById('path-viewer-range-start') as HTMLInputElement;
+  const end_view = document.getElementById('path-viewer-range-end') as HTMLInputElement;
+
+  // init view range
+  start_view.value = String(init_view.start);
+  end_view.value = String(init_view.end);
+
+  const handler = (_event) => {
+    var start = parseFloat(start_input.value);
+    var end = parseFloat(end_input.value);
+    
+    if (!isNaN(start) && !isNaN(end)) {
+
+      // bound checking
+      
+      if (start < 0) {
+        start = 0;
+        start_input.value = String(start);
+      }
+      if (start >= viewport.max) {
+        start = viewport.max - 1;
+        start_input.value = String(start);
+      }
+      if (end <= 0) {
+        end = start + 1;
+        end_input.value = String(end);
+      }
+      if (end > viewport.max) {
+        end = viewport.max;
+        end_input.value = String(end);
+      }
+      if (start >= end) {
+        start = end -1;
+        start_input.value = String(start);
+      }
+
+      viewport.set(start, end);
+    }
+  };
+
+  go_el.addEventListener('click', handler);
+
+  const view_subject = viewport.subject;
+
+  view_subject.subscribe((view) => {
+    start_view.value = String(Math.round(view.start));
+    end_view.value = String(Math.round(view.end));
+  });
+
+  // potential fix for offscreen bars not rendering until resize
+  // drawback: causes ugly stutter on firefox while scrolling
+
+  const pathViewerContainer = document.getElementById('path-viewer-container');
+
+  pathViewerContainer.addEventListener('scroll', () => {
+    window.dispatchEvent(new Event('resize'));
+  });
+  
+}
+
+
+
+// Segment jump function on control panel
+// export async function addSegmentJumpInputListeners(graph_viewer) {
+export async function addSegmentJumpInputListeners(waragraph: Waragraph) {
+
+  const segment_input = document.getElementById('control-input-segment-start') as HTMLInputElement;
+  const segment_button = document.getElementById('control-input-segment-button') as HTMLInputElement;
+
+  const graph_viewer = waragraph.graph_viewer;
+
+  const handler = (_event) => {
+
+    var segment = parseInt(segment_input.value);
+
+    if (!isNaN(segment)) {
+
+      // TODO: bounds check
+      const position = graph_viewer.graph_layout.segmentPosition(segment);
+
+      if (position !== null) {
+        // Center of segment
+        const midpoint = {
+          x: (position.p0[0] + position.p1[0]) / 2.0,
+          y: (position.p0[1] + position.p1[1]) / 2.0
+        };
+
+        // Jump to segment
+        const view = document.getElementById('graph-viewer-2d');
+        view.style.display = 'none';
+        graph_viewer.resetView();
+        graph_viewer.setViewCenter(midpoint.x, midpoint.y);
+
+        setTimeout(() => {
+          const screen_position = graph_viewer.getSegmentScreenPos(segment);
+
+          const midpoint_screen = {
+            x: (screen_position.start[0]),
+            y: (screen_position.start[1])
+          }
+
+          let zoom_x = midpoint_screen.x / graph_viewer.overlay_canvas.width;
+          let zoom_y = midpoint_screen.y / graph_viewer.overlay_canvas.height;
+          graph_viewer.zoom(zoom_x, zoom_y, .05);
+          view.style.display = 'block';
+      }, 100);
+
+      }
+      else {
+        console.warn('Segment is null');
+      }
+    }
+  }
+  
+  segment_button.addEventListener('click', handler);
+}
