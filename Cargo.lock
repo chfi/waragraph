@@ -4268,18 +4268,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "waragraph-convert"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "arrow2",
- "clap",
- "env_logger 0.11.0",
- "log",
- "waragraph-core",
-]
-
-[[package]]
 name = "waragraph-core"
 version = "0.1.0"
 dependencies = [
@@ -4310,6 +4298,18 @@ dependencies = [
  "rocket",
  "sprs",
  "ultraviolet",
+ "waragraph-core",
+]
+
+[[package]]
+name = "waragraph-utils"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "arrow2",
+ "clap",
+ "env_logger 0.11.0",
+ "log",
  "waragraph-core",
 ]
 
