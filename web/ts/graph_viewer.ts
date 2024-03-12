@@ -503,7 +503,6 @@ export async function graphViewerFromData(
     rxjs.map(({ x, y }) => graph_viewer.lookup(x, y)),
   );
 
-  /*
   hoveredSegment$.subscribe((segment) => {
     let tooltip = document.getElementById('tooltip');
 
@@ -525,7 +524,6 @@ export async function graphViewerFromData(
       placeTooltipAtPoint(gx, gy);
     }
   })
-    */
 
   mouseMove$.subscribe((event: MouseEvent) => {
     graph_viewer.mousePos = { x: event.offsetX, y: event.offsetY };
