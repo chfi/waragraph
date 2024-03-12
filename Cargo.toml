@@ -3,7 +3,7 @@ members = [
     "core",
     "web",
     "server", 
-    "convert",
+    "utils",
 ]
 
 resolver = "2"

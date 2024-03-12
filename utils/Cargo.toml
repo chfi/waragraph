@@ -1,5 +1,5 @@
 [package]
-name = "waragraph-convert"
+name = "waragraph-utils"
 version = "0.1.0"
 edition = "2021"
 

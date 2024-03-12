@@ -7,7 +7,7 @@ use clap::{Args, CommandFactory, Parser, Subcommand};
 
 #[derive(Parser, Debug)]
 #[command(version, about)]
-struct Cli {
+struct ConvertCli {
     /// Input GFA path
     #[arg(long)]
     gfa: PathBuf,
@@ -18,7 +18,7 @@ struct Cli {
 }
 
 pub fn main() -> anyhow::Result<()> {
-    let cli = Cli::parse();
+    let cli = ConvertCli::parse();
 
     env_logger::init();
 
