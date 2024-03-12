@@ -69,6 +69,26 @@ pub fn main() -> anyhow::Result<()> {
                 std::process::exit(1);
             };
 
+            /*
+            let path_steps = arrow_gfa.path_steps(path_id);
+
+            let mut offset = 0;
+
+            for (ix, handle) in path_steps.values_iter().enumerate() {
+                let seg = handle >> 1;
+
+                if offset > cli.offset {
+                    println!("{seg}");
+                    break;
+                }
+
+                let seq = arrow_gfa.segment_sequence(seg);
+                let len = seq.len() as u64;
+
+                offset += len;
+            }
+            */
+
             log::info!("Building coordinate system for path {}", cli.path_name);
             let coord_sys = CoordSys::path_from_arrow_gfa(&arrow_gfa, path_id);
 

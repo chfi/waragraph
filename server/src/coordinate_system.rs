@@ -87,7 +87,10 @@ pub async fn path_interval_to_global_blocks_impl(
     start_bp: u64,
     end_bp: u64,
 ) -> Vec<[u64; 2]> {
+    log::warn!("annot range: {start_bp} - {end_bp}");
     let step_range = path_cs.bp_to_step_range(start_bp, end_bp);
+
+    log::warn!("step range: {} - {}", step_range.start(), step_range.end());
 
     let steps = graph.path_steps(path_id);
     let len = *step_range.end() - *step_range.start();
