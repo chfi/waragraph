@@ -413,6 +413,10 @@ export class AnnotationPainter {
         let width = xr - xl;
         let height = 100 * data_rect.height / svg_rect.height;
 
+        if (width < 0.0) {
+          continue;
+        }
+
         el_rect.outerHTML = `<rect x="${xl}" y="${y}" width="${width}" height="${height}"
 fill="${color}"
 />`;

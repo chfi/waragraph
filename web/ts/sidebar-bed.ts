@@ -43,11 +43,11 @@ function bedToPathInterval(bed_entry, path_name: string): PathNameInterval {
 
   const found = path_name.match(regex);
 
-  if (found === null) {
-    return bed_entry;
-  }
+  let start = 0;
 
-  const start = Number(found[1]);
+  if (found !== null) {
+    start = Number(found[1]);
+  }
 
   let chromStart = bed_entry.chromStart - start;
   let chromEnd = bed_entry.chromEnd - start;
