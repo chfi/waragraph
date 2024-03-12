@@ -178,8 +178,13 @@ export class AnnotationPainter {
       let color;
 
       if (typeof bed.itemRgb === "string") {
-        let [r, g, b] = bed.itemRgb.split(',');
-        color = `rgb(${r * 255},${g * 255},${b * 255})`;
+        let [r, g, b] = bed.itemRgb.split(',').map(v => v * 255);
+        if (isNaN(r) || isNaN(g) || isNaN(b)) {
+          let col = wasm_bindgen.path_name_hash_color_obj(bed.name);
+          color = `rgb(${col.r * 255},${col.g * 255},${col.b * 255})`;
+        } else {
+          color = `rgb(${r},${g},${b})`;
+        }
       } else {
         let { r, g, b } = wasm_bindgen.path_name_hash_color_obj(bed.name);
         color = `rgb(${r * 255},${g * 255},${b * 255})`;
