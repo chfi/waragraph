@@ -7,8 +7,56 @@ use arrow2::{
 
 use crate::arrow_graph::ArrowGFA;
 
-// #[cfg(target = "wasm32")]
-// #[wasm_bindgen]
+pub struct PathOffsets {
+    pub step_offsets: PrimitiveArray<u32>,
+}
+
+impl PathOffsets {
+    pub fn from_arrow_gfa_path(graph: &ArrowGFA, path: u32) -> Self {
+        let steps = graph.path_steps(path);
+
+        let mut offsets: Vec<u32> = Vec::new();
+        let mut offset = 0;
+        for step in steps.values_iter() {
+            offsets.push(offset);
+            let len = graph.segment_len(step >> 1);
+            offset += len as u32;
+        }
+
+        offsets.push(offset);
+
+        Self {
+            step_offsets: PrimitiveArray::from_vec(offsets),
+        }
+    }
+
+    pub fn step_and_local_offset_at(
+        &self,
+        position: u32,
+    ) -> Option<(u32, u32)> {
+        let step_ix = self.step_at(position)?;
+        let step_offset = self.step_offsets.get(step_ix as usize)?;
+        let local_offset = position - step_offset;
+        Some((step_ix, local_offset))
+    }
+
+    pub fn step_at(&self, position: u32) -> Option<u32> {
+        let ix = self
+            .step_offsets
+            .values()
+            .partition_point(|&offset| offset < position);
+        if ix < self.step_offsets.len() - 1 {
+            Some(ix as u32)
+        } else {
+            None
+        }
+    }
+
+    pub fn step_count(&self) -> usize {
+        self.step_offsets.len() - 1
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct CoordSys {
     pub node_order: PrimitiveArray<u32>,
