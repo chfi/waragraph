@@ -7,7 +7,10 @@ pub mod viewer_2d;
 
 // use app::resource::GraphDataCache;
 
-use waragraph_core::arrow_graph::{ArrowGFA, PathIndex};
+use waragraph_core::{
+    arrow_graph::{ArrowGFA, PathIndex},
+    coordinate_system::PathOffsets,
+};
 use wasm_bindgen_futures::JsFuture;
 
 use ultraviolet::Vec2;
@@ -550,41 +553,6 @@ impl SegmentPositions {
 pub struct ArrowGFAWrapped(pub(crate) ArrowGFA);
 
 #[wasm_bindgen]
-pub struct PathIndexWrapped(pub(crate) PathIndex);
-
-#[wasm_bindgen]
-impl PathIndexWrapped {
-    pub fn paths_on_segment(&self, segment: u32) -> Vec<u32> {
-        if let Some(bitmap) =
-            self.0.segment_path_matrix.paths_on_segment(segment)
-        {
-            let paths = Vec::new();
-
-            for (ix, &bits) in bitmap.iter() {
-                log::warn!("{ix} - {:b}", bits);
-            }
-
-            paths
-        } else {
-            log::error!("segment out of bounds");
-
-            Vec::new()
-        }
-
-        // bitmap
-        // for set in bitmap {
-        // }
-        // let matrix = self.0.segment_path_matrix.matrix();
-        // let rows = matrix.rows();
-
-        // let rhs: CsVec = sprs::CsVecI::empty();
-        // let result = vec![0; rows];
-
-        // let mut out = vec![0; rows];
-    }
-}
-
-#[wasm_bindgen]
 impl ArrowGFAWrapped {
     pub fn generate_path_index(&self) -> PathIndexWrapped {
         let path_index = PathIndex::from_arrow_gfa(&self.0);
@@ -702,6 +670,89 @@ impl ArrowGFAWrapped {
     //     }
     //     vector
     // }
+}
+
+#[wasm_bindgen]
+pub struct PathOffsetsWrapped(pub(crate) PathOffsets);
+
+#[wasm_bindgen]
+impl PathOffsetsWrapped {
+    pub fn from_arrow_gfa(graph: &ArrowGFAWrapped, path_id: u32) -> Self {
+        let offsets =
+            waragraph_core::coordinate_system::PathOffsets::from_arrow_gfa_path(
+                &graph.0, path_id,
+            );
+        Self(offsets)
+    }
+
+    pub fn bp_to_step_range(&self, start: u64, end: u64) -> JsValue {
+        let Some(step_range) = self.0.bp_to_step_range(start..end) else {
+            return JsValue::NULL;
+        };
+
+        let s_i = step_range.start;
+        let e_i = step_range.end;
+
+        let obj = js_sys::Object::new();
+
+        for (k, v) in [("start", s_i as f64), ("end", e_i as f64)] {
+            js_sys::Reflect::set(obj.as_ref(), &k.into(), &v.into());
+        }
+
+        obj.into()
+    }
+
+    pub fn step_bp_range(&self, step_index: u32) -> JsValue {
+        let Some(range) = self.0.step_bp_range(step_index) else {
+            return JsValue::NULL;
+        };
+
+        let s_i = range.start;
+        let e_i = range.end;
+
+        let obj = js_sys::Object::new();
+
+        for (k, v) in [("start", s_i as f64), ("end", e_i as f64)] {
+            js_sys::Reflect::set(obj.as_ref(), &k.into(), &v.into());
+        }
+
+        obj.into()
+    }
+}
+
+#[wasm_bindgen]
+pub struct PathIndexWrapped(pub(crate) PathIndex);
+
+#[wasm_bindgen]
+impl PathIndexWrapped {
+    pub fn paths_on_segment(&self, segment: u32) -> Vec<u32> {
+        if let Some(bitmap) =
+            self.0.segment_path_matrix.paths_on_segment(segment)
+        {
+            let paths = Vec::new();
+
+            for (ix, &bits) in bitmap.iter() {
+                log::warn!("{ix} - {:b}", bits);
+            }
+
+            paths
+        } else {
+            log::error!("segment out of bounds");
+
+            Vec::new()
+        }
+
+        // bitmap
+        // for set in bitmap {
+        // }
+        // let matrix = self.0.segment_path_matrix.matrix();
+        // let rows = matrix.rows();
+
+        // let rhs: CsVec = sprs::CsVecI::empty();
+        // let result = vec![0; rows];
+
+        // let mut out = vec![0; rows];
+    }
 }
 
 #[wasm_bindgen]

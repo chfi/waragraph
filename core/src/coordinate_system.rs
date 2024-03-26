@@ -8,10 +8,14 @@ use arrow2::{
 use crate::arrow_graph::ArrowGFA;
 
 pub struct PathOffsets {
-    pub step_offsets: PrimitiveArray<u32>,
+    step_offsets: PrimitiveArray<u32>,
 }
 
 impl PathOffsets {
+    pub fn offsets_array(&self) -> &PrimitiveArray<u32> {
+        &self.step_offsets
+    }
+
     pub fn from_arrow_gfa_path(graph: &ArrowGFA, path: u32) -> Self {
         let steps = graph.path_steps(path);
 
@@ -28,6 +32,15 @@ impl PathOffsets {
         Self {
             step_offsets: PrimitiveArray::from_vec(offsets),
         }
+    }
+
+    pub fn step_bp_range(
+        &self,
+        step_index: u32,
+    ) -> Option<std::ops::Range<u64>> {
+        let offset = self.step_offsets.get(step_index as usize)?;
+        let next = self.step_offsets.get(step_index as usize + 1)?;
+        Some(offset as u64..next as u64)
     }
 
     pub fn bp_to_step_range(
