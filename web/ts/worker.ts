@@ -28,6 +28,8 @@ export class WaragraphWorkerCtx {
   path_coord_sys_wasm: Map<string, wasm_bindgen.CoordSys>;
   path_coord_sys_cache: Map<string, CoordSysArrow>;
 
+  path_offsets_cache: Map<number, wasm_bindgen.PathOffsetsWrapped>;
+
   constructor(wasm_module, wasm_memory) {
     if (wasm === undefined) {
       // wasm = await init_wasm(undefined, wasm_memory);
@@ -38,6 +40,7 @@ export class WaragraphWorkerCtx {
 
     this.path_coord_sys_wasm = new Map();
     this.path_coord_sys_cache = new Map();
+    this.path_offsets_cache = new Map();
 
   }
 
@@ -98,6 +101,31 @@ export class WaragraphWorkerCtx {
       this.global_coord_sys = csys;
       return csys;
     }
+  }
+
+  getPathOffsetsPtr(path: string | number): wasm_bindgen.PathOffsetsWrapped | undefined {
+    let path_name: string;
+    let path_id: number;
+
+    if (typeof path === "number") {
+      path_name = this.graph!.path_name(path);
+      path_id = path;
+    } else {
+      path_name = path;
+      path_id = this.graph!.path_id(path_name);
+    }
+    if (path_name === undefined) {
+      return undefined;
+    }
+
+    var path_offsets = this.path_offsets_cache.get(path_id);
+
+    if (path_offsets === undefined) {
+      path_offsets = wasm_bindgen.PathOffsetsWrapped.from_arrow_gfa(this.graph!, path_id);
+      this.path_offsets_cache.set(path_id, path_offsets);
+    }
+
+    return path_offsets;
   }
 
   getPathCoordinateSystemPtr(path: string | number): wasm_bindgen.CoordSys | undefined {
@@ -273,9 +301,14 @@ export class WaragraphWorkerCtx {
 
     for (const annot of intervals) {
       // get path coordinate system
+      const path_offsets = this.getPathOffsetsPtr(annot.path_id);
+      if (path_offsets === undefined) {
+        // TODO handle path name mismatch; maybe want an exception
+      }
       const path_cs = this.getPathCoordinateSystemPtr(annot.path_id);
 
       // get subpath range
+      // const step_range = path_offsets!.bp_to_step_range(BigInt(annot.start), BigInt(annot.end));
       const step_range = path_cs.bp_to_step_range(BigInt(annot.start), BigInt(annot.end));
 
       // get subpath steps
@@ -291,6 +324,13 @@ export class WaragraphWorkerCtx {
 
       const first_range = global_cs!.segment_range(first_step >> 1);
       const last_range = global_cs!.segment_range(last_step >> 1);
+
+      // console.warn(step_range);
+      if (subpath.length === 0) {
+        // TODO handle this off-by-one error
+        // console.warn(annot);
+        continue;
+      }
 
       const blocks_1d_bp_arr = wasm_bindgen.path_slice_to_global_adj_partitions(subpath).ranges_as_u32_array();
 
