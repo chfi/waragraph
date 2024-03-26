@@ -453,6 +453,7 @@ async fn main() -> anyhow::Result<()> {
         .manage(cs_cache)
         .manage(datasets)
         .manage(graph_layout)
+        .manage(paths::PathOffsetCache::default())
         // TODO: should be configurable, & only do this in debug mode
         .mount(
             "/",

@@ -30,21 +30,31 @@ impl PathOffsets {
         }
     }
 
+    pub fn bp_to_step_range(
+        &self,
+        range: std::ops::Range<u64>,
+    ) -> Option<std::ops::Range<u32>> {
+        let start = self.step_at(range.start)?;
+        // TODO might need some edge case handling
+        let end = self.step_at(range.end)?;
+        Some(start..end)
+    }
+
     pub fn step_and_local_offset_at(
         &self,
-        position: u32,
-    ) -> Option<(u32, u32)> {
+        position: u64,
+    ) -> Option<(u32, u64)> {
         let step_ix = self.step_at(position)?;
-        let step_offset = self.step_offsets.get(step_ix as usize)?;
+        let step_offset = self.step_offsets.get(step_ix as usize)? as u64;
         let local_offset = position - step_offset;
         Some((step_ix, local_offset))
     }
 
-    pub fn step_at(&self, position: u32) -> Option<u32> {
+    pub fn step_at(&self, position: u64) -> Option<u32> {
         let ix = self
             .step_offsets
             .values()
-            .partition_point(|&offset| offset < position);
+            .partition_point(|&offset| offset < position as u32);
         if ix < self.step_offsets.len() - 1 {
             Some(ix as u32)
         } else {

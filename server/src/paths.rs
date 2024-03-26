@@ -1,8 +1,36 @@
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use rocket::serde::{json::Json, Serialize};
+use rocket::tokio::sync::RwLock;
 use rocket::{get, post, State};
 use waragraph_core::arrow_graph::{ArrowGFA, PathIndex};
+use waragraph_core::coordinate_system::PathOffsets;
+
+#[derive(Default)]
+pub struct PathOffsetCache {
+    pub paths: RwLock<HashMap<u32, Arc<PathOffsets>>>,
+}
+
+impl PathOffsetCache {
+    pub async fn get_path_offsets(
+        &self,
+        graph: &ArrowGFA,
+        path_id: u32,
+    ) -> Arc<PathOffsets> {
+        if let Some(offsets) = self.paths.read().await.get(&path_id) {
+            return offsets.clone();
+        }
+
+        let path_offsets =
+            Arc::new(PathOffsets::from_arrow_gfa_path(graph, path_id));
+        self.paths
+            .write()
+            .await
+            .insert(path_id, path_offsets.clone());
+        path_offsets
+    }
+}
 
 #[derive(Serialize)]
 #[serde(crate = "rocket::serde")]

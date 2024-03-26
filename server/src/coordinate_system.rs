@@ -13,6 +13,8 @@ use waragraph_core::arrow_graph::ArrowGFA;
 use waragraph_core::coordinate_system::CoordSys;
 use waragraph_core::graph_layout::GraphLayout;
 
+use crate::paths::PathOffsetCache;
+
 #[get("/global/segment_at_offset?<pos_bp>")]
 pub async fn global_segment_at_offset(
     coord_sys_cache: &State<crate::CoordSysCache>,
@@ -211,6 +213,7 @@ pub async fn prepare_annotation_records(
     graph: &State<Arc<ArrowGFA>>,
     coord_sys_cache: &State<crate::CoordSysCache>,
     graph_layout: &State<GraphLayout>,
+    path_offsets: &State<PathOffsetCache>,
     records: Json<Vec<AnnotationRange>>,
     // coord_sys: String,
 ) -> Option<Json<Vec<PreparedAnnotation>>> {
@@ -228,16 +231,33 @@ pub async fn prepare_annotation_records(
             .get_or_compute_for_path(graph, record.path_id)
             .await?;
 
-        // TODO should probably not fail the entire request here
-        let step_range =
-            path_cs.bp_to_step_range(record.start_bp, record.end_bp);
-        let first_step = path_steps.get(*step_range.start())?;
-        let last_step = path_steps.get(*step_range.end())?;
+        let step_offsets =
+            path_offsets.get_path_offsets(graph, record.path_id).await;
 
-        let path_steps = path_steps.clone().sliced(
-            *step_range.start(),
-            *step_range.end() - *step_range.start() + 1,
-        );
+        let Some(step_range) =
+            step_offsets.bp_to_step_range(record.start_bp..record.end_bp)
+        else {
+            log::warn!(
+                "Unable to map range {}..{}bp to steps in path {}",
+                record.start_bp,
+                record.end_bp,
+                record.path_id
+            );
+            continue;
+        };
+
+        let path_start = step_range.start as usize;
+        let path_end = step_range.end as usize;
+
+        // let step_range =
+        //     path_cs.bp_to_step_range(record.start_bp, record.end_bp);
+        // TODO should probably not fail the entire request here
+        let first_step = path_steps.get(path_start)?;
+        let last_step = path_steps.get(path_end)?;
+
+        let path_steps = path_steps
+            .clone()
+            .sliced(path_start, path_end - path_start + 1);
 
         let path_steps = path_steps.values().to_vec();
 
